@@ -1,0 +1,24 @@
+# EITC disqualified (investment) income limit - taxsim_2022_10_21.f:27751-27765.
+# Above this, the credit is reduced dollar-for-dollar (not a hard cliff).
+# Confirmed empirically for 2022: exactly $10,000 does not trigger it,
+# $10,001 reduces the credit by $1. This is a real, PERMANENT law change
+# (ARPA 2021), not just a temporary bump - 2019/2020's limits ($3,600/
+# $3,650, confirmed the same way via the source's own `dy` array,
+# taxsim_2022_10_21.f:27643-27646) are genuinely different, not an
+# inflation-indexed variant of the same rule. The jump to $10,000 took
+# effect in 2021 itself, not just 2022.
+dylim:
+  2009: 3100
+  2010: 3100
+  2011: 3150
+  2012: 3200
+  2013: 3300
+  2014: 3350
+  2015: 3400
+  2016: 3400
+  2017: 3450
+  2018: 3500
+  2019: 3600
+  2020: 3650
+  2021: 10000
+  2022: 10000

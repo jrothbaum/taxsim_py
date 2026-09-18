@@ -1,0 +1,81 @@
+# Social Security (OASDI) + Medicare (HI) payroll tax, wages-only scope.
+# Rates are combined employer+employee (TAXSIM's convention: it reports the
+# full economic burden, not just the employee's withheld half - see
+# taxsim_2022_10_21.f:22166-22457, function `sstax`).
+oasdi_wage_base:  # smax: OASDI taxable wage cap, no cap on the HI (Medicare) side since 1994
+  2009: 106800
+  2010: 106800
+  2011: 106800
+  2012: 110100
+  2013: 113700
+  2014: 117000
+  2015: 118500
+  2016: 118500
+  2017: 127200
+  2018: 128400
+  2019: 132900
+  2020: 137700
+  2021: 142800
+  2022: 147000
+# owrate = 2*(trate-hrate). Flat at 12.4% since 1990 EXCEPT the 2011-2012
+# "payroll tax holiday" (Tax Relief Act of 2010): `trate`'s own data array
+# has an explicit two-year carve-out (taxsim_2022_10_21.f:22198-22207,
+# "...8*.07650, 2*.06650, 11*.07650..." - 2011-2012 sit in the 2-year
+# 0.0665 segment), cutting the wage-side combined rate to 10.4% those two
+# years only. Confirmed via a live oracle probe (wages=$100,000, single:
+# fica=$13,300 for 2011/2012 vs $15,300 for 2010/2013 - exactly the
+# implied 13.3%/15.3% combined OASDI+HI rate).
+oasdi_rate_combined:
+  2009: 0.124
+  2011: 0.104
+  2013: 0.124
+  2022: 0.124
+hi_rate_combined:  # hwrate = 2*hrate - unaffected by the 2011-12 holiday
+  2009: 0.029
+  2022: 0.029
+
+# Additional Medicare Tax: 0.9%, employee-only, no employer match, on wages
+# above a household (not per-spouse) threshold. Confirmed against
+# taxsim_2022_10_21.f:22367-22383. Statutorily fixed (not inflation-indexed)
+# since its 2013 inception - didn't exist before, so rate=0 (not omitted:
+# calculators/payroll.py fetches this unconditionally) for 2011-2012.
+additional_medicare_rate:
+  2009: 0.0
+  2013: 0.009
+  2022: 0.009
+additional_medicare_threshold:
+  single:
+    2009: 200000
+    2022: 200000
+  head_of_household:
+    2009: 200000
+    2022: 200000
+  married_separate:
+    2009: 200000
+    2022: 200000
+  married_joint:
+    2009: 250000
+    2022: 250000
+
+# Self-employment tax (Schedule SE). `obrate`/`hbrate` in the source are the
+# SE-specific OASDI/HI rates; they happen to equal oasdi_rate_combined/
+# hi_rate_combined for 2022 (both derive from the same statutory 15.3%/2.9%
+# split), but are tracked as their own parameters rather than assumed equal,
+# since nothing guarantees that holds in other years - confirmed for real
+# in 2011-2012: SE's own rate only dropped to 14.3% those years (`strate`'s
+# data array, taxsim_2022_10_21.f:22225-22230, ".143" for exactly those two
+# years), NOT the 13.3% a naive "same 2-point cut as wages" guess would give
+# - verified via a live oracle probe (psemp=$100,000, single: tfica=
+# $13,206.05 for 2011/2012 = 14.3% of the $92,350 net-earnings base, vs
+# $14,129.55 = 15.3% for 2010/2013).
+se_net_earnings_factor:  # the 92.35% statutory adjustment to gross SE income, fixed since 1990
+  2009: 0.9235
+  2022: 0.9235
+se_oasdi_rate:
+  2009: 0.124
+  2011: 0.114
+  2013: 0.124
+  2022: 0.124
+se_hi_rate:
+  2009: 0.029
+  2022: 0.029

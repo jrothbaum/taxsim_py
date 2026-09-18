@@ -1,0 +1,42 @@
+# Itemized deductions (regular tax): SALT + mortgage interest + cash
+# charitable contributions - no non-cash/appreciated-property giving,
+# medical, casualty, or misc (2%-of-AGI-floor) deductions.
+# Verified against taxsim_2022_10_21.f:24607-24631 (SALT cap) and
+# :24703-24730 (itemize-vs-standard decision).
+#
+# SALT was uncapped before TCJA - `salt_cap` has no 2017-or-earlier entry
+# on purpose; calculators/federal.py skips the cap entirely for year<2018
+# rather than encoding "uncapped" as some large number.
+salt_cap:
+  2018: 10000
+  2019: 10000
+  2022: 10000
+
+# Pease limitation (pre-TCJA, reinstated by ATRA 2013, suspended 2018-2025):
+# itemized deductions are reduced by the LESSER of 3% of AGI over a
+# threshold or 80% of the itemized total (excluding investment interest -
+# not in this model's scope, so not netted out here).
+# taxsim_2022_10_21.f:24637-24660. Fully repealed 2010-2012 (`dlim1`/
+# `dlim2` forced to 0 unconditionally, taxsim_2022_10_21.f:24662-24665) -
+# calculators/federal.py special-cases that range directly (itemized_
+# deduction left unreduced, this threshold/rate never fetched for those
+# years), so no 2010-2012 entry is needed here. 2009 (like 2008) only
+# applies 1/3 of the reduction this formula gives (calculators/federal.py's
+# own year==2009 special case) - the tail of the same gradual phase-out
+# that preceded the 2010-2012 repeal.
+#
+# Pre-2013, this threshold (`phas(lawyr)`, taxsim_2022_10_21.f:24187-24190)
+# is a SINGLE flat number shared by single/joint/HoH alike (not the
+# per-status table 2013+ uses, and not the same table as the Personal
+# Exemption Phaseout's own pre-2013 thresholds in personal_exemption.yaml,
+# despite those two provisions sharing their thresholds from 2013 on) -
+# only married_separate differs, getting it halved via `sepret`.
+pease_limitation_threshold:
+  single: {2009: 166800, 2013: 250000, 2014: 254200, 2015: 258250, 2016: 259400, 2017: 261500}
+  head_of_household: {2009: 166800, 2013: 275000, 2014: 279650, 2015: 284050, 2016: 285350, 2017: 287650}
+  married_separate: {2009: 83400, 2013: 150000, 2014: 152525, 2015: 154950, 2016: 155650, 2017: 156900}
+  married_joint: {2009: 166800, 2013: 300000, 2014: 305050, 2015: 309900, 2016: 311300, 2017: 313800}
+pease_reduction_rate:  # applied to AGI over the threshold
+  2009: 0.03
+pease_cap_rate:  # applied to the itemized total itself, as an upper bound on the reduction
+  2009: 0.80

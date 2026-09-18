@@ -1,0 +1,9 @@
+[project]
+name = "taxsim-py"
+version = "0.1.0"
+description = "Add your description here"
+requires-python = ">=3.13"
+dependencies = [
+    "polars>=1.44.2",
+    "pyyaml>=6.0.3",
+]

@@ -1,0 +1,223 @@
+# Alternative Minimum Tax, wages + itemized-deductions scope (no ISO
+# exercises, private activity bond interest, or other preference items -
+# not in the model yet). Verified against taxsim_2022_10_21.f:25068-25475.
+exemption:
+  single:
+    2009: 46700
+    2010: 47450
+    2011: 48450
+    2012: 50600
+    2013: 51900
+    2014: 52800
+    2015: 53600
+    2016: 53900
+    2017: 54300
+    2018: 70300
+    2019: 71700
+    2020: 72900
+    2021: 73600
+    2022: 75900
+  head_of_household:
+    2009: 46700
+    2010: 47450
+    2011: 48450
+    2012: 50600
+    2013: 51900
+    2014: 52800
+    2015: 53600
+    2016: 53900
+    2017: 54300
+    2018: 70300
+    2019: 71700
+    2020: 72900
+    2021: 73600
+    2022: 75900
+  married_separate:
+    2009: 35475
+    2010: 36225
+    2011: 37225
+    2012: 39375
+    2013: 40400
+    2014: 41050
+    2015: 41700
+    2016: 41900
+    2017: 42250
+    2018: 54700
+    2019: 55850
+    2020: 56700
+    2021: 57300
+    2022: 59050
+  married_joint:
+    2009: 70950
+    2010: 72450
+    2011: 74450
+    2012: 78750
+    2013: 80800
+    2014: 82100
+    2015: 83400
+    2016: 83800
+    2017: 84500
+    2018: 109400
+    2019: 111700
+    2020: 113400
+    2021: 114600
+    2022: 118100
+
+exemption_phaseout_threshold:
+  single:
+    2009: 112500  # static default, unindexed before ATRA 2013 - taxsim_2022_10_21.f:25125
+    2013: 115400
+    2014: 117300
+    2015: 119200
+    2016: 119700
+    2017: 120700
+    2018: 500000
+    2019: 510300
+    2020: 518400
+    2021: 523600
+    2022: 539900
+  head_of_household:
+    2009: 112500
+    2013: 115400
+    2014: 117300
+    2015: 119200
+    2016: 119700
+    2017: 120700
+    2018: 500000
+    2019: 510300
+    2020: 518400
+    2021: 523600
+    2022: 539900
+  married_separate:
+    2009: 75000
+    2013: 76950
+    2014: 78250
+    2015: 79450
+    2016: 79850
+    2017: 80450
+    2018: 500000
+    2019: 510300
+    2020: 518400
+    2021: 523600
+    2022: 539900
+  married_joint:
+    2009: 150000
+    2013: 153900
+    2014: 156500
+    2015: 158900
+    2016: 159700
+    2017: 160900
+    2018: 1000000
+    2019: 1020600
+    2020: 1036800
+    2021: 1047200
+    2022: 1079800
+
+exemption_phaseout_rate:
+  2009: 0.25
+  2022: 0.25
+
+rate_breakpoint:  # almspf: below this AMT base, 26%; above, 28% - static default (unindexed) before ATRA 2013
+  2009: 175000
+  2013: 179500
+  2014: 182500
+  2015: 185400
+  2016: 186300
+  2017: 187800
+  2018: 191100
+  2019: 194800
+  2020: 197900
+  2021: 199900
+  2022: 206100
+
+rate_below_breakpoint:
+  2009: 0.26
+  2022: 0.26
+
+rate_above_breakpoint:
+  2009: 0.28
+  2022: 0.28
+
+# SALT itemized-deduction cap - shared with parameters/national/itemized.yaml,
+# repeated here for AMT's own SALT-addback computation.
+salt_cap:
+  2018: 10000
+  2019: 10000
+  2022: 10000
+
+# AMT's own 15%/20% capital-gains breakpoint (`topbrk`, Form 6251 Part
+# III) - a separate copy in the source (taxsim_2022_10_21.f:25397-25453)
+# from the regular-tax one in capital_gains.yaml. Identical for
+# head_of_household/married_joint/married_separate for every year checked
+# so far, but $100 higher for single specifically in 2022 ($459,750 vs
+# $459,650). Genuinely used (not inert, despite an earlier investigation
+# concluding otherwise): it marks where AMT's ltg treatment steps from a
+# flat 15% up to an effective ~20% (implemented as 15% plus a further 5%
+# surtax on the slice above this breakpoint - see engine/amt.py's
+# docstring). Only shows up once ltg is large enough to reach that top
+# slice, which is rare enough that it took a specific high-income,
+# multi-source-of-preferential-income 2017 test case to expose it.
+#
+# Before 2013, this whole mechanism doesn't exist: the source's `alm20`/
+# `addamt` block (and, in the regular-tax worksheet, its `addtax` twin -
+# see capital_gains.yaml) is gated behind `lawyr.ge.2013` outright - there
+# was no 20% capital-gains rate in law at all before ATRA. A large
+# sentinel ceiling (never reached) reproduces that with no code branch:
+# `top_slice` in engine/amt.py's formula is always 0 below it.
+cg_rate_15_ceiling:
+  single:
+    2009: 1.0e+15
+    2011: 1.0e+15
+    2012: 1.0e+15
+    2013: 400000
+    2014: 406750
+    2015: 413200
+    2016: 415050
+    2017: 418400
+    2018: 425800
+    2019: 434550
+    2020: 441450
+    2021: 445850
+    2022: 459750
+  head_of_household:
+    2009: 1.0e+15
+    2011: 1.0e+15
+    2012: 1.0e+15
+    2013: 425000
+    2014: 432200
+    2015: 439000
+    2016: 441000
+    2017: 444550
+    2018: 452400
+    2019: 461700
+    2020: 469050
+    2021: 473750
+    2022: 488500
+  married_separate:
+    2009: 1.0e+15
+    2011: 1.0e+15
+    2012: 1.0e+15
+    2013: 225000
+    2014: 228800
+    2015: 232425
+    2016: 233475
+    2017: 235350
+    2018: 239500
+    2019: 244425
+    2020: 248300
+    2021: 250800
+    2022: 258600
+  married_joint:
+    2009: 1.0e+15
+    2011: 1.0e+15
+    2012: 1.0e+15
+    2013: 450000
+    2014: 457600
+    2015: 464850
+    2016: 466950
+    2017: 470700
+    2018: 479000
+    2019: 488850
+    2020: 496600
+    2021: 501600
+    2022: 517200

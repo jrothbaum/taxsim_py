@@ -1,0 +1,68 @@
+# Optional state/local SALES tax deduction (IRS alternative to deducting
+# state income tax - relevant for TX since it has no income tax, so this is
+# an itemizer's only SALT-adjacent deduction here). Log-linear regression:
+#   deduction = exp(a + b*ln(household_resources) + c*ln(family_size))
+# The original Fortran (taxsim_2022_10_21.f:29179-29414, function `saletx`)
+# hardcodes TX's own (x1,x2,x3) coefficients PER YEAR for 2004 through 2015
+# (LASTYR) directly - each of those years genuinely has its own table row,
+# confirmed here: 2013 has distinct b/c from every later year (0.5834/0.1602
+# vs 0.5844/0.1605), and 2014/2015 happen to share an identical row. For any
+# lawyr past LASTYR, the source instead deflates household_resources to 2015
+# dollars with the CPI table `xndxa`, evaluates the frozen 2015 formula, and
+# reinflates the result by the same factor - which algebraically collapses
+# to a single log-linear form in the ORIGINAL (undeflated) household
+# resources, with b/c staying exactly the 2015 table's own x2/x3 (matching
+# 2014's, since 2014=2015 here) and only the intercept `a` shifting, by
+# (1-b)*ln(xndxa(year)/xndxa(2015)). state: tx.
+#
+# a(2009)-a(2015) (and their own b/c) were fit directly from the source's
+# own per-year table entries (compiling a standalone driver against
+# `saletx` and probing it at two household_resources/family_size points,
+# same technique as a(2022)). 2009-2012 each have their own distinct b/c -
+# genuinely different survey years, not variations on a theme. a(2016)
+# onward were derived from a(2022) via the closed-form CPI shift above
+# (not re-fit from scratch, since those years share 2015's b/c), then all
+# verified against a live taxsim2022.exe idtl=2 probe at wages=$90,000,
+# single:
+#   2009: implied $937.84, formula $937.8354
+#   2010: implied $837.40, formula $837.3996
+#   2011: implied $867.33, formula $867.3280
+#   2012: implied $909.91, formula $909.9099
+#   2013: implied $881.98, formula $881.9837
+#   2014: implied $882.34, formula $882.3431
+#   2015: implied $882.34, formula $882.3431 (same row as 2014)
+#   2016: implied $895.35, formula $895.3538
+#   2017: implied $908.77, formula $908.7681
+#   2018: implied $918.14, formula $918.1421
+#   2019: implied $927.61, formula $927.6128
+#   2020: implied $937.18, formula $937.1812
+#   2021: implied $946.85, formula $946.8483
+state: tx
+a:
+  2009: 0.096000000834
+  2010: 0.998000025749
+  2011: 0.708000004292
+  2012: 1.105000019073
+  2013: 0.127000004053
+  2014: 0.115999996662
+  2016: 0.130638025097
+  2017: 0.14550902129289822
+  2018: 0.15577127113019965
+  2019: 0.16603352096750107
+  2020: 0.1762957602071003
+  2021: 0.1865579976373354
+  2022: 0.196820239405
+b:
+  2009: 0.591499984264
+  2010: 0.502499997616
+  2011: 0.531000018120
+  2012: 0.500400006771
+  2013: 0.583400011063
+  2014: 0.584399998188
+c:
+  2009: 0.122800000012
+  2010: 0.237599998713
+  2011: 0.153999999166
+  2012: 0.123499996960
+  2013: 0.160199999809
+  2014: 0.160500004888

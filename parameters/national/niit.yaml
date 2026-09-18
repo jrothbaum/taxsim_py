@@ -1,0 +1,37 @@
+# Net Investment Income Tax (NIIT), 3.8% on the lesser of net investment
+# income (interest + dividends + all capital gains) or AGI over a
+# threshold. Confirmed against taxsim_2022_10_21.f:25999-26026 (local
+# variable name in that subroutine's version of the shared common block is
+# `dicare`, not a name containing "niit" - found by counting position 173
+# in the named common-block list, not by searching for "niit" text).
+# Statutorily fixed (not inflation-indexed) since 2013 inception - didn't
+# exist before, so rate=0 (not omitted: calculators/federal.py fetches
+# this unconditionally) for any earlier year already built.
+rate:
+  2009: 0.0
+  2013: 0.038
+  2022: 0.038
+threshold:
+  single:
+    2009: 200000
+    2022: 200000
+  head_of_household:
+    2009: 200000
+    2022: 200000
+  married_separate:
+    2009: 125000
+    2022: 125000
+  married_joint:
+    2009: 250000
+    2022: 250000
+# The state/local tax deduction attributable to investment income is
+# subtracted from net investment income before applying the rate, capped
+# at $10,000 per return (2018+) and pro-rated by the investment-income
+# share of AGI. Uncapped pre-2018 (taxsim_2022_10_21.f:26010-26018,
+# `if(lawyr.le.2017) expnse=data(50)*min(1,dinc/agi)` - no cap term at all)
+# - `expense_cap` has no 2017-or-earlier entry on purpose; the cap is
+# skipped entirely in calculators/federal.py for year<2018.
+expense_cap:
+  2018: 10000
+  2019: 10000
+  2022: 10000

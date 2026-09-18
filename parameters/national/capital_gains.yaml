@@ -1,0 +1,151 @@
+# Qualified dividends + net long-term capital gains preferential rates
+# (the "Qualified Dividends and Capital Gain Tax Worksheet"), 0%/15%/20%.
+# Verified against taxsim_2022_10_21.f:26866-27440 (subroutine `tax01`) -
+# the actual 2022 breakpoints match known published figures exactly for
+# the 0/15% line ($41,675/$55,800/$83,350) and for the HoH/joint/separate
+# 15/20% lines ($488,500/$517,200/$258,600). The SINGLE-filer 15/20% line
+# is $459,650 here (taxsim_2022_10_21.f:27391) - not $459,750, which is
+# what AMT's *own*, separately-coded copy of this same breakpoint uses
+# (taxsim_2022_10_21.f:25410; see amt.yaml's cg_rate_15_ceiling). Every
+# other year 2013-2021 matches exactly between the two copies - this genuinely
+# looks like a $100 typo somewhere in the original source, not an
+# intentional dual breakpoint, but it's real and deterministic (confirmed
+# by a live test mismatch), so both values are replicated as found rather
+# than "corrected" to agree with each other.
+#
+# Scope: dividends are treated as fully qualified (matches the source's own
+# default when no separate "non-qualified dividends" split is given -
+# taxsim_2022_10_21.f:24307-24315) and short-/long-term capital gains are
+# both assumed non-negative (the source's loss-netting rules for negative
+# stcg/ltcg - taxsim_2022_10_21.f:24302-24306 - are not implemented; a
+# capital loss should be entered as 0, not a negative value, until that's
+# built). Other-property gains (a further, separately-deferred input) are
+# not included either.
+rate_0_ceiling:  # brac15: the 0%/15% breakpoint
+  single:
+    2009: 33950
+    2010: 34000
+    2011: 34500
+    2012: 35350
+    2013: 36250
+    2014: 36900
+    2015: 37450
+    2016: 37650
+    2017: 37950
+    2018: 38600
+    2019: 39375
+    2020: 40000
+    2021: 40400
+    2022: 41675
+  head_of_household:
+    2009: 45500
+    2010: 45550
+    2011: 46250
+    2012: 47350
+    2013: 48600
+    2014: 49400
+    2015: 50200
+    2016: 50400
+    2017: 50800
+    2018: 51700
+    2019: 52750
+    2020: 53600
+    2021: 54100
+    2022: 55800
+  married_separate:
+    2009: 33950
+    2010: 34000
+    2011: 34500
+    2012: 35350
+    2013: 36250
+    2014: 36900
+    2015: 37450
+    2016: 37650
+    2017: 37950
+    2018: 38600
+    2019: 39375
+    2020: 40000
+    2021: 40400
+    2022: 41675
+  married_joint:
+    2009: 67900
+    2010: 68000
+    2011: 69000
+    2012: 70700
+    2013: 72500
+    2014: 73800
+    2015: 74900
+    2016: 75300
+    2017: 75900
+    2018: 77200
+    2019: 78750
+    2020: 80000
+    2021: 80800
+    2022: 83350
+rate_15_ceiling:  # topbrk: the 15%/20% breakpoint
+  # Before 2013, there was no 20% capital-gains rate in law at all - the
+  # source's `addtax` (regular tax's 20%-tier add-on) is gated behind
+  # `lawyr.ge.2013` outright (taxsim_2022_10_21.f:25399). A large sentinel
+  # (never reached) reproduces that with no extra code branch.
+  single:
+    2009: 1.0e+15
+    2011: 1.0e+15
+    2012: 1.0e+15
+    2013: 400000
+    2014: 406750
+    2015: 413200
+    2016: 415050
+    2017: 418400
+    2018: 425800
+    2019: 434550
+    2020: 441450
+    2021: 445850
+    2022: 459650
+  head_of_household:
+    2009: 1.0e+15
+    2011: 1.0e+15
+    2012: 1.0e+15
+    2013: 425000
+    2014: 432200
+    2015: 439000
+    2016: 441000
+    2017: 444550
+    2018: 452400
+    2019: 461700
+    2020: 469050
+    2021: 473750
+    2022: 488500
+  married_separate:
+    2009: 1.0e+15
+    2011: 1.0e+15
+    2012: 1.0e+15
+    2013: 225000
+    2014: 228800
+    2015: 232425
+    2016: 233475
+    2017: 235350
+    2018: 239500
+    2019: 244425
+    2020: 248300
+    2021: 250800
+    2022: 258600
+  married_joint:
+    2009: 1.0e+15
+    2011: 1.0e+15
+    2012: 1.0e+15
+    2013: 450000
+    2014: 457600
+    2015: 464850
+    2016: 466950
+    2017: 470700
+    2018: 479000
+    2019: 488850
+    2020: 496600
+    2021: 501600
+    2022: 517200
+rate_15:
+  2009: 0.15
+  2022: 0.15
+rate_20:  # inert before 2013 given the sentinel rate_15_ceiling above
+  2009: 0.20
+  2022: 0.20

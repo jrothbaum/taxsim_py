@@ -1,0 +1,159 @@
+# Credit for Other Dependents (ODC): $500 nonrefundable credit per dependent
+# not eligible for the Child Tax Credit, phased out above an AGI threshold.
+# Verified directly against taxsim_2022_10_21.f:25619-25668.
+other_dependent_credit:
+  amount:
+    2018: 500
+    2019: 500
+    2022: 500
+  phaseout_threshold:
+    single:
+      2018: 200000
+      2019: 200000
+      2022: 200000
+    head_of_household:
+      2018: 200000
+      2019: 200000
+      2022: 200000
+    married_separate:
+      2018: 200000
+      2019: 200000
+      2022: 200000
+    married_joint:
+      2018: 400000
+      2019: 400000
+      2022: 400000
+  phaseout_rate_per_1000:
+    2018: 50
+    2019: 50
+    2022: 50
+
+# Child Tax Credit + Additional (refundable) CTC, for 0-2 CTC-qualifying
+# children (dep17). 3+ children uses a different alternate ACTC formula
+# (an SS-tax-based floor) not implemented here - see calculators/federal.py.
+# Verified against taxsim_2022_10_21.f:25619-25668 (nonrefundable base,
+# two-tier phaseout) and :25918-25940 (refundable ACTC top-up).
+child_tax_credit:
+  young_child_amount:  # dep6: qualifying children under 6
+    2021: 3600
+    2022: 3600
+  older_child_amount:  # dep17 - dep6: qualifying children 6-16
+    2021: 3000
+    2022: 3000
+  base_amount_offset:  # ccrmax - base_amount_offset*ideps = "enhanced" amount above the $2000 base
+    2021: 2000
+    2022: 2000
+  enhanced_cap:  # crfile in the source: caps the enhanced amount before the low-income phaseout
+    single: {2021: 6250, 2022: 6250}
+    head_of_household: {2021: 4375, 2022: 4375}
+    married_separate: {2021: 6250, 2022: 6250}
+    married_joint: {2021: 12500, 2022: 12500}
+  low_income_phaseout_threshold:  # thresh: phases the enhanced amount back toward the $2000 base
+    single: {2021: 75000, 2022: 75000}
+    head_of_household: {2021: 112500, 2022: 112500}
+    married_separate: {2021: 75000, 2022: 75000}
+    married_joint: {2021: 150000, 2022: 150000}
+  low_income_phaseout_rate:
+    2021: 0.05
+    2022: 0.05
+  # For lawyr<=2020 (pre-ARPA), the nonrefundable base is a flat per-child
+  # amount with no young/old-child distinction and no low-income phaseout
+  # mechanism at all: precrd = flat_amount_pre2021(year)*ideps + odcred.
+  # Verified against taxsim_2022_10_21.f:25619-25637.
+  flat_amount_pre2021:  # chmax(lawyr): $1,000/child pre-TCJA, $2,000 2018+
+    2009: 1000
+    2018: 2000
+    2019: 2000
+  actc_earned_income_floor:  # earlim: $3,000 pre-2018 (ARRA, made permanent by PATH), $2,500 2018+ (TCJA)
+    2009: 3000
+    2018: 2500
+    2019: 2500
+    2022: 2500
+  actc_rate:  # eapct
+    2009: 0.15
+    2022: 0.15
+  # refch: 1500 only for lawyr.eq.2022, else 1400 - but this per-child
+  # refundable cap doesn't exist at all pre-2018 (taxsim_2022_10_21.f:
+  # 25924-25928: the lawyr.le.2017 branch is just
+  # chcr1=min(precrd-chcred,tenpct), no refch*ideps term whatsoever) - not
+  # fetched for year<2018 in calculators/federal.py, so no 2017 entry here.
+  actc_max_refundable_per_child:
+    2018: 1400
+    2019: 1400
+    2022: 1500
+  # Pre-2018: no Credit for Other Dependents at all (TCJA introduced it) -
+  # CTC alone phases out above a FLAT, never-inflation-indexed threshold
+  # that was unchanged 2001-2017 (the `cphas` array,
+  # taxsim_2022_10_21.f:29040 - NOT the $200k/$400k TCJA-era ODC/CTC
+  # combined threshold in other_dependent_credit above). Same 5%-per-$1000
+  # reduction rate as the TCJA-era phaseout - taxsim_2022_10_21.f:24696-24710.
+  pre2018_phaseout_threshold:
+    single: {2009: 75000}
+    head_of_household: {2009: 75000}
+    married_separate: {2009: 55000}
+    married_joint: {2009: 110000}
+  pre2018_phaseout_rate_per_1000:
+    2009: 50
+
+# Child and Dependent Care Credit, nonrefundable (confirmed empirically:
+# taxsim2022.exe caps it exactly at regular tax - the source's own "2021
+# chcr is refundable" comment does not carry over to 2022 despite the
+# 2021-style expanded rate/expense-cap schedule below applying to 2022 too,
+# per taxsim_2022_10_21.f:25486-25525).
+child_care_credit:
+  max_qualifying_persons:  # ncccr cap - unchanged across all years
+    2009: 2
+    2022: 2
+  max_expense_per_person:
+    2021: 8000
+    2022: 8000
+  # Rate is a step-down formula, not a smooth interpolation - it really is
+  # discontinuous at the two upper thresholds exactly as coded (e.g. at
+  # AGI=183000 the phase-down formula gives 21%, but AGI=183000.01 gets a
+  # flat 20% - a small real jump in the source, not a rounding artifact).
+  # rate = top_rate - max(0, (agi - phase_start)/step_amount * step_rate),
+  # floored at floor_rate, for agi <= phase_ceiling; else flat_rate below
+  # the ceiling or 0 above it. See calculators/federal.py for the exact
+  # piecewise structure (taxsim_2022_10_21.f:25519-25530).
+  first_phase_start:
+    2021: 125000
+    2022: 125000
+  first_phase_ceiling:
+    2021: 183000
+    2022: 183000
+  first_phase_step_amount:
+    2021: 2000
+    2022: 2000
+  top_rate:
+    2021: 0.5
+    2022: 0.5
+  mid_rate:
+    2021: 0.2
+    2022: 0.2
+  second_phase_start:
+    2021: 400000
+    2022: 400000
+  second_phase_ceiling:
+    2021: 438000
+    2022: 438000
+  second_phase_step_amount:
+    2021: 2000
+    2022: 2000
+
+  # For lawyr 2003-2020 (pre-2021), the credit uses a completely different
+  # shape: a single continuous step-down from a 35% ceiling to a 20% floor
+  # (1 percentage point per $2000 of AGI above $15,000), which the floor
+  # holds forever - it never phases down further or reaches 0%. There is
+  # no $400k-income second phase-down at all in this era.
+  # rate = max(floor_rate, top_rate - max(0, (agi-phase_start)/step_amount)*0.01)
+  # Verified against taxsim_2022_10_21.f:25488-25525.
+  max_expense_per_person_pre2021:
+    2009: 3000
+  pre2021_rate_top:
+    2009: 0.35
+  pre2021_rate_floor:
+    2009: 0.20
+  pre2021_phase_start:
+    2009: 15000
+  pre2021_step_amount:
+    2009: 2000
