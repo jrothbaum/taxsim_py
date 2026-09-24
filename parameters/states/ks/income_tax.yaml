@@ -1,0 +1,394 @@
+# Kansas individual income tax (`kstax`, taxsim_2024_09_21.f:6507-6941,
+# state id 17). See calculators/states/ks.py for the full mechanism.
+#
+# Confirmed inert given this project's input schema (not silent gaps):
+# elderly/blind (`data(9)`/`data(10)`, unpopulated page/sage) - makes the
+# ENTIRE elderly/blind standard-deduction addback, the "Kansas Property
+# Tax Relief Claim for Low Income Seniors" homestead branch, and the
+# pre-1986 food-sales-tax-refund formula (which depends SOLELY on
+# elderly/blind count) all permanently inert; rentpaid (`data(160)`, not
+# in this project's own INPUT_COLUMNS, same gap already documented for
+# Indiana/Hawaii) - drops out of the homestead-refund `pr1`/`ptax`
+# formulas entirely; medical expenses (`data(47)/(48)/(49)`), casualty
+# losses (`data(61)`), the "dependent filing own return" childcare
+# addback (`data(34)`), the "dependent of another return" flag
+# (`data(105)`), and the solar/energy credit (`data(38)`) - none ever
+# assigned by the input reader. `comnew(8)`, `comnew(20)`, `comnew(23)`,
+# and `comnew(25)` are all live-probe-confirmed $0.
+#
+# The 1989-1991 alternative "federal-tax-subtracted" bracket computation
+# (`ftabs`/`ftabm`, `taxy=taxinc-fedtax`) is REAL, DEAD CODE in the
+# source itself - its own `if(law.ge.1989.and.law.le.1991)` branch can
+# never fire, since the two `elseif` branches immediately above it
+# already catch law 1988-1989 and law 1990-1991 respectively, leaving no
+# year for this branch to ever reach. Confirmed by control-flow reading
+# alone, not by probing - not implemented here, matching the oracle's own
+# actual (unreachable) behavior.
+#
+# `look()`'s own real "married filing combined" comparison (splitting
+# income between spouses by wages, same shape Iowa's own mechanic uses,
+# taking whichever of the plain halved-joint-bracket or the split
+# computation is cheaper) is wired to fire ONLY for years<=1987 and
+# years>=2013 (the `-data(2)` third argument to `look()`) - 1988-2012
+# instead use entirely separate, explicit single-vs-joint bracket tables
+# with no halving or splitting at all.
+
+# Bracket tables. `look`'s own (upper_bound, rate%) pairs shifted into
+# this project's own (start, rate_fraction) convention.
+brackets_pre1988:  # single table, halved+doubled for married_joint, plus
+  # the real married-filing-combined split comparison
+  - [0, 0.02]
+  - [2000, 0.035]
+  - [3000, 0.04]
+  - [5000, 0.05]
+  - [7000, 0.065]
+  - [10000, 0.075]
+  - [20000, 0.085]
+  - [25000, 0.09]
+brackets_1988_1989_single:
+  - [0, 0.048]
+  - [27500, 0.061]
+brackets_1988_1989_joint:
+  - [0, 0.0405]
+  - [35000, 0.053]
+brackets_1990_1991_single:
+  - [0, 0.045]
+  - [27500, 0.0595]
+brackets_1990_1991_joint:
+  - [0, 0.0365]
+  - [35000, 0.0515]
+brackets_1992_1996_single:
+  - [0, 0.044]
+  - [20000, 0.075]
+  - [30000, 0.0775]
+brackets_1992_2012_joint:
+  - [0, 0.035]
+  - [30000, 0.0625]
+  - [60000, 0.0645]
+brackets_1997_single:
+  - [0, 0.041]
+  - [20000, 0.075]
+  - [30000, 0.0775]
+brackets_1998_2012_single:
+  - [0, 0.035]
+  - [15000, 0.0625]
+  - [30000, 0.0645]
+brackets_2013:  # married-filing-combined split allowed
+  - [0, 0.03]
+  - [15000, 0.049]
+brackets_2014:
+  - [0, 0.027]
+  - [15000, 0.048]
+brackets_2015_2016:
+  - [0, 0.027]
+  - [15000, 0.046]
+brackets_2017:
+  - [0, 0.029]
+  - [15000, 0.049]
+  - [30000, 0.052]
+brackets_2018plus:
+  - [0, 0.031]
+  - [15000, 0.0525]
+  - [30000, 0.057]
+# 2015+ low-taxinc floor: tax is $0 below these thresholds (real, applied
+# AFTER the bracket lookup, not baked into the table itself).
+zero_tax_taxinc_ceiling_single_2015_2017:
+  1960: 5000
+zero_tax_taxinc_ceiling_joint_2015_2017:
+  1960: 12500
+zero_tax_taxinc_ceiling_single_2018plus:
+  1960: 2500
+zero_tax_taxinc_ceiling_joint_2018plus:
+  1960: 5000
+
+# Standard deduction.
+standard_deduction_pct_pre1988:
+  1960: 0.16
+standard_deduction_floor_single_or_hoh_pre1988:
+  1960: 1700
+standard_deduction_cap_single_or_hoh_pre1988:
+  1960: 2400
+standard_deduction_floor_married_pre1988:  # divided by `sep`
+  1960: 2100
+standard_deduction_cap_married_pre1988:  # divided by `sep`
+  1960: 2800
+# `filing(mst,single,joint,hoh,separate)` - real, per-status dollar
+# amounts, three sparse eras.
+standard_deduction_1988_1997:
+  single: 3000
+  married_joint: 5000
+  head_of_household: 4400
+  married_separate: 2500
+standard_deduction_1998_2012:
+  single: 3000
+  married_joint: 6000
+  head_of_household: 4500
+  married_separate: 3000
+standard_deduction_2013_2020:
+  single: 3000
+  married_joint: 7500
+  head_of_household: 5500
+  married_separate: 3750
+standard_deduction_2021plus:
+  single: 3500
+  married_joint: 7800
+  head_of_household: 6000
+  married_separate: 4000
+
+# Federal tax deduction (`fedded`) - real, phased out by era, repealed
+# entirely 1989+.
+fedded_1983_1984_cap_per_filer:
+  1960: 5000
+fedded_1983_1984_upper_cap_per_filer:
+  1960: 10000
+
+# Itemized-deduction phaseout (1991-2009's own `aif` table - NOTE: this
+# is a genuinely different, Kansas-specific table from other states' own
+# aif92 copies, starting 1991 not 1992, with an extra leading 1.0).
+itemized_phaseout_aif_1991_2009:
+  1991: 1.0
+  1992: 1.0525
+  1993: 1.0845
+  1994: 1.118
+  1995: 1.147
+  1996: 1.1795
+  1997: 1.212
+  1998: 1.245
+  1999: 1.266
+  2000: 1.2895
+  2001: 1.3295
+  2002: 1.373
+  2003: 1.395
+  2004: 1.427
+  2005: 1.4595
+  2006: 1.505
+  2007: 1.564
+  2008: 1.5995
+  2009: 1.668
+# 2013-2021 itemized-deduction scaling factor (`aifit`).
+itemized_scaling_2013plus:
+  2013: 0.7
+  2014: 0.65
+  2015: 0.5
+  2019: 0.75
+  2020: 1.0
+
+# Personal exemption amount (`xmp(law)`, real, per-exemption dollar
+# figure - head_of_household gets ONE EXTRA exemption beyond `comnew(68)`
+# itself, matching `if(mst.eq.4.or.mst.eq.7) exemps=exemps+1`).
+personal_exemption_amount:
+  1977: 750
+  1979: 1000
+  1988: 1950
+  1989: 2000
+  1998: 2250
+
+# Pre-1987 itemized-deduction addback: household FICA/self-employment
+# tax paid (`socsec()`), capped, plus a $100/filer dividend/interest
+# exclusion swap (1979-1986, `comnew(25)` live-probe-confirmed $0, so
+# this collapses to $0 too - kept in the YAML for documentation, unused
+# in the code's own formula since the cap alone can't matter when the
+# thing it caps is confirmed zero).
+socsec_rate:
+  1977: 0.0585
+  1978: 0.0605
+  1979: 0.0613
+  1981: 0.0665
+  1982: 0.0670
+  1984: 0.0700
+  1985: 0.0705
+  1986: 0.0715
+  1988: 0.0751
+socsec_wage_ceiling:
+  1977: 16500
+  1978: 17700
+  1979: 22900
+  1980: 25900
+  1981: 29700
+  1982: 32400
+  1983: 35700
+  1984: 37800
+  1985: 39600
+  1986: 42000
+  1987: 43800
+socsec_max_1977_1986:  # `socmax(law)` - cap on the FICA-portion addback
+  1977: 965.25
+  1978: 1070.8
+  1979: 1403.8
+  1980: 1587.7
+  1981: 1975.05
+  1982: 2170.8
+  1983: 2391.9
+  1984: 2532.6
+selfemployment_tax_max_1977_1986:  # `selfmx(law)` - cap on the SE-tax
+  # portion addback
+  1977: 1303.5
+  1978: 1433.7
+  1979: 1854.9
+  1980: 2097.9
+  1981: 2405.7
+  1982: 3029.4
+  1983: 3337.95
+  1984: 4271.4
+
+# Child/Dependent Care Credit - a real percentage of federal's OWN CCC
+# (reused as this project's own `ccc` column, same DC-established
+# `comnew(176)`-approximation technique; `comnew(52)`'s own expense
+# ceiling wasn't binding in any live probe tried and is approximated
+# away here, same spirit as DC's own documented approximation).
+# 2013-2018 has NO branch at all in the source (a real, deliberate
+# Brownback-era suspension, not a gap) - `chcr` stays at its initialized
+# $0 those years.
+child_care_credit_rate_pre1988:
+  1960: NaN  # uses the `child` interpolation table instead, see below
+child_care_credit_rate_1988_2012_and_2020plus:
+  1960: 0.25
+child_care_credit_rate_2019:
+  1960: 0.1875
+child_care_credit_table_pre1988:  # `tablki`-style linear interpolation
+  - [5000, 1.0]
+  - [6000, 0.9]
+  - [7000, 0.8]
+  - [8000, 0.7]
+  - [9000, 0.6]
+  - [10000, 0.5]
+  - [11000, 0.4]
+  - [12000, 0.3]
+  - [13000, 0.2]
+  - [14000, 0.1]
+  - [100000000, 0.0]
+
+# Homestead Property Tax Refund / food credit - a genuinely rich,
+# income-bracket-based program, several distinct eras.
+# `pt(law)` - a real, year-indexed table, INDEPENDENT of the formula-
+# selection if/else boundaries below (which pick which of three
+# rentpaid-dependent formulas applies, all confirmed inert here since
+# rentpaid=0 - `pt(law)` itself changes at 2007, not 2008).
+homestead_pt_cap:
+  1997: 600
+  2007: 700
+homestead_hy_ceiling_by_year:  # `prop(law)`, 1997-2021
+  1997: 25001
+  2004: 26301
+  2005: 27001
+  2006: 28001
+  2007: 29101
+  2008: 29701
+  2009: 31301
+  2010: 30801
+  2011: 31201
+  2012: 32401
+  2013: 32901
+  2014: 33401
+  2015: 34001
+  2016: 34101
+  2017: 34451
+  2018: 35000
+  2019: 35700
+  2020: 36300
+  2021: 36600
+homestead_table_1997_2004:  # `hom98`, `tablki`-style
+  - [3001, 1.0]
+  - [4001, 0.88]
+  - [5001, 0.84]
+  - [6001, 0.8]
+  - [7001, 0.76]
+  - [8001, 0.72]
+  - [9001, 0.68]
+  - [10001, 0.64]
+  - [11001, 0.60]
+  - [12001, 0.56]
+  - [13001, 0.52]
+  - [14001, 0.48]
+  - [15001, 0.44]
+  - [16001, 0.40]
+  - [17001, 0.36]
+  - [18001, 0.32]
+  - [19001, 0.28]
+  - [20001, 0.24]
+  - [21001, 0.20]
+  - [22001, 0.16]
+  - [23001, 0.12]
+  - [24001, 0.08]
+  - [100000000, 0.04]
+homestead_table_2005plus:  # `hom08`, `tablki`-style
+  - [6000, 1.0]
+  - [7000, 0.96]
+  - [8000, 0.92]
+  - [9000, 0.88]
+  - [10000, 0.84]
+  - [11000, 0.80]
+  - [12000, 0.76]
+  - [13000, 0.72]
+  - [14000, 0.68]
+  - [15000, 0.64]
+  - [16000, 0.60]
+  - [17000, 0.55]
+  - [18000, 0.50]
+  - [19000, 0.45]
+  - [20000, 0.40]
+  - [21000, 0.35]
+  - [22000, 0.30]
+  - [23000, 0.25]
+  - [24000, 0.20]
+  - [25000, 0.15]
+  - [26000, 0.10]
+  - [100000000, 0.05]
+homestead_1977_income_ceiling:
+  1960: 8150
+homestead_1978_income_ceiling:
+  1960: 9200
+homestead_1979_1988_income_ceiling:
+  1960: 12800
+homestead_1989_1994_income_ceiling:
+  1960: 15000
+homestead_1995_1996_income_ceiling:
+  1960: 17200
+homestead_cap_1977_1978:
+  1960: 395
+homestead_cap_1979_1988:
+  1960: 395
+homestead_cap_1989_1994:
+  1960: 490
+homestead_cap_1995_1996:
+  1960: 590
+
+# Food Sales Tax Refund.
+food_sales_tax_credit_amount:  # `food(law)`, used 1998-2021 (formula
+  # itself differs law<=2012 vs law>=2013, not just this table)
+  1998: 30.0
+  1999: 30.0
+  2000: 30.0
+  2001: 30.0
+  2002: 30.0
+  2003: 36.0
+  2004: 36.0
+  2005: 36.0
+  2006: 37.0
+  2007: 38.0
+  2008: 39.0
+  2009: 41.0
+  2010: 45.0
+  2011: 45.0
+  2012: 47.0
+  2013: 125.0
+food_sales_tax_refund_agi_ceiling:  # `agimax(law)`
+  1998: 12500
+  2003: 13150
+  2004: 13450
+  2005: 13800
+  2006: 14300
+  2007: 14850
+  2008: 15150
+  2009: 15950
+  2010: 17500
+  2012: 18350
+  2013: 30615
+
+# Earned Income Credit (1998+) - a real percentage of federal EITC.
+eitc_rate:
+  1998: 0.10
+  2002: 0.15
+  2007: 0.17
+  2010: 0.18
+  2013: 0.17

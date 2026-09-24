@@ -1,0 +1,143 @@
+# Georgia individual income tax (`gatax`, taxsim_2024_09_21.f:4712-4955,
+# state id 11). See calculators/states/ga.py for the full mechanism.
+#
+# Confirmed inert given this project's input schema (not silent gaps):
+# elderly/blind (`data(9)`/`data(10)`, same unpopulated-by-the-reader
+# fields already confirmed for AL/AZ/CT/DC/DE) - this makes the ENTIRE
+# Retirement Income Exclusion block (`old.gt.0`, taxsim_2024_09_21.f:
+# 4789-4836) permanently inert, not just partially; the solar-energy
+# credit (`data(38)`, same field AZ/CA/CT/DC already confirmed $0); the
+# 2021-only $300-cash-contribution AGI addback (`data(58)`, the SAME
+# unimplementable "charity_cash" gap already documented at the federal
+# level - no input column ever drives it); and the entire 1982-1986
+# "Georgia used 1981 federal law" IRA/stock-loss-carryover adjustment
+# (`data(29)`/`data(28)`/`data(13)`/`comnew(11)` - grepped the full
+# source, none of these are ever assigned by the input reader for any
+# field this project's schema drives, so they're always exactly $0,
+# collapsing `stira`/`stkeo` to $0 and the 1982-only `data(13)` term to a
+# no-op). The <=1986 itemized-deduction medical/casualty addback
+# (`gxit`, using `data(47)`/`(48)`/`(49)`/`comnew(20)`) is likewise
+# confirmed inert - same medical/casualty fields AL's own scope note
+# already covers - and always evaluates to exactly $0 for this schema
+# (the formula's own negative-then-clipped-at-0 shape holds regardless).
+# `data(55)` (itemized addback, <=1986) is never assigned either.
+#
+# `nfile=filing(mst,1,2,3,2)` - single=1, married_joint=2, head_of_
+# household=3, married_separate=2 (SAME as joint) - matches DC's own
+# identical convention exactly.
+#
+# Brackets: SINGLE (only) uses `brackets_single_*` directly. Married_joint,
+# married_separate, AND head_of_household (nfile 2/2/3, i.e. anything
+# other than single) all multiply taxable income by `sep` (1 for joint/
+# HoH, 2 for separate) before running it through the SAME doubled-
+# threshold married table, then divide the resulting tax back down by
+# `sep` - so married_separate ends up on an effectively per-spouse-halved
+# version of the joint table (numerically identical to the single table's
+# own thresholds), and HoH runs straight through the married table
+# unscaled (a real, easy-to-miss detail - HoH is NOT grouped with single
+# here despite being grouped with it elsewhere, e.g. the standard
+# deduction's own `nfile.ne.2` check).
+brackets_single_thru_2018:
+  - [0, 0.01]
+  - [750, 0.02]
+  - [2250, 0.03]
+  - [3750, 0.04]
+  - [5250, 0.05]
+  - [7000, 0.06]
+brackets_married_thru_2018:
+  - [0, 0.01]
+  - [1000, 0.02]
+  - [3000, 0.03]
+  - [5000, 0.04]
+  - [7000, 0.05]
+  - [10000, 0.06]
+brackets_single_2019plus:
+  - [0, 0.01]
+  - [750, 0.02]
+  - [2250, 0.03]
+  - [3750, 0.04]
+  - [5250, 0.05]
+  - [7000, 0.0575]
+brackets_married_2019plus:
+  - [0, 0.01]
+  - [1000, 0.02]
+  - [3000, 0.03]
+  - [5000, 0.04]
+  - [7000, 0.05]
+  - [10000, 0.0575]
+
+# Exemption: five genuinely different formula eras, plus a real, flat
+# $800 head-of-household-with-dependents bonus through 1986.
+personal_exemption_flat_pre1994:  # `data(7)*1500`, <=1986 only
+  1960: 1500
+hoh_dependent_bonus_pre1987:
+  1960: 800
+personal_exemption_amount_xmp:  # `xmp(law)` - dependent exemption <=1986,
+  # personal exemption 1987+ (used differently by era, see ga.py)
+  1977: 700
+  1987: 1500
+  1994: 2000
+  1995: 2500
+  1998: 2700
+dependent_exemption_flat_2003plus:
+  2003: 3000
+personal_exemption_married_separate_2013plus:
+  2013: 3700
+
+# Standard deduction: three eras.
+standard_deduction_pct_pre1983:
+  1960: 0.15
+standard_deduction_floor_pre1983:
+  1960: 1300
+standard_deduction_ceiling_pre1983:
+  1960: 2000
+standard_deduction_pct_1983_1986_single_or_hoh:
+  1983: 0.15
+standard_deduction_floor_1983_1986_single_or_hoh:
+  1983: 1500
+standard_deduction_ceiling_1983_1986_single_or_hoh:
+  1983: 2000
+standard_deduction_pct_1983_1986_married:
+  1983: 0.18
+standard_deduction_floor_1983_1986_married:
+  1983: 1700
+standard_deduction_ceiling_1983_1986_married:
+  1983: 3000
+standard_deduction_flat_1987plus_single_or_hoh:  # `std(law,1)`
+  1987: 2300
+  2018: 4600
+standard_deduction_flat_1987plus_married:  # `std(law,2)`, /sep
+  1987: 3000
+  2018: 6000
+
+# Child/Dependent Care Credit: real 1978-1986 (2% of qualifying expenses,
+# capped $2,000-$4,000/dep-scaled), NOT allowable 1987-2005, then a
+# percentage of the federal credit (pre-cap) 2006+.
+child_care_credit_expense_cap_floor_pre1987:
+  1960: 2000
+child_care_credit_expense_cap_ceiling_pre1987:
+  1960: 4000
+child_care_credit_rate_pre1987:
+  1960: 0.02
+child_care_credit_rate_2006plus:  # `perch(law)`
+  2006: 0.10
+  2007: 0.20
+  2008: 0.30
+
+# Low Income Credit: real flat-formula <=1986, does NOT exist 1987-1991,
+# a real per-exemption-unit interpolation table 1992+ (`lic`/`tablki`).
+low_income_credit_flat_per_txp_pre1987:
+  1960: 15
+low_income_credit_agi_threshold_per_txp_pre1987:
+  1960: 3000
+low_income_credit_table_1992plus:  # (agi_threshold, rate_per_exemption) -
+  # the final (huge-threshold, 0) row is real (`lic/...,1.e20,0.d0/`) -
+  # without it, `tablki`'s own "beyond the last real threshold" default
+  # collapses to $5/exemption forever instead of phasing to $0 above
+  # $20,000.
+  - [6000, 26]
+  - [8000, 20]
+  - [10000, 14]
+  - [15000, 8]
+  - [20000, 5]
+  - [100000000, 0]

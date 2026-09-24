@@ -1,0 +1,215 @@
+# Arkansas individual income tax (`artax`, taxsim_2022_10_21.f:1172-2197,
+# state id 4). Sixth state (alphabetical order) - by far the largest so
+# far: a fully hand-coded, per-year "low income table" override for
+# 1991-2021 (parameters/states/ar/low_income_table.csv, verified row-by-row
+# against a live compiled probe of `artax` itself - see
+# scripts/gen_ar_low_income_csv.py's own docstring for the verification
+# method), on top of the usual bracket-table eras, a Personal Tax Credit
+# (flat $/exemption, year-indexed `pcr` table), a Child/Dependent Care
+# Credit (20%/10% of the FEDERAL credit), and a genuine "married filing
+# splitting" relief mechanic (split AGI/deductions ~evenly between
+# spouses, tax each half separately through the SAME single-filer bracket
+# table, take whichever of {joint, split} is smaller) that runs through
+# every bracket era from 1987 on.
+#
+# Given this project's schema, the following `data()` fields the source
+# references in `artax` are NEVER assigned anywhere in the whole 29,414-
+# line file (confirmed via grep) and so are always exactly $0 for every
+# test case this project can construct: data(17), (19), (20), (21), (23),
+# (24), (26), (62), (72), (91), (124). This collapses AR's own AGI formula
+# (which nominally sums ~15 terms) down to just wages + (dividends+0.001)
+# + interest + capgn (+ ui for 2018-2019 only), and collapses the whole
+# 1983-1990 pension-income-exclusion mechanism to a permanent no-op.
+# `comnew(8)` (Schedule E) and `comnew(14)` (Keogh) are federal-computed
+# but likewise always $0 given no such input exists in this schema.
+#
+# Confirmed inert for the same reason: the 1982 two-earner-style addback
+# (`comnew(12)`=ira, `comnew(14)`=keogh, both $0); the non-itemizer
+# charitable deduction 1983-1986 (`comnew(81)`, gated on `charity_cash`,
+# federal.py's own disclosed non-drivable gap); `data(9)`/`data(10)`
+# (elderly/blind counts, never populated - matches every other state).
+
+brackets_base:  # `tbase`, used 1987-2015 (thresholds year-overridden 1999+)
+  - [0, 0.01]
+  - [3000, 0.025]
+  - [6000, 0.035]
+  - [9000, 0.045]
+  - [15000, 0.06]
+  - [25000, 0.07]
+
+# 1999-2015: same table/rates as brackets_base, only the first 5 bracket
+# THRESHOLDS change by year (bracket 6 stays [25000, 0.07] throughout;
+# 2014+ also drops bracket 1's rate to 0.9%, 2015 also drops brackets
+# 2-4's rates to 2.4/3.4/4.4%).
+bracket_thresholds_by_year:
+  1999: [3100, 6100, 9200, 15300, 25400]
+  2000: [3100, 6200, 9300, 15500, 25900]
+  2001: [3200, 6400, 9600, 16000, 26700]
+  2002: [3300, 6600, 9900, 16500, 27500]
+  2003: [3300, 6700, 10000, 16700, 27900]
+  # 2004 deliberately has NO entry: the source's own elseif chain has a
+  # real bug (`else if(law.eq.2003) ...tab03...; else if(law.eq.2002)
+  # ...tab04...` - the tab04 branch is gated on `law.eq.2002`, a duplicate
+  # of the earlier, already-matched 2002 condition, not `law.eq.2004`).
+  # Since elseif chains take the first match, this branch is dead code -
+  # year 2004 falls through with NO threshold override at all, silently
+  # using `brackets_base`'s default (1987-1997-era) thresholds instead of
+  # tab04's. Confirmed via live oracle probe (single, wages=50000, 2004:
+  # real siitax=$2750.70 matches the DEFAULT-threshold bracket calc
+  # exactly, not tab04's). Replicated as found, not "fixed".
+  2005: [3500, 7000, 10500, 17500, 29200]
+  2006: [3600, 7200, 10800, 18000, 30100]
+  2007: [3700, 7400, 11100, 18600, 31000]
+  2008: [3800, 7600, 11400, 18900, 31700]
+  2009: [3900, 7800, 11700, 19600, 32600]
+  2010: [3900, 7800, 11800, 19600, 32700]
+  2011: [4000, 8000, 11900, 19900, 33200]
+  2012: [4100, 8200, 12200, 20400, 34000]
+  2013: [4100, 8200, 12200, 20400, 34000]  # law.eq.2012.or.law.eq.2013 reuse tab12
+  2014: [4200, 8300, 12400, 20700, 34600]
+  2015: [4300, 8400, 12700, 21100, 35300]
+bracket_rate1_override_2014plus: 0.009
+bracket_rates_2_3_4_override_2015: [0.024, 0.034, 0.044]
+
+brackets_2016:  # `tab16`, a real 8-bracket "bubble" table (16.9% spike
+  # then back down to 6.9%, a genuine recapture bracket, not a typo)
+  - [0, 0.009]
+  - [4300, 0.024]
+  - [8500, 0.034]
+  - [12700, 0.044]
+  - [21200, 0.05]
+  - [35100, 0.06]
+  - [75000, 0.169]
+  - [80000, 0.069]
+
+# 2017-2021: a direct rate/subtraction lookup (`tab17t`..`tab21t`), not a
+# cumulative bracket table - "find the first row whose threshold exceeds
+# taxinc, then tax = rate*taxinc/100 - subtraction" (taxsim_2022_10_21.f:
+# ~1479-1565). The subtraction amounts genuinely DECREASE across the last
+# several rows despite a flat marginal rate there - a real, deliberate
+# recapture/compression mechanic (mirrors the 2016 bubble bracket's
+# intent via a different encoding), not a transcription artifact.
+# Columns per row: [upper_threshold, rate_pct, subtraction].
+rate_lookup_table:
+  2017:
+    - [4399, 0.9, 0]
+    - [8699, 2.4, 65.99]
+    - [13099, 3.4, 152.98]
+    - [21699, 4.4, 283.97]
+    - [36299, 5.0, 396.86]
+    - [77400, 6.0, 759.85]
+    - [78400, 6.9, 1380.54]
+    - [79400, 6.9, 1280.54]
+    - [80600, 6.9, 1180.54]
+    - [81600, 6.9, 1080.54]
+    - [82600, 6.9, 980.54]
+    - [1.0e+20, 6.9, 940.54]
+  2018:
+    - [4499, 0.9, 0]
+    - [8899, 2.4, 67.49]
+    - [13399, 3.4, 156.48]
+    - [22199, 4.4, 290.47]
+    - [37199, 5.0, 405.96]
+    - [79300, 6.0, 777.95]
+    - [80300, 6.9, 1402.74]
+    - [81300, 6.9, 1302.74]
+    - [82500, 6.9, 1202.74]
+    - [83600, 6.9, 1102.74]
+    - [84600, 6.9, 1002.74]
+    - [1.0e+20, 6.9, 982.74]
+  2019:
+    - [4599, 0.0, 0]
+    - [9099, 2.0, 91.98]
+    - [13699, 3.0, 182.97]
+    - [22599, 3.4, 237.77]
+    - [37899, 5.0, 421.46]
+    - [80800, 6.0, 800.45]
+    - [81800, 6.9, 1421.64]
+    - [82800, 6.9, 1321.64]
+    - [84100, 6.9, 1221.64]
+    - [85200, 6.9, 1121.64]
+    - [86200, 6.9, 1021.64]
+    - [1.0e+20, 6.9, 981.64]
+  2020:
+    - [4699, 0.0, 0]
+    - [9199, 2.0, 93.98]
+    - [13899, 3.0, 185.97]
+    - [22899, 3.4, 241.57]
+    - [38499, 5.0, 427.71]
+    - [82000, 5.9, 774.2]
+    - [83000, 6.6, 1255.7]
+    - [84000, 6.6, 1155.7]
+    - [85300, 6.6, 1055.7]
+    - [86400, 6.6, 955.7]
+    - [87500, 6.6, 855.7]
+    - [1.0e+20, 6.6, 815.7]
+  2021:
+    - [4799, 0.0, 0]
+    - [9499, 2.0, 95.98]
+    - [14299, 3.0, 190.97]
+    - [23599, 3.4, 248.17]
+    - [39699, 5.0, 439.96]
+    - [84500, 5.9, 797.25]
+    - [85500, 5.9, 687.5]
+    - [86500, 5.9, 587.5]
+    - [87900, 5.9, 487.5]
+    - [89000, 5.9, 387.5]
+    - [90100, 5.9, 287.5]
+    - [1.0e+20, 5.9, 247.5]
+
+# Standard deduction: 3 eras.
+standard_deduction_pct_pre1987: 0.10  # capped at 4000*txp/sep
+standard_deduction_pct_1987_1997: 0.10  # capped at 2000*txp/sep
+standard_deduction_flat_1998plus:  # per exemption unit (`data(7)`)
+  1998: 2000
+  2015: 2200
+
+# Itemized-deduction Pease-style phaseout (1991-2017, AR's OWN, mirrors
+# AZ's identical mechanism and the same national aif92/aif13 CPI tables -
+# AR's own 2009 quirk: only 1% of the excess (not 3%) counts that year.
+itemized_phaseout_income_pre2013: 100000  # /sepret, CPI-adjusted via aif92 1992-2012
+itemized_phaseout_income_2013_2017:
+  single: 250000
+  married_joint: 300000
+  head_of_household: 275000
+  married_separate: 150000
+
+# Capital gains: AR's own partial LTCG exclusion since 1999 (`pcrcg`),
+# separate from (and, for our non-netting-loss schema, simpler than)
+# federal's own preferential-RATE (not exclusion) treatment. 1987-1998
+# capital gains are fully included in AR AGI (no state exclusion,
+# matching federal's own full post-TRA86 AGI inclusion); pre-1987 reuses
+# the federal `pre1987.yaml` LTCG exclusion rate directly (AR conformed to
+# federal's own exclusion in that era).
+capital_gains_ltcg_exclusion_rate_1999plus:
+  1999: 0.30  # AR excludes (1 - pcrcg) of LTCG from taxable capital gain -> pcrcg=0.7 included
+  2015: 0.45
+  2016: 0.50
+capital_gains_cap_2014plus: 10000000
+
+# 2003-2004 Act imposed a temporary 3% income tax surcharge.
+surcharge_2003_2004: 0.03
+
+# 1998-2002 Working Taxpayer Credit - a small refundable credit (0.125%
+# of the LOWER earner's wages+UI+other-property income for a two-earner
+# household, or of total such income for a single earner, min'd at $50,
+# gated on that income base exceeding $400).
+working_taxpayer_credit_rate: 0.00125
+working_taxpayer_credit_cap: 50
+working_taxpayer_credit_floor: 400
+
+# Personal Tax Credit (`pcr`, flat $/exemption unit - `data(7)` count,
+# `depx`, and +1 more for head_of_household) - $17.50/exemption pre-1987
+# (a different, smaller flat rate), then the year-indexed `pcr` table.
+personal_credit_rate_pre1987: 17.50
+personal_credit_rate_by_year:  # `pcr(law)`, dimensioned 1987:2021
+  1987: 20
+  2005: 21
+  2006: 22
+  2007: 23
+  2013: 26
+  2020: 29
+
+# Child/Dependent Care Credit: 20% of the federal credit (10% pre-1998).
+child_care_credit_rate_1998plus: 0.20
+child_care_credit_rate_pre1998: 0.10

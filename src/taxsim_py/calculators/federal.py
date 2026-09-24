@@ -148,6 +148,36 @@ from taxsim_py.engine.niit import net_investment_income_tax
 from taxsim_py.engine.payroll_tax import household_self_employment_tax
 from taxsim_py.engine.schema import PARAMETERS_ROOT, load_yaml, resolve_year, validate_brackets
 
+# 2023's own EITC row is the REAL, IRS-published 2023 table (Rev. Proc.
+# 2022-38), NOT what `taxsim2024.exe` itself actually computes for
+# lawyr=2023. The real table exists verbatim in the source's own `block
+# data params` crmax/ymax/rtbase/rtless arrays, confirmed via a compiled-
+# driver probe reading them directly - but it's DEAD CODE for this oracle
+# build: the section's own `lawend` cap (taxsim_2024_09_21.f:27808-27809,
+# `lawend=lawyr; if(lawyr.gt.2022) lawend=2022`) was never bumped to 2023
+# alongside the underlying data table, so `if(lawyr.le.lawend)` is false
+# for lawyr=2023 and the oracle instead deflates/reinflates 2022's own
+# real values by `xndxa(2023)/xndxa(2022)` (the same CPI-extrapolation
+# mechanism states use beyond `lastat`) - landing close to, but not
+# exactly on, the real 2023 numbers (e.g. $599.65 vs the real $600
+# childless max credit). Confirmed via a live oracle probe before
+# concluding this was a bug rather than a modeling choice: single, no
+# children, wages stepped near both candidate phaseout-end points -
+# taxsim2024.exe still shows a small nonzero EITC right at the REAL
+# table's own phaseout end of $16,370, only reconciling once computed as
+# 2022's value times that CPI ratio (~$16,372.50).
+#
+# Per user direction ("if the model is wrong, use the real parameters
+# that are known"), this project uses the real, published 2023 EITC
+# table here (and the real $11,000 `dylim` in eitc_misc.yaml, also
+# genuinely different from both the oracle's own stale $10,300 array
+# entry AND the CPI-extrapolated figure) rather than replicating the
+# oracle's own stale-lawend artifact - a deliberate, documented
+# departure from "match taxsim exactly," not a bug. Expect
+# `taxsim2024.exe` itself to disagree with this project on 2023 EITC
+# amounts by small (sub-$5, mostly sub-$1) amounts across a wide range of
+# incomes - that mismatch is intentional, not something to chase back
+# into agreement with the oracle.
 FEDERAL_INCOME_TAX_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "income_tax.yaml")
 FEDERAL_EITC_PARAMS = pl.read_csv(PARAMETERS_ROOT / "national" / "eitc.csv")
 FEDERAL_EITC_PARAMS_MISC = load_yaml(PARAMETERS_ROOT / "national" / "eitc_misc.yaml")
@@ -205,7 +235,23 @@ def _filing_status_expr() -> pl.Expr:
     )
 
 
-def compute_regular_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
+def compute_regular_tax(df: pl.DataFrame, year: int, force_itemize: bool | None = None) -> pl.DataFrame:
+    if year <= 1976:
+        # 1971-1976 (Phase 1 of `law60`) route through yet another, entirely
+        # separate top-level calculator subroutine - see
+        # calculators/federal_law60.py. `force_itemize` not yet threaded
+        # through this era (no state calculator has needed it there yet -
+        # see engine/federal_state.py's own scope note).
+        from taxsim_py.calculators.federal_law60 import compute_regular_tax_law60
+
+        return compute_regular_tax_law60(df, year)
+    if year <= 1986:
+        # 1977-1986 route through `law79`, an entirely separate top-level
+        # calculator subroutine from `law87` below - not a plug-in vintage
+        # within this function. See calculators/federal_pre1987.py.
+        from taxsim_py.calculators.federal_pre1987 import compute_regular_tax_pre1987
+
+        return compute_regular_tax_pre1987(df, year, force_itemize=force_itemize)
     df = df.with_columns(
         filing_status=_filing_status_expr(),
         wages=pl.col("pwages") + pl.col("swages"),
@@ -248,51 +294,82 @@ def compute_regular_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         wage_base=float(resolve_year(pt_p["oasdi_wage_base"], year)),
         se_oasdi_rate=float(resolve_year(pt_p["se_oasdi_rate"], year)),
         se_hi_rate=float(resolve_year(pt_p["se_hi_rate"], year)),
+        # `setax` (the AGI-deductible SE tax figure, `comnew(175)`) is the
+        # SAME `c(175)` value `sstax` produces for `fica`/`tfica` - no
+        # separate uncapped-HI carve-out in taxsim_2024_09_21.f. An
+        # earlier version of this project found the OLD (2022) oracle's
+        # AGI implied an uncapped-HI deduction even in 1993 (a real,
+        # source-specific quirk of that vintage) - the 2024 rewrite's own
+        # `sstax` no longer produces that split, confirmed by back-
+        # solving a real AGI mismatch against the NEW oracle (single,
+        # $200,000 self-employment income, 1993: matching `setax` to
+        # fica's own $11,167.66 - the real HI-capped figure - reproduces
+        # the oracle's fiitax exactly; the old uncapped-HI $12,498.70
+        # figure no longer does).
+        hi_wage_base=float(resolve_year(pt_p["hi_wage_base"], year)),
     )
     gross_se_income = pl.col("psemp") + pl.col("ssemp")
 
     # The AGI-deductible share of SE tax is a flat 50% in every year except
     # 2011-2012, when it's a genuinely different formula - not just a
-    # different rate applied to the same 50% split. The 2011-2012 payroll
-    # tax holiday cut the wage-earner's OWN OASDI share (not the
-    # employer's); to keep the self-employed getting the same relative AGI
-    # benefit as wage earners despite paying less actual SE tax, the
-    # deduction is computed from a *hypothetical* SE tax at the normal,
-    # uncut 15.3% rate (`.5751*setax` below a threshold tied to 13.3% of
-    # the wage base, else `.5*setax` plus a flat top-up) - NOT from the SE
-    # tax actually owed. Confirmed by back-solving a real mismatch: at
-    # psemp=$5,000, 2011, the deduction implied by the oracle's own AGI
-    # matches `.5751 * (net_earnings * 15.3%)` almost exactly ($406.295
-    # predicted vs $406.291 implied), not `.5751 * (net_earnings * 14.3%)`
-    # (the actual, cut-rate SE tax) which undershoots by $26.55.
-    # taxsim_2022_10_21.f:24383-24404.
+    # different rate applied to the same 50% split (the 2011-2012 payroll
+    # tax holiday cut the wage-earner's OWN OASDI share, not the
+    # employer's, so a flat 50% would under-benefit the self-employed
+    # relative to wage earners): `.5751*setax` below a threshold
+    # (`.133*wage_base` - `.133` being the ACTUAL cut combined SE rate,
+    # 10.4%+2.9%, i.e. "would this filer's SE tax already be at the cap at
+    # the cut rate"), else `.5*setax` plus a flat top-up.
+    #
+    # `setax` here is `setax_total` (computed above at the year's REAL,
+    # actually-cut rates) - NOT a hypothetical SE tax at the normal,
+    # uncut 15.3% rate. An earlier version of this code used the
+    # hypothetical-uncut-rate figure, based on a finding against the 2022
+    # oracle (psemp=$5,000, 2011: deduction matched `.5751*(net_earnings*
+    # 15.3%)`, not the actual 14.3%-rate SE tax) - the 2024 oracle no
+    # longer matches that (confirmed via a debug-instrumented probe
+    # showing the source's own `setax` variable at this exact point is
+    # the real, cut-rate figure: psemp=$50,000, 2011, `adjust=3,797.40`
+    # exactly equals `.5751*6,603.03` where 6,603.03 is the ACTUAL 2011
+    # SE tax owed, not a hypothetical $7,065.93-ish uncut figure).
     if year in (2011, 2012):
         wage_base = float(resolve_year(pt_p["oasdi_wage_base"], year))
-        net_earnings_factor = float(resolve_year(pt_p["se_net_earnings_factor"], year))
-        setax_at_normal_rate = household_self_employment_tax(
-            pl.col("psemp"),
-            pl.col("ssemp"),
-            pl.col("pwages"),
-            pl.col("swages"),
-            net_earnings_factor=net_earnings_factor,
-            wage_base=wage_base,
-            se_oasdi_rate=0.124,
-            se_hi_rate=0.029,
-        )
         se_deduction_threshold = 0.133 * wage_base
         se_deduction_flat_addon = 0.133 * 0.0751 * wage_base
         se_agi_deduction = (
-            pl.when(setax_at_normal_rate <= se_deduction_threshold)
-            .then(0.5751 * setax_at_normal_rate)
-            .otherwise(0.5 * setax_at_normal_rate + se_deduction_flat_addon)
+            pl.when(setax_total <= se_deduction_threshold)
+            .then(0.5751 * setax_total)
+            .otherwise(0.5 * setax_total + se_deduction_flat_addon)
         )
     else:
         se_agi_deduction = 0.5 * setax_total
 
+    # Earned income (used for EITC's phase-in) always nets out half of SE
+    # tax, in every year including 1988-1989 - the source's own `earny`
+    # formula (`data(11)+(d17-data(213))+data(21)-.5*setax`,
+    # taxsim_2022_10_21.f:24383) has no year gate around this term at all
+    # (only the 2011-2012 hypothetical-rate override below it is
+    # conditional, already captured in `se_agi_deduction` above). This is
+    # NOT the same deduction as AGI's own (see `se_agi_adjustment` below) -
+    # a genuinely different, older concept that predates the 1990 AGI
+    # deduction and was never removed when that was added.
     df = df.with_columns(
         setax=setax_total,
         earned_income=(pl.col("wages") + gross_se_income - se_agi_deduction).clip(0, None),
     )
+
+    # UNLIKE earned income above, AGI's own "half of SE tax" deduction did
+    # NOT exist before 1990 at all - the source's `adjust` term only picks
+    # up `.5*setax` `if(lawyr.ge.1990.and.lawyr.ne.2011.and.lawyr.ne.2012)`
+    # (taxsim_2022_10_21.f:24396-24398). Before 1990, self-employed filers
+    # instead paid SE tax at a genuinely LOWER combined rate (already
+    # reflected in payroll_tax.yaml's own se_oasdi_rate/se_hi_rate for
+    # 1988-1989 - a cruder "differential rate" mechanism OBRA89 replaced
+    # with this cleaner "full rate + AGI deduction" approach starting
+    # 1990), not a smaller version of this same deduction. Confirmed via a
+    # live oracle probe (1988, single, $50,000 psemp: AGI comes back as
+    # exactly $50,000, i.e. gross SE income with NO deduction subtracted
+    # at all).
+    se_agi_adjustment = pl.lit(0.0) if year < 1990 else se_agi_deduction
 
     # agi != wages once interest/SE/dividend/capital-gains income is
     # present: interest is ordinary income (taxsim_2022_10_21.f test:
@@ -317,13 +394,24 @@ def compute_regular_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     # net capital loss, or a short-term loss offsetting a long-term gain,
     # are real and NOT implemented; enter a loss as 0 for now, not a
     # negative value, or this will be wrong.
-    ltg = pl.col("ltcg").clip(0, None) + dividends_with_fudge
+    #
+    # Dividends only became preferential-rate-eligible starting 2003
+    # (JGTRRA) - before that they were ordinary income, full stop. The
+    # source's own `ltg` only gets `+ divq` added `if(lawyr.ge.2003)`
+    # (taxsim_2022_10_21.f:24317-24323) - for year<2003, dividends are
+    # excluded here and simply flow through AGI into ordinary taxable
+    # income instead (already the default, since nothing else routes them
+    # through `ltg`).
+    if year >= 2003:
+        ltg = pl.col("ltcg").clip(0, None) + dividends_with_fudge
+    else:
+        ltg = pl.col("ltcg").clip(0, None) + 0.0
 
     agi_before_ui = (
         pl.col("wages")
         + pl.col("intrec")
         + gross_se_income
-        - se_agi_deduction
+        - se_agi_adjustment
         + capgn
         + dividends_with_fudge
     )
@@ -371,10 +459,24 @@ def compute_regular_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
 
     sepret_expr = _by_status_expr(SEPRET_BY_STATUS)
 
+    # married_separate = married_joint/2, every year - NOT single's own
+    # value (a real bug found while building Alabama's own state
+    # calculator: a previous comment here claimed "married_separate uses
+    # SINGLE's own value directly... confirmed for 1993+", but that
+    # confirmation was itself wrong - checked years where joint happens to
+    # equal exactly 2x single, which is most years by statutory design,
+    # so single-vs-joint/2 look identical. Verified via idtl=2 oracle
+    # probes across 1991-2000, where joint was NOT an exact 2x multiple of
+    # single those years: real married_separate `v13` (standard deduction)
+    # matched joint/2 exactly every time (e.g. 1991: real $2,850 = $5,700/2,
+    # not single's $3,400; 1993: real $3,100 = $6,200/2, not single's
+    # $3,700).
     std_ded_by_status = {
         status: resolve_year(FEDERAL_INCOME_TAX_PARAMS["standard_deduction"][status], year)
         for status in FILING_STATUSES
+        if status != "married_separate"
     }
+    std_ded_by_status["married_separate"] = std_ded_by_status["married_joint"] / 2.0
     brackets_by_status = {}
     for status in FILING_STATUSES:
         brackets = resolve_year(FEDERAL_INCOME_TAX_PARAMS["brackets"][status], year)
@@ -424,7 +526,14 @@ def compute_regular_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     # (not just partially) repealed 2010-2012 - `dlim1`/`dlim2` forced to 0
     # unconditionally, not merely small thresholds - taxsim_2022_10_21.f:
     # 24662-24665. Not just a lower rate: literally no reduction at all.
-    if 2010 <= year <= 2012:
+    if year < 1991:
+        # The Pease limitation didn't exist in law before 1991 at all
+        # (OBRA1990 created it) - the source's own `phas` threshold array
+        # is dimensioned `phas(1991:2012)`, with no earlier entries and no
+        # fallback computation reached for lawyr<1991. Not fetched for
+        # these years on purpose (no entry in itemized.yaml below 1991).
+        pass
+    elif 2010 <= year <= 2012:
         pass  # itemized_deduction unreduced - Pease fully off these years
     elif year < 2018:
         pease_p = FEDERAL_ITEMIZED_PARAMS
@@ -436,11 +545,13 @@ def compute_regular_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         dlim1 = pease_reduction_rate * (pl.col("agi") - pease_threshold_expr).clip(0, None)
         dlim2 = pease_cap_rate * itemized_deduction.clip(0, None)
         pease_reduction = pl.min_horizontal(dlim1, dlim2)
-        if year == 2009:
+        if year in (2006, 2007):
             # Pease was being phased out gradually before its 2010-2012
-            # full repeal - 2009 (like 2008) applies only 1/3 of the
-            # reduction the formula above would otherwise give.
-            # taxsim_2022_10_21.f:24653-24656.
+            # full repeal - 2006 and 2007 apply 2/3 of the reduction the
+            # formula above would otherwise give, 2008-2009 only 1/3.
+            # taxsim_2022_10_21.f:24654-24660.
+            pease_reduction = pease_reduction * 2.0 / 3.0
+        if year in (2008, 2009):
             pease_reduction = pease_reduction / 3.0
         itemized_deduction = itemized_deduction - pease_reduction
 
@@ -460,10 +571,21 @@ def compute_regular_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         cas = pl.lit(0.0)
 
     itemize_comparison_floor = std_ded_expr + cas if year == 2021 else std_ded_expr
+    # `force_itemize`: the real source's own `tcalc`/`tcalc2` orchestration
+    # (taxsim_2022_10_21.f:21631-21704) decides itemize-vs-standard based on
+    # COMBINED federal+state tax, not federal alone (`data(4)=-1`/`-2`
+    # forces one or the other so both can be computed and compared) - see
+    # engine/federal_state.py, which every state calculator with a real
+    # income tax must run through instead of calling this function
+    # directly. Ignored (falls back to the plain dollar comparison) unless
+    # a caller explicitly passes it.
+    itemizes_expr = (
+        pl.lit(force_itemize) if force_itemize is not None else (itemized_deduction > itemize_comparison_floor)
+    )
     df = df.with_columns(
         salt_capped=salt_capped,
         itemized_deduction=itemized_deduction,
-        itemizes=itemized_deduction > itemize_comparison_floor,
+        itemizes=itemizes_expr,
     )
     deduction = pl.when(pl.col("itemizes")).then(pl.col("itemized_deduction")).otherwise(std_ded_expr + cas)
 
@@ -481,6 +603,35 @@ def compute_regular_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
             # forced to 0 unconditionally, not a higher threshold.
             # taxsim_2022_10_21.f:24798-24800.
             amex = amex_base
+        elif year < 1991:
+            # The Personal Exemption Phaseout didn't exist in law before
+            # 1991 either (OBRA1990 created it alongside Pease) - the
+            # source's `ratio` stays at its initialized 0 the entire way
+            # through for lawyr<1991 (neither the `in(lawyr,1991,1996)` nor
+            # the `lawyr.ge.1997` branch below it ever executes), so `amex`
+            # is never reduced. No parameter lookup needed - personal_
+            # exemption.yaml's high_income_phaseout_threshold has no
+            # 1988-1990 entries on purpose.
+            amex = amex_base
+        elif year <= 1996:
+            # A genuinely different, older PEP threshold formula for
+            # 1991-1996: the threshold
+            # is computed from an inflation-adjusted base
+            # (`exmphl = filing(...)*xndx/1.143`, taxsim_2022_10_21.f:
+            # 24754-24760) rather than a per-year table - precomputed into
+            # personal_exemption.yaml's high_income_phaseout_threshold as
+            # plain dollar values (same technique as every other
+            # parameter extraction this project uses, not reimplemented
+            # here). The ratio itself isn't clipped at 1 in the source
+            # here (unlike the modern `.clip(0, 1)` below) - functionally
+            # identical anyway, since `amex` still floors at 0 either way.
+            pep_threshold_expr = _by_status_expr(
+                {status: resolve_year(pe_p["high_income_phaseout_threshold"][status], year) for status in FILING_STATUSES}
+            )
+            pep_rate = float(resolve_year(pe_p["phaseout_rate"], year))
+            pep_bracket_size = float(resolve_year(pe_p["phaseout_bracket_size"], year))
+            pep_ratio = pep_rate * (pl.col("agi") - pep_threshold_expr).clip(0, None) / (pep_bracket_size / sepret_expr)
+            amex = (amex_base * (1.0 - pep_ratio)).clip(0, None)
         else:
             pep_threshold_expr = _by_status_expr(
                 {status: resolve_year(pe_p["high_income_phaseout_threshold"][status], year) for status in FILING_STATUSES}
@@ -491,10 +642,13 @@ def compute_regular_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
                 pep_rate * (pl.col("agi") - pep_threshold_expr).clip(0, None) / (pep_bracket_size / sepret_expr)
             ).clip(0, 1)
             amphs_fraction = 1.0
-            if year == 2009:
-                # Same gradual-phase-out timeline as Pease above - 2009
-                # applies only 1/3 of the exemption reduction the ratio
-                # would otherwise imply. taxsim_2022_10_21.f:24808-24814.
+            if year in (2006, 2007):
+                # Same gradual-phase-out timeline as Pease above - 2006 and
+                # 2007 apply 2/3 of the exemption reduction the ratio would
+                # otherwise imply, 2008-2009 only 1/3.
+                # taxsim_2022_10_21.f:24805-24810.
+                amphs_fraction = 2.0 / 3.0
+            if year in (2008, 2009):
                 amphs_fraction = 1.0 / 3.0
             amex = amex_base * (1.0 - pep_ratio * amphs_fraction)
     else:
@@ -523,17 +677,326 @@ def compute_regular_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     rate_15_ceiling_expr = _by_status_expr(
         {status: resolve_year(cg_p["rate_15_ceiling"][status], year) for status in FILING_STATUSES}
     )
-    preferential_tax = preferential_rate_tax(
-        pl.col("taxable_income"),
-        ltg_capped,
-        rate_0_ceiling_expr,
-        rate_15_ceiling_expr,
-        rate_15=float(resolve_year(cg_p["rate_15"], year)),
-        rate_20=float(resolve_year(cg_p["rate_20"], year)),
-    )
+    plain_ordinary_tax = pl.lit(None, dtype=pl.Float64)
+    for status, brackets in brackets_by_status.items():
+        plain_ordinary_tax = (
+            pl.when(pl.col("filing_status") == status)
+            .then(bracket_tax(pl.col("taxable_income"), brackets))
+            .otherwise(plain_ordinary_tax)
+        )
+
+    if year == 1987:
+        # `tax87` (`taxsim_2022_10_21.f:26347-26391`) - TRA1986's transition
+        # year, with its own real 5-rate bracket schedule (11/15/28/35/
+        # 38.5%, a genuinely different table from 1988-1990's simpler 2-rate
+        # 15/28% one) AND its own, structurally distinct 3-case capital-
+        # gains alternative tax (not the same shape as any later vintage):
+        #   Case B - taxable_income < ttab (`ttab` = the 28%/35% bracket
+        #     boundary, `toptab(itab+3)`): capital gains flow through the
+        #     ordinary brackets completely untouched - tax = plain_ordinary_
+        #     tax on the FULL taxable income.
+        #   Case C - ordinary_income <= ttab but taxable_income >= ttab
+        #     (capital gains alone push the filer over the line): tax =
+        #     (ordinary-bracket tax AT exactly ttab) + 0.28*(taxable_income
+        #     - ttab) - i.e. income up to ttab gets the real graduated
+        #     11/15/28% rates, everything above (including the gains) is
+        #     capped at a flat 28%, never spilling into the 35%/38.5% tiers.
+        #   Case A - ordinary_income alone already >= ttab: tax = (bracket
+        #     tax on ordinary income ALONE, which can genuinely land in the
+        #     35%/38.5% tiers) + a flat 0.28*ltg_capped - capital gains are
+        #     carved out entirely and taxed flat at 28%, never touching
+        #     whatever higher ordinary bracket the filer's ordinary income
+        #     alone would reach.
+        # `bracket_tax(ttab, brackets)` reproduces Case C's "tax at exactly
+        # ttab" term with no separate accumulated-tax parameter needed -
+        # confirmed by hand (11%/15%/28% through $45,000 for a joint filer:
+        # 330+3750+4760=$8,840, exactly the source's own `acctab` entry
+        # there). `ttab` itself is a new `rate_28_ceiling` parameter
+        # (capital_gains.yaml), real only for 1987 (sentinel elsewhere) -
+        # it's the bracket table's own 4th threshold, reused rather than
+        # re-derived, same convention as rate_0_ceiling/rate_15_ceiling for
+        # later vintages. Mathematically each case's tax is <= plain_
+        # ordinary_tax (capping a marginal segment at 28% can only reduce
+        # tax, and Case B is exactly equal), so the shared min() finish
+        # below is still a safe no-op here too.
+        rate_28_ceiling_expr = _by_status_expr(
+            {status: resolve_year(cg_p["rate_28_ceiling"][status], year) for status in FILING_STATUSES}
+        )
+        tax_at_ttab = pl.lit(None, dtype=pl.Float64)
+        for status, brackets in brackets_by_status.items():
+            tax_at_ttab = (
+                pl.when(pl.col("filing_status") == status)
+                .then(bracket_tax(rate_28_ceiling_expr, brackets))
+                .otherwise(tax_at_ttab)
+            )
+        tax_case_c = tax_at_ttab + 0.28 * (pl.col("taxable_income") - rate_28_ceiling_expr)
+        tax_case_a = tax_expr + 0.28 * ltg_capped
+        total_tax_1987 = (
+            pl.when(pl.col("taxable_income") < rate_28_ceiling_expr)
+            .then(plain_ordinary_tax)
+            .when(ordinary_income <= rate_28_ceiling_expr)
+            .then(tax_case_c)
+            .otherwise(tax_case_a)
+        )
+        preferential_tax = total_tax_1987 - tax_expr
+    elif 1988 <= year <= 1990:
+        # `tax88` (`taxsim_2022_10_21.f:26395-26412`, covers 1988-1990) has
+        # NO capital-gains treatment at all - unlike every other vintage
+        # subroutine in this project's scope, its signature doesn't even
+        # take a `data(255)` array (no access to stcg/ltcg), just
+        # `(taxinc,sepret,nfile,rate,tax)` - a plain bracket lookup on
+        # whatever taxable income it's given. Real law: 1988-1990's top
+        # ordinary rate (28%) exactly equals the old capital-gains cap
+        # rate that 1987's transitional alternative tax (`tax87`) still
+        # used, so Congress didn't carry a separate mechanism forward -
+        # capital gains are simply ordinary income these three years, no
+        # 28%-cap alt tax like 1991-1996 has. Reproduced by making
+        # `preferential_tax` collapse the shared `min(plain_ordinary_tax,
+        # tax_expr+preferential_tax)` finish below to exactly
+        # `plain_ordinary_tax` (i.e. `tax_expr` already excludes ltg from
+        # `ordinary_income` above - this adds it straight back at the
+        # plain bracket rate, undoing that split rather than applying any
+        # preferential rate).
+        preferential_tax = plain_ordinary_tax - tax_expr
+    elif year in (1991, 1992, 1993):
+        # 1991-1992 have their OWN vintage subroutine (`tax91`,
+        # taxsim_2022_10_21.f:26416-26478), and 1993 its own again
+        # (`tax93`, taxsim_2022_10_21.f:26484-26562) - but all three share
+        # the exact same formula SHAPE, structurally close to 1994-1996's
+        # `tax94` (same "cap the marginal rate on net long-term gain at
+        # 28%" idea, same `taxin3 = max(taxable_income-ltg, bot28)`
+        # floor), except the alternative computation is only even
+        # ATTEMPTED when `taxable_income > top28` (`top28` = the 28%/31%
+        # bracket boundary, reusing the rate_15_ceiling slot for its real
+        # dollar value those three years rather than the sentinel other
+        # years use there) - i.e. only for filers already past the 28%
+        # bracket. Below that, `tax = regtax` (the plain bracket tax)
+        # directly, no comparison at all. Mathematically the alternative
+        # tax can never exceed the plain one once gated (capping a real
+        # >28% marginal segment at 28% can only reduce tax), so reusing
+        # the shared `min(plain_ordinary_tax, tax_expr+preferential_tax)`
+        # finish below still reproduces this exactly.
+        #
+        # tax91's own bracket table (`block data bloc91`) is denominated
+        # in 1991 dollars and CPI-blown-up for 1992
+        # (`blowup=xndxa(lawyr)/xndxa(1991)`, taxsim_2022_10_21.f:26435) -
+        # but since bracket_tax() is homogeneous of degree 1 (scaling both
+        # income and every bracket boundary by the same factor scales the
+        # tax by that factor too), pre-computing the already-blown-up real
+        # dollar bracket/bot28/top28 values into income_tax.yaml and
+        # capital_gains.yaml (as done for every other year) reproduces
+        # tax91's blowup arithmetic exactly with no extra code here -
+        # confirmed by deriving both algebraically and via a live oracle
+        # probe. Also note: the dispatcher calls `tax93` TWICE for 1993,
+        # first with stcg/ltcg zeroed out then again with the real values
+        # (taxsim_2022_10_21.f:24970-24979) - the first call's outputs are
+        # entirely overwritten by the second, so it's dead code, safely
+        # ignored here.
+        taxin3 = pl.max_horizontal(rate_0_ceiling_expr, pl.col("taxable_income") - ltg_capped)
+        excess = pl.col("taxable_income") - taxin3
+        alt_ordinary_tax = pl.lit(None, dtype=pl.Float64)
+        for status, brackets in brackets_by_status.items():
+            alt_ordinary_tax = (
+                pl.when(pl.col("filing_status") == status)
+                .then(bracket_tax(taxin3, brackets))
+                .otherwise(alt_ordinary_tax)
+            )
+        alt_tax = alt_ordinary_tax + 0.28 * excess
+        gated = (ltg_capped > 0) & (pl.col("taxable_income") > rate_15_ceiling_expr)
+        # The .otherwise() branch makes tax_expr+preferential_tax equal
+        # plain_ordinary_tax (computed above, alongside the year branches)
+        # when not gated, so the shared finish's min() reduces to
+        # "tax=regtax" exactly like the source's own else-branch.
+        preferential_tax = pl.when(gated).then(alt_tax - tax_expr).otherwise(plain_ordinary_tax - tax_expr)
+    elif year <= 1996:
+        # 1994-1996 use yet another, genuinely different vintage subroutine
+        # (`tax94`, taxsim_2022_10_21.f:26568-26668) - not a tiered
+        # preferential rate at all, but a "cap the marginal rate on net
+        # long-term gain at 28%" ALTERNATIVE tax (real law: TRA1986's
+        # original 28%-cap scheme, in effect 1991-1996 before 1997's
+        # Taxpayer Relief Act introduced the modern tiered rates):
+        #   taxin3 = max(bot28, taxable_income - ltg)   [never counts the
+        #     "ordinary-equivalent" income as below the 28%-bracket start]
+        #   alt_tax = bracket_tax(taxin3) + 0.28*(taxable_income - taxin3)
+        #   tax = min(plain_bracket_tax(taxable_income), alt_tax)   -- only
+        #     when ltg>0; otherwise just the plain bracket tax.
+        # `bot28` reuses capital_gains.yaml's rate_0_ceiling (the same
+        # 15%/28%-bracket breakpoint, `bot28 = toptab(itab+1)`,
+        # taxsim_2022_10_21.f:26612) - not a separate parameter.
+        # Reconstructed as `preferential_tax = alt_tax - tax_expr` so the
+        # existing `regular_tax = min(plain_ordinary_tax, tax_expr +
+        # preferential_tax)` finish below reproduces `min(regtax, alt)`
+        # unchanged.
+        taxin3 = pl.max_horizontal(rate_0_ceiling_expr, pl.col("taxable_income") - ltg_capped)
+        excess = (pl.col("taxable_income") - taxin3).clip(0, None)
+        alt_ordinary_tax = pl.lit(None, dtype=pl.Float64)
+        for status, brackets in brackets_by_status.items():
+            alt_ordinary_tax = (
+                pl.when(pl.col("filing_status") == status)
+                .then(bracket_tax(taxin3, brackets))
+                .otherwise(alt_ordinary_tax)
+            )
+        alt_tax = alt_ordinary_tax + 0.28 * excess
+        preferential_tax = pl.when(ltg_capped > 0).then(alt_tax - tax_expr).otherwise(0.0)
+    elif 1997 <= year <= 2000:
+        # 1997-2000 use an entirely different Fortran subroutine (`tax97`,
+        # not `tax01` - taxsim_2022_10_21.f:26674-26853, dispatched by
+        # `in(lawyr,1997,2000)` at :24984-24987) - a real "vintage"
+        # boundary the 2001-2002 fix above doesn't cover. Unlike tax01's
+        # deliberately uncapped tier-1 room, tax97's own tier-1 room IS
+        # capped by taxable income (`xlin36 = max(0, min(brac15,taxinc) -
+        # ordinary_income)`, taxsim_2022_10_21.f:26809) - which, worked
+        # through algebraically for this project's scope (no unrecaptured
+        # 1250 gain, no short-term loss, no 28%-rate collectibles gain, all
+        # zero here), reduces to exactly the same capped 3-tier shape the
+        # generic engine below already implements. So 1997-2000 reuse that
+        # generic engine directly, just with the old 10%/20% rates (like
+        # 2001-2002) rather than a special branch of their own.
+        preferential_tax = preferential_rate_tax(
+            pl.col("taxable_income"),
+            ltg_capped,
+            rate_0_ceiling_expr,
+            rate_15_ceiling_expr,
+            rate_15=float(resolve_year(cg_p["rate_15"], year)),
+            rate_20=float(resolve_year(cg_p["rate_20"], year)),
+            rate_0=float(resolve_year(cg_p["rate_0"], year)),
+        )
+    elif year <= 2002:
+        # Pre-2003 (2001-2002): the source's tier-1 "room" (`xl16 = brac15
+        # - xl12`) is NOT capped by how much gain is actually available -
+        # it's the full room left in the 0/10%-rate zone after ordinary
+        # income, even if that exceeds the taxpayer's actual ltg. This only
+        # matters (vs. capping it, as the generic 3-tier engine below
+        # does) when the preferential rate is nonzero and gain is small
+        # relative to that room - which is exactly what makes the
+        # `min(regtax, taxng+taxltg)` finish (see below) actually bind:
+        # an uncapped tier-1 room can make the "preferential" total
+        # EXCEED plain ordinary-rate tax on modest income, at which point
+        # the source falls back to plain ordinary rates instead -
+        # confirmed via a live oracle probe (2001, single, $0 wages,
+        # $20,000 ltcg: preferential math alone gives $2,705 - MORE than
+        # the $1,582.50 plain-ordinary-bracket-tax on the $12,550 taxable
+        # income - and the oracle's actual answer is the smaller $1,582.50).
+        # taxsim_2022_10_21.f:27208-27247.
+        low_room = (rate_0_ceiling_expr - ordinary_income).clip(0, None)
+        rate_0 = float(resolve_year(cg_p["rate_0"], year))
+        rate_top = float(resolve_year(cg_p["rate_15"], year))
+        sch10 = rate_0 * low_room
+        above_room = (ltg_capped - low_room).clip(0, None)
+        sch20 = rate_top * above_room
+        preferential_tax = sch10 + sch20
+    elif year == 2003:
+        # JGTRRA's capital-gains rate cut (5%/15%, from 10%/20%) only
+        # applied to gains from sales after May 5, 2003 - but its new
+        # qualified-dividend preferential rate applied to the WHOLE year.
+        # The source doesn't track a sale-date split, so it makes a real,
+        # deliberate simplifying choice for 2003 only: dividends get first
+        # claim on the preferential-rate "room" (taxed at the NEW 5%/15%),
+        # and whatever net capital gain is left over is taxed at the OLD
+        # 10%/20% rates for the entire year - taxsim_2022_10_21.f:
+        # 27249-27301 ("line-by-line 2003 sch D calculations"). Confirmed
+        # via a live oracle probe: pure-LTCG cases came out at exactly
+        # double the naive 5% rate (i.e. 10%) before this fix.
+        low_room = (pl.min_horizontal(pl.col("taxable_income"), rate_0_ceiling_expr) - ordinary_income).clip(
+            0, None
+        )
+        dividends_in_low = pl.min_horizontal(low_room, dividends_with_fudge)
+        sch5 = 0.05 * dividends_in_low
+        gain_in_low = low_room - dividends_in_low
+        sch10 = 0.10 * gain_in_low
+        above_room = (ltg_capped - low_room).clip(0, None)
+        dividends_remaining = dividends_with_fudge - dividends_in_low
+        dividends_in_high = pl.min_horizontal(above_room, dividends_remaining)
+        sch15 = 0.15 * dividends_in_high
+        gain_in_high = above_room - dividends_in_high
+        sch20 = 0.20 * gain_in_high
+        preferential_tax = sch5 + sch10 + sch15 + sch20
+    else:
+        preferential_tax = preferential_rate_tax(
+            pl.col("taxable_income"),
+            ltg_capped,
+            rate_0_ceiling_expr,
+            rate_15_ceiling_expr,
+            rate_15=float(resolve_year(cg_p["rate_15"], year)),
+            rate_20=float(resolve_year(cg_p["rate_20"], year)),
+            rate_0=float(resolve_year(cg_p["rate_0"], year)),
+        )
+
+    # The source's Schedule D Tax Worksheet always finishes with
+    # `tax = min(regtax, taxng+taxltg)` (taxsim_2022_10_21.f:27415-27420,
+    # and mirrored at :26849-26853 for an earlier-vintage worksheet) -
+    # `regtax` being the PLAIN ordinary-bracket tax on the FULL taxable
+    # income, as if ltg got no preferential treatment at all (`plain_
+    # ordinary_tax`, computed above alongside the year branches since the
+    # 1988-1990 branch needs it too). For every year this project had
+    # built before 2001-2002, the preferential computation is always the
+    # smaller of the two (0/15/20% can't exceed top ordinary rates), so
+    # this comparison was silently a no-op and never needed implementing.
+    # It stops being a no-op for 2001-2002's OLD 10%/20% rates at LOW
+    # income: a low-income filer whose entire taxable income sits in the
+    # 10%/15% ordinary brackets can come out *ahead* on the plain
+    # ordinary-rate computation, since a flat 10% capital-gains rate isn't
+    # always below a blended 10%/15% ordinary rate on a small amount of
+    # income - confirmed via a live oracle probe (2001, single, $0 wages,
+    # $20,000 ltcg: taxable income $12,550, all in the 10%/15% ordinary
+    # brackets - fiitax exactly matches plain ordinary bracket tax on
+    # $12,550, not the smaller preferential-rate figure).
+    regular_tax = pl.min_horizontal(plain_ordinary_tax, tax_expr + preferential_tax)
+
+    if 1988 <= year <= 1996:
+        # A real, SEPARATE "Exemption Surtax" (`tax3`) existed 1988-1996,
+        # additional to (not a duplicate of) the exemption-reduction PEP
+        # mechanism already applied above (`amex = amex*(1-ratio)`) -
+        # taxsim_2022_10_21.f:24933-24952 ("Exemption surtax, only for
+        # 1988-1996"). It adds a flat 5% surtax on taxable income above
+        # its own threshold (a genuinely different, xndx-inflated
+        # threshold from PEP's own `exmphl`), capped at 28% of the
+        # (already-reduced) exemption amount - conceptually "claw back
+        # the exemption's tax benefit at the top 28% bracket rate, via a
+        # direct add-on rather than further shrinking the exemption
+        # itself". Found because every high-income 1994-1996 test case
+        # was under-computing tax by exactly this missing surtax.
+        pep_p = FEDERAL_PERSONAL_EXEMPTION_PARAMS
+        exemption_surtax_threshold_expr = _by_status_expr(
+            {
+                status: resolve_year(pep_p["exemption_surtax_threshold"][status], year)
+                for status in FILING_STATUSES
+            }
+        )
+        exemption_surtax = pl.min_horizontal(
+            (0.05 * (pl.col("taxable_income") - exemption_surtax_threshold_expr).clip(0, None)),
+            0.28 * amex,
+        )
+        regular_tax = regular_tax + exemption_surtax
+
+    if 1988 <= year <= 1990:
+        # A SEPARATE "surtax on 15% rate savings" bubble, 1988-1990 ONLY
+        # (taxsim_2022_10_21.f:24913-24931, "difference4") - not a
+        # duplicate of the exemption surtax just above (that one runs
+        # 1988-1996; this one is exclusive to TRA1986's original 3-year
+        # 15%/28% bracket design and doesn't recur once tax91's 3-rate
+        # schedule arrives in 1991). A flat 5% surtax on taxable income
+        # above its own threshold, capped in dollars (not as a fraction of
+        # anything) - claws back the tax savings from having the first
+        # bracket taxed at 15% instead of the top 28% rate.
+        income_tax_p = FEDERAL_INCOME_TAX_PARAMS
+        bubble_threshold_expr = _by_status_expr(
+            {
+                status: resolve_year(income_tax_p["bubble_surtax_threshold"][status], year)
+                for status in FILING_STATUSES
+            }
+        )
+        bubble_cap_expr = _by_status_expr(
+            {status: resolve_year(income_tax_p["bubble_surtax_cap"][status], year) for status in FILING_STATUSES}
+        )
+        bubble_surtax = pl.min_horizontal(
+            (0.05 * (pl.col("taxable_income") - bubble_threshold_expr).clip(0, None)),
+            bubble_cap_expr,
+        )
+        regular_tax = regular_tax + bubble_surtax
 
     df = df.with_columns(
-        regular_tax=tax_expr + preferential_tax,
+        regular_tax=regular_tax,
         num_children=pl.col("dep18").clip(0, 3),
     )
 
@@ -550,30 +1013,80 @@ def compute_regular_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         }
     )
     amt_income = pl.col("agi") - pl.when(pl.col("itemizes")).then(pl.col("mortgage")).otherwise(0.0)
-    amt = alternative_minimum_tax(
-        amt_income=amt_income,
-        regular_tax=pl.col("regular_tax"),
-        exemption=amt_exemption_expr,
-        exemption_phaseout_threshold=amt_phaseout_threshold_expr,
-        exemption_phaseout_rate=float(resolve_year(amt_p["exemption_phaseout_rate"], year)),
-        rate_breakpoint=float(resolve_year(amt_p["rate_breakpoint"], year)),
-        rate_below_breakpoint=float(resolve_year(amt_p["rate_below_breakpoint"], year)),
-        rate_above_breakpoint=float(resolve_year(amt_p["rate_above_breakpoint"], year)),
-        sepret=sepret_expr,
-        ltg=pl.col("ltg"),
-        regular_taxable_income=pl.col("taxable_income"),
-        cg_rate_0_ceiling=rate_0_ceiling_expr,
-        cg_rate_15_ceiling=_by_status_expr(
-            {status: resolve_year(amt_p["cg_rate_15_ceiling"][status], year) for status in FILING_STATUSES}
-        ),
-        cg_rate_15=float(resolve_year(cg_p["rate_15"], year)),
-    )
+    # AMT's own capital-gains preferential treatment ("tax capital gains for
+    # purposes of the minimum tax at no more than 20%") only exists starting
+    # 1997 - taxsim_2022_10_21.f:25290-25292 (`if(lawyr.le.1996) tamt =
+    # almrat*alminc-almbak` vs. `elseif(lawyr.ge.1997)`, the latter alone
+    # referencing ltg/cglong at all). Before 1997, capital gains sit inside
+    # alminc and get taxed at the plain AMT rate like everything else - no
+    # code branch needed for that (ltg=None takes engine/amt.py's simple
+    # flat/two-tier path), only this year gate. Currently unobservable in
+    # fiitax either way (AMT liability itself is never added to the tax base
+    # before 2000 - see the year<=1999 branch below), but kept correct since
+    # this exact code now also covers 1991-1992.
+    # Married-filing-separately-only AMTI addback, 1990+ (see amt.yaml's
+    # own comment) - the cap equals that year's married_separate
+    # exemption amount exactly, so reused directly rather than
+    # duplicated in a separate table.
+    separate_addback_kwargs = {}
+    if year >= 1990:
+        separate_addback_kwargs = dict(
+            separate_return_addback_cap=resolve_year(amt_p["exemption"]["married_separate"], year),
+            separate_return_addback_threshold=resolve_year(amt_p["separate_return_addback_threshold"], year),
+        )
+    if year <= 1996:
+        amt = alternative_minimum_tax(
+            amt_income=amt_income,
+            regular_tax=pl.col("regular_tax"),
+            exemption=amt_exemption_expr,
+            exemption_phaseout_threshold=amt_phaseout_threshold_expr,
+            exemption_phaseout_rate=float(resolve_year(amt_p["exemption_phaseout_rate"], year)),
+            rate_breakpoint=float(resolve_year(amt_p["rate_breakpoint"], year)),
+            rate_below_breakpoint=float(resolve_year(amt_p["rate_below_breakpoint"], year)),
+            rate_above_breakpoint=float(resolve_year(amt_p["rate_above_breakpoint"], year)),
+            sepret=sepret_expr,
+            **separate_addback_kwargs,
+        )
+    else:
+        amt = alternative_minimum_tax(
+            amt_income=amt_income,
+            regular_tax=pl.col("regular_tax"),
+            exemption=amt_exemption_expr,
+            exemption_phaseout_threshold=amt_phaseout_threshold_expr,
+            exemption_phaseout_rate=float(resolve_year(amt_p["exemption_phaseout_rate"], year)),
+            rate_breakpoint=float(resolve_year(amt_p["rate_breakpoint"], year)),
+            rate_below_breakpoint=float(resolve_year(amt_p["rate_below_breakpoint"], year)),
+            rate_above_breakpoint=float(resolve_year(amt_p["rate_above_breakpoint"], year)),
+            sepret=sepret_expr,
+            **separate_addback_kwargs,
+            ltg=pl.col("ltg"),
+            regular_taxable_income=pl.col("taxable_income"),
+            cg_rate_0_ceiling=rate_0_ceiling_expr,
+            cg_rate_15_ceiling=_by_status_expr(
+                {status: resolve_year(amt_p["cg_rate_15_ceiling"][status], year) for status in FILING_STATUSES}
+            ),
+            cg_rate_15=float(resolve_year(cg_p["rate_15"], year)),
+            cg_rate_0=float(resolve_year(cg_p["rate_0"], year)),
+        )
     # Not rounded here: matching the source, which stays full double
     # precision throughout and rounds only at final output. Rounding
     # intermediate credits to the cent would swamp the $0.01 perturbation
     # compute_marginal_rate() uses for frate.
     df = df.with_columns(amt=amt)
-    df = df.with_columns(tax_before_credits=pl.col("regular_tax") + pl.col("amt"))
+    if year <= 1999:
+        # A real, confirmed quirk: for lawyr<=1999 the source computes
+        # `almtax` (AMT liability) but never actually adds it into the tax
+        # base used downstream - `if(lawyr.le.1999) taxbca = taxbc` vs.
+        # `if(lawyr.ge.2000) taxbca = taxbc + almtax`
+        # (taxsim_2022_10_21.f:25475-25476). Confirmed via a live oracle
+        # probe (single, $50,000 wages, $25,000 property tax: identical
+        # AMT liability computed for 1997-2000 alike - $872.50-$895.00,
+        # rising each year purely because regular tax falls - but only
+        # actually added to fiitax starting 2000; 1997-1999's fiitax
+        # exactly equals regular tax alone).
+        df = df.with_columns(tax_before_credits=pl.col("regular_tax"))
+    else:
+        df = df.with_columns(tax_before_credits=pl.col("regular_tax") + pl.col("amt"))
 
     # Child and Dependent Care Credit computed first, since the source's own
     # nonrefundable-credit stacking order (taxsim_2022_10_21.f:24802-24822)
@@ -581,7 +1094,20 @@ def compute_regular_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     # whatever capacity is left over - not an independent competing cap.
     ccc_p = FEDERAL_CREDITS_PARAMS["child_care_credit"]
     max_qualifying_persons = float(resolve_year(ccc_p["max_qualifying_persons"], year))
-    if year >= 2021:
+    if year == 2021:
+        # ARPA's enhanced Child Care Credit ($8,000/$16,000 expense cap,
+        # 50%-down-to-20% rate) was ONE YEAR ONLY, per
+        # taxsim_2024_09_21.f:25576-25584/25612-25623
+        # (`else if(lawyr.ge.2022) child=min(data(64),3000*ncccr)` and the
+        # matching `chr` formula both explicitly revert to the pre-2021
+        # shape for 2022+). taxsim_2022_10_21.f had `.ge.2021` instead of
+        # `.eq.2021` for both - the same family of upstream bug already
+        # found and fixed for the Child Tax Credit above, just not
+        # previously caught here since this project's OWN earlier
+        # (2022-oracle-based) finding concluded the enhanced formula
+        # "carries over to 2022" - which was itself an artifact of that
+        # bug, not a real 2022 law feature (real law reverted CCC to pre-
+        # ARPA rules for 2022, same as CTC).
         max_expense_per_person = float(resolve_year(ccc_p["max_expense_per_person"], year))
         ccc_rate = child_care_credit_rate(
             pl.col("agi"),
@@ -625,6 +1151,21 @@ def compute_regular_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         # tax_before_credits=$0 would allow if still capped there, matching
         # 50%*$5,000 in full). taxsim_2022_10_21.f:25992-25993,26048.
         ccc = ccc_amount.clip(0, None)
+    elif year < 1998:
+        # A real, confirmed quirk: the source computes `chcr` (the CCC
+        # amount) for 1997 same as any other year, but the entire
+        # "Stacking Credits" mechanism that actually applies it to reduce
+        # tax liability (`oldcr = chcr+oldcr`, `credit = oldcr+edcred+
+        # famcr`) lives inside the same `if(lawyr.ge.1998)` block that
+        # holds the newly-created (1998) Child Tax Credit code -
+        # taxsim_2022_10_21.f:25600-25821. For 1997, that whole block is
+        # skipped, leaving `oldcr`/`credit` at 0 - so CCC computes a
+        # nonzero amount internally but never actually reduces the tax.
+        # Confirmed via a debug-instrumented compile showing `credit=0`
+        # for 1997 despite `chcr` correctly computing $480, and directly
+        # via a live oracle probe (fiitax exactly equals tax_before_credits
+        # unreduced for a $480-credit-eligible 1997 case).
+        ccc = pl.lit(0.0)
     else:
         ccc = pl.min_horizontal(ccc_amount, pl.col("tax_before_credits").clip(0, None))
     df = df.with_columns(ccc=ccc)
@@ -653,14 +1194,20 @@ def compute_regular_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     # is just intrec. Reduced dollar-for-dollar above dylim, confirmed
     # empirically ($10,000 for 2022, strictly-greater-than: exactly $10,000
     # doesn't trigger it, $10,001 reduces the credit by $1).
-    dylim = float(resolve_year(FEDERAL_EITC_PARAMS_MISC["dylim"], year))
-    disqy = capgn.clip(0, None) + dividends_with_fudge + pl.col("intrec")
-    eitc_reduction = (disqy - dylim).clip(0, None)
+    if year < 1996:
+        # The disqualified-income test itself didn't exist before 1996 -
+        # the source's entire `disqy`/`dyeic` computation is gated
+        # `if(lawyr.ge.1996)` (taxsim_2022_10_21.f:27752-27767), not just
+        # `dylim`'s own table lookup. No reduction at all pre-1996,
+        # regardless of investment income.
+        eitc_reduction = pl.lit(0.0)
+    else:
+        dylim = float(resolve_year(FEDERAL_EITC_PARAMS_MISC["dylim"], year))
+        disqy = capgn.clip(0, None) + dividends_with_fudge + pl.col("intrec")
+        eitc_reduction = (disqy - dylim).clip(0, None)
     df = df.with_columns(eitc=(eitc_ordinary - eitc_reduction).clip(0, None))
 
     ctc_p = FEDERAL_CREDITS_PARAMS["child_tax_credit"]
-    actc_earned_income_floor = float(resolve_year(ctc_p["actc_earned_income_floor"], year))
-    actc_rate = float(resolve_year(ctc_p["actc_rate"], year))
 
     ideps = pl.col("dep17")  # CTC-qualifying children; 0-2 supported, see module docstring
     young = pl.min_horizontal(pl.col("dep6"), ideps)
@@ -689,9 +1236,17 @@ def compute_regular_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
             }
         )
 
-    if year >= 2021:
+    if year == 2021:
         # ARPA carryover mechanism: an "enhanced" amount above the flat
-        # $2000-per-child base, phased back down at low incomes.
+        # $2000-per-child base, phased back down at low incomes. ONE YEAR
+        # ONLY - taxsim_2024_09_21.f:25695 gates this `if(lawyr.eq.2021)`;
+        # taxsim_2022_10_21.f:25596 had `if(lawyr.ge.2021)` instead, a real
+        # upstream bug (extending the temporary ARPA enhancement into 2022)
+        # since fixed - found via a live 2022 oracle-version comparison
+        # (single, 1 CTC-eligible dependent, $43,489 wages: taxsim2022.exe
+        # gives $2,097.45 fiitax via the buggy ARPA-shaped formula,
+        # taxsim2024.exe gives the correct $2,597.45 via the flat $2,000
+        # formula below).
         young_child_amount = float(resolve_year(ctc_p["young_child_amount"], year))
         older_child_amount = float(resolve_year(ctc_p["older_child_amount"], year))
         base_amount_offset = float(resolve_year(ctc_p["base_amount_offset"], year))
@@ -717,7 +1272,19 @@ def compute_regular_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         flat_amount = float(resolve_year(ctc_p["flat_amount_pre2021"], year))
         ctc_before_tcja_phaseout = flat_amount * ideps
 
-    combined_base = odc_base + ctc_before_tcja_phaseout
+    # A real, confirmed oracle quirk (present in both vintages, just
+    # masked in the 2022 one by the `.ge.2021` ARPA-gate bug fixed above):
+    # `odcred` is computed for every year>=2018 but only ever folded into
+    # `precrd` for lawyr<=2020 (`if(lawyr.le.2020) precrd=precrd+odcred`)
+    # or via the 2021-only ARPA branch's own `precrd=odcred+ccr17` line -
+    # there is no year>=2022 branch that adds it at all. Confirmed via a
+    # debug-instrumented probe of taxsim_2024_09_21.f directly (single, 1
+    # dependent with dep17=0/dep18=1 - i.e. ODC-eligible, not CTC-eligible
+    # - $43,489 wages, 2022: `odcred`=500, `precrd` stays 0 - the $500
+    # never applies). Replicated as found, not "fixed" - the ODC clearly
+    # still exists in current real-world law, but this project matches
+    # what the oracle actually computes.
+    combined_base = ctc_before_tcja_phaseout + (odc_base if year <= 2021 else pl.lit(0.0))
 
     # ODC and CTC share the same $200k/$400k TCJA-era phaseout threshold/rate.
     # Computed directly here (rather than via engine.credits' shared helper)
@@ -737,11 +1304,23 @@ def compute_regular_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         # taxsim_2022_10_21.f:25964 (`chcr1 = chcred`).
         nonrefundable_credit = pl.lit(0.0)
         actc = combined_after_phaseout
+    elif year < 2001:
+        # The refundable Additional Child Tax Credit didn't exist at all
+        # before EGTRRA 2001 - the source's entire `chcr1` refundability
+        # mechanism is gated `if(lawyr.ge.2001.and.lawyr.ne.2021)`
+        # (taxsim_2022_10_21.f:25918-25919). Before that, CTC (where it
+        # existed at all - not even that before 1998) was purely
+        # nonrefundable, capped at tax liability with nothing left over.
+        remaining_after_ccc = (pl.col("tax_before_credits") - pl.col("ccc")).clip(0, None)
+        nonrefundable_credit = pl.min_horizontal(combined_after_phaseout, remaining_after_ccc)
+        actc = pl.lit(0.0)
     else:
         remaining_after_ccc = (pl.col("tax_before_credits") - pl.col("ccc")).clip(0, None)
         nonrefundable_credit = pl.min_horizontal(combined_after_phaseout, remaining_after_ccc)
         unused_nonrefundable = combined_after_phaseout - nonrefundable_credit
 
+        actc_earned_income_floor = float(resolve_year(ctc_p["actc_earned_income_floor"], year))
+        actc_rate = float(resolve_year(ctc_p["actc_rate"], year))
         actc_earned_formula = actc_rate * (agi - actc_earned_income_floor).clip(0, None)
         if year >= 2018:
             actc_max_per_child = float(resolve_year(ctc_p["actc_max_refundable_per_child"], year))
@@ -867,6 +1446,18 @@ def compute_regular_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         making_work_pay = pl.lit(0.0)
     df = df.with_columns(making_work_pay=making_work_pay)
 
+    # 2006-only refundable Credit for Federal Telephone Excise Tax Paid
+    # (`telcr`): a one-time flat refund, $10 per exemption up to 4, plus a
+    # flat $20 - i.e. $30 for 1 exemption, $40 for 2, ..., capping at $60
+    # for 4+ - regardless of any actual telephone excise tax paid (not an
+    # input this project tracks). taxsim_2022_10_21.f:26051-26054.
+    if year == 2006:
+        exemps = 1.0 + pl.col("depx") + pl.when(pl.col("filing_status") == "married_joint").then(1.0).otherwise(0.0)
+        telephone_excise_credit = pl.when(exemps > 0).then(10.0 * (pl.min_horizontal(exemps, 4.0) + 2.0)).otherwise(0.0)
+    else:
+        telephone_excise_credit = pl.lit(0.0)
+    df = df.with_columns(telephone_excise_credit=telephone_excise_credit)
+
     # Not rounded: kept at full precision like the source, which only rounds
     # at final display. Rounding here would swamp compute_marginal_rate()'s
     # $0.01 perturbation. Round fiitax at the point of comparison/display.
@@ -879,6 +1470,7 @@ def compute_regular_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
             - pl.col("eitc")
             - pl.col("cares")
             - pl.col("making_work_pay")
+            - pl.col("telephone_excise_credit")
             + pl.col("niit")
         )
     )

@@ -21,8 +21,63 @@
 # capital loss should be entered as 0, not a negative value, until that's
 # built). Other-property gains (a further, separately-deferred input) are
 # not included either.
+# 1994-1996 use yet another, genuinely different vintage subroutine
+# (`tax94`, taxsim_2022_10_21.f:26568-26668) - not a tiered preferential
+# rate at all, but a "cap the marginal rate on net long-term gain at 28%"
+# ALTERNATIVE tax: `tax = min(plain_bracket_tax(taxable_income),
+# bracket_tax(max(bot28, taxable_income-ltg)) + 0.28*(taxable_income - that
+# ordinary-equivalent amount))`, where `bot28` is exactly this same
+# rate_0_ceiling breakpoint (the 15%/28% bracket boundary - `bot28 =
+# toptab(itab+1)`, taxsim_2022_10_21.f:26612). Real, historical law: the
+# 28%-cap alternative tax on LTCG applied 1991-1996 (TRA1986's original
+# scheme), before 1997's Taxpayer Relief Act introduced the modern
+# 10%/20% tiered rates `tax97`/`tax01` use. Implemented as its own
+# `year <= 1996` branch in calculators/federal.py, reusing this same
+# rate_0_ceiling value as `bot28` rather than a new parameter. rate_0/
+# rate_15/rate_20 have no 1994-1996 values on purpose, since that branch
+# doesn't call `preferential_rate_tax()` at all - rate_15_ceiling DOES
+# carry the same inert sentinel back to 1994 only because it (unlike
+# rate_0/15/20) gets resolved unconditionally before the year branch,
+# never actually used by this one.
+# `ttab` (`toptab(itab+3)`) for `tax87` ONLY (`taxsim_2022_10_21.f:
+# 26347-26391`) - the 28%/35% bracket boundary that gates 1987's own,
+# structurally distinct 3-case capital-gains alternative tax (see
+# calculators/federal.py's `year == 1987` branch). Not the same value as
+# rate_0_ceiling/rate_15_ceiling - 1987's bracket schedule has 5 real
+# tiers (11/15/28/35/38.5%), so this is the bracket table's 4th threshold,
+# not its 2nd or 3rd. A large sentinel (never reached) reproduces "this
+# mechanism doesn't exist" for every other year with no extra code branch,
+# same convention as rate_15_ceiling's own inert-elsewhere sentinel.
+rate_28_ceiling:
+  single: {1987: 27000, 1988: 1.0e+15}
+  head_of_household: {1987: 38000, 1988: 1.0e+15}
+  married_separate: {1987: 22500, 1988: 1.0e+15}
+  married_joint: {1987: 45000, 1988: 1.0e+15}
+
 rate_0_ceiling:  # brac15: the 0%/15% breakpoint
   single:
+    1987: 1800
+    1988: 17850
+    1989: 18581.85
+    1990: 19474.35
+    1991: 20350
+    1992: 21417.31
+    1993: 22100
+    1994: 22750
+    1995: 23350
+    1996: 24000
+    1997: 24650
+    1998: 25350
+    1999: 25750
+    2000: 26250
+    2001: 27050
+    2002: 27950
+    2003: 28400
+    2004: 29050
+    2005: 29700
+    2006: 30650
+    2007: 31850
+    2008: 32550
     2009: 33950
     2010: 34000
     2011: 34500
@@ -37,7 +92,30 @@ rate_0_ceiling:  # brac15: the 0%/15% breakpoint
     2020: 40000
     2021: 40400
     2022: 41675
+    2023: 44625
   head_of_household:
+    1987: 2500
+    1988: 23900
+    1989: 24879.9
+    1990: 26074.9
+    1991: 27300
+    1992: 28731.82
+    1993: 29600
+    1994: 30500
+    1995: 31250
+    1996: 32150
+    1997: 33050
+    1998: 33950
+    1999: 34550
+    2000: 35150
+    2001: 36250
+    2002: 37450
+    2003: 38050
+    2004: 38900
+    2005: 39800
+    2006: 41050
+    2007: 42650
+    2008: 43650
     2009: 45500
     2010: 45550
     2011: 46250
@@ -52,7 +130,30 @@ rate_0_ceiling:  # brac15: the 0%/15% breakpoint
     2020: 53600
     2021: 54100
     2022: 55800
+    2023: 59750
   married_separate:
+    1987: 1500
+    1988: 14875
+    1989: 15484.875
+    1990: 16228.625
+    1991: 17000
+    1992: 17891.61
+    1993: 18450
+    1994: 19000
+    1995: 19500
+    1996: 20050
+    1997: 20600
+    1998: 21175
+    1999: 21525
+    2000: 21925
+    2001: 22600
+    2002: 23350
+    2003: 28400
+    2004: 29050
+    2005: 29700
+    2006: 30650
+    2007: 31850
+    2008: 32550
     2009: 33950
     2010: 34000
     2011: 34500
@@ -67,7 +168,30 @@ rate_0_ceiling:  # brac15: the 0%/15% breakpoint
     2020: 40000
     2021: 40400
     2022: 41675
+    2023: 44625
   married_joint:
+    1987: 3000
+    1988: 29750
+    1989: 30969.75
+    1990: 32457.25
+    1991: 34000
+    1992: 35783.22
+    1993: 36900
+    1994: 38000
+    1995: 39000
+    1996: 40100
+    1997: 41200
+    1998: 42350
+    1999: 43050
+    2000: 43850
+    2001: 45200
+    2002: 46700
+    2003: 56800
+    2004: 58100
+    2005: 59400
+    2006: 61300
+    2007: 63700
+    2008: 65100
     2009: 67900
     2010: 68000
     2011: 69000
@@ -82,12 +206,46 @@ rate_0_ceiling:  # brac15: the 0%/15% breakpoint
     2020: 80000
     2021: 80800
     2022: 83350
+    2023: 89250
 rate_15_ceiling:  # topbrk: the 15%/20% breakpoint
   # Before 2013, there was no 20% capital-gains rate in law at all - the
   # source's `addtax` (regular tax's 20%-tier add-on) is gated behind
   # `lawyr.ge.2013` outright (taxsim_2022_10_21.f:25399). A large sentinel
   # (never reached) reproduces that with no extra code branch.
+  #
+  # EXCEPT 1991-1993: this slot holds a real, meaningfully-used value those
+  # years - `top28` (the 28%/31% bracket boundary, `top28 =
+  # toptab(itab+2)`), which `tax91`/`tax93`'s own capital-gains alternative
+  # tax uses to GATE whether it even attempts the alternative computation at
+  # all (`taxin2.gt.top28` in tax91, taxsim_2022_10_21.f:26456-26457;
+  # `taxin2*sepret.gt.top28` in tax93, taxsim_2022_10_21.f:26513-26514). See
+  # calculators/federal.py's `year in (1991, 1992, 1993)` branch. 1991's
+  # value is `bloc91`'s own toptab entry directly (blowup=1 that year);
+  # 1992's is the same table blown up by CPI (`xndxa(1992)/xndxa(1991)`) -
+  # same driver/technique as income_tax.yaml's 1991-1992 brackets.
   single:
+    1987: 1.0e+15
+    1988: 1.0e+15
+    1989: 1.0e+15
+    1990: 1.0e+15
+    1991: 49300
+    1992: 51885.66
+    1993: 53500
+    1994: 1.0e+15
+    1995: 1.0e+15
+    1996: 1.0e+15
+    1997: 1.0e+15
+    1998: 1.0e+15
+    1999: 1.0e+15
+    2000: 1.0e+15
+    2001: 1.0e+15
+    2002: 1.0e+15
+    2003: 1.0e+15
+    2004: 1.0e+15
+    2005: 1.0e+15
+    2006: 1.0e+15
+    2007: 1.0e+15
+    2008: 1.0e+15
     2009: 1.0e+15
     2011: 1.0e+15
     2012: 1.0e+15
@@ -101,7 +259,30 @@ rate_15_ceiling:  # topbrk: the 15%/20% breakpoint
     2020: 441450
     2021: 445850
     2022: 459650
+    2023: 492300
   head_of_household:
+    1987: 1.0e+15
+    1988: 1.0e+15
+    1989: 1.0e+15
+    1990: 1.0e+15
+    1991: 70450
+    1992: 74144.93
+    1993: 76400
+    1994: 1.0e+15
+    1995: 1.0e+15
+    1996: 1.0e+15
+    1997: 1.0e+15
+    1998: 1.0e+15
+    1999: 1.0e+15
+    2000: 1.0e+15
+    2001: 1.0e+15
+    2002: 1.0e+15
+    2003: 1.0e+15
+    2004: 1.0e+15
+    2005: 1.0e+15
+    2006: 1.0e+15
+    2007: 1.0e+15
+    2008: 1.0e+15
     2009: 1.0e+15
     2011: 1.0e+15
     2012: 1.0e+15
@@ -115,7 +296,30 @@ rate_15_ceiling:  # topbrk: the 15%/20% breakpoint
     2020: 469050
     2021: 473750
     2022: 488500
+    2023: 523050
   married_separate:
+    1987: 1.0e+15
+    1988: 1.0e+15
+    1989: 1.0e+15
+    1990: 1.0e+15
+    1991: 41075
+    1992: 43229.28
+    1993: 44575
+    1994: 1.0e+15
+    1995: 1.0e+15
+    1996: 1.0e+15
+    1997: 1.0e+15
+    1998: 1.0e+15
+    1999: 1.0e+15
+    2000: 1.0e+15
+    2001: 1.0e+15
+    2002: 1.0e+15
+    2003: 1.0e+15
+    2004: 1.0e+15
+    2005: 1.0e+15
+    2006: 1.0e+15
+    2007: 1.0e+15
+    2008: 1.0e+15
     2009: 1.0e+15
     2011: 1.0e+15
     2012: 1.0e+15
@@ -129,7 +333,30 @@ rate_15_ceiling:  # topbrk: the 15%/20% breakpoint
     2020: 248300
     2021: 250800
     2022: 258600
+    2023: 276925
   married_joint:
+    1987: 1.0e+15
+    1988: 1.0e+15
+    1989: 1.0e+15
+    1990: 1.0e+15
+    1991: 82150
+    1992: 86458.57
+    1993: 89150
+    1994: 1.0e+15
+    1995: 1.0e+15
+    1996: 1.0e+15
+    1997: 1.0e+15
+    1998: 1.0e+15
+    1999: 1.0e+15
+    2000: 1.0e+15
+    2001: 1.0e+15
+    2002: 1.0e+15
+    2003: 1.0e+15
+    2004: 1.0e+15
+    2005: 1.0e+15
+    2006: 1.0e+15
+    2007: 1.0e+15
+    2008: 1.0e+15
     2009: 1.0e+15
     2011: 1.0e+15
     2012: 1.0e+15
@@ -143,9 +370,77 @@ rate_15_ceiling:  # topbrk: the 15%/20% breakpoint
     2020: 496600
     2021: 501600
     2022: 517200
-rate_15:
-  2009: 0.15
+    2023: 553850
+# Pre-2003 (2001-2002): the old, pre-JGTRRA flat two-tier LTCG system -
+# 10% up to the rate_0_ceiling breakpoint, 20% above it, no third tier at
+# all. Reuses this same three-tier engine (rate_0/rate_15/rate_0_ceiling)
+# rather than new code: rate_0=0.10 (not the 2003+ 5%), rate_15 holds the
+# TOP rate (0.20, not 0.15) since rate_15_ceiling's sentinel means tier 2
+# never ends, so rate_20 is simply never reached - taxsim_2022_10_21.f:
+# 27199-27200 (default cgrat1=.1*cgmul, cgrate=.2*cgmul, only overridden by
+# `if(lawyr.ge.2003)` to the newer 5%/15% rates). Also note: dividends did
+# NOT get preferential-rate treatment at all before 2003 (JGTRRA introduced
+# it) - `ltg` itself excludes dividends for year<2003 in calculators/
+# federal.py (taxsim_2022_10_21.f:24317-24323: `if(lawyr.ge.2003) ltg = ltg
+# + divq` - unconditionally excluded before that).
+rate_0:  # bottom-bracket ltg/qualified-dividend rate - 10% pre-2003, 5%
+  # through 2007 (TIPRA 2005), cut to 0% starting 2008 -
+  # taxsim_2022_10_21.f:27202-27206. 1994-1996 entries exist only for
+  # AMT's own cg_rate_0 lookup (calculators/federal.py's year<=1996 branch
+  # for the REGULAR tax doesn't touch rate_0/rate_15/rate_20 at all - see
+  # the note above) - AMT's ltg treatment uses this same unconditional
+  # default (`cgrat1=.1*amtmul`) regardless of the regular-tax vintage
+  # boundary, taxsim_2022_10_21.f:25342-25348.
+  1993: 0.10
+  1994: 0.10
+  1995: 0.10
+  1996: 0.10
+  1997: 0.10
+  1998: 0.10
+  1999: 0.10
+  2000: 0.10
+  2001: 0.10
+  2002: 0.10
+  2003: 0.05
+  2004: 0.05
+  2005: 0.05
+  2006: 0.05
+  2007: 0.05
+  2008: 0.0
+rate_15:  # holds the OLD top rate (0.20) for 2001-2002 - see note above
+  1993: 0.20
+  1994: 0.20
+  1995: 0.20
+  1996: 0.20
+  1997: 0.20
+  1998: 0.20
+  1999: 0.20
+  2000: 0.20
+  2001: 0.20
+  2002: 0.20
+  2003: 0.15
+  2004: 0.15
+  2005: 0.15
+  2006: 0.15
+  2007: 0.15
+  2008: 0.15
   2022: 0.15
-rate_20:  # inert before 2013 given the sentinel rate_15_ceiling above
-  2009: 0.20
+rate_20:  # inert for every year coded here - always shadowed by the
+  # sentinel rate_15_ceiling (pre-2013) or never reached pre-2003 (rate_15
+  # already holds the true top rate those two years)
+  1994: 0.20
+  1995: 0.20
+  1996: 0.20
+  1997: 0.20
+  1998: 0.20
+  1999: 0.20
+  2000: 0.20
+  2001: 0.20
+  2002: 0.20
+  2003: 0.20
+  2004: 0.20
+  2005: 0.20
+  2006: 0.20
+  2007: 0.20
+  2008: 0.20
   2022: 0.20

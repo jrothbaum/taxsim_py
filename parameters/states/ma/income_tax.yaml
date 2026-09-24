@@ -1,0 +1,189 @@
+# Massachusetts individual income tax (`matax`, taxsim_2024_09_21.f:
+# 8284-8899, state id 22). See calculators/states/ma.py for the mechanism.
+# Every table below is a year-indexed Fortran DATA statement, transcribed
+# with its repeat counts expanded and checked against the array's own
+# declared `dimension` (1977:2023 unless noted) - forward-filled here, so
+# only change points are listed. Years past 2021 are unreachable (the
+# global `lastat=2021` extrapolation cap applies to every state).
+#
+# Confirmed inert given this project's input schema: elderly/blind
+# (`data(9)`/`data(10)`) - the blind/age exemptions and the entire 2001+
+# senior Circuit Breaker Credit; medical expenses (`comnew(20)`, the
+# `edxmp` exemption); rent paid (`data(160)`, the 50% rent deduction);
+# pensions/other Part B income (`data(19)`/`data(20)`/`data(23)`/
+# `data(24)`/`data(72)`); Schedule E (`comnew(8)`); capital-loss
+# carryovers (`data(67)`/`data(69)`); energy credit (`data(38)`).
+
+# Part B (wage/"basic") income rate (`tab89`).
+part_b_rate:
+  1977: 0.05
+  1989: 0.05375
+  1990: 0.0595
+  1991: 0.0625
+  1992: 0.0595
+  2000: 0.0585
+  2001: 0.056
+  2002: 0.053
+  2012: 0.0525
+  2014: 0.052
+  2015: 0.0515
+  2016: 0.051
+  2019: 0.0505
+  2020: 0.05
+
+# Part A (interest/dividends/short-term gains) rate.
+part_a_rate:
+  1977: 0.10
+  1990: 0.12
+
+# Part C (long-term capital gains, 1997+) rate.
+part_c_rate:
+  1997: 0.05
+  2003: 0.053
+  2012: 0.0525
+  2014: 0.052
+  2015: 0.0515
+  2016: 0.051
+  2019: 0.0505
+  2020: 0.05
+
+# Surtax multiplier on the whole pre-credit tax (1984: applied only to a
+# part whose income exceeds $60,000 - see ma.py).
+surtax:
+  1977: 1.075
+  1986: 1.0
+
+# Capital gains exclusion share (`gnx`), <=1996 Part A computation.
+capital_gains_exclusion:
+  1977: 0.0
+  1980: 0.20
+  1981: 0.40
+  1982: 0.60
+  1983: 0.50
+  1997: 0.0
+
+# Personal exemption (`xmps`), married-joint exemption cap (`xmplim`),
+# 1977-1986 married additional exemption base (`sec`), dependent
+# exemption (`xmpd`), 1994+ head-of-household exemption (`txph`).
+personal_exemption:
+  1977: 2000
+  1982: 2200
+  1996: 2925
+  1997: 2630
+  1998: 4780
+  1999: 4400
+  2002: 3300
+  2005: 3575
+  2006: 3850
+  2007: 4185
+  2008: 4400
+married_exemption_cap:
+  1977: 4400
+  1978: 4500
+  1979: 4600
+  1982: 4800
+  1983: 4400
+  1996: 5850
+  1997: 5260
+  1998: 9560
+  1999: 8800
+  2002: 6600
+  2005: 7150
+  2006: 7700
+  2007: 8250
+  2008: 8800
+married_additional_exemption_base:
+  1977: 600
+  1978: 700
+  1979: 800
+  1982: 1000
+  1987: 0
+dependent_exemption:
+  1977: 600
+  1978: 700
+  1987: 1000
+hoh_exemption_1994plus:
+  1994: 3400
+  1996: 4520
+  1997: 4065
+  1998: 7385
+  1999: 6800
+  2002: 5100
+  2005: 5525
+  2006: 5950
+  2007: 6375
+  2008: 6800
+
+# No Tax Status income ceilings (`nts(law,1)` single, `nts(law,2)`
+# joint/HoH base), the 1995+ married add-on (`add`), and the Limited
+# Income Credit upper limits (`licrh` HoH, `licrm` married).
+no_tax_status_single:
+  1977: 3000
+  1984: 3600
+  1985: 4400
+  1986: 6000
+  1987: 8000
+no_tax_status_joint:
+  1977: 5000
+  1984: 6100
+  1985: 7200
+  1986: 10000
+  1987: 12000
+  1995: 11000
+  1996: 12120
+  1997: 11665
+  1998: 14965
+  1999: 14400
+  2002: 12700
+  2005: 13125
+  2006: 13550
+  2007: 13975
+  2008: 14400
+no_tax_status_married_addon:
+  1995: 1000
+  1996: 1330
+  1997: 1195
+  1998: 2175
+  1999: 2000
+  2002: 1750
+  2003: 1500
+  2005: 1635
+  2006: 1750
+  2007: 1875
+  2008: 2000
+limited_income_credit_limit_hoh:
+  1995: 19250
+  1996: 21210
+  1997: 20414
+  1998: 26224
+  1999: 25200
+  2002: 22225
+  2005: 22969
+  2006: 23713
+  2007: 24456
+  2008: 25200
+limited_income_credit_limit_married:
+  1995: 21000
+  1996: 23536
+  1997: 22505
+  1998: 30030
+  1999: 28700
+  2002: 24850
+  2005: 25813
+  2006: 26775
+  2007: 27738
+  2008: 28700
+
+# Refundable EITC, share of federal (`eicr`, 1997+).
+eitc_rate:
+  1997: 0.10
+  2001: 0.15
+  2016: 0.23
+  2019: 0.30
+
+# 2020+ unemployment exclusion (`povert`, `uithrs`).
+ui_exclusion_poverty_level:
+  2020: 12760
+  2021: 12880
+ui_exclusion_cap_per_person:
+  2020: 10200

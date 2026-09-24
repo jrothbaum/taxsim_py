@@ -1,0 +1,326 @@
+# Connecticut individual income tax (`cttax`, taxsim_2022_10_21.f:3261-3834,
+# state id 7). Ninth state (alphabetical order) - the largest and richest
+# yet: a genuinely different pre-1991 structure (tax ONLY on capital
+# gains/dividends/interest - no wage tax existed at all), then for 1991+
+# a real income tax with its own Personal Tax Credit (13 dense year-
+# variant phaseout tables for single filers, 2 fixed ones for HoH/joint),
+# its own full AMT (1993+, including a genuine nested full federal
+# recompute for 2013+), a 2011+ high-income "Tax Recapture" clawback, a
+# Property Tax Credit with its own phaseout, and an EITC (2011+).
+#
+# Confirmed inert given this project's schema (every field below is never
+# assigned anywhere in the whole 29,414-line file, or is gated on one
+# that isn't): `data(18)`, `data(22)` (temporarily zeroed/restored by
+# `cttax` itself for its own nested AMT recompute, never externally
+# assigned), `data(26)`, `data(163)` - which makes `subrac` (used in the
+# AGI and AMT preference-income formulas) permanently $0, so CT's own AGI
+# is just federal AGI directly, with no adjustment. Also inert: the
+# entire Social-Security-benefit exclusion block (gated on `comnew(79)`
+# [ssagi], itself computed from `gssi`, never populated) and the 2019+
+# retirement-income exclusion (gated on `data(72)+data(20)` [pensions],
+# never populated) - both large, real mechanics in the source, but
+# unreachable here.
+
+# --- Pre-1991: cap gains / dividends / interest only, no wage tax ---
+# `cttab`-style: a FLAT rate (by AGI band, step lookup not interpolated)
+# applied to the WHOLE dividend+interest total (not marginal).
+divint_rate_table_pre1983:  # `tab`
+  - [19999, 0.0]
+  - [21999, 0.01]
+  - [23999, 0.02]
+  - [27999, 0.03]
+  - [29999, 0.04]
+  - [34999, 0.05]
+  - [39999, 0.06]
+  - [49999, 0.075]
+  - [99999, 0.08]
+  - [1.0e+20, 0.09]
+divint_rate_table_1984:  # `tab84`
+  - [49999, 0.0]
+  - [59999, 0.06]
+  - [69999, 0.08]
+  - [79999, 0.10]
+  - [99999, 0.12]
+  - [1.0e+20, 0.13]
+divint_rate_table_1985:  # `tab85`
+  - [49999, 0.0]
+  - [53999, 0.01]
+  - [57999, 0.02]
+  - [61999, 0.03]
+  - [65999, 0.04]
+  - [69999, 0.05]
+  - [73999, 0.06]
+  - [77999, 0.07]
+  - [81999, 0.08]
+  - [85999, 0.09]
+  - [89999, 0.10]
+  - [99999, 0.12]
+  - [1.0e+20, 0.13]
+divint_rate_table_1986_1988:  # `tab86`
+  - [53999, 0.0]
+  - [57999, 0.01]
+  - [61999, 0.02]
+  - [65999, 0.03]
+  - [69999, 0.04]
+  - [73999, 0.05]
+  - [77999, 0.06]
+  - [81999, 0.07]
+  - [85999, 0.08]
+  - [89999, 0.09]
+  - [99999, 0.11]
+  - [1.0e+20, 0.12]
+divint_rate_table_1989_1990:  # `tab89`
+  - [53999, 0.0]
+  - [55999, 0.01]
+  - [57999, 0.02]
+  - [59999, 0.03]
+  - [61999, 0.04]
+  - [65999, 0.05]
+  - [69999, 0.06]
+  - [73999, 0.07]
+  - [77999, 0.08]
+  - [81999, 0.09]
+  - [85999, 0.10]
+  - [89999, 0.11]
+  - [99999, 0.13]
+  - [1.0e+20, 0.14]
+divint_rate_table_1991:  # `tab91` (1991 only - divint taxed this way,
+  # while the wage-tax-era formula ALSO starts this same year; both apply)
+  - [53999, 0.0]
+  - [55999, 0.0075]
+  - [57999, 0.015]
+  - [59999, 0.020]
+  - [61999, 0.0275]
+  - [65999, 0.035]
+  - [69999, 0.04]
+  - [73999, 0.0475]
+  - [77999, 0.055]
+  - [81999, 0.06]
+  - [85999, 0.0675]
+  - [89999, 0.075]
+  - [99999, 0.0875]
+  - [1.0e+20, 0.095]
+cgtax_rate_pre1991: 0.07  # flat 7% on (gain-exemp), law<=1990
+ltcg_ct_only_exclusion_1987_1988: 0.6  # CT's own 60% LTCG exclusion for
+  # ITS cap-gains-only tax in 1987-1988 specifically (federal itself had
+  # already dropped its own 60% exclusion after TRA86, but CT kept
+  # taxing gains as if it still applied those two years).
+
+# --- Exemption (1991+) ---
+exemption_single_pre2000: {amount: 12000, phaseout_start: 24000}
+exemption_single_by_year:  # (amount, phaseout_start) - 2000-2007 only;
+  # 2008+ uses `exemption_single_flat_2008plus` instead (a genuinely
+  # different, simpler `xmp-(agi-2*xmp)` formula shape).
+  2000: [12250, 24500]
+  2001: [12750, 25500]
+  2002: [12500, 25000]
+  2003: [12625, 25250]
+  2007: [12750, 25500]
+exemption_single_flat_2008plus:  # `xmps`, 2008-2021
+  2008: 13000
+  2012: 13500
+  2013: 14000
+  2014: 14500
+  2016: 15000
+exemption_hoh_1991plus: {amount: 19000, phaseout_start: 38000}
+exemption_joint_1991plus: {amount: 24000, phaseout_start: 48000}
+exemption_married_separate_2000plus: {amount: 12000, phaseout_start: 24000}
+
+# --- Bracket tax, 1991-2021 (many small, year-specific tables; `look`
+# on taxinc=max(0,agi-exemp), all thresholds already in this project's
+# (start,rate) convention here - NOT raw (upper,rate) pairs). ---
+flat_rate_1991_1995: 0.045  # `taxinc*.045` (1991's OWN wage-tax rate is
+  # actually 0.015 - see note in calculators/states/ct.py)
+brackets_1996_single: [[0, 0.03], [2250, 0.045]]
+brackets_1996_hoh: [[0, 0.03], [3500, 0.045]]
+brackets_1996_joint: [[0, 0.03], [4500, 0.045]]
+brackets_1997_single: [[0, 0.03], [6250, 0.045]]
+brackets_1997_hoh: [[0, 0.03], [10000, 0.045]]
+brackets_1997_joint: [[0, 0.03], [12500, 0.045]]
+brackets_1998_single: [[0, 0.03], [7500, 0.045]]
+brackets_1998_hoh: [[0, 0.03], [12000, 0.045]]
+brackets_1998_joint: [[0, 0.03], [15000, 0.045]]
+brackets_1999_2002_single: [[0, 0.03], [10000, 0.045]]
+brackets_1999_2002_hoh: [[0, 0.03], [16000, 0.045]]
+brackets_1999_2002_joint: [[0, 0.03], [20000, 0.045]]
+brackets_2003_2008_single: [[0, 0.03], [10000, 0.05]]
+brackets_2003_2008_hoh: [[0, 0.03], [16000, 0.05]]
+brackets_2003_2008_joint: [[0, 0.03], [20000, 0.05]]
+brackets_2009_2010_single: [[0, 0.03], [10000, 0.05], [500000, 0.065]]
+brackets_2009_2010_hoh: [[0, 0.03], [16000, 0.05], [800000, 0.065]]
+brackets_2009_2010_joint: [[0, 0.03], [20000, 0.05], [1000000, 0.065]]
+brackets_2011_2014_single: [[0, 0.03], [10000, 0.05], [50000, 0.055], [100000, 0.06], [200000, 0.065], [250000, 0.067]]
+brackets_2011_2014_hoh: [[0, 0.03], [16000, 0.05], [80000, 0.055], [160000, 0.06], [320000, 0.065], [400000, 0.067]]
+brackets_2011_2014_joint: [[0, 0.03], [20000, 0.05], [100000, 0.055], [200000, 0.06], [400000, 0.065], [500000, 0.067]]
+brackets_2015plus_single: [[0, 0.03], [10000, 0.05], [50000, 0.055], [100000, 0.06], [200000, 0.065], [250000, 0.069], [500000, 0.0699]]
+brackets_2015plus_hoh: [[0, 0.03], [16000, 0.05], [80000, 0.055], [160000, 0.06], [320000, 0.065], [400000, 0.069], [800000, 0.0699]]
+brackets_2015plus_joint: [[0, 0.03], [20000, 0.05], [100000, 0.055], [200000, 0.06], [400000, 0.065], [500000, 0.069], [1000000, 0.0699]]
+
+# --- 2011+ 3% bracket phase-out add-back (`stax`) ---
+phaseout_3pct_2011plus_single: {threshold: 56500, denom: 5000, per_1000: 30, cap: 200}
+phaseout_3pct_2011plus_married_separate: {threshold: 50250, denom: 2500, per_1000: 30, cap: 200}
+phaseout_3pct_2011plus_hoh: {threshold: 78500, denom: 4000, per_1000: 48, cap: 320}
+phaseout_3pct_2011plus_joint: {threshold: 100500, denom: 5000, per_1000: 60, cap: 400}
+
+# --- 2011+ Tax Recapture (`rtax`) ---
+recapture_max_single: {2011: 2250, 2015: 3150}
+recapture_max_hoh: {2011: 3600, 2015: 4920}
+recapture_agi_threshold_single: 200000
+recapture_agi_threshold_hoh: 320000
+recapture_rate_single: {2011: 0.015, 2015: 0.0180}
+recapture_rate_hoh: {2011: 0.015, 2015: 0.0175}
+
+# --- Personal Tax Credit (`credp`, a %-of-tax reduction via `tablki`
+# linear interpolation on AGI) ---
+personal_credit_1991_1994_single: [[12001, 1.0], [15001, 0.75], [20001, 0.35], [25001, 0.15], [48001, 0.10], [1.0e+20, 0.0]]
+personal_credit_1991_1994_hoh: [[19001, 1.0], [24001, 0.75], [34001, 0.35], [44001, 0.15], [74001, 0.10], [1.0e+20, 0.0]]
+personal_credit_1991_1994_joint: [[24001, 1.0], [30001, 0.75], [40001, 0.35], [50001, 0.15], [96001, 0.10], [1.0e+20, 0.0]]
+# 1995+: a shared 29-point rate curve; only the SINGLE filer's own
+# threshold table changes by year (10 distinct era variants) - HoH and
+# joint each reuse the SAME fixed threshold table for every year 1995+.
+personal_credit_1995plus_rates:
+  - 1.0
+  - 0.75
+  - 0.70
+  - 0.65
+  - 0.60
+  - 0.55
+  - 0.50
+  - 0.45
+  - 0.40
+  - 0.35
+  - 0.30
+  - 0.25
+  - 0.20
+  - 0.15
+  - 0.14
+  - 0.13
+  - 0.12
+  - 0.11
+  - 0.10
+  - 0.09
+  - 0.08
+  - 0.07
+  - 0.06
+  - 0.05
+  - 0.04
+  - 0.03
+  - 0.02
+  - 0.01
+  - 0.0
+personal_credit_1995plus_hoh_thresholds:
+  - 19001
+  - 24001
+  - 24501
+  - 25001
+  - 25501
+  - 26001
+  - 26501
+  - 27001
+  - 27501
+  - 34001
+  - 34501
+  - 35001
+  - 35501
+  - 44001
+  - 44501
+  - 45001
+  - 45501
+  - 46001
+  - 74001
+  - 74501
+  - 75001
+  - 75501
+  - 76001
+  - 76501
+  - 77001
+  - 77501
+  - 78001
+  - 78501
+  - 1.0e+20
+personal_credit_1995plus_joint_thresholds:  # divided by `sep` (2 for MFS)
+  - 24001
+  - 30001
+  - 30501
+  - 31001
+  - 31501
+  - 32001
+  - 32501
+  - 33001
+  - 33501
+  - 40001
+  - 40501
+  - 41001
+  - 41501
+  - 50001
+  - 50501
+  - 51001
+  - 51501
+  - 52001
+  - 96001
+  - 96501
+  - 97001
+  - 97501
+  - 98001
+  - 98501
+  - 99001
+  - 99501
+  - 100001
+  - 100501
+  - 1.0e+20
+personal_credit_1995plus_single_thresholds:
+  1995: [12001, 15001, 15501, 16001, 16501, 17001, 17501, 18001, 18501, 20001, 20501, 21001, 21501, 25001, 25501, 26001, 26501, 27001, 48001, 48501, 49001, 49501, 50001, 50501, 51001, 51501, 52001, 52501, 1.0e+20]
+  2000: [12251, 15301, 15801, 16301, 16801, 17301, 17801, 18301, 18801, 20401, 20901, 21401, 21901, 25501, 26001, 26501, 27001, 27501, 49001, 49501, 50001, 50501, 51001, 51501, 52001, 52501, 53001, 53501, 1.0e+20]
+  2001: [12501, 15601, 16101, 16601, 17101, 17601, 18101, 18601, 19101, 20801, 21301, 21801, 22301, 26001, 26501, 27001, 27501, 28001, 50001, 50501, 51001, 51501, 52001, 52501, 53001, 53501, 54001, 54501, 1.0e+20]
+  2004: [12626, 15751, 16251, 16751, 17251, 17751, 18251, 18751, 19251, 21051, 21551, 22051, 22551, 26301, 26801, 27301, 27801, 28301, 50501, 51001, 51501, 52001, 52501, 53001, 53501, 54001, 54501, 55001, 1.0e+20]
+  2007: [12751, 15901, 16401, 16901, 17401, 17901, 18401, 18901, 19401, 21301, 21801, 22301, 22801, 26601, 27101, 27601, 28101, 28601, 51001, 51501, 52001, 52501, 53001, 53501, 54001, 54501, 55001, 55501, 1.0e+20]
+  2008: [13001, 16301, 16801, 17301, 17801, 18301, 18801, 19301, 19801, 21701, 22201, 22701, 23201, 27101, 27601, 28101, 28601, 29101, 52001, 52501, 53001, 53501, 54001, 54501, 55001, 55501, 56001, 56501, 1.0e+20]
+  2012: [13501, 16901, 17401, 17901, 18401, 18901, 19401, 19901, 20401, 22501, 23001, 23501, 24001, 28101, 28601, 29101, 29601, 30101, 54001, 54501, 55001, 55501, 56001, 56501, 57001, 57501, 58001, 58501, 1.0e+20]
+  2013: [14001, 17501, 18001, 18501, 19001, 19501, 20001, 20501, 21001, 23301, 23801, 24301, 24801, 29201, 29701, 30201, 30701, 31201, 56001, 56501, 57001, 57501, 58001, 58501, 59001, 59501, 60001, 60501, 1.0e+20]
+  2014: [14501, 18101, 18601, 19101, 19601, 20101, 20601, 21101, 21601, 24201, 24701, 25201, 25701, 30201, 30701, 31201, 31701, 32201, 58001, 58501, 59001, 59501, 60001, 60501, 61001, 61501, 62001, 62501, 1.0e+20]
+  2016: [15001, 18801, 19301, 19801, 20301, 20801, 21301, 21801, 22301, 25001, 25501, 26001, 26501, 31301, 31801, 32301, 32801, 33301, 60001, 60501, 61001, 61501, 62001, 62501, 63001, 63501, 64001, 64501, 1.0e+20]
+
+# --- AMT (1993+) ---
+amt_exemption_single: 33750
+amt_exemption_joint: 45000  # / sep
+amt_ln9_threshold_single: 112500
+amt_ln9_threshold_joint: 150000  # / sep
+amt_ln11_breakpoint: 175000  # / sep
+amt_ln12_flat_1994plus: 3500  # / sep, subtracted post-1993
+
+# --- Property Tax Credit (1996+) ---
+property_credit_cap_by_year:
+  1996: 100
+  1997: 215
+  1998: 350
+  1999: 425
+  2000: 500
+  2003: 350
+  2006: 500
+  2011: 300
+  2016: 200
+property_credit_phaseout_single:
+  1997: 52500
+  2000: 53500
+  2001: 54500
+  2004: 55000
+  2007: 55500
+  2008: 56500
+  2013: 60500
+  2014: 62500
+  2015: 47500
+  2016: 49500
+property_credit_phaseout_hoh:
+  1997: 78500
+  2016: 54500
+property_credit_phaseout_joint:
+  1997: 100500
+  2016: 70500
+
+# --- EITC (2011+) ---
+eitc_rate_by_year:
+  2011: 0.30
+  2013: 0.25
+  2014: 0.275
+  2017: 0.23
+  2021: 0.305

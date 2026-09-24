@@ -1,0 +1,304 @@
+# Maryland individual income tax (`mdtax`, taxsim_2024_09_21.f:7893-8281,
+# state id 21). See calculators/states/md.py for the full mechanism.
+#
+# Confirmed inert given this project's input schema (not silent Fortran
+# gaps): elderly/blind (`data(9)`/`data(10)`, unpopulated) - makes the
+# ENTIRE pension exclusion AND the "blind/aged" standard-deduction and
+# exemption addbacks permanent no-ops; pension/retirement income
+# (`data(20)`/`data(72)`/`data(91)`); Social-Security-in-AGI
+# (`comnew(79)`); `xjobs()`; political contributions (`comnew(25)` =
+# `polcon`, no input in this schema feeds it); the "dependent of another
+# return" flag (`data(105)`). NOT inert despite first appearances:
+# `comnew(36)` (federal preference income - wages for 1977-1978
+# itemizers, the capital-gains deduction for 1983-1986), reconstructed in
+# md.py.
+#
+# `divexc()` (the federal dividend/interest exclusion swap other states
+# only exercise for 1981) is called by Maryland for EVERY year<=1986 -
+# reconstructed here as `min(dividends[+intrec if 1981],
+# dividend_exclusion_table[status,year])`, generalizing the same
+# per-status table (`parameters/national/pre1987.yaml`) every other
+# pre-1987 state already reuses, which already covers every year
+# 1977-1986 (not just 1981).
+#
+# `comnew(5)` (raw, unlimited net capital gain) reconstructed as
+# `stcg+ltcg` directly (federal.py's own internal `capgn`, not exposed
+# as a column, but trivially reproducible from the raw inputs).
+#
+# `comnew(52)`/`comnew(53)` (the Child/Dependent Care Credit's own cap
+# figures) reuse the SAME era-dependent reconstruction Maine's own build
+# already established (`regular_tax`<=1979, `fiitax` 1980-1986,
+# `regular_tax` 1987+ for comnew(52); the raw federal CCC amount,
+# reconstructed pre-1998 the same way, for comnew(53)).
+#
+# `comnew(32)` (the pre-1987 AGI addback for 1982-1986) is the federal
+# two-earner deduction ("twoded") - the SAME quantity DC/Colorado/
+# Georgia's own builds already reconstruct from
+# `parameters/national/pre1987.yaml`'s two-earner rate/cap.
+#
+# Maryland's OWN, separate two-earner subtraction (1992+, using
+# `data(85)`/`data(86)` = pwages/swages and `data(11)` = total wages,
+# matching Iowa's own already-established `agih`/`agiw` husband/wife
+# AGI-split mechanic) is a genuinely different, much later provision
+# from the pre-1987 `comnew(32)` addback - both apply, in different eras.
+
+# Bracket tables (`look`'s own upper_bound/rate% pairs shifted into this
+# project's own start/rate_fraction convention). Single/married_separate
+# get a COMPRESSED top-bracket schedule from 2008 on (lower dollar
+# thresholds for the same marginal rates) - a real, distinctive Maryland
+# mechanic, not an error.
+brackets_1977_1991:
+  - [0, 0.02]
+  - [1000, 0.03]
+  - [2000, 0.04]
+  - [3000, 0.05]
+brackets_1992_1994_joint_hoh:
+  - [0, 0.02]
+  - [1000, 0.03]
+  - [2000, 0.04]
+  - [3000, 0.05]
+  - [150000, 0.06]
+brackets_1992_1994_single_separate:
+  - [0, 0.02]
+  - [1000, 0.03]
+  - [2000, 0.04]
+  - [3000, 0.05]
+  - [100000, 0.06]
+# 1995-2007 - only the top-bracket rate changes by year, base otherwise
+# identical.
+brackets_1995_2007_top_rate:
+  1995: 0.05
+  1998: 0.04875
+  1999: 0.0485
+  2001: 0.048
+  2002: 0.0475
+brackets_2008_2011_joint_hoh:
+  - [0, 0.02]
+  - [1000, 0.03]
+  - [2000, 0.04]
+  - [3000, 0.0475]
+  - [200000, 0.05]
+  - [350000, 0.0525]
+  - [500000, 0.055]
+  - [1000000, 0.0625]
+brackets_2008_2011_single_separate:
+  - [0, 0.02]
+  - [1000, 0.03]
+  - [2000, 0.04]
+  - [3000, 0.0475]
+  - [150000, 0.05]
+  - [300000, 0.0525]
+  - [500000, 0.055]
+  - [1000000, 0.0625]
+brackets_2012plus_joint_hoh:
+  - [0, 0.02]
+  - [1000, 0.03]
+  - [2000, 0.04]
+  - [3000, 0.0475]
+  - [150000, 0.05]
+  - [175000, 0.0525]
+  - [225000, 0.055]
+  - [300000, 0.0575]
+brackets_2012plus_single_separate:
+  - [0, 0.02]
+  - [1000, 0.03]
+  - [2000, 0.04]
+  - [3000, 0.0475]
+  - [100000, 0.05]
+  - [125000, 0.0525]
+  - [150000, 0.055]
+  - [250000, 0.0575]
+
+# `aif92(law)` - real bracket-table inflation factor, 1992-2012 (used
+# ONLY for the itemized-deduction phaseout threshold `phas92`, not the
+# brackets themselves - the bracket tables above are already the real,
+# un-inflated dollar tables for every era).
+itemized_phaseout_inflation_factor_1992_2012:
+  1992: 1.0525
+  1993: 1.0840
+  1994: 1.118
+  1995: 1.147
+  1996: 1.1795
+  1997: 1.212
+  1998: 1.245
+  1999: 1.266
+  2000: 1.2895
+  2001: 1.3295
+  2002: 1.373
+  2003: 1.395
+  2004: 1.427
+  2005: 1.4595
+  2006: 1.5050
+  2007: 1.564
+  2008: 1.5995
+  2009: 1.668
+  2010: 1.6955
+  2011: 1.6955
+  2012: 1.7365
+itemized_phaseout_inflation_factor_2013_2017:
+  2013: 1.0
+  2014: 1.0168
+  2015: 1.033
+  2016: 1.0376
+  2017: 1.046
+# 2013-2017's own `phas92` uses a filing-status multiplier on top of the
+# inflation factor (`filing(mst,1.,1.2,1.1,.6)*250000*aif13(law)`).
+itemized_phaseout_status_multiplier_2013_2017:
+  single: 1.0
+  married_joint: 1.2
+  head_of_household: 1.1
+  married_separate: 0.6
+
+# Personal exemption amount (`xmp(law)`).
+personal_exemption_amount:
+  1977: 800
+  1987: 1000
+  1989: 1100
+  1991: 1200
+  1998: 1750
+  1999: 1850
+  2001: 2100
+  2002: 2400
+  2008: 3200
+
+# 2008+ exemption phaseout by FEDERAL AGI bracket - real, distinct
+# dollar-per-exemption REPLACEMENT values (not a percentage reduction),
+# differentiated by single/married_separate vs married_joint/HoH and by
+# era (2008-2011 vs 2012+, where 2012+ drops to $0 at lower incomes).
+exemption_phaseout_2008_2011_single_separate:
+  - [100000, 125000, 2400]
+  - [125000, 150000, 1800]
+  - [150000, 200000, 1200]
+  - [200000, 1000000000.0, 600]
+exemption_phaseout_2012plus_single_separate:
+  - [100000, 125000, 1600]
+  - [125000, 150000, 800]
+  - [150000, 1000000000.0, 0]
+exemption_phaseout_2008_2011_joint_hoh:
+  - [150000, 175000, 2400]
+  - [175000, 200000, 1800]
+  - [200000, 250000, 1200]
+  - [250000, 1000000000.0, 600]
+exemption_phaseout_2012plus_joint_hoh:
+  - [150000, 175000, 1600]
+  - [175000, 200000, 800]
+  - [200000, 1000000000.0, 0]
+
+# Standard deduction (real formula by era; 2019+ uses real min/max
+# tables by filing-status group instead of a fixed dollar-per-filer
+# multiplier).
+standard_deduction_pct:
+  1960: 0.15
+standard_deduction_floor_multiplier_1979_1986:
+  1960: 1500
+standard_deduction_ceiling_pct_1979_1986:
+  1960: 0.13
+standard_deduction_floor_multiplier_1987_1989:
+  1960: 1000
+standard_deduction_ceiling_multiplier_1987_1989:
+  1960: 2000
+standard_deduction_floor_multiplier_1990_2017:
+  1960: 1500
+standard_deduction_ceiling_multiplier_1990_2017:
+  1960: 2000
+standard_deduction_floor_multiplier_2018:
+  1960: 1500
+standard_deduction_ceiling_multiplier_2018:
+  1960: 2250
+# `stds(1/2,law)` - single/married_separate 2019-2021 floor/ceiling;
+# `stdm(1/2,law)` - joint/HoH 2019-2021 floor/ceiling. The source's own
+# DATA statement lists all 6 values in strict Fortran column-major order
+# for a `(2,2019:2021)` array (NOT grouped as "3 floors then 3
+# ceilings" the way the continuation-line layout visually suggests) -
+# confirmed via a live oracle probe (a 2019 head-of-household case
+# showed `stded=3100`, matching floor=3050/ceiling=3100 for 2019 under
+# the column-major reading, not the much wider 3050/4550 band the
+# visual grouping would imply).
+standard_deduction_single_separate_floor_2019_2021:
+  2019: 1500
+  2020: 1550
+  2021: 2300
+standard_deduction_single_separate_ceiling_2019_2021:
+  2019: 1550
+  2020: 2250
+  2021: 2350
+standard_deduction_joint_hoh_floor_2019_2021:
+  2019: 3050
+  2020: 3100
+  2021: 4650
+standard_deduction_joint_hoh_ceiling_2019_2021:
+  2019: 3100
+  2020: 4550
+  2021: 4700
+
+# Poverty Level Credit (1997+, nonrefundable) - real per-exemption
+# income-ceiling tables.
+poverty_credit_income_base:
+  1997: 7890
+  1998: 8050
+  1999: 8240
+  2000: 8350
+  2001: 8590
+  2002: 8860
+  2003: 8980
+  2004: 9310
+  2005: 9570
+  2006: 9800
+  2007: 10210
+  2008: 10400
+  2009: 10830
+  2011: 10890
+  2012: 11170
+  2013: 11490
+  2014: 11670
+  2015: 11770
+  2016: 11880
+  2017: 12060
+  2018: 12140
+  2019: 12490
+  2020: 12760
+  2021: 12880
+poverty_credit_income_per_additional_exemption:
+  1997: 2720
+  1998: 2800
+  1999: 2820
+  2000: 2900
+  2001: 3020
+  2002: 3080
+  2003: 3140
+  2004: 3180
+  2005: 3260
+  2006: 3400
+  2007: 3480
+  2008: 3600
+  2009: 3740
+  2011: 3820
+  2012: 3960
+  2013: 4020
+  2014: 4060
+  2015: 4160
+  2016: 4220
+  2017: 4180
+  2018: 4320
+  2019: 4420
+  2020: 4480
+  2021: 4540
+
+# Refundable EITC rate (`eicr(law)`), 1998-2021 (a real percentage of
+# federal EITC - jumps sharply in 2020/2021 from ARPA-era expansion).
+refundable_eitc_rate:
+  1998: 0.10
+  2000: 0.15
+  2001: 0.16
+  2003: 0.18
+  2004: 0.20
+  2008: 0.25
+  2015: 0.255
+  2016: 0.26
+  2017: 0.27
+  2018: 0.28
+  2020: 0.45
+  2021: 0.50
+# 2020+ childless-worker refundable floor (`min(530,comnew(59))`).
+refundable_eitc_childless_floor_2020plus:
+  1960: 530

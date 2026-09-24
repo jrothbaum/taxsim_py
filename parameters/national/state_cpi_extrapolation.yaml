@@ -1,0 +1,71 @@
+# `xndxa` (taxsim_2022_10_21.f:28956-28968, common /xndxac/) - the CPI-index
+# table `statax` (taxsim_2022_10_21.f:4-90, the state-tax dispatcher) uses to
+# extrapolate every state's tax law for any year beyond its own hardcoded
+# `lastat` constant (2021 in this source vintage - "DO NOT FORGET TO UPDATE
+# parameter(lastat=2021) EVERY YEAR", taxsim_2022_10_21.f:14). For year>lastat,
+# `statax` does NOT use real statutory values for that year at all: it
+# deflates every relevant federal-computed input by `xndxa(year)/xndxa(lastat)`,
+# runs the REAL `lastat`-year law on the deflated figures, then inflates the
+# resulting state tax back up by that same ratio (taxsim_2022_10_21.f:44-50,
+# 62-65, comnew(74)=stax*flate at :82). Values 2018+ are a flat, ASSUMED 2.5%/
+# year inflation rate (confirmed: 2.512278*1.025 = 2.5750850, matching
+# xndxa(2022)=2.5750849 to within float rounding - not real CPI data), per the
+# source's own comment "2018+ inflation rate 2.5%".
+#
+# This project replicates this extrapolation mechanism exactly (see
+# engine/state_extrapolation.py) rather than researching real 2022+ state
+# statutes, per the project's standing "match what taxsim does" rule - the
+# oracle itself is only approximating 2022+, so real statutory values
+# wouldn't match it either.
+lastat: 2021
+xndxa:
+  1981: 0.768
+  1982: 0.815
+  1983: 0.842
+  1984: 0.879
+  1985: 0.910
+  1986: 0.927
+  1987: 1.0
+  1988: 1.0
+  1989: 1.041
+  1990: 1.091
+  1991: 1.144
+  1992: 1.204
+  1993: 1.241
+  1994: 1.279
+  1995: 1.312
+  1996: 1.347
+  1997: 1.360
+  1998: 1.397
+  1999: 1.420
+  2000: 1.446
+  2001: 1.504
+  2002: 1.554
+  2003: 1.579
+  2004: 1.620
+  2005: 1.660
+  2006: 1.702
+  2007: 1.744
+  2008: 1.788
+  2009: 1.832
+  2010: 1.878
+  2011: 1.925
+  2012: 1.954
+  2013: 1.979
+  2014: 2.046
+  2015: 2.120
+  2016: 2.196
+  2017: 2.276
+  2018: 2.3329
+  2019: 2.3912225
+  2020: 2.451003
+  2021: 2.512278
+  # 2022/2023 corrected from same-as-2021-inflation-rate placeholders
+  # (2.5750849/2.639462) in taxsim_2022_10_21.f to real, distinct values in
+  # taxsim_2024_09_21.f ("10.24.2022 the inflation rate for 2022 and 2023
+  # to 2.59048,2.77388") - see the 2026-09 oracle-switch session notes in
+  # project memory for the full trail (this same correction cascades into
+  # the TX sales-tax deduction and federal EITC's own 2023 CPI
+  # extrapolation, both of which reuse this same ratio).
+  2022: 2.59048
+  2023: 2.77388

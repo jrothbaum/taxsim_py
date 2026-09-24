@@ -1,0 +1,86 @@
+# Illinois individual income tax (`iltax`, taxsim_2022_10_21.f:5772-5848,
+# state id 14 in the dispatcher's alphabetical numbering). Chosen as this
+# project's first state: the shortest state subroutine (~80 lines) and a
+# genuinely flat-rate tax, matching the design doc's rollout plan (simplest/
+# flat-tax states first, CA/NY/MN last). Real law is coded 1977-2021
+# (`lastat`) - 2022 is extrapolated via the shared CPI mechanism in
+# engine/state_extrapolation.py, not real 2022 statutory values.
+#
+# `rate`/`personal_exemption_amount`/`eitc_match_rate` extracted via a
+# compiled driver calling `iltax` directly for every year 1977-2021 and
+# reading back the shared `/calc/` common block's `rt`/`exemp`/`earncr`
+# (with `comnew(68)=1`/`comnew(59)=1`/`comnew(2)=200000` fed in so each
+# read-back value equals that year's real rate/per-exemption-dollar-amount/
+# EITC-match-rate directly, not hand-decoded from the source's own dense
+# repeat-count DATA statements) - cross-checked against the live oracle for
+# a $50,000-wages/single 2022 case afterward.
+#
+# The property tax treatment changed FORMULA SHAPE, not just parameters,
+# in 1991: 1977-1982 has no property-tax mechanism at all; 1983-1990 is an
+# AGI-reducing ITEMIZED DEDUCTION for the full amount paid (doubled for
+# 1989-1990 specifically - "you can take twice the property tax
+# subtraction... for tax years 1989 and 1990"); 1991+ switches to a
+# nonrefundable 5%-of-property-tax CREDIT capped at tax liability, with a
+# $250,000 AGI cliff (doubled for married_joint) added 2017+ that zeroes
+# the credit entirely above it. See calculators/states/il.py for the
+# year-gated code implementing all three shapes.
+#
+# Illinois's EITC (a flat percentage match of the FEDERAL eitc amount) is
+# real 2000+ only (didn't exist before); non-refundable 2000-2002
+# (`min(eirt*fed_eitc, statax-pcred)`), refundable from 2003 on.
+#
+# Scope note, matching this project's established input-schema discipline:
+# `iltax` also reads several fields this project's schema never populates
+# (data(20)/(72) - pension income, always $0; data(22) - a generic "federal
+# itemized deductions" override field used across many state subroutines,
+# never assigned by the standard input reader; data(105) - "dependent of
+# another" flag; data(9)/(10) - elderly/blind counts, gated on unpopulated
+# age inputs; data(34) - a foreign-tax-credit-style catch-all, unpopulated;
+# data(143)/(144) - education expense inputs, not in this project's
+# schema) - all correctly inert/zero here, not silent gaps. The federal
+# dividend-exclusion addback (`divexc` function) and the capital-gains-
+# exclusion addback (`comnew(7)=capded`) are both real, and non-negligible
+# for 1977-1986 specifically - state tax years start at 1977 (`statax`
+# itself returns immediately for `lawyr.lt.1977`), which overlaps `law79`'s
+# own federal range exactly (1977-1986), and law79 has a REAL federal
+# dividend exclusion and capital-gains EXCLUSION that IL doesn't allow -
+# both get added back onto federal AGI for those years (see
+# calculators/states/il.py). For 1987+ (law87-era federal years) there's no
+# federal dividend exclusion or capital-gains exclusion at all, so both
+# addbacks reduce to exactly 0 (not a residual $0.001 - the same `divall`
+# fudge appears on both sides of `divexc`'s own subtraction and cancels).
+rate:
+  1977: 0.0250
+  1983: 0.0300
+  1984: 0.0275
+  1985: 0.0250
+  1989: 0.0275
+  1990: 0.0300
+  2011: 0.0500
+  2015: 0.0375
+  2017: 0.043549
+  2018: 0.0495
+personal_exemption_amount:
+  1977: 1000
+  1998: 1300
+  1999: 1650
+  2000: 2000
+  2012: 2050
+  2013: 2100
+  2014: 2125
+  2015: 2150
+  2016: 2175
+  2018: 2225
+  2019: 2275
+  2020: 2325
+  2021: 2375
+eitc_match_rate:
+  2000: 0.05
+  2012: 0.075
+  2013: 0.10
+  2017: 0.14
+  2018: 0.18
+property_tax_credit_rate:
+  1991: 0.05
+property_tax_credit_income_cap:
+  2017: 250000

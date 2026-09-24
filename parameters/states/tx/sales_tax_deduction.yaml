@@ -2,6 +2,16 @@
 # state income tax - relevant for TX since it has no income tax, so this is
 # an itemizer's only SALT-adjacent deduction here). Log-linear regression:
 #   deduction = exp(a + b*ln(household_resources) + c*ln(family_size))
+#
+# This deduction did NOT exist in law before 2004 (American Jobs Creation
+# Act of 2004) - the source's own `saletx` hardcodes
+# `if(is.eq.0..or.iy.lt.2004) return` (saletx left at its initialized 0) for
+# any year before 2004, confirmed directly rather than assumed (a 2003
+# extraction attempt returned NaN - log of a 0 household-resources probe -
+# which is what led here). No a/b/c entries exist here for year<2004 on
+# purpose; scripts/validate_federal.py's `add_sales_tax_deduction` special-
+# cases year<2004 to a flat $0 instead of calling into this file at all.
+#
 # The original Fortran (taxsim_2022_10_21.f:29179-29414, function `saletx`)
 # hardcodes TX's own (x1,x2,x3) coefficients PER YEAR for 2004 through 2015
 # (LASTYR) directly - each of those years genuinely has its own table row,
@@ -15,15 +25,23 @@
 # 2014's, since 2014=2015 here) and only the intercept `a` shifting, by
 # (1-b)*ln(xndxa(year)/xndxa(2015)). state: tx.
 #
-# a(2009)-a(2015) (and their own b/c) were fit directly from the source's
+# a(2007)-a(2015) (and their own b/c) were fit directly from the source's
 # own per-year table entries (compiling a standalone driver against
 # `saletx` and probing it at two household_resources/family_size points,
-# same technique as a(2022)). 2009-2012 each have their own distinct b/c -
+# same technique as a(2022)). 2007-2012 each have their own distinct b/c -
 # genuinely different survey years, not variations on a theme. a(2016)
 # onward were derived from a(2022) via the closed-form CPI shift above
 # (not re-fit from scratch, since those years share 2015's b/c), then all
-# verified against a live taxsim2022.exe idtl=2 probe at wages=$90,000,
-# single:
+# verified by calling the extracted `saletx` function directly at
+# household_resources=$90,000, family_size=1 (a cleaner check than a full
+# taxsim2022.exe run, since the full pipeline's actual household_resources
+# input to `saletx` isn't simply AGI - it includes addbacks this project
+# doesn't need to replicate to validate the formula itself):
+#   2004: saletx() $855.2194, formula $855.2194
+#   2005: saletx() $817.2393, formula $817.2393
+#   2006: saletx() $942.4161, formula $942.4161
+#   2007: saletx() $832.7469, formula $832.7469
+#   2008: saletx() $868.34, formula $868.3363
 #   2009: implied $937.84, formula $937.8354
 #   2010: implied $837.40, formula $837.3996
 #   2011: implied $867.33, formula $867.3280
@@ -39,6 +57,11 @@
 #   2021: implied $946.85, formula $946.8483
 state: tx
 a:
+  2004: 1.748000025749
+  2005: -0.158000007272
+  2006: -0.279000014067
+  2007: 0.527000010014
+  2008: 0.254000008106
   2009: 0.096000000834
   2010: 0.998000025749
   2011: 0.708000004292
@@ -51,8 +74,32 @@ a:
   2019: 0.16603352096750107
   2020: 0.1762957602071003
   2021: 0.1865579976373354
-  2022: 0.196820239405
+  # 2022 revised from a genuinely different `xndxa(2022)` value between
+  # oracle vintages: taxsim_2022_10_21.f had xndxa(2022)=2.5750849 (a
+  # same-as-2021-inflation-rate placeholder, since 2022's real CPI wasn't
+  # yet finalized as of the 2022-10-21 release); taxsim_2024_09_21.f
+  # corrects it to the real 2.59048 (source comment: "10.24.2022 the
+  # inflation rate for 2022 and 2023 to 2.59048,2.77388"). Since `a`'s own
+  # closed form depends on `xndxa(2022)` directly (not just derived from
+  # a neighboring year), this one value needed re-deriving - confirmed via
+  # the same live-probe technique as every other year here (household_
+  # resources=$90,000, family_size=1, state=TX(44), law=2022 against a
+  # compiled `saletx` from taxsim_2024_09_21.f): saletx()=$958.99,
+  # implying a=0.19929749897 - matching the closed form
+  # `a(2015)+(1-b)*ln(xndxa_new(2022)/xndxa(2015))` to 10+ decimal places.
+  2022: 0.19929749897
+  # 2023 derived the same way, using the corrected xndxa(2023)=2.77388:
+  # a(2015)+(1-b)*ln(xndxa(2023)/xndxa(2015)) - confirmed via the same
+  # compiled-`saletx`-probe technique (household_resources=$90,000,
+  # family_size=1, state=TX(44), law=2023: saletx()=$986.64, implying
+  # a=0.22772614971, matching the closed form to 10+ decimal places).
+  2023: 0.22772614971
 b:
+  2004: 0.438600003719
+  2005: 0.601700007915
+  2006: 0.624800026417
+  2007: 0.543299973011
+  2008: 0.570900022984
   2009: 0.591499984264
   2010: 0.502499997616
   2011: 0.531000018120
@@ -60,6 +107,11 @@ b:
   2013: 0.583400011063
   2014: 0.584399998188
 c:
+  2004: 0.183400005102
+  2005: 0.210299998522
+  2006: 0.108800001442
+  2007: 0.233600005507
+  2008: 0.191400006413
   2009: 0.122800000012
   2010: 0.237599998713
   2011: 0.153999999166

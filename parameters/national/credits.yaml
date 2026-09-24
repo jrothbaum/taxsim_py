@@ -60,16 +60,69 @@ child_tax_credit:
   # amount with no young/old-child distinction and no low-income phaseout
   # mechanism at all: precrd = flat_amount_pre2021(year)*ideps + odcred.
   # Verified against taxsim_2022_10_21.f:25619-25637.
-  flat_amount_pre2021:  # chmax(lawyr): $1,000/child pre-TCJA, $2,000 2018+
+  flat_amount_pre2021:  # chmax(lawyr): $600/child 2001-2002 (EGTRRA's
+    # original level), JGTRRA accelerated the increase to $1,000 starting
+    # 2003 (originally scheduled for 2010) - confirmed via the source's own
+    # `chmax` array. The Child Tax Credit itself didn't exist before 1998
+    # (TRA1997 created it) - `chmax` has no 1997 entry in the source at all
+    # (dimensioned `chmax(1998:2023)`, and the whole CTC section is gated
+    # `if(lawyr.ge.1998)`) - 0 here reproduces that with no extra code
+    # branch. $400/child for 1998 (its first, partial-phase-in year),
+    # $500/child 1999-2000.
+    1987: 0
+    1988: 0
+    1991: 0
+    1992: 0
+    1993: 0
+    1994: 0
+    1995: 0
+    1996: 0
+    1997: 0
+    1998: 400
+    1999: 500
+    2000: 500
+    2001: 600
+    2002: 600
+    2003: 1000
+    2004: 1000
+    2005: 1000
+    2006: 1000
+    2007: 1000
+    2008: 1000
     2009: 1000
     2018: 2000
     2019: 2000
-  actc_earned_income_floor:  # earlim: $3,000 pre-2018 (ARRA, made permanent by PATH), $2,500 2018+ (TCJA)
+  # earlim: $8,500 for 2008 specifically (the pre-ARRA level - confirmed
+  # via the source's own `ealim` array, taxsim_2022_10_21.f, genuinely
+  # different from every other year checked so far, not a typo), ARRA
+  # lowered it to $3,000 starting 2009 (made permanent by PATH), TCJA set
+  # it to $2,500 starting 2018.
+  actc_earned_income_floor:
+    2001: 10000
+    2002: 10350
+    2003: 10500
+    2004: 10750
+    2005: 11000
+    2006: 11300
+    2007: 11750
+    2008: 8500
     2009: 3000
     2018: 2500
     2019: 2500
     2022: 2500
-  actc_rate:  # eapct
+  actc_rate:  # eapct(2001:2023): 3*.10 (2001-2003) then .15 (2004+) - the
+    # ACTC rate was 10% for 2001-2003, raised to 15% starting 2004 (Working
+    # Families Tax Relief Act of 2004) - confirmed via a live oracle probe
+    # (2003, $15,000 wages, 1 kid: refundable ACTC = $450.00 = 10% of
+    # ($15,000-$10,500), not $675 = 15% of the same).
+    2001: 0.10
+    2002: 0.10
+    2003: 0.10
+    2004: 0.15
+    2005: 0.15
+    2006: 0.15
+    2007: 0.15
+    2008: 0.15
     2009: 0.15
     2022: 0.15
   # refch: 1500 only for lawyr.eq.2022, else 1400 - but this per-child
@@ -81,6 +134,7 @@ child_tax_credit:
     2018: 1400
     2019: 1400
     2022: 1500
+    2023: 1600
   # Pre-2018: no Credit for Other Dependents at all (TCJA introduced it) -
   # CTC alone phases out above a FLAT, never-inflation-indexed threshold
   # that was unchanged 2001-2017 (the `cphas` array,
@@ -88,11 +142,27 @@ child_tax_credit:
   # combined threshold in other_dependent_credit above). Same 5%-per-$1000
   # reduction rate as the TCJA-era phaseout - taxsim_2022_10_21.f:24696-24710.
   pre2018_phaseout_threshold:
-    single: {2009: 75000}
-    head_of_household: {2009: 75000}
-    married_separate: {2009: 55000}
-    married_joint: {2009: 110000}
+    single: {1987: 75000, 1988: 75000, 1991: 75000, 1992: 75000, 1993: 75000, 1994: 75000, 1995: 75000, 1996: 75000, 1997: 75000, 1998: 75000, 1999: 75000, 2000: 75000, 2001: 75000, 2002: 75000, 2003: 75000, 2004: 75000, 2005: 75000, 2006: 75000, 2007: 75000, 2008: 75000, 2009: 75000}
+    head_of_household: {1987: 75000, 1988: 75000, 1991: 75000, 1992: 75000, 1993: 75000, 1994: 75000, 1995: 75000, 1996: 75000, 1997: 75000, 1998: 75000, 1999: 75000, 2000: 75000, 2001: 75000, 2002: 75000, 2003: 75000, 2004: 75000, 2005: 75000, 2006: 75000, 2007: 75000, 2008: 75000, 2009: 75000}
+    married_separate: {1987: 55000, 1988: 55000, 1991: 55000, 1992: 55000, 1993: 55000, 1994: 55000, 1995: 55000, 1996: 55000, 1997: 55000, 1998: 55000, 1999: 55000, 2000: 55000, 2001: 55000, 2002: 55000, 2003: 55000, 2004: 55000, 2005: 55000, 2006: 55000, 2007: 55000, 2008: 55000, 2009: 55000}
+    married_joint: {1987: 110000, 1988: 110000, 1991: 110000, 1992: 110000, 1993: 110000, 1994: 110000, 1995: 110000, 1996: 110000, 1997: 110000, 1998: 110000, 1999: 110000, 2000: 110000, 2001: 110000, 2002: 110000, 2003: 110000, 2004: 110000, 2005: 110000, 2006: 110000, 2007: 110000, 2008: 110000, 2009: 110000}
   pre2018_phaseout_rate_per_1000:
+    1987: 50
+    1994: 50
+    1995: 50
+    1996: 50
+    1997: 50
+    1998: 50
+    1999: 50
+    2000: 50
+    2001: 50
+    2002: 50
+    2003: 50
+    2004: 50
+    2005: 50
+    2006: 50
+    2007: 50
+    2008: 50
     2009: 50
 
 # Child and Dependent Care Credit, nonrefundable (confirmed empirically:
@@ -102,6 +172,22 @@ child_tax_credit:
 # per taxsim_2022_10_21.f:25486-25525).
 child_care_credit:
   max_qualifying_persons:  # ncccr cap - unchanged across all years
+    1987: 2
+    1994: 2
+    1995: 2
+    1996: 2
+    1997: 2
+    1998: 2
+    1999: 2
+    2000: 2
+    2001: 2
+    2002: 2
+    2003: 2
+    2004: 2
+    2005: 2
+    2006: 2
+    2007: 2
+    2008: 2
     2009: 2
     2022: 2
   max_expense_per_person:
@@ -147,13 +233,100 @@ child_care_credit:
   # no $400k-income second phase-down at all in this era.
   # rate = max(floor_rate, top_rate - max(0, (agi-phase_start)/step_amount)*0.01)
   # Verified against taxsim_2022_10_21.f:25488-25525.
+  #
+  # 2001-2002 (pre-EGTRRA-2003-expansion) used a SMALLER, genuinely
+  # different version of this same shape: $2,400/person expense cap (not
+  # $3,000), 30% ceiling (not 35%), and the step-down started at $10,000 of
+  # AGI (not $15,000) - taxsim_2022_10_21.f:25489-25497 (`if(lawyr.le.2002)
+  # child = min(data(64),2400.0*ncccr) ... chr = .01*max(20.,30.-
+  # max((agi-10000.)/2000.,0.))`).
   max_expense_per_person_pre2021:
+    1987: 2400
+    1994: 2400
+    1995: 2400
+    1996: 2400
+    1997: 2400
+    1998: 2400
+    1999: 2400
+    2000: 2400
+    2001: 2400
+    2002: 2400
+    2003: 3000
+    2004: 3000
+    2005: 3000
+    2006: 3000
+    2007: 3000
+    2008: 3000
     2009: 3000
   pre2021_rate_top:
+    1987: 0.30
+    1994: 0.30
+    1995: 0.30
+    1996: 0.30
+    1997: 0.30
+    1998: 0.30
+    1999: 0.30
+    2000: 0.30
+    2001: 0.30
+    2002: 0.30
+    2003: 0.35
+    2004: 0.35
+    2005: 0.35
+    2006: 0.35
+    2007: 0.35
+    2008: 0.35
     2009: 0.35
   pre2021_rate_floor:
+    1987: 0.20
+    1994: 0.20
+    1995: 0.20
+    1996: 0.20
+    1997: 0.20
+    1998: 0.20
+    1999: 0.20
+    2000: 0.20
+    2001: 0.20
+    2002: 0.20
+    2003: 0.20
+    2004: 0.20
+    2005: 0.20
+    2006: 0.20
+    2007: 0.20
+    2008: 0.20
     2009: 0.20
   pre2021_phase_start:
+    1987: 10000
+    1994: 10000
+    1995: 10000
+    1996: 10000
+    1997: 10000
+    1998: 10000
+    1999: 10000
+    2000: 10000
+    2001: 10000
+    2002: 10000
+    2003: 15000
+    2004: 15000
+    2005: 15000
+    2006: 15000
+    2007: 15000
+    2008: 15000
     2009: 15000
   pre2021_step_amount:
+    1987: 2000
+    1994: 2000
+    1995: 2000
+    1996: 2000
+    1997: 2000
+    1998: 2000
+    1999: 2000
+    2000: 2000
+    2001: 2000
+    2002: 2000
+    2003: 2000
+    2004: 2000
+    2005: 2000
+    2006: 2000
+    2007: 2000
+    2008: 2000
     2009: 2000

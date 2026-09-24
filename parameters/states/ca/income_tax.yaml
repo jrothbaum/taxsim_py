@@ -1,0 +1,605 @@
+# California individual income tax (`catax`, taxsim_2022_10_21.f:2198-2929,
+# state id 5). Seventh state (alphabetical order) - the largest and
+# richest so far: its OWN full Alternative Minimum Tax (1987+, plus a
+# distinct 1979-1986 "minimum tax on preference income" predecessor), a
+# Renter's Credit (3 eras), a Low Income Credit (2 eras, expired after
+# 1991), a Child/Dependent Care Credit (5 formula eras), a Credit for the
+# Elderly (2 eras), an Exemption Credit with THREE overlapping phaseout
+# mechanisms (a federal-AGI-based one since 1991, plus a separate,
+# narrower California-AMT-based one 1994-1998 only), a 2005+ Mental
+# Health Services surtax (1% on taxable income over $1M), and its own
+# EITC + Young Child Tax Credit (2015+/2019+).
+#
+# Confirmed inert given this project's schema (every one of these
+# `data()` fields is never assigned anywhere in the whole 29,414-line
+# file): data(17), (19), (21), (23), (24), (25), (27), (28), (29), (32),
+# (42), (52), (66), (67), (69), (71), (73)-(78), (80), (81), (107), (108),
+# (116), (210) - and the already-established cross-state list (data(9)/
+# (10) elderly/blind, data(22) generic override, data(38) energy credit,
+# data(65) political contributions, data(91) gross SS). This kills IRA/
+# Keogh limits entirely (pre-1987 AGI), the energy credit and political-
+# contribution credit outright, the Young Child Tax Credit outright
+# (`data(210)`, fed by the generic `opt1` slot, never populated by this
+# project's named-column input), and the whole Social-Security-benefit
+# AGI subtraction (comnew(78)/(79), both federal-computed from `gssi`,
+# always $0 here) except its own 2011-2012 FICA-holiday adjustment
+# (`comnew(175)`=setax, real whenever SE income is nonzero - same
+# hardcoded-rate quantity discovered building Alabama/Arizona).
+#
+# `comnew(2)`=agi is reused DIRECTLY for 1987+ (California conforms to
+# federal AGI, unlike Alabama/Arizona/Arkansas which each recompute their
+# own from scratch) - the commented-out `cg`/`cacg`/`adjcg` block in the
+# source (taxsim_2022_10_21.f:~2484-2502) confirms `addit` is a real,
+# permanent no-op for 1987+, not a gap.
+
+# --- Standard deduction / bracket-scaling CPI factor (`aif`, 1977-2021) ---
+standard_deduction_aif:
+  1977: 1.0
+  1978: 1.052
+  1979: 1.10
+  1980: 1.290
+  1981: 1.40
+  1982: 1.53
+  1983: 1.510
+  1984: 1.580
+  1985: 1.650
+  1986: 1.710
+  1987: 1.880
+  1988: 1.996
+  1989: 2.07
+  1990: 2.169
+  1991: 2.262
+  1992: 2.343
+  1993: 2.402
+  1994: 2.431
+  1995: 2.487
+  1996: 2.527
+  1997: 2.583
+  1998: 2.642
+  1999: 2.711
+  2000: 2.811
+  2001: 2.960
+  2002: 3.004
+  2003: 3.070
+  2004: 3.165
+  2005: 3.254
+  2006: 3.410
+  2007: 3.516
+  2008: 3.692
+  2009: 3.637
+  2010: 3.670
+  2011: 3.769
+  2012: 3.841
+  2013: 3.906
+  2014: 3.992
+  2015: 4.044
+  2016: 4.129
+  2017: 4.236
+  2018: 4.401
+  2019: 4.537
+  2020: 4.601
+  2021: 4.803
+
+# Bracket-scaling CPI factor for the pre-1987 tables specifically
+# (`aiftab`, different table from `aif` above).
+bracket_aiftab_pre1987:
+  1977: 1.0
+  1978: 1.052
+  1979: 1.10
+  1980: 1.319
+  1981: 1.43
+  1982: 1.0
+  1983: 0.987
+  1984: 1.032
+  1985: 1.0857
+  1986: 1.125
+
+brackets_pre1982_single:  # `tab77s`, scaled by aiftab and rounded to $10
+  - [2000, 0.01]
+  - [3500, 0.02]
+  - [5000, 0.03]
+  - [6500, 0.04]
+  - [8000, 0.05]
+  - [9500, 0.06]
+  - [11000, 0.07]
+  - [12500, 0.08]
+  - [14000, 0.09]
+  - [15500, 0.10]
+  - [1.0e+20, 0.11]
+brackets_pre1982_hoh:  # `tab77h`
+  - [4000, 0.01]
+  - [6000, 0.02]
+  - [7500, 0.03]
+  - [9000, 0.04]
+  - [10500, 0.05]
+  - [12000, 0.06]
+  - [13500, 0.07]
+  - [15000, 0.08]
+  - [16500, 0.09]
+  - [18000, 0.10]
+  - [1.0e+20, 0.11]
+brackets_1982_1986_single:  # `tab82s`, scaled by aiftab (no rounding)
+  - [1580, 0.0]
+  - [4680, 0.01]
+  - [7080, 0.02]
+  - [9380, 0.03]
+  - [11680, 0.04]
+  - [14080, 0.05]
+  - [16480, 0.06]
+  - [18680, 0.07]
+  - [21180, 0.08]
+  - [23380, 0.09]
+  - [25780, 0.10]
+  - [1.0e+20, 0.11]
+brackets_1982_1986_hoh:  # `tab82h`
+  - [3070, 0.0]
+  - [9270, 0.01]
+  - [12270, 0.02]
+  - [14670, 0.03]
+  - [16970, 0.04]
+  - [19270, 0.05]
+  - [21570, 0.06]
+  - [23970, 0.07]
+  - [26170, 0.08]
+  - [28570, 0.09]
+  - [30870, 0.10]
+  - [1.0e+20, 0.11]
+brackets_1987_1990_single:  # `tab87s`, scaled by aiftab
+  - [3650, 0.01]
+  - [8650, 0.02]
+  - [13650, 0.04]
+  - [18950, 0.06]
+  - [24050, 0.08]
+  - [1.0e+20, 0.093]
+brackets_1987_1990_hoh:  # `tab87h`
+  - [7300, 0.01]
+  - [17300, 0.02]
+  - [22300, 0.04]
+  - [27600, 0.06]
+  - [32599, 0.08]
+  - [1.0e+20, 0.093]
+brackets_1991_1995_single:  # `tab91s`
+  - [4394, 0.01]
+  - [10414, 0.02]
+  - [16435, 0.04]
+  - [22816, 0.06]
+  - [28835, 0.08]
+  - [100000, 0.093]
+  - [200000, 0.10]
+  - [1.0e+20, 0.11]
+brackets_1991_1995_hoh:  # `tab91h`
+  - [8789, 0.01]
+  - [20829, 0.02]
+  - [26848, 0.04]
+  - [33229, 0.06]
+  - [39249, 0.08]
+  - [136115, 0.093]
+  - [272230, 0.10]
+  - [1.0e+20, 0.11]
+brackets_1996_2008_single:  # `tab96s`, reused verbatim (only aiftab
+  # scaling changes) for 1996-2008 AND for 2011 (`tab11s` uses the exact
+  # same rates, only its own `data tab11s` statement is a separate copy).
+  - [4908, 0.01]
+  - [11632, 0.02]
+  - [18357, 0.04]
+  - [25484, 0.06]
+  - [32207, 0.08]
+  - [1.0e+20, 0.093]
+brackets_1996_2008_hoh:  # `tab96h`
+  - [9817, 0.01]
+  - [23264, 0.02]
+  - [29988, 0.04]
+  - [37114, 0.06]
+  - [43839, 0.08]
+  - [1.0e+20, 0.093]
+brackets_2009_2010_single:  # `tab9s` - the SAME thresholds as tab96s
+  # (scaled the same way), but a real, separate +0.25-percentage-point
+  # rate schedule (1.25/2.25/4.25/6.25/8.25/9.55%) - California's actual
+  # 2009-2010 temporary recession-era rate surcharge, not a typo or a
+  # literal copy of tab96s's rates (only the THRESHOLD-scaling loop is
+  # shared; `tab9s`'s own `data` statement hardcodes these different
+  # rates directly, confirmed via taxsim_2022_10_21.f:2330-2332).
+  - [4908, 0.0125]
+  - [11632, 0.0225]
+  - [18357, 0.0425]
+  - [25484, 0.0625]
+  - [32207, 0.0825]
+  - [1.0e+20, 0.0955]
+brackets_2009_2010_hoh:  # `tab9h`
+  - [9817, 0.0125]
+  - [23264, 0.0225]
+  - [29988, 0.0425]
+  - [37114, 0.0625]
+  - [43839, 0.0825]
+  - [1.0e+20, 0.0955]
+bracket_aiftab_1987_2012:  # used for both the 1987-1990/1991-1995/1996-2011
+  # brackets AND aiftab's own separate role in itemized comp (reuses the
+  # SAME source array, `aiftab`, dimensioned 1977:2012)
+  1987: 1.0
+  1988: 1.048
+  1989: 1.1014
+  1990: 1.153
+  1991: 1.0
+  1992: 1.036
+  1993: 1.062
+  1994: 1.075
+  1995: 1.0994538
+  1996: 1.0
+  1997: 1.0218
+  1998: 1.0454
+  1999: 1.072
+  2000: 1.112
+  2001: 1.171
+  2002: 1.1886715
+  2003: 1.215
+  2004: 1.253
+  2005: 1.2874
+  2006: 1.349
+  2007: 1.3912
+  2008: 1.46047
+  2009: 1.439
+  2010: 1.4515
+  2011: 1.491
+  2012: 1.520
+bracket_aif12_2012plus:  # `aif12`, 2012-2021
+  2012: 1.0
+  2013: 1.017
+  2014: 1.0394
+  2015: 1.0529
+  2016: 1.075
+  2017: 1.103
+  2018: 1.1461
+  2019: 1.1814
+  2020: 1.198
+  2021: 1.25
+brackets_2012plus_single_thresholds: [7455, 17676, 27897, 38726, 48942, 250000, 300000, 500000]
+brackets_2012plus_hoh_thresholds: [14920, 35351, 45571, 56400, 66618, 340000, 408000, 680000]
+brackets_2012plus_rates: [0.01, 0.02, 0.04, 0.06, 0.08, 0.093, 0.103, 0.113, 0.123]
+
+# --- Itemized deduction Pease-style phaseout, 1991+ (`aifded`) ---
+itemized_phaseout_aifded:
+  1991: 1.0
+  1992: 1.036
+  1993: 1.0619
+  1994: 1.07464
+  1995: 1.09936
+  1996: 1.11695
+  1997: 1.14152
+  1998: 1.16777
+  1999: 1.19813
+  2000: 1.24246
+  2001: 1.30831
+  2002: 1.32793
+  2003: 1.35714
+  2004: 1.39921
+  2005: 1.43839
+  2006: 1.50743
+  2007: 1.55416
+  2008: 1.63187
+  2009: 1.60739
+  2010: 1.62185
+  2011: 1.66565
+  2012: 1.6973
+  2013: 1.72615
+  2014: 1.76413
+  2015: 1.78706
+  2016: 1.82459
+  2017: 1.87203
+  2018: 1.94504
+  2019: 2.00534
+  2020: 2.03341
+  2021: 2.12288
+
+# --- Exemption Credit ---
+exemption_credit_rate_1987_1997: 50.0  # $50 * xmpaif(law) * count
+exemption_credit_xmpaif:
+  1987: 1.020
+  1988: 1.040
+  1989: 1.10
+  1990: 1.160
+  1991: 1.20
+  1992: 1.240
+  1993: 1.280
+  1994: 1.30
+  1995: 1.320
+  1996: 1.340
+  1997: 1.360
+  1998: 1.40
+  1999: 1.440
+  2000: 1.50
+  2001: 1.580
+  2002: 1.60
+  2003: 1.640
+  2004: 1.70
+  2005: 1.740
+  2006: 1.820
+  2007: 1.880
+  2008: 1.98
+  2009: 1.960
+  2010: 1.980
+  2011: 2.040
+  2012: 2.08
+  2013: 2.12
+  2014: 2.160
+  2015: 2.180
+  2016: 2.22
+  2017: 2.28
+  2018: 2.36
+  2019: 2.44
+  2020: 2.48
+  2021: 2.58
+exemption_credit_per_dependent_1998plus:  # `xmpdep` - a real, one-time
+  # ~68% cut in 2009-2010 (CA's recession-era budget crisis), not a typo.
+  1998: 253
+  1999: 227
+  2000: 235
+  2001: 247
+  2002: 251
+  2003: 257
+  2004: 265
+  2005: 272
+  2006: 285
+  2007: 294
+  2008: 309
+  2009: 98
+  2010: 99
+  2011: 315
+  2012: 321
+  2013: 326
+  2014: 333
+  2015: 337
+  2016: 344
+  2017: 353
+  2018: 367
+  2019: 378
+  2020: 383
+  2021: 400
+exemption_credit_phaseout_base_1991plus: 100000  # per sep unit; single/MFS
+exemption_credit_phaseout_base_hoh_multiplier: 1.5
+exemption_credit_phaseout_base_joint_multiplier: 2.0
+exemption_credit_aif1_1994_1998:  # `aif1`, for the `exc` threshold
+  1994: 1.0
+  1995: 1.0
+  1996: 1.0
+  1997: 1.125
+  1998: 1.4315
+exemption_credit_ak_1994_1998:  # `ak`, the rate multiplier
+  1994: 0.085
+  1995: 0.085
+  1996: 0.070
+  1997: 0.070
+  1998: 0.070
+exemption_credit_aif2_pre1998:  # 1991-1998, the /$2,500-per-sep-unit divisor's own aif
+  1991: 0.90
+  1992: 1.0
+  1993: 1.0
+  1994: 1.0
+  1995: 1.0
+  1996: 1.0
+  1997: 1.1452
+  1998: 1.1678
+
+# --- Low Income Credit (expired after 1991) ---
+# <=1983 flat-amount-minus-reduction formula reuses `standard_deduction_aif`
+# directly (same source array, `aif`) - see calculators/states/ca.py.
+low_income_credit_threshold_multiplier_pre1984: 10000  # data(159) [total household resources] <= 10000*txp
+low_income_table_1985_1991:  # `lowtab`/`aiflow`, a % of statax by AGI band, divided by 2 for single/HoH/MFS
+  - [10900, 1.00]
+  - [12600, 0.80]
+  - [14300, 0.60]
+  - [16000, 0.40]
+  - [17700, 0.20]
+  - [1.0e+20, 0.0]
+low_income_credit_aiflow:
+  1985: 1.0
+  1986: 1.035
+  1987: 1.072
+  1988: 1.12
+  1989: 1.18
+  1990: 1.18
+  1991: 1.18
+
+# --- Child/Dependent Care Credit (5 eras) ---
+child_care_credit_cap_per_child_pre1985: 2000
+child_care_credit_cap_total_pre1985: 4000
+child_care_credit_rate_pre1985: 0.03
+child_care_credit_rate_1985_1986_low: 0.10
+child_care_credit_rate_1985_1986_high: 0.05
+child_care_credit_1985_1986_agi_threshold: 20000
+child_care_credit_rate_1987_1990: 0.30
+child_care_credit_1991_1992_brackets:  # [fagi_upper, rate*federal_credit] - rate applied to comnew(53)
+  - [40000, 0.30]
+  - [70000, 0.25]
+  - [100000, 0.20]
+  - [1.0e+20, 0.15]
+child_care_credit_2000_2002_brackets:  # rate applied to comnew(176) (federal's pre-limitation credit)
+  - [40000, 0.63]
+  - [70000, 0.53]
+  - [100000, 0.42]
+child_care_credit_2003plus_brackets:
+  - [40000, 0.50]
+  - [70000, 0.43]
+  - [100000, 0.34]
+
+# --- Credit for the Elderly ---
+elderly_credit_rate_1978_1983: 1.0
+elderly_credit_rate_1984_1991: 0.5
+
+# --- Renter's Credit ---
+renter_credit_flat_single_pre1993:  # `rtabs`, dimensioned 1977:1992
+  1977: 37
+  1979: 60
+renter_credit_flat_married_pre1993:  # `rtabm`
+  1977: 37
+  1979: 137
+  1990: 120
+renter_credit_aifren_1991_1992:
+  1991: 1.0
+  1992: 1.036
+renter_credit_agi_threshold_single_1991_1992: 20000
+renter_credit_agi_threshold_married_1991_1992: 40000
+renter_credit_flat_1998plus: 60
+renter_credit_aifrent_1998plus:
+  1998: 1.0
+  1999: 1.026
+  2000: 1.06396
+  2001: 1.12036
+  2002: 1.13716
+  2003: 1.16216
+  2004: 1.1982
+  2005: 1.23176
+  2006: 1.29088
+  2007: 1.33088
+  2008: 1.35744
+  2009: 1.37648
+  2010: 1.38888
+  2011: 1.38888
+  2012: 1.4782
+  2013: 1.51072
+  2014: 1.53036
+  2015: 1.56248
+  2016: 1.60312
+  2017: 1.66564
+  2018: 1.71728
+  2019: 1.74132
+  2020: 1.74132
+  2021: 1.74132
+renter_credit_agi_threshold_1998plus: 25000  # * jrent (1 or 2) * aifrent
+
+# --- Minimum Tax on Preference Income (1979-1986) ---
+mtpi_brackets_single:  # `amtaxs`
+  - [4000, 0.0]
+  - [5500, 0.005]
+  - [7000, 0.01]
+  - [8500, 0.015]
+  - [10000, 0.02]
+  - [11500, 0.025]
+  - [13000, 0.03]
+  - [14500, 0.035]
+  - [16000, 0.04]
+  - [17500, 0.045]
+  - [19000, 0.05]
+  - [1.0e+20, 0.055]
+mtpi_brackets_hoh:  # `amtaxh`
+  - [8000, 0.0]
+  - [10000, 0.005]
+  - [11500, 0.01]
+  - [13000, 0.015]
+  - [14500, 0.02]
+  - [16000, 0.025]
+  - [17500, 0.03]
+  - [19000, 0.035]
+  - [20500, 0.04]
+  - [22000, 0.045]
+  - [23500, 0.05]
+  - [1.0e+20, 0.055]
+
+# --- Alternative Minimum Tax (1987+) ---
+amt_rate_by_year:  # `amtrt`, 1987:2021
+  1987: 0.085
+  1996: 0.07
+  2008: 0.0725
+  2011: 0.07
+amt_exclusion_by_year:  # `excl` (1998+, real dollar amounts, single/joint/hoh/separate)
+  # <=1997: `excl=comnew(49)` - federal's own RAW (pre-phaseout) AMT
+  # exemption amount for that year/status, reused directly from
+  # parameters/national/amt.yaml's own `exemption` table (see
+  # calculators/states/ca.py).
+  1998: [42945, 57260, 42945, 28630]
+  1999: [44062, 58749, 44062, 29374]
+  2000: [45692, 60923, 45692, 30461]
+  2001: [48114, 64152, 45692, 30461]
+  2002: [48836, 65114, 48836, 32556]
+  2003: [49910, 66547, 49910, 33272]
+  2004: [51457, 68610, 51457, 34303]
+  2005: [52898, 70531, 52898, 35263]
+  2006: [55437, 73916, 55437, 36956]
+  2007: [57156, 76207, 57156, 38102]
+  2008: [60014, 80017, 60014, 40007]
+  2009: [59114, 78817, 59114, 39407]
+  2010: [59646, 79526, 59646, 39672]
+  2011: [61256, 81673, 61256, 40836]
+  2012: [62420, 83225, 62420, 41612]
+  2013: [63481, 84640, 63481, 42319]
+  2014: [64878, 86502, 64878, 43250]
+  2015: [65721, 87627, 65721, 43812]
+  2016: [67101, 89467, 67101, 44732]
+  2017: [68846, 91793, 68846, 45895]
+  2018: [71531, 95373, 71531, 44685]
+  2019: [73748, 98330, 73748, 49163]
+  2020: [74777, 99702, 74777, 49851]
+  2021: [78070, 104094, 78070, 52044]
+amt_phase_by_year:  # `phase`, single/joint/hoh/separate
+  1987: [112500, 150000, 112500, 75000]
+  1998: [161044, 214725, 161044, 107362]
+  1999: [165231, 220308, 165231, 110153]
+  2000: [171345, 228459, 171345, 114229]
+  2001: [180426, 240567, 180426, 120283]
+  2002: [183132, 244176, 183132, 122087]
+  2003: [187161, 249548, 187161, 124773]
+  2004: [192963, 257284, 192963, 128641]
+  2005: [198366, 264488, 198366, 132243]
+  2006: [207888, 277183, 207888, 138591]
+  2007: [214333, 285776, 214333, 142887]
+  2008: [225050, 300065, 225050, 150031]
+  2009: [221674, 295564, 221674, 147781]
+  2010: [223669, 298224, 223669, 149111]
+  2011: [229708, 306276, 229708, 153137]
+  2012: [234072, 312095, 234072, 156047]
+  2013: [238051, 317401, 238051, 158700]
+  2014: [243288, 324384, 243288, 162191]
+  2015: [246451, 328601, 246451, 164299]
+  2016: [251626, 335502, 251626, 167749]
+  2017: [258168, 344225, 258168, 172110]
+  2018: [268237, 357650, 268237, 178822]
+  2019: [276552, 368737, 276552, 184365]
+  2020: [280419, 373892, 280419, 186946]
+  2021: [292763, 390351, 292763, 195172]
+
+# --- Mental Health Services Tax (2005+) ---
+mental_health_surtax_rate: 0.01
+mental_health_surtax_threshold: 1000000
+
+# --- California EITC + Young Child Tax Credit (2015+/2019+) ---
+eitc_disqualified_income_limit:  # `dylim`, 2015-2021
+  2015: 3400
+  2016: 3471
+  2017: 3561
+  2018: 3699
+  2019: 3828
+  2020: 3882
+  2021: 4053
+eitc_max_credit_by_children:  # `crmax(law,ieic)`, ieic=0,1,2,3+ ; 2015-2021
+  2015: [214, 1428, 2358, 2653]
+  2016: [217, 1452, 2406, 2706]
+  2017: [223, 1495, 2467, 2775]
+  2018: [232, 1554, 2559, 2879]
+  2019: [240, 1605, 2651, 2982]
+  2020: [243, 1626, 2691, 3027]
+  2021: [255, 1698, 2809, 3160]
+eitc_max_earned_by_children:  # `amax(law,ieic)`, 2015-2021 (pre-2017 shape)
+  2015: [6580, 9880, 13870, 13870]
+  2016: [6718, 10088, 14162, 14162]
+  2017: [6858, 10298, 14458, 14458]
+  2018: [7150, 11108, 15594, 15592]
+  2019: [7510, 11128, 15622, 15622]
+  2020: [7510, 11128, 15622, 15622]
+  2021: [7510, 11128, 15622, 15622]
+eitc_2017plus_ym:  # `ym(ieic,law)`, 2017-2021
+  2017: [5320, 9434, 13723, 13805]
+  2018: [5625, 9875, 14375, 14425]
+  2019: [4350, 9350, 14100, 14350]
+  2020: [4350, 9350, 14100, 14350]
+  2021: [4600, 8600, 14950, 15150]
+eitc_2017plus_em:  # `em(ieic,law)`
+  2017: [100, 248, 249, 269]
+  2018: [102, 256, 254, 255]
+  2019: [200, 506, 509, 502]
+  2020: [200, 506, 509, 502]
+  2021: [212, 536, 535, 534]
+eitc_2017plus_amax:  # `amax17(ieic,law)`
+  2017: [15008, 22322, 22309, 22302]
+  2018: [16750, 24950, 24950, 24950]
+  2019: [30000, 30000, 30000, 30000]
+  2020: [30000, 30000, 30000, 30000]
+  2021: [30000, 30000, 30000, 30000]

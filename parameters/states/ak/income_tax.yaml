@@ -1,0 +1,117 @@
+# Alaska individual income tax (`aktax`, taxsim_2022_10_21.f:728-808, state
+# id 2). Third state (alphabetical order). Genuinely the smallest possible
+# real range of any state: `aktax` itself returns immediately for
+# `law.gt.1979` ("Personal income tax repealed in 1980 after the oil
+# boom"), and the shared state dispatcher (`statax`) never calls ANY state
+# calculator before 1977 - so Alaska's only ever-reachable years are
+# 1977, 1978, and 1979, exactly 3 years.
+#
+# AGI = federal AGI directly (`comnew(2)`), no addbacks/adjustments of any
+# kind - no dividend-exclusion addback, no capital-gains addback, nothing.
+# Standard deduction is a flat, status-based table (no percentage-of-AGI
+# formula, no personal exemption amount at all - `taxinc = agi - deduc`
+# with `deduc` = the standard deduction alone). married_separate is a real,
+# distinct case: it reuses SINGLE's own bracket table (not its own, not
+# married_joint/2) but gets its OWN, smaller standard deduction ($1,600,
+# not $2,200) - confirmed directly from the source's own two separate,
+# independent `if` checks (`if(mst.eq.3.or.mst.eq.6) stded=1600` sets ONLY
+# the deduction; the bracket-table selector `m` is never touched for that
+# status, so it keeps its initialized default of 1 = single's table).
+# head_of_household gets its own bracket table but SINGLE's own $2,200
+# standard deduction (no separate HoH value at all).
+#
+# Scope note, matching this project's established input-schema discipline:
+# `aktax` also reads a "minimum tax" term (`.16*.15*data(81)`) and a
+# small nonrefundable credit (`min(50,data(35))`) - both confirmed inert
+# given this project's schema (data(81)/data(35) never populated by the
+# standard input reader, same fields already confirmed inert for Alabama
+# and law79/law60). The small flat `txcred` (a genuine, real, year-
+# specific credit, doubled for married_joint only) IS reachable and
+# modeled below.
+standard_deduction_single:
+  1977: 2200
+standard_deduction_married_joint:
+  1977: 3200
+standard_deduction_married_separate:
+  1977: 1600
+standard_deduction_head_of_household:
+  1977: 2200
+flat_credit:
+  1977: 0
+  1978: 100
+  1979: 200
+
+brackets_single:
+  - [0, 0.03]
+  - [2000, 0.035]
+  - [4000, 0.04]
+  - [6000, 0.05]
+  - [8000, 0.025]
+  - [10000, 0.06]
+  - [12000, 0.07]
+  - [14000, 0.075]
+  - [16000, 0.08]
+  - [18000, 0.085]
+  - [20000, 0.09]
+  - [22000, 0.095]
+  - [26000, 0.10]
+  - [32000, 0.105]
+  - [38000, 0.11]
+  - [44000, 0.115]
+  - [50000, 0.12]
+  - [60000, 0.125]
+  - [70000, 0.13]
+  - [80000, 0.135]
+  - [90000, 0.14]
+  - [100000, 0.14]
+  - [150000, 0.145]
+brackets_married_joint:
+  - [0, 0.03]
+  - [4000, 0.035]
+  - [8000, 0.04]
+  - [12000, 0.05]
+  - [16000, 0.055]
+  - [20000, 0.06]
+  - [24000, 0.07]
+  - [28000, 0.075]
+  - [32000, 0.08]
+  - [36000, 0.085]
+  - [40000, 0.09]
+  - [44000, 0.095]
+  - [52000, 0.10]
+  - [64000, 0.105]
+  - [76000, 0.11]
+  - [88000, 0.115]
+  - [100000, 0.12]
+  - [120000, 0.125]
+  - [140000, 0.13]
+  - [160000, 0.135]
+  - [180000, 0.14]
+  - [200000, 0.14]
+  - [300000, 0.145]
+brackets_head_of_household:
+  - [0, 0.03]
+  - [2000, 0.035]
+  - [4000, 0.04]
+  - [6000, 0.045]
+  - [8000, 0.05]
+  - [10000, 0.055]
+  - [12000, 0.06]
+  - [14000, 0.065]
+  - [16000, 0.07]
+  - [18000, 0.07]
+  - [20000, 0.075]
+  - [22000, 0.08]
+  - [24000, 0.085]
+  - [28000, 0.09]
+  - [32000, 0.095]
+  - [38000, 0.10]
+  - [44000, 0.105]
+  - [50000, 0.11]
+  - [60000, 0.115]
+  - [70000, 0.12]
+  - [80000, 0.125]
+  - [90000, 0.13]
+  - [100000, 0.135]
+  - [150000, 0.14]
+  - [200000, 0.145]

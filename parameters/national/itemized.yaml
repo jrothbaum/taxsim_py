@@ -20,10 +20,10 @@ salt_cap:
 # `dlim2` forced to 0 unconditionally, taxsim_2022_10_21.f:24662-24665) -
 # calculators/federal.py special-cases that range directly (itemized_
 # deduction left unreduced, this threshold/rate never fetched for those
-# years), so no 2010-2012 entry is needed here. 2009 (like 2008) only
-# applies 1/3 of the reduction this formula gives (calculators/federal.py's
-# own year==2009 special case) - the tail of the same gradual phase-out
-# that preceded the 2010-2012 repeal.
+# years), so no 2010-2012 entry is needed here. 2008-2009 only apply 1/3
+# of the reduction this formula gives (calculators/federal.py's own
+# year-in-(2008,2009) special case) - the tail of the same gradual
+# phase-out that preceded the 2010-2012 repeal.
 #
 # Pre-2013, this threshold (`phas(lawyr)`, taxsim_2022_10_21.f:24187-24190)
 # is a SINGLE flat number shared by single/joint/HoH alike (not the
@@ -32,11 +32,41 @@ salt_cap:
 # despite those two provisions sharing their thresholds from 2013 on) -
 # only married_separate differs, getting it halved via `sepret`.
 pease_limitation_threshold:
-  single: {2009: 166800, 2013: 250000, 2014: 254200, 2015: 258250, 2016: 259400, 2017: 261500}
-  head_of_household: {2009: 166800, 2013: 275000, 2014: 279650, 2015: 284050, 2016: 285350, 2017: 287650}
-  married_separate: {2009: 83400, 2013: 150000, 2014: 152525, 2015: 154950, 2016: 155650, 2017: 156900}
-  married_joint: {2009: 166800, 2013: 300000, 2014: 305050, 2015: 309900, 2016: 311300, 2017: 313800}
+  single: {1991: 100000, 1992: 105250, 1993: 108450, 1994: 111800, 1995: 114700, 1996: 117950, 1997: 121200, 1998: 124500, 1999: 126600, 2000: 128950, 2001: 132950, 2002: 137300, 2003: 139500, 2004: 142700, 2005: 145950, 2006: 150500, 2007: 156400, 2008: 159950, 2009: 166800, 2013: 250000, 2014: 254200, 2015: 258250, 2016: 259400, 2017: 261500}
+  head_of_household: {1991: 100000, 1992: 105250, 1993: 108450, 1994: 111800, 1995: 114700, 1996: 117950, 1997: 121200, 1998: 124500, 1999: 126600, 2000: 128950, 2001: 132950, 2002: 137300, 2003: 139500, 2004: 142700, 2005: 145950, 2006: 150500, 2007: 156400, 2008: 159950, 2009: 166800, 2013: 275000, 2014: 279650, 2015: 284050, 2016: 285350, 2017: 287650}
+  married_separate: {1991: 50000, 1992: 52625, 1993: 54225, 1994: 55900, 1995: 57350, 1996: 58975, 1997: 60600, 1998: 62250, 1999: 63300, 2000: 64475, 2001: 66475, 2002: 68650, 2003: 69750, 2004: 71350, 2005: 72975, 2006: 75250, 2007: 78200, 2008: 79975, 2009: 83400, 2013: 150000, 2014: 152525, 2015: 154950, 2016: 155650, 2017: 156900}
+  married_joint: {1991: 100000, 1992: 105250, 1993: 108450, 1994: 111800, 1995: 114700, 1996: 117950, 1997: 121200, 1998: 124500, 1999: 126600, 2000: 128950, 2001: 132950, 2002: 137300, 2003: 139500, 2004: 142700, 2005: 145950, 2006: 150500, 2007: 156400, 2008: 159950, 2009: 166800, 2013: 300000, 2014: 305050, 2015: 309900, 2016: 311300, 2017: 313800}
 pease_reduction_rate:  # applied to AGI over the threshold
-  2009: 0.03
+  1991: 0.03
+  1994: 0.03
+  1995: 0.03
+  1996: 0.03
+  1997: 0.03
+  1998: 0.03
+  1999: 0.03
+  2000: 0.03
+  2001: 0.03
+  2002: 0.03
+  2003: 0.03
+  2004: 0.03
+  2005: 0.03
+  2006: 0.03
+  2007: 0.03
+  2008: 0.03
 pease_cap_rate:  # applied to the itemized total itself, as an upper bound on the reduction
-  2009: 0.80
+  1991: 0.80
+  1994: 0.80
+  1995: 0.80
+  1996: 0.80
+  1997: 0.80
+  1998: 0.80
+  1999: 0.80
+  2000: 0.80
+  2001: 0.80
+  2002: 0.80
+  2003: 0.80
+  2004: 0.80
+  2005: 0.80
+  2006: 0.80
+  2007: 0.80
+  2008: 0.80

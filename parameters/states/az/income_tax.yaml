@@ -1,0 +1,264 @@
+# Arizona individual income tax (`aztax`, taxsim_2022_10_21.f:809-1168,
+# state id 3). Fifth state (alphabetical order). Comparable in scope to
+# Alabama: 10 real bracket vintages, its OWN Pease-style itemized-
+# deduction phaseout (independent of federal's), a federal-tax-as-AGI-
+# subtraction mechanism for years <=1989 (not an itemized addition like
+# Alabama's `fedtax` - AZ subtracts it straight from AGI), a 2019+
+# Dependent Tax Credit, an Excise Tax Credit (2001+, refundable), and a
+# Family Income Credit (1995+, non-refundable).
+#
+# married_separate uses SINGLE's bracket table + SINGLE's exemption/
+# deduction formulas throughout (the source's own dispatch only ever
+# branches on `mst.eq.2` (joint) or `mst.eq.4/7` (HoH) as the "richer"
+# cases - married_separate (mst=6) always falls into the same branch as
+# single). head_of_household gets its OWN, separate bracket table for
+# every vintage from 1990 on (before that, no separate HoH table exists -
+# HoH uses the SAME table as single/joint, just its own `txp` exemption
+# count).
+#
+# Confirmed inert given this project's schema (not silent gaps): the
+# refundable property-tax credit and the renters' credit (both gated on
+# `data(9)>0`, the elderly count, or `data(160)`, rentpaid - neither ever
+# populated by this project's input reader given the schema doesn't
+# include ages or rent paid); medical/health itemized components (data
+# 47-49, unpopulated); the solar energy credit (data 38, unpopulated);
+# `data(22)` (a generic override field several states share, never
+# assigned - same finding as Alabama/Illinois).
+#
+# 2019+ is a genuinely simpler regime than everything before it: AZ
+# repealed BOTH the personal exemption AND the per-dependent exemption
+# starting 2019 (`xmps`/`xmph`'s own table zeroes out for 2019-2021, and
+# the 2020+ exemption formula's only surviving term - the per-child
+# amount - is itself forced to $0 by `nchild=0` for law>=2019) - so
+# `exemp` is genuinely $0 for every year 2019 on, confirmed directly from
+# the source's own arrays, not assumed.
+brackets_pre1990:
+  - [0, 0.02]
+  - [1000, 0.03]
+  - [2000, 0.04]
+  - [3000, 0.05]
+  - [4000, 0.06]
+  - [5000, 0.07]
+  - [6000, 0.08]
+brackets_1990_1993_single:
+  - [0, 0.038]
+  - [10000, 0.044]
+  - [25000, 0.0525]
+  - [50000, 0.065]
+  - [150000, 0.07]
+brackets_1990_1993_joint_or_hoh:
+  - [0, 0.038]
+  - [20000, 0.044]
+  - [50000, 0.0525]
+  - [100000, 0.065]
+  - [300000, 0.07]
+brackets_1994_single:
+  - [0, 0.0325]
+  - [10000, 0.04]
+  - [25000, 0.0505]
+  - [50000, 0.064]
+  - [150000, 0.069]
+brackets_1994_joint_or_hoh:
+  - [0, 0.0325]
+  - [20000, 0.04]
+  - [50000, 0.0505]
+  - [100000, 0.064]
+  - [300000, 0.069]
+brackets_1995_1996_single:
+  - [0, 0.03]
+  - [10000, 0.035]
+  - [25000, 0.042]
+  - [50000, 0.052]
+  - [150000, 0.056]
+brackets_1995_1996_joint_or_hoh:
+  - [0, 0.03]
+  - [20000, 0.035]
+  - [50000, 0.042]
+  - [100000, 0.052]
+  - [300000, 0.056]
+brackets_1997_single:
+  - [0, 0.029]
+  - [10000, 0.033]
+  - [25000, 0.039]
+  - [50000, 0.048]
+  - [150000, 0.0517]
+brackets_1997_joint_or_hoh:
+  - [0, 0.029]
+  - [20000, 0.033]
+  - [50000, 0.039]
+  - [100000, 0.048]
+  - [300000, 0.0517]
+brackets_1998_single:
+  - [0, 0.0288]
+  - [10000, 0.0324]
+  - [25000, 0.0382]
+  - [50000, 0.0474]
+  - [150000, 0.051]
+brackets_1998_joint_or_hoh:
+  - [0, 0.0288]
+  - [20000, 0.0324]
+  - [50000, 0.0382]
+  - [100000, 0.0474]
+  - [300000, 0.051]
+brackets_1999_2005_single:
+  - [0, 0.0287]
+  - [10000, 0.032]
+  - [25000, 0.0374]
+  - [50000, 0.0472]
+  - [150000, 0.0504]
+brackets_1999_2005_joint_or_hoh:
+  - [0, 0.0287]
+  - [20000, 0.032]
+  - [50000, 0.0374]
+  - [100000, 0.0472]
+  - [300000, 0.0504]
+brackets_2006_single:
+  - [0, 0.0273]
+  - [10000, 0.0304]
+  - [25000, 0.0355]
+  - [50000, 0.0448]
+  - [150000, 0.0479]
+brackets_2006_joint_or_hoh:
+  - [0, 0.0273]
+  - [20000, 0.0304]
+  - [50000, 0.0355]
+  - [100000, 0.0448]
+  - [300000, 0.0479]
+brackets_2007_2018_single:
+  - [0, 0.0259]
+  - [10000, 0.0288]
+  - [25000, 0.0336]
+  - [50000, 0.0424]
+  - [150000, 0.0454]
+brackets_2007_2018_joint_or_hoh:
+  - [0, 0.0259]
+  - [20000, 0.0288]
+  - [50000, 0.0336]
+  - [100000, 0.0424]
+  - [300000, 0.0454]
+brackets_2019plus:  # married_joint/HoH split taxable income in half through
+  # this SAME table, then double the result (real income-splitting, like
+  # Alabama - confirmed via a compiled subroutine sweep, not assumed).
+  - [0, 0.0259]
+  - [26500, 0.0334]
+  - [53000, 0.0417]
+  - [159000, 0.045]
+
+# Standard deduction: 3 eras. <=1989: 10% of AGI (CPI-adjusted), capped at
+# $500/exemption-unit (CPI-adjusted). 1990-2018: a flat, year-specific
+# dollar amount PER exemption unit (`txp`). 2019+: a flat, year-specific
+# amount with a STATUS-based multiplier (1/1.5/2 for single-or-separate/
+# HoH/joint) - no longer scaled by exemption count at all.
+standard_deduction_pct_pre1990:
+  1977: 0.10
+standard_deduction_cap_per_exemption_pre1990:
+  1977: 500
+standard_deduction_per_exemption:  # 1990-2018
+  1990: 3500
+  1995: 3600
+  2001: 4050
+  2005: 4125
+  2006: 4247
+  2007: 4373
+  2008: 4521
+  2009: 4677
+  2011: 4703
+  2012: 4833
+  2013: 4945
+  2014: 5009
+  2015: 5091
+  2016: 5099
+  2017: 5183
+  2018: 5312
+standard_deduction_flat:  # 2019+, multiplied by the status coefficient
+  2019: 12200
+  2020: 12400
+  2021: 12550
+  2022: 12950
+
+# Personal/dependent exemption: 5 genuinely different formula eras - see
+# calculators/states/az.py. All $0 for 2019+ (confirmed above).
+personal_exemption_amount_pre1990:  # per exemption unit, CPI-adjusted
+  1977: 1000
+dependent_exemption_amount_pre1990:
+  1977: 600
+hoh_exemption_backout_pre1979:  # a real, one-time-era back-out for HoH only
+  1977: 600
+personal_exemption_amount_1990_1991:
+  1990: 2000
+personal_exemption_amount_1992:
+  1992: 2100
+dependent_exemption_amount_1992:
+  1992: 0  # nchild folded into the same 2100 rate as personal that year
+personal_exemption_amount_1993_1996:
+  1993: 2100
+dependent_exemption_amount_1993_1996:
+  1993: 2300
+personal_exemption_amount_1997_2018_single:
+  1997: 2100
+  2017: 2150
+  2018: 2200
+personal_exemption_amount_1997_2018_joint_with_kids:
+  1997: 3150
+  2017: 3225
+  2018: 3300
+dependent_exemption_amount_1997_2018:
+  1997: 2300
+
+# Family Income Credit (1995+, non-refundable) - AGI-threshold gated, flat
+# per-exemption amount capped. Real, distinct AGI thresholds/caps for
+# single-or-separate vs joint-or-HoH, with married_joint (1998+) and HoH
+# (1998+) further refined by dependent count into their own small tables.
+family_credit_per_exemption:  # `data ex/3*30.0d0,24*40.0d0/` (1995:2021)
+  1995: 30
+  1998: 40
+family_credit_agi_threshold_single_or_separate:
+  1995: 10000
+family_credit_agi_threshold_joint_or_hoh:
+  1995: 20000
+family_credit_cap_single_or_separate:
+  1995: 60
+  1998: 120
+family_credit_cap_joint_or_hoh:
+  1995: 120
+  1998: 240
+family_credit_agi_threshold_joint_by_dep_count_1998plus:  # depx: 0-1,2,3,4+
+  1998: [20000, 23600, 27300, 31000]
+family_credit_agi_threshold_hoh_by_dep_count_1998plus:  # depx: 0,1,2,3,4+
+  1998: [20000, 20135, 23800, 25200, 26575]
+
+# 2019+ Dependent Tax Credit (non-refundable) - $100/CTC-eligible child
+# (`data(208)`), $25/other dependent, phased out above $200,000 AGI per
+# exemption unit at $50/$1,000 of excess.
+dependent_tax_credit_per_ctc_child:
+  2019: 100
+dependent_tax_credit_per_other_dependent:
+  2019: 25
+dependent_tax_credit_phaseout_agi_per_exemption:
+  2019: 200000
+dependent_tax_credit_phaseout_rate_per_1000:
+  2019: 50
+
+# Credit For Increased Excise Taxes (2001+, refundable) - a small, flat
+# per-exemption/dependent amount, gated on AGI relative to a per-exemption-
+# count threshold.
+excise_credit_agi_threshold_per_exemption:
+  2001: 12500
+excise_credit_per_exemption_or_dependent:
+  2001: 25
+excise_credit_cap:
+  2001: 100
+
+# Itemized-deduction Pease-style phaseout (1991-2017, AZ's OWN, separate
+# from federal's) - a real 4-step gradual-repeal schedule paralleling
+# federal's own 2006-2012 Pease phase-down, but on AZ's OWN reduction
+# formula (3% of AGI over the threshold, capped at 80% of the itemized
+# total): full strength 1991-2005 and 2013-2017, 2/3 strength 2006-2007,
+# 1/3 strength 2008-2009, fully repealed 2010-2012.
+itemized_phaseout_income_pre2013:
+  1991: 100000  # /sepret, CPI-adjusted via aif92 1992-2012
+itemized_phaseout_income_2013_2017:  # by status, CPI-adjusted via aif13
+  single: 250000
+  married_joint: 300000
+  head_of_household: 275000
+  married_separate: 150000

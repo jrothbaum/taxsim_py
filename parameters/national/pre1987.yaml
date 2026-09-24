@@ -1,0 +1,261 @@
+# Federal income tax, 1977-1986 (`law79`, taxsim_2022_10_21.f:23286-24111) - a
+# genuinely separate top-level calculator from `law87` (parameters/national/
+# income_tax.yaml etc.), not a plug-in vintage. Dispatched
+# `if(lawyr.ge.1977.and.lawyr.le.1986) call law79` (taxsim_2022_10_21.f:22152),
+# at the SAME level `law87` itself is dispatched from - a different AGI
+# computation, a capital-gains EXCLUSION (not a preferential rate or 28%-cap
+# alt-tax), three distinct minimum-tax formulas across the decade, and its
+# own bracket vintages (tax77/79/82/83/84). See calculators/federal_pre1987.py.
+#
+# Scope note: several real law79 mechanisms are UNREACHABLE through this
+# project's actual input schema (INPUT_COLUMNS in scripts/validate_federal.py)
+# and so are correctly always-zero/inert here, not unmodeled gaps: medical
+# expense deduction (edical - no input field for it), charitable contributions
+# (char/charni - same "no named input column" gap already known from
+# law87's own charity_cash), casualty losses (data(61)), the pre-1979 add-on
+# minimum tax (addmin - gated on data(155)/data(81), neither populated),
+# income averaging (avrtax - gated on data(96), not populated), political
+# campaign/elderly/foreign-tax/investment/jobs/energy credits (all read
+# data() fields with no corresponding named input column), Keogh/IRA
+# deductions (data(28)/data(29), no input fields), and the elderly-specific
+# unemployment/SS provisions (data(9), driven by page/sage ages - not in
+# this project's INPUT_COLUMNS).
+#
+# Year keys are sparse with forward-fill, same convention as every other
+# parameter file - a year with no entry here reuses the largest earlier
+# coded year's value. Bracket lists follow income_tax.yaml's own convention
+# too: status-first, then sparse year -> [threshold, rate] pairs.
+
+brackets:
+  single:
+    1977: [[0, 0.14], [500, 0.15], [1000, 0.16], [1500, 0.17], [2000, 0.19], [4000, 0.21], [6000, 0.24], [8000, 0.25], [10000, 0.27], [12000, 0.29], [14000, 0.31], [16000, 0.34], [18000, 0.36], [20000, 0.38], [22000, 0.4], [26000, 0.45], [32000, 0.5], [38000, 0.55], [44000, 0.6], [50000, 0.62], [60000, 0.64], [70000, 0.66], [80000, 0.68], [90000, 0.69], [100000, 0.7]]
+    1979: [[2300, 0.14], [3400, 0.16], [4400, 0.18], [6500, 0.19], [8500, 0.21], [10800, 0.24], [12900, 0.26], [15000, 0.3], [18200, 0.34], [23500, 0.39], [28800, 0.44], [34100, 0.49], [41500, 0.55], [55300, 0.63], [81800, 0.68], [108300, 0.7]]
+    1982: [[2300, 0.12], [3400, 0.14], [4400, 0.16], [6500, 0.17], [8500, 0.19], [10800, 0.22], [12900, 0.23], [15000, 0.27], [18200, 0.31], [23500, 0.35], [28800, 0.4], [34100, 0.44], [41500, 0.5]]
+    1983: [[2300, 0.11], [3400, 0.13], [4400, 0.15], [8500, 0.17], [10800, 0.19], [12900, 0.21], [15000, 0.24], [18200, 0.28], [23500, 0.32], [28800, 0.36], [34100, 0.4], [41500, 0.45], [55300, 0.5]]
+    1984: [[2300, 0.11], [3400, 0.12], [4400, 0.14], [6500, 0.15], [8500, 0.16], [10800, 0.18], [12900, 0.2], [15000, 0.23], [18200, 0.26], [23500, 0.3], [28800, 0.34], [34100, 0.38], [41500, 0.42], [55300, 0.48], [81800, 0.5]]
+    1985: [[2392, 0.11], [3536, 0.12], [4576, 0.14], [6760, 0.15], [8840, 0.16], [11232, 0.18], [13416, 0.2], [15600, 0.23], [18928, 0.26], [24440, 0.3], [29952, 0.34], [35464, 0.38], [43160, 0.42], [57512, 0.48], [85072, 0.5]]
+    1986: [[2484, 0.11], [3672, 0.12], [4752, 0.14], [7020, 0.15], [9180, 0.16], [11664, 0.18], [13932, 0.2], [16200, 0.23], [19656, 0.26], [25380, 0.3], [31104, 0.34], [36828, 0.38], [44820, 0.42], [59724, 0.48], [88344, 0.5]]
+  married_joint:
+    1977: [[0, 0.14], [1000, 0.15], [2000, 0.16], [3000, 0.17], [4000, 0.19], [8000, 0.22], [12000, 0.25], [16000, 0.28], [20000, 0.32], [24000, 0.36], [28000, 0.39], [32000, 0.42], [36000, 0.45], [40000, 0.48], [44000, 0.5], [52000, 0.53], [64000, 0.55], [76000, 0.58], [88000, 0.6], [100000, 0.62], [120000, 0.64], [140000, 0.66], [160000, 0.68], [180000, 0.69], [200000, 0.7]]
+    1979: [[3400, 0.14], [5500, 0.16], [7600, 0.18], [11900, 0.21], [16000, 0.24], [20200, 0.28], [24600, 0.32], [29900, 0.37], [35200, 0.43], [45800, 0.49], [60000, 0.54], [85600, 0.59], [109400, 0.64], [162400, 0.68], [215400, 0.7]]
+    1982: [[3400, 0.12], [5500, 0.14], [7600, 0.16], [11900, 0.19], [16000, 0.22], [20200, 0.25], [24600, 0.29], [29900, 0.33], [35200, 0.39], [45800, 0.44], [60000, 0.49], [85600, 0.5]]
+    1983: [[3400, 0.11], [5500, 0.13], [7600, 0.15], [11900, 0.17], [16000, 0.19], [20200, 0.23], [24600, 0.26], [29900, 0.3], [35200, 0.35], [45800, 0.4], [60000, 0.44], [85600, 0.48], [109400, 0.5]]
+    1984: [[3400, 0.11], [5500, 0.12], [7600, 0.14], [11900, 0.16], [16000, 0.18], [20200, 0.22], [24600, 0.25], [29900, 0.28], [35200, 0.33], [45800, 0.38], [60000, 0.42], [85600, 0.45], [109400, 0.49], [162400, 0.5]]
+    1985: [[3536, 0.11], [5720, 0.12], [7904, 0.14], [12376, 0.16], [16640, 0.18], [21008, 0.22], [25584, 0.25], [31096, 0.28], [36608, 0.33], [47632, 0.38], [62400, 0.42], [89024, 0.45], [113776, 0.49], [168896, 0.5]]
+    1986: [[3672, 0.11], [5940, 0.12], [8208, 0.14], [12852, 0.16], [17280, 0.18], [21816, 0.22], [26568, 0.25], [32292, 0.28], [38016, 0.33], [49464, 0.38], [64800, 0.42], [92448, 0.45], [118152, 0.49], [175392, 0.5]]
+  married_separate:
+    1977: [[0, 0.14], [500, 0.15], [1000, 0.16], [1500, 0.17], [2000, 0.19], [4000, 0.22], [6000, 0.25], [8000, 0.28], [10000, 0.32], [12000, 0.36], [14000, 0.39], [16000, 0.42], [18000, 0.45], [20000, 0.48], [22000, 0.5], [26000, 0.53], [32000, 0.55], [38000, 0.58], [44000, 0.6], [50000, 0.62], [60000, 0.64], [70000, 0.66], [80000, 0.68], [90000, 0.69], [100000, 0.7]]
+    1979: [[1700, 0.14], [2750, 0.16], [3800, 0.18], [5950, 0.21], [8000, 0.24], [10100, 0.28], [12300, 0.32], [14950, 0.37], [17600, 0.43], [22900, 0.49], [30000, 0.54], [42800, 0.59], [54700, 0.64], [81200, 0.68], [107700, 0.7]]
+    1982: [[1700, 0.12], [2750, 0.14], [3800, 0.16], [5950, 0.19], [8000, 0.22], [10100, 0.25], [12300, 0.29], [14950, 0.33], [17600, 0.39], [22900, 0.44], [30000, 0.49], [42800, 0.5]]
+    1983: [[1700, 0.11], [2750, 0.13], [3800, 0.15], [5950, 0.17], [8000, 0.19], [10100, 0.23], [12300, 0.26], [14950, 0.3], [17600, 0.35], [22900, 0.4], [30000, 0.44], [42800, 0.48], [54700, 0.5]]
+    1984: [[1700, 0.11], [2750, 0.12], [3800, 0.14], [5950, 0.16], [8000, 0.18], [10100, 0.22], [12300, 0.25], [14950, 0.28], [17600, 0.33], [22900, 0.38], [30000, 0.42], [42800, 0.45], [54700, 0.49], [81200, 0.5]]
+    1985: [[1768, 0.11], [2860, 0.12], [3952, 0.14], [6188, 0.16], [8320, 0.18], [10504, 0.22], [12792, 0.25], [15548, 0.28], [18304, 0.33], [23816, 0.38], [31200, 0.42], [44512, 0.45], [56888, 0.49], [84448, 0.5]]
+    1986: [[1836, 0.11], [2970, 0.12], [4104, 0.14], [6426, 0.16], [8640, 0.18], [10908, 0.22], [13284, 0.25], [16146, 0.28], [19008, 0.33], [24732, 0.38], [32400, 0.42], [46224, 0.45], [59076, 0.49], [87696, 0.5]]
+  head_of_household:
+    1977: [[0, 0.14], [1000, 0.16], [2000, 0.18], [4000, 0.19], [6000, 0.22], [8000, 0.23], [10000, 0.25], [12000, 0.27], [14000, 0.28], [16000, 0.31], [18000, 0.32], [20000, 0.35], [22000, 0.36], [24000, 0.38], [26000, 0.41], [28000, 0.42], [32000, 0.45], [36000, 0.48], [38000, 0.51], [40000, 0.52], [44000, 0.55], [50000, 0.56], [52000, 0.58], [64000, 0.59], [70000, 0.61], [76000, 0.62], [80000, 0.63], [88000, 0.64], [100000, 0.66], [120000, 0.67], [140000, 0.68], [160000, 0.69], [180000, 0.7]]
+    1979: [[2300, 0.14], [4400, 0.16], [6500, 0.18], [8700, 0.22], [11800, 0.24], [15000, 0.26], [18200, 0.31], [23500, 0.36], [28800, 0.42], [34100, 0.46], [44700, 0.54], [60600, 0.59], [81800, 0.63], [108300, 0.68], [161300, 0.7]]
+    1982: [[2300, 0.12], [4400, 0.14], [6500, 0.16], [8700, 0.2], [11800, 0.22], [15000, 0.23], [18200, 0.28], [23500, 0.32], [28800, 0.38], [34100, 0.41], [44700, 0.49], [60600, 0.5]]
+    1983: [[2300, 0.11], [4400, 0.13], [6500, 0.15], [8700, 0.18], [11800, 0.19], [15000, 0.21], [18200, 0.25], [23500, 0.29], [28800, 0.34], [34100, 0.37], [44700, 0.44], [60600, 0.48], [81800, 0.5]]
+    1984: [[2300, 0.11], [4400, 0.12], [6500, 0.14], [8700, 0.17], [11800, 0.18], [15000, 0.2], [18200, 0.24], [23500, 0.28], [28800, 0.32], [34100, 0.35], [44700, 0.42], [60600, 0.45], [81800, 0.48], [108300, 0.5]]
+    1985: [[2392, 0.11], [4576, 0.12], [6760, 0.14], [9048, 0.17], [12272, 0.18], [15600, 0.2], [18928, 0.24], [24440, 0.28], [29952, 0.32], [35464, 0.35], [46488, 0.42], [63024, 0.45], [85072, 0.48], [112632, 0.5]]
+    1986: [[2484, 0.11], [4752, 0.12], [7020, 0.14], [9396, 0.17], [12744, 0.18], [16200, 0.2], [19656, 0.24], [25380, 0.28], [31104, 0.32], [36828, 0.35], [48276, 0.42], [65448, 0.45], [88344, 0.48], [116964, 0.5]]
+
+standard_deduction:  # zbr - head_of_household uses the SAME formula as
+  # single for this entire era (the source's own zbr formula never branches
+  # on nfile==3 at all, only nfile==2 for joint) - not a repeat of a separate
+  # HoH value, genuinely identical to single every year 1977-1986.
+  single:
+    1977: 2200
+    1979: 2300
+    1985: 2392
+    1986: 2484
+  head_of_household:
+    1977: 2200
+    1979: 2300
+    1985: 2392
+    1986: 2484
+  married_joint:
+    1977: 3200
+    1979: 3400
+    1985: 3536
+    1986: 3672
+  married_separate:  # joint/2, via the source's own /sepret divisor
+    1977: 1600
+    1979: 1700
+    1985: 1768
+    1986: 1836
+
+personal_exemption_amount:  # amex = this * exemps. $750 flat pre-1979, then
+  # $1,000 inflation-indexed (`xndx`, law79's own LOCAL CPI multiplier -
+  # 1.0 through 1984, 1.04 in 1985, 1.08 in 1986 - not the global `xndxa`
+  # table law87 uses).
+  1977: 750
+  1979: 1000
+  1985: 1040
+  1986: 1080
+
+# Dividend exclusion (`divexc`, taxsim_2022_10_21.f:23344-23366). married_
+# separate gets the SAME (smaller) exclusion as single - the source checks
+# `mstat.eq.2` (joint specifically), not a joint/2 halving.
+# 1979 is a genuine, replicated-as-found quirk: `divexc = data(13)`, and
+# data(13) is never assigned anywhere in the source's input-population code
+# (confirmed by grep) - it silently stays at its zero-initialized default,
+# so the 1979 exclusion is effectively $0 (dividends fully taxable that
+# year, not the usual $100/$200). 1981 is a real, different one-year
+# provision: a $200/$400 exclusion applied against COMBINED interest+
+# dividends (not dividends alone) - implemented as its own code branch in
+# calculators/federal_pre1987.py, not a plain parameter swap.
+dividend_exclusion:
+  single: {1977: 100, 1979: 0, 1980: 100, 1981: 200, 1982: 100}
+  head_of_household: {1977: 100, 1979: 0, 1980: 100, 1981: 200, 1982: 100}
+  married_separate: {1977: 100, 1979: 0, 1980: 100, 1981: 200, 1982: 100}
+  married_joint: {1977: 200, 1979: 0, 1980: 200, 1981: 400, 1982: 200}
+
+# Capital gains EXCLUSION rate (`caprat`) - the excluded SHARE of net
+# long-term gain, not a preferential rate on the remainder (the remainder
+# is ordinary income, taxed at the regular bracket schedule). 50% through
+# 1977, 60% from 1978 on (Revenue Act of 1978 raised it).
+# taxsim_2022_10_21.f:23370-23387.
+capital_gains_exclusion_rate:
+  1977: 0.5
+  1978: 0.6
+
+# Two-earner deduction (1982+, ERTA 1981's "marriage penalty relief") -
+# 10% of the lesser-earning spouse's own wages, capped in dollars. 1982
+# ONLY used a smaller, transitional 5%/$1,500 version (taxsim_2022_10_21.f:
+# 23421-23425) before the full 10%/$3,000 version took effect 1983+.
+two_earner_deduction_rate:
+  1982: 0.05
+  1983: 0.10
+two_earner_deduction_cap:
+  1982: 1500
+  1983: 3000
+
+# Unemployment compensation exclusion threshold (`uxemp1`/`uxemp2`,
+# taxsim_2022_10_21.f:23319-23320,23439-23443) - AGI (plus the UI itself)
+# below this threshold means UI stays fully excluded; above it, half the
+# excess (capped at the UI amount itself) becomes taxable. married_separate
+# gets a real $0 threshold both eras (the source's own uxemp1(6)/uxemp2(6)
+# array entries are 0, not a fraction of joint's) - so separate filers'
+# UI is effectively taxable from the first dollar once this mechanism
+# applies at all. Genuinely different threshold table 1982+ (smaller
+# thresholds - ERTA 1981 expanded UI taxability) vs 1977-1981's larger,
+# original ones. UNAVAILABLE entirely for 1977-1978 specifically (`if
+# (lawyr.le.1978) untax = 0.` - UI wasn't taxable at all yet) - handled as
+# its own year gate in calculators/federal_pre1987.py, not via this table.
+unemployment_exclusion_threshold:
+  single: {1977: 20000, 1982: 12000}
+  head_of_household: {1977: 20000, 1982: 12000}
+  married_separate: {1977: 0, 1982: 0}
+  married_joint: {1977: 25000, 1982: 18000}
+
+# EITC (`earncr`, taxsim_2022_10_21.f:23909-23960) - a SINGLE flat schedule
+# regardless of filing status or number of qualifying children (unlike
+# law87-era EITC, which varies phaseout_start by status and rates by child
+# count) - only the eligibility gate (`data(8).eq.0` -> 0, i.e. no children
+# at all) and married-separate's own exclusion (`sepret.eq.2` -> 0) create
+# any variation. Three real rate/amount steps across the decade (Tax
+# Reduction Act 1975's original credit, its 1978 extension, and the 1984
+# Deficit Reduction Act's increase) - not the same table stretched by
+# inflation.
+eitc_rate_in:
+  1977: 0.10
+  1985: 0.11
+eitc_max_credit:
+  1977: 400
+  1979: 500
+  1985: 550
+eitc_phaseout_start:
+  1977: 4000
+  1979: 6000
+  1985: 6500
+eitc_rate_out:
+  1977: 0.10
+  1979: 0.125
+  1985: 0.1222
+
+# Child and Dependent Care Credit (`chcr`, taxsim_2022_10_21.f:23838-23862).
+# Expense cap per qualifying person: $2,000 through 1981, $2,400 from 1982
+# on. Rate: a flat 20% through 1981; 1982+ introduces AGI-based phase-down
+# (`chr = max(.2, .3 - max((agi-8000)/200000, 0))`) - implemented directly
+# in calculators/federal_pre1987.py (same shape as engine/credits.py's
+# later pre-2021 CCC rate function, but with genuinely different constants
+# and no separate max-expense distinction, so not reusing that function).
+child_care_credit_expense_cap:
+  1977: 2000
+  1982: 2400
+child_care_credit_flat_rate:  # only real for lawyr<=1981; 1982+ uses the
+  # AGI-phase-down formula above instead, this value unused those years.
+  1977: 0.20
+
+# Minimum tax - three genuinely different formulas across the decade, all
+# using capital gains' EXCLUDED share (`capded`) as their core preference
+# item (the one preference item this project's scope can actually make
+# nonzero). taxsim_2022_10_21.f:23961-24065.
+#
+# 1979-1981 (in addition to a pre-1979 "add-on" tax that's always $0 in
+# this project's scope - gated on unpopulated data(155)/data(81)): a real,
+# separate GRADUATED minimum tax layered alongside it - 10% of preference
+# income (`alminy` = taxable income + capded) over $20,000/sepret, another
+# 10% over $60,000/sepret, another 5% over $100,000/sepret. Combines with
+# regular tax as `tax = max(regular_tax, tier_sum)` in this project's
+# scope (the source's own `almtax = max(0, tier_sum - tax); tax = tax +
+# almtax` reduces to exactly that once the unpopulated offset/addmin terms
+# drop out).
+minimum_tax_tier1_threshold: {1979: 20000}
+minimum_tax_tier2_threshold: {1979: 60000}
+minimum_tax_tier3_threshold: {1979: 100000}  # 1979-1981 only; no tier 3 in 1982
+minimum_tax_tier1_rate: {1979: 0.10}
+minimum_tax_tier2_rate: {1979: 0.10}
+minimum_tax_tier3_rate: {1979: 0.05}  # not used for 1982 in code (2-tier only that year)
+
+# 1983+: a single flat-rate minimum tax replaces the graduated one - 20%
+# of preference income over a flat-dollar offset ($30,000 single/HoH,
+# $40,000/sepret joint/separate - note this offset is NOT inflation-
+# indexed and NOT the same shape as the 1979-1981 tiers). `alminy` here
+# adds capital gains' excluded share directly to AGI (not taxable income)
+# minus itemized deductions when itemizing - taxsim_2022_10_21.f:24042-24065.
+minimum_tax_flat_rate: {1983: 0.20}
+minimum_tax_offset_single_hoh: {1983: 30000}
+minimum_tax_offset_joint_sep: {1983: 40000}  # divided by sepret for separate
+
+# "Maximum tax on earned income" (`etax`), 1977-1981 ONLY - a real, well-
+# known provision capping the marginal rate on personal-service income at
+# 50%, phased out by TEFRA 1982 (which cut the top ORDINARY rate to 50%
+# too, making this redundant). Not available for married-separate filers
+# at all (`if(sepret.eq.2) goto 444` - the whole mechanism is skipped).
+# `ebot`/`eacc` (taxsim_2022_10_21.f:23319-23328) are dimensioned
+# (1977:1981) with `2*X, 3*Y` - i.e. 1977-1978 share one value, 1979-1981
+# share a different one, not five independent numbers.
+max_tax_earned_income_floor:  # ebot
+  single: {1977: 40200, 1979: 41500}
+  head_of_household: {1977: 40200, 1979: 44700}
+  married_separate: {1977: 26000, 1979: 28300}
+  married_joint: {1977: 55200, 1979: 60000}
+max_tax_earned_income_accumulated:  # eacc - tax already paid through ebot
+  single: {1977: 13290, 1979: 13392}
+  head_of_household: {1977: 12240, 1979: 13961}
+  married_separate: {1977: 9030, 1979: 9839}
+  married_joint: {1977: 18060, 1979: 19678}
+
+# Rate Reduction Credit, 1981 ONLY (ERTA 1981's mid-year 1.25% cut,
+# `taxsim_2022_10_21.f:23575-23580` - applies to `tax77`), applied as a
+# flat multiplier to the regular tax AND threaded into both the capital-
+# gains alternative tax and the maximum-tax-on-earned-income computations
+# for that one year specifically (see calculators/federal_pre1987.py -
+# not a uniform final multiplier, each alternative gets it applied at its
+# own specific point, matching the source line by line).
+rate_reduction_credit_multiplier: {1981: 0.9875}
+
+# Alternative tax on capital gains threshold, pre-1979 only (the $50,000/
+# sepret breakpoint in the source's own $50k-threshold blended 25%/50%
+# formula, taxsim_2022_10_21.f:23658-23675) - kept as its own named
+# constant since it's genuinely different from every other dollar
+# threshold in this file, not reused anywhere else.
+alt_capital_gains_tax_threshold_pre1979: {1977: 50000}
+
+# 1981's own one-year alternative tax on capital gains (a flat effective
+# 20% cap via `0.4*top_ordinary_rate`, taxsim_2022_10_21.f:23676-23682) -
+# the 0.4 fraction and 0.2 flat-add rate are both structural constants of
+# that one-year formula, not separately time-varying, so left as literals
+# in calculators/federal_pre1987.py rather than parameterized here.

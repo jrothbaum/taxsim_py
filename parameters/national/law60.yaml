@@ -1,0 +1,609 @@
+# Federal income tax, 1960-1976 (`law60`, taxsim_2022_10_21.f:22458-23281) - a
+# third, entirely separate top-level federal calculator (dispatched
+# `if(lawyr.le.1976) call law60`, taxsim_2022_10_21.f:22151, at the SAME level
+# `law79`/`law87` are dispatched from - not a plug-in vintage within either).
+#
+# Built in two phases (matching the natural `tax74` bracket-vintage boundary,
+# which also happens to be where nearly every real mechanism below is
+# gated in): Phase 1 = 1971-1976, Phase 2 = 1960-1970 (added later).
+#
+# As with pre1987.yaml, most of law60's real mechanisms are provably
+# unreachable given this project's actual INPUT_COLUMNS schema - confirmed
+# directly via `grep -n "data(N)\s*="` against taxsim_2022_10_21.f for every
+# `data()` slot law60 reads, not assumed. Confirmed genuinely inert for
+# Phase 1 (1971-1976): medical deduction (data 47-49), charitable
+# contributions (cash/asset, data 59-60), casualty loss (data 61), political
+# contributions credit (data 35, always $0 - `candid` computes but its input
+# is never populated), the pre-1979 add-on minimum tax's extra preference
+# terms (data 18, 81, 83, 84, 87, 95 - all unassigned), income averaging
+# (`avrtax`, gated on `data(96)`, which the input reader explicitly
+# initializes to `-1.d0` at taxsim_2022_10_21.f:21136 - a genuine sentinel,
+# not an oversight - confirmed via a debug-instrumented oracle build rather
+# than assumed, since the naive reading of the gate condition
+# `if(data(96).lt.0.) go to 462` looks like it could activate by default if
+# the field were merely zero rather than negative), Keogh/IRA deductions
+# (data 28/29, unassigned), Schedule E / business-property income (data
+# 72-75/77/79, unassigned - schede is always 0), and every misc. credit
+# (investment/foreign-tax/win/jobs/energy/elderly, data 32-38, all
+# unassigned). Unemployment compensation (`ui`) is NOT part of AGI at all in
+# law60's scope (unlike law79's post-1978 partial-inclusion formula) - it
+# only ever appears as a preference-income addback (`data(82) =
+# max(ui,pui+sui)`) inside the "maximum tax on earned income" computation.
+#
+# One genuinely different-shaped mechanism vs law79: for ALL of law60's
+# range (the `if(lawyr.ge.1977)` branch at taxsim_2022_10_21.f:22688 is never
+# taken), taxable income is simply `agi - (itemized if itemizing else zbr) -
+# exemption`, clipped at 0 - there is no separate "excess itemized
+# deductions over the standard deduction" add-back concept the way law79 has
+# (law79's `excess` variable literally never gets set away from its 0 init
+# in law60).
+#
+# Childcare expenses are an UNCAPPED ITEMIZED DEDUCTION for 1971-1975 (added
+# directly into `deduc` via `data(64)`, the `childcare` input -
+# taxsim_2022_10_21.f:22629), not a credit - the Child Care Credit (chcr,
+# flat 20%) only exists starting 1976. Both are real, replicated as found;
+# no historical "should have been capped" correction applied.
+
+brackets:
+  # `tax74` (taxsim_2022_10_21.f:26192-26206, block data `bl74` at
+  # :28068-28116) - a single, flat bracket table covering all of 1971-1976
+  # (no CPI blowup, no year variation at all within this vintage - confirmed
+  # directly from the block data, which has no year dimension). Extracted
+  # via a compiled subroutine sweep (income 0-300000 by $1, watching for
+  # rate changes), not hand-transcribed from the dense DATA statement.
+  # IMPORTANT: the source's own DATA statement leads each status's table
+  # with a `[threshold=0, rate=0.0]` pair that is NOT a real 0% bracket -
+  # it's a loop-start sentinel the lookup subroutine's `itab=itab+1` skips
+  # past (same pattern already found for `tax87`'s bracket table). The real
+  # bracket starting at $0 uses the SECOND entry's rate (0.14 for every
+  # status here) - confirmed by the sweep itself (income=$1 already shows
+  # rate=0.14, not 0.0) and by hand-verifying bracket_tax($275, these
+  # brackets) == $38.50 against a live oracle probe (1971, single, $2,000
+  # wages: taxable income $275 after the $1,050 standard deduction floor
+  # and $675 exemption, real fiitax=$38.36 - the 16-cent gap is $30's
+  # worth of avrtax/addmin noise at this income level, not the bracket
+  # itself, confirmed separately). No terminal `1.0e+29` sentinel is needed
+  # either - bracket_tax's own last bracket already extends to infinity.
+  # married_separate reuses married_joint's own table at sepret=2 (income
+  # doubled before lookup, tax halved after - `faster=taxinc*sepret` in the
+  # source) for 1971-1976 - Phase 2 (1960-1970) is different again: `tax62`/
+  # `tax64`/`tax70` take NO `sepret` argument at all, and the source's own
+  # `nfile1` resolution explicitly redirects married_separate to nfile=1
+  # (SINGLE's own table, no scaling) for `lawyr.le.1970`
+  # (taxsim_2022_10_21.f:22720-22723) - a genuinely different, simpler
+  # mechanism for Phase 2, handled in federal_law60.py's own status
+  # resolution rather than here.
+  #
+  # `tax70` (1965-1970) turns out to have the EXACT SAME bracket table as
+  # `tax74` (1971-1976) - confirmed by the sweep, not assumed from the
+  # "TRA69 didn't change base brackets" prior - real law: TRA69's rate cut
+  # took effect via the separate Vietnam-era surtax's own phase-down
+  # (10%/2.5% 1969-1970) layered on TOP of an unchanged base table, not by
+  # editing the table itself. Reproduced by giving `single`/`married_joint`/
+  # `head_of_household` a `1965:` anchor with `tax74`'s own real values
+  # (not duplicated by hand - copied via the same sweep) so 1965-1970
+  # forward-fills correctly without a second literal copy.
+  single:
+    1960:
+      - [0, 0.20]
+      - [2000, 0.22]
+      - [4000, 0.26]
+      - [6000, 0.30]
+      - [8000, 0.34]
+      - [10000, 0.38]
+      - [12000, 0.43]
+      - [14000, 0.47]
+      - [16000, 0.50]
+      - [18000, 0.53]
+      - [20000, 0.56]
+      - [22000, 0.59]
+      - [26000, 0.62]
+      - [32000, 0.65]
+      - [38000, 0.69]
+      - [44000, 0.72]
+      - [50000, 0.75]
+      - [60000, 0.78]
+      - [70000, 0.81]
+      - [80000, 0.84]
+      - [90000, 0.87]
+      - [100000, 0.89]
+      - [150000, 0.90]
+      - [200000, 0.91]
+    1964:
+      - [0, 0.16]
+      - [500, 0.165]
+      - [1000, 0.175]
+      - [1500, 0.18]
+      - [2000, 0.20]
+      - [4000, 0.235]
+      - [6000, 0.27]
+      - [8000, 0.305]
+      - [10000, 0.34]
+      - [12000, 0.375]
+      - [14000, 0.41]
+      - [16000, 0.445]
+      - [18000, 0.475]
+      - [20000, 0.505]
+      - [22000, 0.535]
+      - [26000, 0.56]
+      - [32000, 0.585]
+      - [38000, 0.61]
+      - [44000, 0.635]
+      - [50000, 0.66]
+      - [60000, 0.685]
+      - [70000, 0.71]
+      - [80000, 0.735]
+      - [90000, 0.75]
+      - [100000, 0.765]
+      - [200000, 0.77]
+    1965:
+      - [0, 0.14]
+      - [500, 0.15]
+      - [1000, 0.16]
+      - [1500, 0.17]
+      - [2000, 0.19]
+      - [4000, 0.22]
+      - [6000, 0.25]
+      - [8000, 0.28]
+      - [10000, 0.32]
+      - [12000, 0.36]
+      - [14000, 0.39]
+      - [16000, 0.42]
+      - [18000, 0.45]
+      - [20000, 0.48]
+      - [22000, 0.50]
+      - [26000, 0.53]
+      - [32000, 0.55]
+      - [38000, 0.58]
+      - [44000, 0.60]
+      - [50000, 0.62]
+      - [60000, 0.64]
+      - [70000, 0.66]
+      - [80000, 0.68]
+      - [90000, 0.69]
+      - [100000, 0.70]
+    1971:
+      - [0, 0.14]
+      - [500, 0.15]
+      - [1000, 0.16]
+      - [1500, 0.17]
+      - [2000, 0.19]
+      - [4000, 0.21]
+      - [6000, 0.24]
+      - [8000, 0.25]
+      - [10000, 0.27]
+      - [12000, 0.29]
+      - [14000, 0.31]
+      - [16000, 0.34]
+      - [18000, 0.36]
+      - [20000, 0.38]
+      - [22000, 0.40]
+      - [26000, 0.45]
+      - [32000, 0.50]
+      - [38000, 0.55]
+      - [44000, 0.60]
+      - [50000, 0.62]
+      - [60000, 0.64]
+      - [70000, 0.66]
+      - [80000, 0.68]
+      - [90000, 0.69]
+      - [100000, 0.70]
+  married_joint:
+    1960:
+      - [0, 0.20]
+      - [4000, 0.22]
+      - [8000, 0.26]
+      - [12000, 0.30]
+      - [16000, 0.34]
+      - [20000, 0.38]
+      - [24000, 0.43]
+      - [28000, 0.47]
+      - [32000, 0.50]
+      - [36000, 0.53]
+      - [40000, 0.56]
+      - [44000, 0.59]
+      - [52000, 0.62]
+      - [64000, 0.65]
+      - [76000, 0.69]
+      - [88000, 0.72]
+      - [100000, 0.75]
+      - [120000, 0.78]
+      - [140000, 0.81]
+      - [160000, 0.84]
+      - [180000, 0.87]
+      - [200000, 0.89]
+    1964:
+      - [0, 0.16]
+      - [1000, 0.165]
+      - [2000, 0.175]
+      - [3000, 0.18]
+      - [4000, 0.20]
+      - [8000, 0.235]
+      - [12000, 0.27]
+      - [16000, 0.305]
+      - [20000, 0.34]
+      - [24000, 0.375]
+      - [28000, 0.41]
+      - [32000, 0.445]
+      - [36000, 0.475]
+      - [40000, 0.505]
+      - [44000, 0.535]
+      - [52000, 0.56]
+      - [64000, 0.585]
+      - [76000, 0.61]
+      - [88000, 0.635]
+      - [100000, 0.66]
+      - [120000, 0.685]
+      - [140000, 0.71]
+      - [160000, 0.735]
+      - [180000, 0.75]
+      - [200000, 0.765]
+    1965:
+      - [0, 0.14]
+      - [1000, 0.15]
+      - [2000, 0.16]
+      - [3000, 0.17]
+      - [4000, 0.19]
+      - [8000, 0.22]
+      - [12000, 0.25]
+      - [16000, 0.28]
+      - [20000, 0.32]
+      - [24000, 0.36]
+      - [28000, 0.39]
+      - [32000, 0.42]
+      - [36000, 0.45]
+      - [40000, 0.48]
+      - [44000, 0.50]
+      - [52000, 0.53]
+      - [64000, 0.55]
+      - [76000, 0.58]
+      - [88000, 0.60]
+      - [100000, 0.62]
+      - [120000, 0.64]
+      - [140000, 0.66]
+      - [160000, 0.68]
+      - [180000, 0.69]
+      - [200000, 0.70]
+    1971:
+      - [0, 0.14]
+      - [1000, 0.15]
+      - [2000, 0.16]
+      - [3000, 0.17]
+      - [4000, 0.19]
+      - [8000, 0.22]
+      - [12000, 0.25]
+      - [16000, 0.28]
+      - [20000, 0.32]
+      - [24000, 0.36]
+      - [28000, 0.39]
+      - [32000, 0.42]
+      - [36000, 0.45]
+      - [40000, 0.48]
+      - [44000, 0.50]
+      - [52000, 0.53]
+      - [64000, 0.55]
+      - [76000, 0.58]
+      - [88000, 0.60]
+      - [100000, 0.62]
+      - [120000, 0.64]
+      - [140000, 0.66]
+      - [160000, 0.68]
+      - [180000, 0.69]
+      - [200000, 0.70]
+  head_of_household:
+    1960:
+      - [0, 0.20]
+      - [2000, 0.21]
+      - [4000, 0.24]
+      - [6000, 0.26]
+      - [8000, 0.30]
+      - [10000, 0.32]
+      - [12000, 0.36]
+      - [14000, 0.39]
+      - [16000, 0.42]
+      - [18000, 0.43]
+      - [20000, 0.47]
+      - [22000, 0.49]
+      - [24000, 0.52]
+      - [28000, 0.54]
+      - [32000, 0.58]
+      - [38000, 0.62]
+      - [44000, 0.66]
+      - [50000, 0.68]
+      - [60000, 0.71]
+      - [70000, 0.74]
+      - [80000, 0.76]
+      - [90000, 0.80]
+      - [100000, 0.83]
+      - [150000, 0.87]
+      - [200000, 0.90]
+    1964:
+      - [0, 0.16]
+      - [1000, 0.175]
+      - [2000, 0.19]
+      - [4000, 0.22]
+      - [6000, 0.23]
+      - [8000, 0.27]
+      - [10000, 0.29]
+      - [12000, 0.32]
+      - [14000, 0.34]
+      - [16000, 0.375]
+      - [18000, 0.39]
+      - [20000, 0.425]
+      - [22000, 0.435]
+      - [24000, 0.455]
+      - [26000, 0.47]
+      - [28000, 0.485]
+      - [32000, 0.515]
+      - [36000, 0.53]
+      - [38000, 0.54]
+      - [40000, 0.56]
+      - [44000, 0.585]
+      - [50000, 0.595]
+      - [52000, 0.61]
+      - [60000, 0.62]
+      - [64000, 0.635]
+      - [70000, 0.65]
+      - [76000, 0.66]
+      - [80000, 0.67]
+      - [88000, 0.69]
+      - [90000, 0.695]
+      - [100000, 0.71]
+      - [120000, 0.725]
+      - [140000, 0.74]
+      - [160000, 0.75]
+      - [180000, 0.755]
+      - [200000, 0.77]
+    1965:
+      - [0, 0.14]
+      - [1000, 0.16]
+      - [2000, 0.18]
+      - [4000, 0.20]
+      - [6000, 0.22]
+      - [8000, 0.25]
+      - [10000, 0.27]
+      - [12000, 0.31]
+      - [14000, 0.32]
+      - [16000, 0.35]
+      - [18000, 0.36]
+      - [20000, 0.40]
+      - [22000, 0.41]
+      - [24000, 0.43]
+      - [26000, 0.45]
+      - [28000, 0.46]
+      - [32000, 0.48]
+      - [36000, 0.50]
+      - [38000, 0.52]
+      - [40000, 0.53]
+      - [44000, 0.55]
+      - [50000, 0.56]
+      - [52000, 0.58]
+      - [64000, 0.59]
+      - [70000, 0.61]
+      - [76000, 0.62]
+      - [80000, 0.63]
+      - [88000, 0.64]
+      - [100000, 0.66]
+      - [120000, 0.67]
+      - [140000, 0.68]
+      - [160000, 0.69]
+      - [180000, 0.70]
+    1971:
+      - [0, 0.14]
+      - [1000, 0.16]
+      - [2000, 0.18]
+      - [4000, 0.19]
+      - [6000, 0.22]
+      - [8000, 0.23]
+      - [10000, 0.25]
+      - [12000, 0.27]
+      - [14000, 0.28]
+      - [16000, 0.31]
+      - [18000, 0.32]
+      - [20000, 0.35]
+      - [22000, 0.36]
+      - [24000, 0.38]
+      - [26000, 0.41]
+      - [28000, 0.42]
+      - [32000, 0.45]
+      - [36000, 0.48]
+      - [38000, 0.51]
+      - [40000, 0.52]
+      - [44000, 0.55]
+      - [50000, 0.56]
+      - [52000, 0.58]
+      - [64000, 0.59]
+      - [70000, 0.61]
+      - [76000, 0.62]
+      - [80000, 0.63]
+      - [88000, 0.64]
+      - [100000, 0.66]
+      - [120000, 0.67]
+      - [140000, 0.68]
+      - [160000, 0.69]
+      - [180000, 0.70]
+
+# `divexc`: 50/status, doubled `if(mstat.eq.2)` (married_joint only), then
+# doubled again unconditionally `if(lawyr.gt.1964)` - real for 1965+; 1960-
+# 1964 keeps the smaller, undoubled base ($50 single/HoH/married_separate,
+# $100 married_joint). taxsim_2022_10_21.f:22509-22517.
+dividend_exclusion:
+  single:
+    1960: 50
+    1965: 100
+  married_joint:
+    1960: 100
+    1965: 200
+  married_separate:
+    1960: 50
+    1965: 100
+  head_of_household:
+    1960: 50
+    1965: 100
+
+# `caprat` - capital gains EXCLUSION rate (not a preferential rate), flat
+# 50% for lawyr<1978 (real for all of 1960-1977). taxsim_2022_10_21.f:22521-
+# 22522.
+capital_gains_exclusion_rate:
+  1960: 0.5
+
+# Personal exemption dollar amount per exemption unit (`exemps` = self/
+# spouse count + depx; elderly/blind additions are inert here - see module
+# docstring). taxsim_2022_10_21.f:22643-22653.
+personal_exemption_amount:
+  1960: 600
+  1970: 625
+  1971: 675
+  1972: 750
+
+# Percentage-of-AGI standard deduction ("zbr") - a genuinely different
+# formula shape every few years, not just different parameter values within
+# one shared shape:
+# - <=1963: `zbr = min(ceiling/sepret, pct*agix)` - straight percentage
+#   capped at a flat ceiling, NO floor term at all.
+# - 1964-1970: `zbr = max(min(ceiling/sepret,pct*agix),
+#   min(ceiling/sepret, per_exemption_base/sepret +
+#   per_exemption_amount*exemps))` - same percentage/ceiling term as
+#   <=1963, now floored at a per-exemption-count amount (itself also capped
+#   at the ceiling) rather than a flat dollar floor.
+# - 1971-1974: `zbr = max(min(ceiling/sepret,pct*agix), floor/sepret)` -
+#   flat dollar floor, one shared formula for every status.
+# - 1975+: same shape as 1971-1974 but with separate joint/other
+#   ceiling+floor pairs.
+# taxsim_2022_10_21.f:22660-22675.
+standard_deduction_pct:
+  1960: 0.10
+  1971: 0.13
+  1972: 0.15
+  1975: 0.16
+standard_deduction_ceiling_other:
+  1960: 1000
+  1971: 1500
+  1972: 2000
+  1975: 2300
+  1976: 2400
+standard_deduction_per_exemption_base:  # 1964-1970 only
+  1964: 200
+standard_deduction_per_exemption_amount:  # 1964-1970 only
+  1964: 100
+standard_deduction_floor_other:
+  1971: 1050
+  1972: 1300
+  1975: 1600
+  1976: 1700
+standard_deduction_ceiling_joint:
+  1971: 1500
+  1972: 2000
+  1975: 2600
+  1976: 2800
+standard_deduction_floor_joint:
+  1971: 1050
+  1972: 1300
+  1975: 1900
+  1976: 2100
+
+# Capital-gains "alternative tax" (a real, distinct provision 1970-1975 -
+# see federal_law60.py for the full formula, which is genuinely different
+# in shape year to year and not reducible to simple parameters alone).
+# `cgtx3`'s flat component and the `$50,000` gate threshold are the same
+# every year 1970-1975; only the `cgtx2` blend's cap differs (see
+# `alt_capital_gains_cap_rate` below).
+alt_capital_gains_threshold:
+  1970: 50000
+alt_capital_gains_cap_rate:  # 1970: 29.5%, 1971: 32.5%, 1972-1975: uncapped
+  1970: 0.295
+  1971: 0.325
+  1972: 1.0e+9
+alt_capital_gains_flat_component:
+  1970: 12500
+
+# Vietnam-era surtax (1968-1970 only) - a flat multiplier on the whole
+# already-combined `tax`, applied once BEFORE credits, not threaded into
+# any sub-computation. taxsim_2022_10_21.f:23047-23056.
+surtax_multiplier:
+  1968: 1.075
+  1969: 1.10
+  1970: 1.025
+
+# "Maximum tax on earned income" (1971-1976 in this phase; the source's own
+# arrays are dimensioned 1971:1979, real through 1981 - law79 carries
+# 1977-1981 forward). `ebot`/`eacc` by status; both flat across 1971-1976
+# (the arrays only step at 1977 and 1979). taxsim_2022_10_21.f:22461-22496.
+# The 60%/50% multiplier on `etop` is itself year-specific: 60% for 1971
+# only (the provision's first, partial-phase-in year), 50% from 1972 on.
+max_tax_earned_income_floor:
+  single:
+    1971: 38000
+  married_joint:
+    1971: 52000
+  married_separate:
+    1971: 38000
+  head_of_household:
+    1971: 38000
+max_tax_earned_income_accumulated:
+  single:
+    1971: 13290
+  married_joint:
+    1971: 18060
+  married_separate:
+    1971: 13290
+  head_of_household:
+    1971: 12240
+max_tax_earned_income_etop_multiplier:
+  1971: 0.6
+  1972: 0.5
+
+# EITC - real 1975-1976 only (created by the Tax Reduction Act of 1975), a
+# single flat trapezoid schedule (no status/children distinction beyond
+# eligibility itself). taxsim_2022_10_21.f:23166-23205.
+eitc_rate_in:
+  1975: 0.10
+eitc_max_credit:
+  1975: 400
+eitc_phaseout_start:
+  1975: 4000
+eitc_rate_out:
+  1975: 0.10
+
+# Child and Dependent Care Credit - real 1976 only in this phase (flat 20%,
+# $2,000/$4,000 expense cap by number of qualifying children up to 2).
+# taxsim_2022_10_21.f:23067-23080.
+child_care_credit_expense_cap:
+  1976: 2000
+child_care_credit_flat_rate:
+  1976: 0.20
+
+# $30-per-exemption credit, 1975 only (a one-year-only provision, distinct
+# from 1976's General Tax Credit below). taxsim_2022_10_21.f:23059-23062.
+personal_exemption_credit_amount:
+  1975: 30
+
+# General Tax Credit, 1976 only in this phase (real through 1978, law79
+# doesn't need to carry it since law79 starts 1977... note: law79 itself
+# does NOT implement this - it belongs entirely to law60's real 1976 case
+# plus law79's own dead range). `max(35*exemps, min($180, 2%*taxable_income))`.
+# taxsim_2022_10_21.f:23063-23065.
+general_tax_credit_per_exemption:
+  1976: 35
+general_tax_credit_cap:
+  1976: 180
+general_tax_credit_rate:
+  1976: 0.02
+
+# Add-on minimum tax (`addmin`) - genuinely ADDITIVE to tax (not a floor
+# like law79/law87's minimum tax). The formula itself (the `.le.1975`
+# branch below) is computed identically all the way back to 1960 - it's
+# only ever ADDED to `tax` for 1969-1978 (federal_law60.py handles that
+# year gate, not this file - `addmin` still needs to resolve for every
+# year<=1975 since it's computed unconditionally). Two offset-formula eras
+# within that: 1960-1975 use a $30,000/sepret flat offset; 1976 switches to
+# a 50%-of-tax offset with a $10,000/sepret floor and a 15% (not 10%) rate.
+# taxsim_2022_10_21.f:23206-23264.
+addmin_offset_flat:
+  1960: 30000
+addmin_offset_pct_floor:
+  1976: 10000
+addmin_rate_pre1976:
+  1960: 0.10
+addmin_rate_1976to1978:
+  1976: 0.15

@@ -6,6 +6,28 @@
 # not modeled, matching this project's existing scope decisions elsewhere.
 # Verified against taxsim_2022_10_21.f:24738-24816.
 amount:  # exem(lawyr): a flat per-exemption dollar amount
+  1987: 1900
+  1988: 1950
+  1989: 2000
+  1990: 2050
+  1991: 2150
+  1992: 2300
+  1993: 2350
+  1994: 2450
+  1995: 2500
+  1996: 2550
+  1997: 2650
+  1998: 2700
+  1999: 2750
+  2000: 2800
+  2001: 2900
+  2002: 3000
+  2003: 3050
+  2004: 3100
+  2005: 3200
+  2006: 3300
+  2007: 3400
+  2008: 3500
   2009: 3650
   2010: 3650
   2011: 3700
@@ -25,20 +47,76 @@ amount:  # exem(lawyr): a flat per-exemption dollar amount
 # unconditionally, taxsim_2022_10_21.f:24798-24800) - calculators/
 # federal.py special-cases that range directly (amex = amex_base, this
 # threshold/rate never even fetched for those years), so no 2010-2012
-# entry is needed here. 2009 (like 2008) is on the tail end of a gradual
+# entry is needed here. 2008-2009 are on the tail end of a gradual
 # phase-out that preceded the 2010-2012 repeal - the ratio computed from
-# this same threshold/rate only counts for 1/3 of its normal effect that
-# year (calculators/federal.py's own year==2009 special case). 2013 is
-# ATRA's reinstatement, back to the full, un-fractioned formula.
+# this same threshold/rate only counts for 1/3 of its normal effect those
+# two years (calculators/federal.py's own year-in-(2008,2009) special
+# case). 2013 is ATRA's reinstatement, back to the full, un-fractioned
+# formula.
 high_income_phaseout_threshold:
-  # 2009 only (2010-2012 skip this entirely - see the code's own
-  # 2010<=year<=2012 branch), a genuinely different, only-33%-applied
-  # phaseout - taxsim_2022_10_21.f:24783-24784.
-  single: {2009: 166800, 2013: 250000, 2014: 254200, 2015: 258250, 2016: 259400, 2017: 261500}
-  head_of_household: {2009: 208500, 2013: 275000, 2014: 279650, 2015: 284050, 2016: 285350, 2017: 287650}
-  married_separate: {2009: 125000, 2013: 150000, 2014: 152525, 2015: 154950, 2016: 155650, 2017: 156900}
-  married_joint: {2009: 250200, 2013: 300000, 2014: 305050, 2015: 309900, 2016: 311300, 2017: 313800}
+  # 2006-2007 apply the ratio at 2/3 strength, 2008-2009 at 1/3 strength
+  # (2010-2012 skip this entirely - see the code's own 2010<=year<=2012
+  # branch) - taxsim_2022_10_21.f:24780-24810.
+  # 1997-1998 share the same value (the source's own condition is
+  # `lawyr.le.1998`, not per-year) - taxsim_2022_10_21.f's exmphl table.
+  # 1994-1996 (this project's `year<=1996` branch) use a genuinely
+  # different, older formula (`exmphl = filing(...)*xndx/1.143`,
+  # taxsim_2022_10_21.f:24754-24760) - precomputed into plain dollar
+  # values here via a standalone driver against the source's own `xndxa`
+  # CPI table (same extraction technique as every other parameter):
+  # single=$111,898.51/$114,785.65/$117,847.77, married_joint=
+  # $167,847.77/$172,178.48/$176,771.65, head_of_household=$139,873.14/
+  # $143,482.06/$147,309.71, married_separate=$83,923.88/$86,089.24/
+  # $88,385.83 for 1994/1995/1996 respectively.
+  single: {1991: 100087.49, 1992: 105336.83, 1993: 108573.93, 1994: 111898.51, 1995: 114785.65, 1996: 117847.77, 1997: 124500, 1998: 124500, 1999: 126600, 2000: 128950, 2001: 132950, 2002: 137300, 2003: 139500, 2004: 142700, 2005: 145950, 2006: 150500, 2007: 156400, 2008: 159950, 2009: 166800, 2013: 250000, 2014: 254200, 2015: 258250, 2016: 259400, 2017: 261500}
+  head_of_household: {1991: 125109.36, 1992: 131671.04, 1993: 135717.41, 1994: 139873.14, 1995: 143482.06, 1996: 147309.71, 1997: 155650, 1998: 155650, 1999: 158300, 2000: 161150, 2001: 166200, 2002: 171650, 2003: 174400, 2004: 178350, 2005: 182450, 2006: 188150, 2007: 195500, 2008: 199950, 2009: 208500, 2013: 275000, 2014: 279650, 2015: 284050, 2016: 285350, 2017: 287650}
+  married_separate: {1991: 75065.62, 1992: 79002.62, 1993: 81430.45, 1994: 83923.88, 1995: 86089.24, 1996: 88385.83, 1997: 93400, 1998: 93400, 1999: 94975, 2000: 96700, 2001: 99725, 2002: 103000, 2003: 104625, 2004: 107025, 2005: 109475, 2006: 112875, 2007: 117300, 2008: 119975, 2009: 125000, 2013: 150000, 2014: 152525, 2015: 154950, 2016: 155650, 2017: 156900}
+  married_joint: {1991: 150131.23, 1992: 158005.25, 1993: 162860.89, 1994: 167847.77, 1995: 172178.48, 1996: 176771.65, 1997: 186800, 1998: 186800, 1999: 189950, 2000: 193400, 2001: 199450, 2002: 206000, 2003: 209250, 2004: 214050, 2005: 218950, 2006: 225750, 2007: 234600, 2008: 239950, 2009: 250200, 2013: 300000, 2014: 305050, 2015: 309900, 2016: 311300, 2017: 313800}
 phaseout_rate:  # 2% per bracket
-  2009: 0.02
+  1991: 0.02
+  1994: 0.02
+  1995: 0.02
+  1996: 0.02
+  1997: 0.02
+  1998: 0.02
+  1999: 0.02
+  2000: 0.02
+  2001: 0.02
+  2002: 0.02
+  2003: 0.02
+  2004: 0.02
+  2005: 0.02
+  2006: 0.02
+  2007: 0.02
+  2008: 0.02
 phaseout_bracket_size:  # $2,500, divided by sepret for a married_separate half-return
-  2009: 2500
+  1991: 2500
+  1994: 2500
+  1995: 2500
+  1996: 2500
+  1997: 2500
+  1998: 2500
+  1999: 2500
+  2000: 2500
+  2001: 2500
+  2002: 2500
+  2003: 2500
+  2004: 2500
+  2005: 2500
+  2006: 2500
+  2007: 2500
+  2008: 2500
+
+# "Exemption Surtax" (`tax3`), 1988-1996 (this project's scope now covers
+# 1991-1996) - a SEPARATE, additional mechanism from the PEP exemption
+# reduction above, not a duplicate: a flat 5% surtax on taxable income
+# above its own threshold, capped at 28% of the (already PEP-reduced)
+# exemption amount - taxsim_2022_10_21.f:24933-24952. Precomputed into
+# plain dollar values via a standalone driver against the source's own
+# `xndxa` CPI table (`phase = filing(...)*xndx`, no /1.143 divisor this
+# time - a genuinely different inflation base from PEP's own `exmphl`).
+exemption_surtax_threshold:
+  single: {1988: 89560.00, 1989: 93231.96, 1990: 97709.96, 1991: 102456.64, 1992: 107830.24, 1993: 111143.96, 1994: 114547.24, 1995: 117502.72, 1996: 120637.32}
+  married_joint: {1988: 149250.00, 1989: 155369.25, 1990: 162831.75, 1991: 170742.00, 1992: 179697.00, 1993: 185219.25, 1994: 190890.75, 1995: 195816.00, 1996: 201039.75}
+  head_of_household: {1988: 123790.00, 1989: 128865.39, 1990: 135054.89, 1991: 141615.76, 1992: 149043.16, 1993: 153623.39, 1994: 158327.41, 1995: 162412.48, 1996: 166745.13}
+  married_separate: {1988: 113300.00, 1989: 117945.30, 1990: 123610.30, 1991: 129615.20, 1992: 136413.20, 1993: 140605.30, 1994: 144910.70, 1995: 148649.60, 1996: 152615.10}

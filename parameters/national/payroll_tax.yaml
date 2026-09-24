@@ -2,7 +2,90 @@
 # Rates are combined employer+employee (TAXSIM's convention: it reports the
 # full economic burden, not just the employee's withheld half - see
 # taxsim_2022_10_21.f:22166-22457, function `sstax`).
+#
+# The HI (Medicare) side had its OWN, separate wage base cap through 1993
+# ($135,000 that year) before being eliminated entirely starting 1994 -
+# the source's own `himax` array runs $4,800 (1960) up to $135,000 (1993),
+# then `9e10` (i.e. uncapped) for 1994 on (taxsim_2022_10_21.f:22183-
+# 22192). A large sentinel reproduces "uncapped" with no code branch for
+# every year this project has otherwise modeled.
+hi_wage_base:
+  # 1960-1976: extracted from the source's own `himax` array
+  # (taxsim_2022_10_21.f:22183-22192), same array 1977+ already used.
+  1960: 4800
+  1966: 6600
+  1968: 7800
+  1971: 7800
+  1972: 9000
+  1973: 10800
+  1974: 13200
+  1975: 14100
+  1976: 15300
+  1977: 16500
+  1978: 17700
+  1979: 22900
+  1980: 25900
+  1981: 29700
+  1982: 32400
+  1983: 35700
+  1984: 37800
+  1985: 39600
+  1986: 42000
+  1987: 43800
+  # 1988-1990: the HI side had NO separate cap yet - `himax` exactly
+  # equals `ssmax` (the OASDI cap) those three years (both $45,000/
+  # $48,000/$51,300), before Congress first decoupled them starting 1991
+  # (raising HI's cap much higher while capping OASDI more modestly) -
+  # confirmed directly from the source's own `himax` array, not assumed.
+  1988: 45000
+  1989: 48000
+  1990: 51300
+  1991: 125000
+  1992: 130200
+  1993: 135000
+  1994: 1.0e+15
 oasdi_wage_base:  # smax: OASDI taxable wage cap, no cap on the HI (Medicare) side since 1994
+  1960: 4800
+  1966: 6600
+  1968: 7800
+  1971: 7800
+  1972: 9000
+  1973: 10800
+  1974: 13200
+  1975: 14100
+  1976: 15300
+  1977: 16500
+  1978: 17700
+  1979: 22900
+  1980: 25900
+  1981: 29700
+  1982: 32400
+  1983: 35700
+  1984: 37800
+  1985: 39600
+  1986: 42000
+  1987: 43800
+  1988: 45000
+  1989: 48000
+  1990: 51300
+  1991: 53400
+  1992: 55500
+  1993: 57600
+  1994: 60600
+  1995: 61200
+  1996: 62700
+  1997: 65400
+  1998: 68400
+  1999: 72600
+  2000: 76200
+  2001: 80400
+  2002: 84900
+  2003: 87000
+  2004: 87900
+  2005: 90000
+  2006: 94200
+  2007: 97500
+  2008: 102000
   2009: 106800
   2010: 106800
   2011: 106800
@@ -17,6 +100,21 @@ oasdi_wage_base:  # smax: OASDI taxable wage cap, no cap on the HI (Medicare) si
   2020: 137700
   2021: 142800
   2022: 147000
+  # 2023: taxsim's own `ssmax` array gives $153,600 here (confirmed by
+  # bisecting `ficar`'s own OASDI-cap boundary directly against
+  # taxsim2024.exe: full 15.3% rate through exactly $153,600 of wages,
+  # 2.9%-HI-only at $153,601) - NOT the real, final SSA-published 2023
+  # wage base of $160,200. Likely a projection baked into the source
+  # before the real figure was finalized, never corrected. Per user
+  # direction ("if the model is wrong, use the real parameters that are
+  # known"), this project uses the REAL $160,200 here instead of matching
+  # the oracle's own stale figure - a deliberate, documented departure
+  # from "replicate taxsim exactly," not a bug. Expect `taxsim2024.exe`
+  # itself to disagree with this project for any 2023 wages between
+  # $153,601 and $160,200 (the OASDI cap lands at a different point) -
+  # that mismatch is intentional, not something to chase back into
+  # agreement with the oracle.
+  2023: 160200
 # owrate = 2*(trate-hrate). Flat at 12.4% since 1990 EXCEPT the 2011-2012
 # "payroll tax holiday" (Tax Relief Act of 2010): `trate`'s own data array
 # has an explicit two-year carve-out (taxsim_2022_10_21.f:22198-22207,
@@ -26,11 +124,89 @@ oasdi_wage_base:  # smax: OASDI taxable wage cap, no cap on the HI (Medicare) si
 # fica=$13,300 for 2011/2012 vs $15,300 for 2010/2013 - exactly the
 # implied 13.3%/15.3% combined OASDI+HI rate).
 oasdi_rate_combined:
+  # 1960-1976: extracted from the same `trate`/`hrate` arrays
+  # (taxsim_2022_10_21.f:22198-22218).
+  1960: 0.0600
+  1962: 0.0625
+  1963: 0.0725
+  1966: 0.0770
+  1967: 0.0780
+  1968: 0.0760
+  1969: 0.0840
+  1971: 0.0920
+  1973: 0.0970
+  1974: 0.0990
+  # 1977-1984: real, distinct combined OASDI rates every one or two years
+  # (trate-hrate, doubled) - confirmed directly from the source's own
+  # arrays, not assumed to follow a smooth progression.
+  1977: 0.0990
+  1978: 0.1010
+  1979: 0.1016
+  1981: 0.1070
+  1982: 0.1080
+  1984: 0.1140
+  # 1987: OASDI's employee-side rate was 5.7% (trate-hrate=.07150-.01450),
+  # the third distinct combined rate this project has now found in three
+  # straight years (5.7% 1987, 6.06% 1988-1989, 6.2% 1990+) - confirmed
+  # directly from the source's own `trate`/`hrate` data arrays, not
+  # assumed to follow any smooth progression.
+  1987: 0.114
+  # 1988-1989: OASDI's employee-side rate was 6.06% (owrate=2*(trate-hrate),
+  # trate/hrate arrays give .07510-.01450=.06060 those two years), not
+  # 1990's still-current 6.2% - confirmed directly from the source's own
+  # `trate`/`hrate` data arrays (taxsim_2022_10_21.f:22198-22218), not
+  # assumed to be flat all the way back.
+  1988: 0.1212
+  1990: 0.124
+  1994: 0.124
+  1995: 0.124
+  1996: 0.124
+  1997: 0.124
+  1998: 0.124
+  1999: 0.124
+  2000: 0.124
+  2001: 0.124
+  2002: 0.124
+  2003: 0.124
+  2004: 0.124
+  2005: 0.124
+  2006: 0.124
+  2007: 0.124
+  2008: 0.124
   2009: 0.124
   2011: 0.104
   2013: 0.124
   2022: 0.124
 hi_rate_combined:  # hwrate = 2*hrate - unaffected by the 2011-12 holiday
+  1960: 0.0
+  1966: 0.0070
+  1967: 0.0100
+  1968: 0.0120
+  1971: 0.0120
+  1973: 0.0200
+  1974: 0.0180
+  1977: 0.0180
+  1978: 0.0200
+  1979: 0.0210
+  1981: 0.0260
+  1985: 0.0270
+  1986: 0.0290
+  1987: 0.029
+  1994: 0.029
+  1995: 0.029
+  1996: 0.029
+  1997: 0.029
+  1998: 0.029
+  1999: 0.029
+  2000: 0.029
+  2001: 0.029
+  2002: 0.029
+  2003: 0.029
+  2004: 0.029
+  2005: 0.029
+  2006: 0.029
+  2007: 0.029
+  2008: 0.029
   2009: 0.029
   2022: 0.029
 
@@ -40,20 +216,110 @@ hi_rate_combined:  # hwrate = 2*hrate - unaffected by the 2011-12 holiday
 # since its 2013 inception - didn't exist before, so rate=0 (not omitted:
 # calculators/payroll.py fetches this unconditionally) for 2011-2012.
 additional_medicare_rate:
+  1960: 0.0
+  1971: 0.0
+  1977: 0.0
+  1994: 0.0
+  1995: 0.0
+  1996: 0.0
+  1997: 0.0
+  1998: 0.0
+  1999: 0.0
+  2000: 0.0
+  2001: 0.0
+  2002: 0.0
+  2003: 0.0
+  2004: 0.0
+  2005: 0.0
+  2006: 0.0
+  2007: 0.0
+  2008: 0.0
   2009: 0.0
   2013: 0.009
   2022: 0.009
 additional_medicare_threshold:
   single:
+    1960: 200000
+    1971: 200000
+    1977: 200000
+    1994: 200000
+    1995: 200000
+    1996: 200000
+    1997: 200000
+    1998: 200000
+    1999: 200000
+    2000: 200000
+    2001: 200000
+    2002: 200000
+    2003: 200000
+    2004: 200000
+    2005: 200000
+    2006: 200000
+    2007: 200000
+    2008: 200000
     2009: 200000
     2022: 200000
   head_of_household:
+    1960: 200000
+    1971: 200000
+    1977: 200000
+    1994: 200000
+    1995: 200000
+    1996: 200000
+    1997: 200000
+    1998: 200000
+    1999: 200000
+    2000: 200000
+    2001: 200000
+    2002: 200000
+    2003: 200000
+    2004: 200000
+    2005: 200000
+    2006: 200000
+    2007: 200000
+    2008: 200000
     2009: 200000
     2022: 200000
   married_separate:
+    1960: 200000
+    1971: 200000
+    1977: 200000
+    1994: 200000
+    1995: 200000
+    1996: 200000
+    1997: 200000
+    1998: 200000
+    1999: 200000
+    2000: 200000
+    2001: 200000
+    2002: 200000
+    2003: 200000
+    2004: 200000
+    2005: 200000
+    2006: 200000
+    2007: 200000
+    2008: 200000
     2009: 200000
     2022: 200000
   married_joint:
+    1960: 250000
+    1971: 250000
+    1977: 250000
+    1994: 250000
+    1995: 250000
+    1996: 250000
+    1997: 250000
+    1998: 250000
+    1999: 250000
+    2000: 250000
+    2001: 250000
+    2002: 250000
+    2003: 250000
+    2004: 250000
+    2005: 250000
+    2006: 250000
+    2007: 250000
+    2008: 250000
     2009: 250000
     2022: 250000
 
@@ -68,14 +334,114 @@ additional_medicare_threshold:
 # - verified via a live oracle probe (psemp=$100,000, single: tfica=
 # $13,206.05 for 2011/2012 = 14.3% of the $92,350 net-earnings base, vs
 # $14,129.55 = 15.3% for 2010/2013).
-se_net_earnings_factor:  # the 92.35% statutory adjustment to gross SE income, fixed since 1990
+se_net_earnings_factor:  # the 92.35% statutory adjustment to gross SE income, fixed since 1990.
+  # Before that (1977-1989, this project's scope), there was NO reduction
+  # at all - the source's own `if(lawyr.ge.1990) bus=.9235*bus` (and the
+  # matching bus1/bus2 lines, taxsim_2022_10_21.f:22274-22278) show the SE
+  # net-earnings adjustment itself didn't exist in law before 1990 (OBRA89)
+  # - net SE profit was used at its full, unreduced value. Reproduced with
+  # no code branch: 1.0 here is a genuine, different real value, not a
+  # placeholder.
+  1960: 1.0
+  1990: 0.9235
+  1994: 0.9235
+  1995: 0.9235
+  1996: 0.9235
+  1997: 0.9235
+  1998: 0.9235
+  1999: 0.9235
+  2000: 0.9235
+  2001: 0.9235
+  2002: 0.9235
+  2003: 0.9235
+  2004: 0.9235
+  2005: 0.9235
+  2006: 0.9235
+  2007: 0.9235
+  2008: 0.9235
   2009: 0.9235
   2022: 0.9235
 se_oasdi_rate:
+  # 1960-1976: same `strate`/`shrate` arrays.
+  1960: 0.0450
+  1962: 0.0470
+  1963: 0.0540
+  1966: 0.0580
+  1967: 0.0590
+  1968: 0.0580
+  1969: 0.0630
+  1971: 0.0690
+  1973: 0.0700
+  # 1977-1984: real, distinct SE-only OASDI rates (strate-shrate).
+  1977: 0.0700
+  1978: 0.0710
+  1979: 0.0705
+  1981: 0.0800
+  1982: 0.0805
+  1984: 0.0870
+  1985: 0.0910
+  1986: 0.0940
+  # 1987: SE's own OASDI-only rate was 9.4% (strate-shrate=.12300-.02900).
+  1987: 0.094
+  # 1988-1989: SE's own OASDI-only rate was 10.12% (strate-shrate =
+  # .13020-.02900), not 1990's 12.4% - `strate`/`shrate` data arrays,
+  # taxsim_2022_10_21.f:22225-22243.
+  1988: 0.1012
+  1990: 0.124
+  1994: 0.124
+  1995: 0.124
+  1996: 0.124
+  1997: 0.124
+  1998: 0.124
+  1999: 0.124
+  2000: 0.124
+  2001: 0.124
+  2002: 0.124
+  2003: 0.124
+  2004: 0.124
+  2005: 0.124
+  2006: 0.124
+  2007: 0.124
+  2008: 0.124
   2009: 0.124
   2011: 0.114
   2013: 0.124
   2022: 0.124
 se_hi_rate:
+  # 1960-1976: same `strate`/`shrate` arrays.
+  1960: 0.0
+  1966: 0.0035
+  1967: 0.0050
+  1968: 0.0060
+  1971: 0.0060
+  1973: 0.0100
+  1974: 0.0090
+  # 1984 ONLY: SE's own HI rate jumped to match the full combined wage
+  # rate (2.6%) - the 1983 Social Security Amendments required the
+  # self-employed to pay the full combined rate starting exactly 1984,
+  # not a smaller, subsidized SE-specific rate as in every prior year.
+  1977: 0.0090
+  1978: 0.0100
+  1979: 0.0105
+  1981: 0.0130
+  1984: 0.0260
+  1985: 0.0270
+  1986: 0.0290
+  1987: 0.029
+  1994: 0.029
+  1995: 0.029
+  1996: 0.029
+  1997: 0.029
+  1998: 0.029
+  1999: 0.029
+  2000: 0.029
+  2001: 0.029
+  2002: 0.029
+  2003: 0.029
+  2004: 0.029
+  2005: 0.029
+  2006: 0.029
+  2007: 0.029
+  2008: 0.029
   2009: 0.029
   2022: 0.029

@@ -1,0 +1,91 @@
+# Alabama individual income tax (`altax`, taxsim_2022_10_21.f:549-727, state
+# id 1). Second state built (alphabetical order, per user direction).
+# Genuinely richer than Illinois: its own bracket tables with real
+# income-splitting for married_joint (not simple halving/doubling of a
+# shared table - married_joint runs HALF its taxable income through the
+# SAME table single/HoH/married_separate use directly, then doubles the
+# result), a real itemized-deduction structure, a graduated exemption
+# phase-down (2007+), and an unusual provision where FEDERAL income tax
+# paid is itself deductible from AL taxable income (`fedtax`) - four
+# genuinely different formula eras for that alone, the last of which
+# (2021 only) re-runs the ENTIRE federal calculator at law year 2020 to
+# get a hypothetical prior-year EITC/CTC/CCC figure (a real one-time ARPA-
+# era lookback provision). See calculators/states/al.py.
+#
+# Confirmed inert given this project's input schema (not silent gaps, same
+# discipline as every prior scope note): alimony (data 23/62, pre-1982
+# only), the post-1987 data(26) AGI subtraction, medical/casualty/
+# miscellaneous itemized deductions (data 47-49/61/63/66 - `otheritem`
+# only reaches `xitded` via data(54), which IS populated), the solar
+# energy credit (data 38, 1981-1986 only), and the age-based 2011-2012
+# SE-income AGI addback's `data(44)` term (though the `comnew(175)=setax`
+# term it's added to is real and handled).
+#
+# Brackets are static since their 1982 redesign - no year variation at all
+# within either era (confirmed directly from the source's own DATA
+# statements, which have no year dimension for either table).
+brackets_pre1982:  # `tab`, real only <=1981
+  - [0, 0.015]
+  - [1000, 0.03]
+  - [3000, 0.045]
+  - [5000, 0.05]
+brackets:  # `tab82`, real 1982+ - married_joint splits taxable income in
+  # half through this SAME table, then doubles the resulting tax (not a
+  # separate joint table, and NOT the usual "married_separate = joint/2"
+  # shape either - married_separate runs its OWN full taxable income
+  # through this table directly, same as single/HoH).
+  - [0, 0.02]
+  - [500, 0.04]
+  - [3000, 0.05]
+
+# Standard deduction: three genuinely different formula shapes, not just
+# parameter changes. <=1981: 10% of AGI, capped at $1,000 per exemption
+# unit (`data(7)`, the self/spouse count). 1982-2006: 20% of AGI, capped at
+# $2,000 per exemption unit. 2007+: a smoothed linear phase-down between a
+# status-specific floor and ceiling dollar amount, itself a function of
+# AGI between two income breakpoints that shift once more (2019+).
+standard_deduction_pct:
+  1960: 0.10
+  1982: 0.20
+standard_deduction_cap_per_exemption:
+  1960: 1000
+  1982: 2000
+standard_deduction_2007_income_floor:  # `agimin`/sep
+  2007: 20500
+  2019: 23500
+standard_deduction_2007_income_ceiling:  # `agimax`/sep
+  2007: 30000
+  2019: 33000
+standard_deduction_2007_min_per_exemption:  # `stmin` = this * data(7)
+  2007: 2000
+standard_deduction_2007_max_single:
+  2007: 2500
+standard_deduction_2007_max_hoh:
+  2007: 4700
+standard_deduction_2007_max_joint_or_separate:  # /sep
+  2007: 7500
+
+# Personal exemption: flat by status (single = married_separate = $1,500;
+# married_joint = HoH = $3,000 - a real, replicated-as-found quirk that HoH
+# gets the JOINT amount, not single's). Dependent exemption: flat $300/dep
+# through 2006; 2007+ a smoothed phase-down from $1,000 (AGI<=$20k) to $500
+# (AGI $20k-$100k) to $300 (AGI>$100k), linear within each band.
+personal_exemption_single_or_separate:
+  1960: 1500
+personal_exemption_joint_or_hoh:
+  1960: 3000
+dependent_exemption_flat:
+  1960: 300
+dependent_exemption_2007_high:
+  2007: 1000
+dependent_exemption_2007_mid:
+  2007: 500
+dependent_exemption_2007_low:
+  2007: 300
+dependent_exemption_2007_breakpoint1:
+  2007: 20000
+dependent_exemption_2007_breakpoint2:
+  2007: 100000
+
+# Solar energy credit (1981-1986 only) - confirmed inert (data(38)
+# unpopulated) but the year range is noted for completeness.
