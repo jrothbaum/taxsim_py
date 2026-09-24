@@ -1,83 +1,10 @@
-"""California individual income tax (`catax`, taxsim_2022_10_21.f:2198-2929,
-state id 5). See parameters/states/ca/income_tax.yaml for the full scope
-note - the richest state built so far (its own full AMT, Renter's/Low
-Income/Child Care/Elderly credits, and its own EITC).
-
-Confirmed permanently inert for this project's schema (not implemented):
-the Renter's Credit (`renter()`, taxsim_2022_10_21.f:532-544, is
-unconditionally $0 whenever `data(160)` [rentpaid] is $0, which it always
-is here); the energy credit (`data(38)`) and political-contribution
-credit (`data(65)`). The Young Child Tax Credit IS implemented (`ca_young`
-below, added during the 2022/2023 extrapolation retrofit) - an earlier
-version of this docstring wrongly called it inert based on `data(210)`
-alone (genuinely never populated) without checking the credit's separate
-`data(203)` gate, which maps to `dep18` - see the note below the EITC
-section for the full story.
-
-Full real-law range (1977-2021) validated via scripts/validate_states.py:
-2,193/2,250 exact (97.5%). Several real, substantial bugs were found and
-fixed via live oracle probes while building this (see inline comments at
-each site): a systematic (upper_bound,rate)-vs-(start,rate) bracket-table
-transcription error affecting every era; `xitded` double-counting the
-SALT/state-tax feedback term; a real, deliberate 1982-1986 "subtract
-`stded` back out of `deduc`" cancellation (that era's own standard
-deduction is baked into the bracket tables' own zero-rate first segment);
-the 1987+ exemption credit reading `data(7)` directly (not the
-head_of_household-bumped local `txp`); the low-income credit's `tablki`
-being a LINEAR INTERPOLATION between table points, not a step function,
-plus a `div` bug (head_of_household is not in the "div=2" group); the
-AMT's own `addprf` itemized-vs-standard branches being inverted; the AMT's
-`alminy` missing the `-reduce-max(0,data17)` subtraction entirely; and an
-inverted sign on the 2011-2012 payroll-tax-holiday AGI adjustment. The
-remaining 57 failures are two small, unresolved residuals, not chased
-further given the effort already spent on a state this size:
-1. ~40 sub-$1 discrepancies confined to 1980-1981, consistent with a
-   minor rounding artifact in the `nint(x*aiftab/10)*10` pre-1982
-   bracket-threshold rounding - not independently re-verified.
-2. A handful of $5-$40 discrepancies in the 1991-1997 (pre-1998)
-   exemption-credit federal-AGI phaseout formula specifically for
-   married_separate/single at incomes just above the phaseout's own
-   threshold - the general shape is right (found and fixed several real
-   bugs in this exact formula already) but a smaller residual difference
-   remains unisolated.
-
-2022/2023 (CPI-extrapolated): harness sits at 2,288/2,350 (97.4%) -
-extending the SAME two residuals above (unaffected by extrapolation) plus
-one new $38 residual (self-employment, married_joint, 2023 only), which
-traces to the already-accepted real-vs-oracle 2023 OASDI-wage-base
-divergence (federal.py deliberately uses the real $160,200 SSA figure
-over the oracle's own wrong $153,600 - see feedback_real_params_over_
-oracle_bugs / project_taxsim_py_port memory) propagating through CA's own
-`ca_agi=agi` (federal AGI, deflated) for the first time via a
-self-employment-heavy case - not a new bug. Getting here required two
-real fixes beyond the initial deflate/reinflate skeleton:
-1. `salt_capped`/`state_sales_or_income_tax_ded`/`earned_income` are all
-   federal.py's own derived (real-year, undeflated) columns - same
-   situation as AR's `wages`/AZ's `salt_capped` - so they're deflated
-   directly here rather than relying on their raw inputs (proptax/
-   otheritem/pwages/swages) being deflated after the fact, which wouldn't
-   reach an already-materialized column.
-2. The Young Child Tax Credit (`young`, 2019+) was WRONGLY documented
-   above as "confirmed permanently inert" - that check only looked at
-   `data(210)` (fed by `opt1`, genuinely never populated), but missed the
-   SEPARATE `data(203)` gate the source actually uses
-   (taxsim_2024_09_21.f:2911-2919), which turns out to be `dep18` (the
-   EIC-qualifying-child count) via the input reader's own "depvars"-style
-   branch (taxsim_2024_09_21.f:21246-21249) - NOT a young-children-
-   specific field at all despite the credit's name. This was invisible
-   for every real (non-extrapolated) `dep18>0` test case already in this
-   suite (income too high there for `earncr>0`, the credit's own gate),
-   and only surfaced once extrapolation-driven deflation pushed a
-   low-income HoH/EITC case's wages down far enough to satisfy both
-   gates at once - caught via a debug-instrumented oracle build showing a
-   real, nonzero $181.13 "young" credit this project's own formula was
-   silently dropping to $0 (see the `ca_young` section below).
-"""
+"""California individual income tax calculator."""
 
 import polars as pl
 
 from taxsim_py.engine.brackets import bracket_tax
 from taxsim_py.engine.schema import PARAMETERS_ROOT, load_yaml, resolve_year
+from taxsim_py.engine.state import with_defaults, by_filing_status as _by_status, with_default as _with_default, forced_standard
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
 CA_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "ca" / "income_tax.yaml")
@@ -87,32 +14,14 @@ FEDERAL_AMT_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "amt.yaml")
 _STATUSES = ["single", "married_joint", "married_separate", "head_of_household"]
 
 
-def _with_default(df: pl.DataFrame, column: str, default: float = 0.0) -> pl.DataFrame:
-    if column in df.columns:
-        return df
-    return df.with_columns(pl.lit(default).alias(column))
-
-
 def _raw_to_start_rate(raw_pairs: list[list[float]], scale_threshold: float = 1.0) -> list[list[float]]:
-    """Every bracket table in the YAML is transcribed directly from the
-    source's own (upper_bound, rate) pairs - this project's `bracket_tax`
-    engine wants (start, rate) pairs instead (same shift `_tabst_brackets`
-    does for Arkansas). `scale_threshold` multiplies every finite
-    threshold (the year-specific CPI/inflation factor) but never the
-    rate."""
+    """Convert upper-bound brackets to start-rate brackets."""
     out = [[0.0, raw_pairs[0][1]]]
     for i in range(1, len(raw_pairs)):
         prev_upper = raw_pairs[i - 1][0]
         lo = prev_upper * scale_threshold if prev_upper < 1.0e19 else prev_upper
         out.append([lo, raw_pairs[i][1]])
     return out
-
-
-def _by_status(values_by_status: dict) -> pl.Expr:
-    expr = pl.lit(None, dtype=pl.Float64)
-    for status, value in values_by_status.items():
-        expr = pl.when(pl.col("filing_status") == status).then(pl.lit(float(value))).otherwise(expr)
-    return expr
 
 
 def _by_status4(vals: list[float]) -> pl.Expr:
@@ -123,14 +32,13 @@ def _by_status4(vals: list[float]) -> pl.Expr:
     )
 
 
-def compute_ca_tax(df: pl.DataFrame, year: int, force_itemize: bool | None = None) -> pl.DataFrame:
+def compute_ca_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     effective_year, flate = resolve_state_year(year)
     p = CA_PARAMS
-    for col in (
+    df = with_defaults(df, (
         "proptax", "otheritem", "mortgage", "dividends", "ltcg", "stcg", "intrec",
         "depx", "dep18", "dep6", "childcare", "psemp", "ssemp",
-    ):
-        df = _with_default(df, col)
+    ))
     df = _with_default(df, "state_sales_or_income_tax_ded")
     df = _with_default(df, "earned_income")
 
@@ -265,8 +173,8 @@ def compute_ca_tax(df: pl.DataFrame, year: int, force_itemize: bool | None = Non
         else:
             df = df.with_columns(ca_reduce=pl.lit(0.0))
         df = df.with_columns(ca_xitded=(pl.col("ca_xitded_base") - pl.col("ca_reduce")).clip(0, None))
-        if force_itemize is False and effective_year == 1999:
-            df = df.with_columns(ca_xitded=pl.lit(0.0))
+        if effective_year == 1999:
+            df = df.with_columns(ca_xitded=pl.when(forced_standard()).then(0.0).otherwise(pl.col("ca_xitded")))
 
     if effective_year <= 1986:
         # `deduc=max(stded,xitded); if(stded>xitded) deduc=stded+charni
@@ -461,7 +369,7 @@ def compute_ca_tax(df: pl.DataFrame, year: int, force_itemize: bool | None = Non
     df = df.with_columns(ca_noncr=pl.col("ca_noncr") + pl.col("ca_lowcr"))
 
     # --- Child/Dependent Care Credit ---
-    child_fed = pl.col("ccc").clip(0, None) if "ccc" in df.columns else pl.lit(0.0)
+    child_fed = pl.col("ccc").clip(0, None) if "ccc" in df.collect_schema().names() else pl.lit(0.0)
     if effective_year <= 1984:
         cap_per = float(p["child_care_credit_cap_per_child_pre1985"])
         cap_tot = float(p["child_care_credit_cap_total_pre1985"])
@@ -512,7 +420,7 @@ def compute_ca_tax(df: pl.DataFrame, year: int, force_itemize: bool | None = Non
         # reduction just computed) and `data(17)` (gross SE income - see
         # the AGI note above) both genuinely subtract here; data(21)/
         # comnew(8) are confirmed-inert for this schema.
-        reduce_col = pl.col("ca_reduce") if "ca_reduce" in df.columns else pl.lit(0.0)
+        reduce_col = pl.col("ca_reduce") if "ca_reduce" in df.collect_schema().names() else pl.lit(0.0)
         gross_se = pl.col("psemp").clip(0, None) + pl.col("ssemp").clip(0, None)
         alminy = (addprf + pl.col("ca_taxinc") - gross_se - reduce_col).clip(0, None)
         if effective_year <= 1997:
@@ -584,7 +492,7 @@ def compute_ca_tax(df: pl.DataFrame, year: int, force_itemize: bool | None = Non
             base2 = (amax17_c - pl.max_horizontal(posagi, earned)).clip(0, None)
             earncr2 = pl.when(earned > 0).then(base2 * tgbeta).otherwise(pl.lit(0.0))
             earncr = pl.when((earned > ym1) | (posagi > ym1)).then(earncr2).otherwise(earncr)
-        disqy = pl.col("ca_capgn_disqy") if "ca_capgn_disqy" in df.columns else (
+        disqy = pl.col("ca_capgn_disqy") if "ca_capgn_disqy" in df.collect_schema().names() else (
             pl.col("stcg").clip(0, None) + pl.col("ltcg").clip(0, None) + pl.col("intrec")
         )
         earncr = pl.when(disqy >= dylim).then(0.0).otherwise(earncr)

@@ -1,102 +1,26 @@
-"""Georgia individual income tax (`gatax`, taxsim_2024_09_21.f:4712-4955,
-state id 11). See parameters/states/ga/income_tax.yaml for the full scope
-note (confirmed-inert elderly/blind/solar/charity/1982-1986-IRA fields).
-
-No EITC at all - Georgia's own source never references `comnew(59)`
-anywhere in this subroutine.
-
-Two real, non-obvious mechanics found while building this:
-1. `xitded=(comnew(24)-data(50))*comnew(26)` - unlike every other state,
-   Georgia doesn't gate its itemized section with an `if` at all; it
-   MULTIPLIES the whole (state-tax-adjusted) federal itemized total by
-   `comnew(26)`, which behaves as a 0/1 itemize indicator (this project's
-   own `itemizes` flag) rather than a dollar amount - and then simply
-   takes `max(xitded, stded)`, unlike DC's own unconditional "MUST use
-   xitded when itemizing" rule. This is simpler to replicate correctly:
-   compute `xitded` as `(itemized - state_tax) * itemizes_indicator`
-   (zero whenever federal doesn't itemize) and let the `max()` naturally
-   fall back to `stded`.
-2. Married filers (joint AND separate) run their SHARED, doubled-
-   threshold bracket table against `taxinc*sep` (not `taxinc` directly),
-   then divide the resulting tax by `sep` - `sep=1` for joint (a no-op,
-   taxinc runs through the doubled table as-is) but `sep=2` for
-   married_separate, which numerically collapses married_separate onto
-   the SAME thresholds as the single table (a doubled table run at 2x
-   income, tax then halved).
-
-A stray, narrow gap: `comnew(14)`, added to AGI for 1982-1986 via
-`stkeo=max(comnew(14)-stklim,0.0d0)` (where `stklim` is itself confirmed
-inert, no input this project's schema drives ever populates `data(28)`),
-is not exposed as a column and its exact meaning wasn't traced (unlike
-`comnew(32)`=twoded, already established via Colorado/DC) - treated as
-$0 pending further investigation; likely only matters for 1982-1986
-dividend/capital-gains-bearing test cases, if at all.
-
-Harness (1977-2023, extrapolation built in from the start): **2,303/2,303
-(100%)**. Three real bugs, all caught by validation rather than a plain
-source read:
-3. `if(law.le.2009) statax=max(0,statax-chcr-solar)-ycred; else
-   statax=max(0,statax-chcr-solar-ycred)` - the Low-Income Credit is
-   REFUNDABLE through 2009 (the $0 floor applies BEFORE subtracting it)
-   but nonrefundable 2010+ (floor applies after) - missing this era split
-   entirely clamped every year at $0, silently turning off the refund for
-   every pre-2010 low-income filer (a huge blast radius: caught almost
-   the whole harness failing on the first validation pass).
-4. The `lic` low-income-credit interpolation table's real final row,
-   `(huge threshold, $0)`, is easy to drop when transcribing (it looks
-   like an unreachable sentinel) - without it, `tablki`'s own "beyond the
-   last real threshold" behavior collapses to the SECOND-to-last rate
-   ($5/exemption) forever instead of phasing to $0 above $20,000 AGI.
-5. `if(nfile.eq.1) use tabs; else use tabm` for the bracket computation -
-   `nfile==1` is SINGLE only; head_of_household (`nfile==3`) runs through
-   the SAME doubled-threshold married table as married_joint/separate,
-   unscaled (`sep==1` for HoH) - a real, easy-to-miss detail since HoH is
-   grouped WITH single elsewhere in this same subroutine (e.g. the
-   standard deduction's own `nfile.ne.2` check). Relatedly, the pre-1987
-   Low-Income Credit's own `txp` (1 vs 2 per filer) checks `mst.eq.3` for
-   the `txp=1` group - `mst.eq.3` is the dead internal head_of_household
-   code this project never produces (real HoH is mst 4 or 7), so that
-   check never actually catches HoH: it silently falls through to `txp=2`
-   (the SAME as married_joint), confirmed via a $1-wages/HoH/1977 probe
-   showing a real $30 (not $15) refundable credit.
-"""
+"""Georgia individual income tax calculator."""
 
 import polars as pl
 
-from taxsim_py.calculators.federal import compute_regular_tax
 from taxsim_py.engine.brackets import bracket_tax
 from taxsim_py.engine.schema import PARAMETERS_ROOT, load_yaml, resolve_year
+from taxsim_py.engine.state import with_defaults, with_default as _with_default, forced_standard
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
 GA_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "ga" / "income_tax.yaml")
 PRE1987_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "pre1987.yaml")
 _PRE1987_STATUSES = ["single", "married_joint", "married_separate", "head_of_household"]
 
-# Raw federal input columns only - re-invoking `compute_regular_tax` (the
-# 2020 UI "untax" diff trick) must start from JUST these.
-_RAW_INPUT_COLUMNS = [
-    "mstat", "depx", "dep17", "dep18", "dep6", "dep13", "pwages", "swages",
-    "proptax", "otheritem", "mortgage", "childcare", "intrec", "psemp",
-    "ssemp", "dividends", "stcg", "ltcg", "ui", "pui", "sui",
-]
-
-
-def _with_default(df: pl.DataFrame, column: str, default: float = 0.0) -> pl.DataFrame:
-    if column in df.columns:
-        return df
-    return df.with_columns(pl.lit(default).alias(column))
-
-
-def compute_ga_tax(df: pl.DataFrame, year: int, force_itemize: bool | None = None) -> pl.DataFrame:
+def compute_ga_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     effective_year, flate = resolve_state_year(year)
     p = GA_PARAMS
-    for col in ("proptax", "otheritem", "mortgage", "depx", "dividends", "intrec", "childcare", "ui", "pui", "sui"):
-        df = _with_default(df, col)
+    df = with_defaults(df, ("proptax", "otheritem", "mortgage", "depx", "dividends", "intrec", "childcare", "ui", "pui", "sui"))
     df = _with_default(df, "state_sales_or_income_tax_ded")
     df = _with_default(df, "ccc")
     df = _with_default(df, "itemizes", False)
     df = _with_default(df, "itemized_deduction")
     df = _with_default(df, "tax_before_credits")
+    df = _with_default(df, "taxable_unemployment")
 
     df = df.with_columns(
         ga_sep=pl.when(pl.col("filing_status") == "married_separate").then(2.0).otherwise(1.0),
@@ -129,19 +53,12 @@ def compute_ga_tax(df: pl.DataFrame, year: int, force_itemize: bool | None = Non
 
     # 2020: Georgia does NOT conform to federal's CARES/ARPA UI exclusion
     # - add back whatever federal excluded (`data(82)-comnew(78)`, the
-    # raw total minus the federally-taxable portion). `comnew(78)`
-    # ("untax") isn't exposed as a column - reconstructed via the same
-    # "diff trick" Alabama already established (rerun federal with UI
-    # zeroed, take the AGI difference).
+    # raw total minus the federally-taxable portion).
     if effective_year == 2020:
         ui_total = pl.max_horizontal(pl.col("ui"), pl.col("pui") + pl.col("sui"))
-        if (df.get_column("ui").abs().sum() + df.get_column("pui").abs().sum() + df.get_column("sui").abs().sum()) > 0:
-            df_no_ui = df.select(_RAW_INPUT_COLUMNS).with_columns(ui=pl.lit(0.0), pui=pl.lit(0.0), sui=pl.lit(0.0))
-            fed_no_ui = compute_regular_tax(df_no_ui, effective_year)
-            untax = pl.col("agi") - fed_no_ui.get_column("agi")
-        else:
-            untax = pl.lit(0.0)
-        df = df.with_columns(ga_agi=pl.col("ga_agi") + ui_total - untax)
+        df = df.with_columns(
+            ga_agi=pl.col("ga_agi") + ui_total - pl.col("taxable_unemployment")
+        )
 
     # 2021 $300-cash-contribution addback confirmed permanently inert (no
     # `charity_cash` input this project's schema ever populates - the
@@ -270,8 +187,8 @@ def compute_ga_tax(df: pl.DataFrame, year: int, force_itemize: bool | None = Non
             ga_xitded=(pl.col("itemized_deduction") - pl.col("state_sales_or_income_tax_ded")) * itemizes_indicator
         )
 
-    if force_itemize is False and effective_year == 1999:
-        df = df.with_columns(ga_xitded=pl.lit(0.0))
+    if effective_year == 1999:
+        df = df.with_columns(ga_xitded=pl.when(forced_standard()).then(0.0).otherwise(pl.col("ga_xitded")))
 
     df = df.with_columns(ga_deduc=pl.max_horizontal(pl.col("ga_xitded"), pl.col("ga_stded")))
     df = df.with_columns(ga_taxinc=(pl.col("ga_agi") - pl.col("ga_deduc") - pl.col("ga_exemp")).clip(0, None))

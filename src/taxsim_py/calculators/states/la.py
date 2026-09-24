@@ -1,82 +1,4 @@
-"""Louisiana individual income tax (`latax`, taxsim_2024_09_21.f:7224-7431,
-state id 19). See parameters/states/la/income_tax.yaml for the full scope
-note (confirmed-inert Social-Security/pension/blind fields, and the
-acknowledged `comnew(54)` gap).
-
-Real, non-obvious mechanics found while building this:
-1. `comnew(52)` is live-probe-confirmed to be federal's own `regular_tax`
-   (NOT `tax_before_credits`, which already bakes AMT in) - `comnew(70)`
-   (AMT) is added separately in the same "federal income tax deduction"
-   formula, so using `tax_before_credits` here would double-count AMT.
-2. `comnew(58)` is live-probe-confirmed to be the COMBINED CCC+ODC/CTC
-   nonrefundable-credit total (federal.py's own `ccc`+`odc` columns
-   summed), not either alone - confirmed via a case where the
-   nonrefundable CTC was capped by remaining tax liability after CCC,
-   and `comnew(58)` exactly equaled `ccc + capped_odc`.
-3. The entire retirement-income/Social-Security-benefits AGI exclusion
-   mechanism, though real in the source, is confirmed permanently inert
-   for this schema on TWO independent grounds at once (both `data(20)`/
-   `data(72)`/`comnew(79)` confirmed inert AND the outer gate itself,
-   `subtr.gt.0`, can never fire since `subtr` is built entirely from
-   those same inert quantities) - collapsing AGI down to simply federal
-   AGI unconditionally.
-4. The "Excess federal Itemized deductions" scaling has NO branch at all
-   for 2003-2006 - a real, deliberate gap in the source itself (deduc
-   stays $0 those years even while itemizing), matching the same "no
-   branch = no-op" pattern already documented for Kentucky's own Child
-   Care Credit suspension.
-5. Louisiana combines its standard deduction and personal exemption into
-   ONE flat dollar figure by filing status, and separately gives a real,
-   distinctive PER-DEPENDENT reduction applied directly to the computed
-   tax itself (not to AGI or the deduction) - with a genuinely different,
-   more complex three-tier formula for head_of_household specifically
-   (2003+) than the simple single-tier one single/married/HoH(pre-2003)
-   all share.
-6. The refundable Earned Income Credit (2008+) has NO floor at $0 - it
-   can drive `statax` negative, unlike every earlier credit in the same
-   subroutine, which are all explicitly capped at $0.
-7. `comnew(52)` is a genuinely DIFFERENT quantity across federal
-   vintages despite being the same array slot: for 1980-1986
-   (federal_pre1987.py) it equals `fiitax` directly; for 1987+
-   (federal.py) it equals `regular_tax` instead. Not a single uniform
-   formula across the whole `law>=1980` range the source's own `if`
-   groups together.
-8. ARPA made BOTH the Child Care Credit and Child Tax Credit fully
-   refundable for 2021 only, with no tax-liability cap at all - so
-   NONE of `ccc`/`odc` actually reduced `regular_tax` that year, even
-   though the columns still report their full (refundable) amounts.
-   This carve-out is gated on the RAW requested year, not
-   `effective_year` - for 2022/2023 (CPI-extrapolated), federal.py
-   itself still computes `ccc`/`odc` at the real requested year's own
-   ordinary (non-ARPA) rules, so the normal subtraction is still
-   correct there even though the STATE formula runs at `effective_
-   year=2021`.
-
-Real bugs found via live-oracle-probe validation, in order of discovery:
-1. `comnew(28)` (<=1979) is federal's own `regular_tax`, NOT `fiitax` -
-   caught via a live-probe mismatch showing a real EITC gap between the
-   two that LA's own deduction must not reflect.
-2. `itemized_deduction` (comnew(24)) isn't exposed by federal_pre1987.py
-   for years<=1986 - left at its silent $0 default, this made the
-   "excess federal itemized deductions" term permanently $0 for
-   1980-1986 regardless of `force_itemize`, since neither forced branch
-   could ever produce a real itemized total. Reconstructed locally, same
-   pattern every other pre-1987 state build already established.
-3. Federal.py's own `ccc` column is deliberately zeroed for years<1998
-   (a federal-side quirk, not a computation gap) - but Louisiana's own
-   10%-of-CCC credit component reads the RAW, un-zeroed amount, needing
-   the same local 1987-1997 reconstruction Kansas/Kentucky already
-   established, PLUS a further substitution for years<=1986 specifically
-   (federal_pre1987.py's own `credit` column already IS the CCC-
-   equivalent there, reused directly rather than reconstructed).
-4. See module docstring point 8 - the 2021 ARPA full-refundability
-   carve-out.
-
-Harness: **2,666/2,679 (99.5%)**. The 13 residuals are all 2023-only,
-small, and match the already-accepted real-vs-oracle 2023 EITC-table
-divergence family documented across nearly every state built this
-session. Full multi-state suite reconfirmed no regressions elsewhere.
-"""
+"""Louisiana individual income tax calculator."""
 
 import polars as pl
 
@@ -84,6 +6,7 @@ from taxsim_py.calculators.federal_pre1987 import PRE1987_PARAMS
 from taxsim_py.engine.brackets import bracket_tax
 from taxsim_py.engine.credits import child_care_credit_rate_pre2021
 from taxsim_py.engine.schema import PARAMETERS_ROOT, load_yaml, resolve_year
+from taxsim_py.engine.state import with_defaults, with_default as _with_default
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
 LA_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "la" / "income_tax.yaml")
@@ -92,13 +15,7 @@ FEDERAL_CREDITS_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "credits.yaml"
 
 
 def _raw_ccc(df: pl.DataFrame, year: int) -> pl.Expr:
-    """`comnew(53)` - federal's own CCC amount. federal.py's own `ccc`
-    column deliberately reports $0 for years<1998 (a real, separately-
-    documented federal-side quirk about the credit-STACKING mechanism,
-    not the credit computation itself) - reconstructed locally here for
-    1987-1997 using federal.py's own pre-2021 rate-schedule primitive,
-    matching the SAME technique Kansas/Kentucky's own builds already
-    established for this exact gap."""
+    """Reconstruct the uncapped federal child care credit."""
     ccc_p = FEDERAL_CREDITS_PARAMS["child_care_credit"]
     max_qualifying_persons = float(resolve_year(ccc_p["max_qualifying_persons"], year))
     max_expense_per_person = float(resolve_year(ccc_p["max_expense_per_person_pre2021"], year))
@@ -118,17 +35,10 @@ def _raw_ccc(df: pl.DataFrame, year: int) -> pl.Expr:
     return ccc_rate * ccc_expense
 
 
-def _with_default(df: pl.DataFrame, column: str, default: float = 0.0) -> pl.DataFrame:
-    if column in df.columns:
-        return df
-    return df.with_columns(pl.lit(default).alias(column))
-
-
-def compute_la_tax(df: pl.DataFrame, year: int, force_itemize: bool | None = None) -> pl.DataFrame:
+def compute_la_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     effective_year, flate = resolve_state_year(year)
     p = LA_PARAMS
-    for col in ("proptax", "depx", "childcare"):
-        df = _with_default(df, col)
+    df = with_defaults(df, ("proptax", "depx", "childcare"))
     df = _with_default(df, "eitc")
     df = _with_default(df, "ccc")
     df = _with_default(df, "odc")

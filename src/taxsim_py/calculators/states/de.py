@@ -1,99 +1,19 @@
-"""Delaware individual income tax (`detax`, taxsim_2024_09_21.f:3860-4162,
-state id 8). See parameters/states/de/income_tax.yaml for the full scope
-note (bracket tables, the confirmed-inert pension/elderly/blind/energy-
-credit fields).
-
-Two real, non-obvious mechanics found while building this:
-1. `xitded` (itemized deduction) is federal's own RAW, pre-Pease itemized
-   total (`comnew(30)`) minus JUST the state-tax-liability feedback term
-   (`data(50)`, this project's own `state_sales_or_income_tax_ded`) - the
-   SAME "subtract the SALT feedback term back out of the pre-Pease raw
-   total" technique already used for AZ (>=1991)/California, not the
-   simpler "drop SALT/data(50) entirely" shortcut AL/AR/AZ<=1990 use.
-   Delaware then applies its OWN separate Pease-style phaseout on top
-   (1991-2017, the same 2/3->1/3->0 multiplier schedule already extracted
-   for AL/AZ/CA/AR) - so the base here is `salt_capped + mortgage`
-   (pre-Pease, matching California's own choice), NOT federal.py's own
-   `itemized_deduction` column (which is POST its own Pease reduction -
-   using that would double-apply the phaseout).
-2. The dependent/personal exemption COUNT (`num=int(comnew(68))`) is a
-   pure count, like IL's own `exemps` - divided by `flate` for an
-   extrapolated year the same documented quirk IL's own module note
-   covers (parameters/national/state_cpi_extrapolation.yaml). Delaware's
-   own source additionally `int()`-truncates this value AFTER whatever
-   deflation already happened (it reads `comnew`, i.e. the ALREADY-
-   deflated array, not the original) - replicated here as `.floor()`
-   applied after deflating, not before (a genuine, if minor, extra
-   quirk beyond IL's own no-truncation formula).
-
-EITC (2006+) picks whichever of two credits leaves the filer better off
-2021+: a smaller REFUNDABLE 4.5% credit, or a larger NONrefundable 20%
-credit - refundable is used only when it would exceed what the
-nonrefundable option could actually absorb against current state tax
-liability (so the taxpayer never loses out to a arbitrary default).
-
-Full range (1977-2021) plus 2022/2023 (CPI-extrapolated, same mechanism as
-every other state - see engine/state_extrapolation.py) validated together
-via scripts/validate_states.py: **2,252/2,256 exact (99.8%)**. The 4
-residuals are all 2023-only, sub-$1, and trace directly to `de_earncr`'s
-own dependence on federal `eitc` - the same already-accepted real-vs-
-oracle-2023 EITC table override (see feedback_real_params_over_oracle_bugs
-/ project_taxsim_py_port memory) already seen in AL/CA/CO/CT/IL.
-
-Real bugs found and fixed while building this (none obvious from a plain
-source read - all caught by comparing against direct oracle probes):
-- The pre-1988 standard deduction (`stded=min(texp*1000/sep,.1*agi)`) - a
-  first pass dropped the `/sep` term entirely, overstating the deduction
-  for married_separate by exactly a factor of `sep` (confirmed via a
-  married_separate/$15,000-wages/1980 probe: real std deduction is $500,
-  not $1,000).
-- `if(law.eq.1987) xitded=xitded*1.12` - a real, ONE-YEAR-ONLY 12%
-  multiplier on top of the base itemized-deduction formula, easy to miss
-  since no other year in this source has anything like it (confirmed via
-  probe: proptax=$4,000/otheritem=$2,000/mortgage=$8,000, single, 1987 -
-  real itemized deduction is $15,680 = $14,000*1.12).
-- The 2013-2017 Pease-phaseout threshold (`phas92=aif13(law)*250000*
-  filing(...)`) - a first pass computed `$100,000-base * 2` ($200,000)
-  instead of `$100,000-base * 2.5` ($250,000), understating the phaseout
-  threshold and overstating everyone's reduction at high income (caught
-  by a very-high-income 2013-2017 sweep, all 3 filing statuses tested).
-- The 2021-only unemployment-compensation exclusion (`agi=agi-data(82)`)
-  - a first pass summed `ui+pui+sui` as the excluded amount, but `pui`/
-  `sui` are a SPLIT of `ui` (this project's own per-spouse UI-exclusion
-  bookkeeping - see federal.py's own `ui_total=max(ui,pui+sui)`), not
-  additional income layered on top of it. Confirmed via a married_joint/
-  ui=$8,000/sui=$4,000 probe: federal AGI only reflects $8,000 of UI
-  (matching `ui_total`, not $12,000), and DE's own post-exclusion AGI
-  matches subtracting that same $8,000.
-- `wages` (federal.py's own pwages+swages sum, used by the married_joint
-  earner-split relief mechanic) needed direct deflation for an
-  extrapolated year - the same "federal.py's own derived, real-year,
-  undeflated column" situation as AR's `wages`/AZ's `salt_capped`
-  elsewhere in this project; a first pass deflated `pwages`/`swages`
-  individually but forgot the already-materialized `wages` column itself,
-  silently breaking every married_joint 2022/2023 case.
-"""
+"""Delaware individual income tax calculator."""
 
 import polars as pl
 
 from taxsim_py.engine.brackets import bracket_tax
 from taxsim_py.engine.schema import PARAMETERS_ROOT, load_yaml, resolve_year
+from taxsim_py.engine.state import with_defaults, with_default as _with_default, forced_standard
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
 DE_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "de" / "income_tax.yaml")
 
 
-def _with_default(df: pl.DataFrame, column: str, default: float = 0.0) -> pl.DataFrame:
-    if column in df.columns:
-        return df
-    return df.with_columns(pl.lit(default).alias(column))
-
-
-def compute_de_tax(df: pl.DataFrame, year: int, force_itemize: bool | None = None) -> pl.DataFrame:
+def compute_de_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     effective_year, flate = resolve_state_year(year)
     p = DE_PARAMS
-    for col in ("proptax", "otheritem", "mortgage", "depx", "ui", "pui", "sui"):
-        df = _with_default(df, col)
+    df = with_defaults(df, ("proptax", "otheritem", "mortgage", "depx", "ui", "pui", "sui"))
     df = _with_default(df, "state_sales_or_income_tax_ded")
     # `ccc`/`eitc` aren't exposed by federal_pre1987.py (years<=1986) -
     # both DE mechanisms that read them (Child Care Credit, EITC) only
@@ -259,8 +179,8 @@ def compute_de_tax(df: pl.DataFrame, year: int, force_itemize: bool | None = Non
     # itemized ONLY for 1999, a real, narrow DE-specific special case
     # (matching the exact same `force_itemize is False and effective_year
     # == 1999` mechanism already found for California).
-    if force_itemize is False and effective_year == 1999:
-        df = df.with_columns(de_xitded=pl.lit(0.0))
+    if effective_year == 1999:
+        df = df.with_columns(de_xitded=pl.when(forced_standard()).then(0.0).otherwise(pl.col("de_xitded")))
 
     df = df.with_columns(de_deduc=pl.max_horizontal(pl.col("de_stded"), pl.col("de_xitded")))
 

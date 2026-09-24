@@ -471,6 +471,46 @@ def _dividends_capital_gains_cases(
     return rows
 
 
+_CAPITAL_LOSS_SHAPES = (
+    ("long-term loss", dict(pwages=30000, ltcg=-5000)),
+    ("long-term loss under the limit", dict(pwages=30000, ltcg=-1500)),
+    ("short-term loss", dict(pwages=30000, stcg=-5000)),
+    ("both losses", dict(pwages=30000, stcg=-2000, ltcg=-4000)),
+    ("short-term loss offsetting long-term gain", dict(pwages=30000, stcg=-8000, ltcg=20000)),
+    ("long-term loss offsetting short-term gain", dict(pwages=30000, stcg=10000, ltcg=-4000)),
+    ("long-term loss with dividends", dict(pwages=30000, dividends=3000, ltcg=-5000)),
+    ("loss larger than other income", dict(pwages=1500, stcg=-5000)),
+    ("high income, short-term loss offsetting long-term gain", dict(pwages=300000, stcg=-50000, ltcg=200000)),
+)
+
+
+def _capital_loss_cases(year: int) -> list[dict[str, Any]]:
+    rows = []
+    for mstat, status in {**_STATUS_BY_MSTAT, 6: "married_separate"}.items():
+        for label, inputs in _CAPITAL_LOSS_SHAPES:
+            rows.append(case(year, f"capital loss: {label}, {status}", mstat=mstat, **inputs))
+    if year <= 1976:
+        for row in rows:
+            row["state"] = 0
+    return rows
+
+
+def _property_tax_standard_deduction_cases(year: int) -> list[dict[str, Any]]:
+    rows = []
+    for mstat, status in {**_STATUS_BY_MSTAT, 6: "married_separate"}.items():
+        for proptax in (300, 700, 1500):
+            rows.append(
+                case(
+                    year,
+                    f"property tax standard deduction, {status}, proptax={proptax}",
+                    mstat=mstat,
+                    pwages=40000,
+                    proptax=proptax,
+                )
+            )
+    return rows
+
+
 def _unemployment_income_cases(year: int) -> list[dict[str, Any]]:
     # The $10,200-per-spouse exclusion and the $150,000 AGI cliff only
     # apply for 2020, but sweeping every year confirms UI is ordinary
@@ -659,6 +699,17 @@ def _pre1987_cases(year: int, pre1987_params: dict) -> list[dict[str, Any]]:
                     depx=1,
                     dep18=1,
                     pwages=wages,
+                )
+            )
+        for wages, proptax, mortgage in ((150000, 15000, 60000), (250000, 25000, 90000)):
+            rows.append(
+                case(
+                    year,
+                    f"pre1987 large itemized deductions, {status}, wages={wages}",
+                    mstat=mstat,
+                    pwages=wages,
+                    proptax=proptax,
+                    mortgage=mortgage,
                 )
             )
 
@@ -918,11 +969,12 @@ def _cases_for_year(
     law60_params: dict,
 ) -> list[dict[str, Any]]:
     if year <= 1976:
-        return _law60_cases(year, law60_params)
+        return _law60_cases(year, law60_params) + _capital_loss_cases(year)
     if year <= 1986:
-        return _pre1987_cases(year, pre1987_params)
+        return _pre1987_cases(year, pre1987_params) + _capital_loss_cases(year)
     return (
-        _bracket_edge_cases(year, income_tax_params)
+        _capital_loss_cases(year)
+        + _bracket_edge_cases(year, income_tax_params)
         + _eitc_cases(year, eitc_params)
         + _ctc_cases(year, credits_params)
         + _amt_itemized_cases(year)
@@ -934,6 +986,7 @@ def _cases_for_year(
         + _self_employment_cases(year, payroll_params)
         + _dividends_capital_gains_cases(year, capital_gains_params, amt_params)
         + _unemployment_income_cases(year)
+        + _property_tax_standard_deduction_cases(year)
         + _recovery_rebate_cases(year)
         + _ctc_ccc_refundability_cases(year)
         + _making_work_pay_cases(year)

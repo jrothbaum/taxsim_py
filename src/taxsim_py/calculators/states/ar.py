@@ -1,55 +1,19 @@
-"""Arkansas individual income tax (`artax`, taxsim_2022_10_21.f:1172-2197,
-state id 4). See parameters/states/ar/income_tax.yaml for the full scope
-note - this is the largest state built so far, dominated by a fully
-hand-coded per-year "low income table" override (verified row-by-row
-against a live compiled probe of `artax` itself, see
-scripts/gen_ar_low_income_csv.py).
-
-Full real-law range (1977-2021) validated via scripts/validate_states.py:
-**2,385/2,385 exact (100%)**. Building this surfaced a real, general bug
-in the shared federal calculator (see `federal.py`'s `compute_regular_tax`
-and `federal_pre1987.py`): `compute_regular_tax` was silently dropping the
-`force_itemize` parameter for every year<=1986 instead of forwarding it,
-and `federal_pre1987.py` itself needed a further year-gate
-(`force_itemize` genuinely has no effect on the real source's own
-itemize-vs-standard choice for lawyr<=1981 - only lawyr>=1982). This
-single fix, needed here because Arkansas's own `ided`-gated table
-selection (`compute_ar_tax`'s own `force_itemize` parameter) is the first
-state calculator that actually threads `force_itemize` through to a
-state's own logic, retroactively brought Arizona from 95.4% to 100% and
-Alabama from 95.6% to 98.9% (its remaining 14 failures, married_separate
-at high income 2008+, are a separately-confirmed, genuine oracle
-staleness artifact - see al.py's own docstring).
-"""
+"""Arkansas individual income tax calculator."""
 
 import polars as pl
 
 from taxsim_py.engine.brackets import bracket_tax
 from taxsim_py.engine.schema import PARAMETERS_ROOT, load_yaml, resolve_year
+from taxsim_py.engine.state import with_defaults, forced_itemized, forced_standard
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
 AR_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "ar" / "income_tax.yaml")
 PRE1987_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "pre1987.yaml")
+STATE_ADJUSTMENT_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "state_adjustments.yaml")
 AR_LOW_INCOME_TABLE = pl.read_csv(PARAMETERS_ROOT / "states" / "ar" / "low_income_table.csv")
 
 _PRE1987_STATUSES = ["single", "married_joint", "married_separate", "head_of_household"]
 _MST_MAP = {"single": 1, "married_joint": 2, "married_separate": 6, "head_of_household": 4}
-
-AIF92 = {
-    1992: 1.0525, 1993: 1.0845, 1994: 1.118, 1995: 1.147, 1996: 1.1795,
-    1997: 1.212, 1998: 1.245, 1999: 1.266, 2000: 1.2895, 2001: 1.3295,
-    2002: 1.373, 2003: 1.395, 2004: 1.427, 2005: 1.4595, 2006: 1.505,
-    2007: 1.564, 2008: 1.5995, 2009: 1.668, 2010: 1.6955, 2011: 1.6955,
-    2012: 1.7365,
-}
-AIF13 = {2013: 1.0, 2014: 1.0168, 2015: 1.033, 2016: 1.0376, 2017: 1.046}
-
-
-def _with_default(df: pl.DataFrame, column: str, default: float = 0.0) -> pl.DataFrame:
-    if column in df.columns:
-        return df
-    return df.with_columns(pl.lit(default).alias(column))
-
 
 def _tabst_brackets(raw_pairs: list[list[float]]) -> list[list[float]]:
     """Convert `look`'s own (upper_bound, rate_pct) pairs into this
@@ -60,23 +24,12 @@ def _tabst_brackets(raw_pairs: list[list[float]]) -> list[list[float]]:
     return out
 
 
-TABST1 = _tabst_brackets(
-    [[3000, 0.90], [4000, 1.70], [5000, 2.20], [6000, 2.30], [7000, 2.50],
-     [10000, 3.150], [16000, 4.50], [17000, 5.90], [25000, 6.0], [1.0e20, 7.0]]
-)
-TABST2 = _tabst_brackets(
-    [[3000, 0.90], [4000, 1.70], [5000, 2.20], [6000, 2.50], [7000, 3.0],
-     [9000, 3.50], [10000, 3.90], [15000, 4.50], [16000, 5.20], [24000, 6.0],
-     [25000, 6.50], [1.0e20, 7.0]]
-)
+TABST1 = _tabst_brackets(AR_PARAMS["pre1987_brackets_primary"])
+TABST2 = _tabst_brackets(AR_PARAMS["pre1987_brackets_secondary"])
 
 
 def _rate_lookup_brackets(rows: list[list[float]]) -> pl.Expr:
-    """AR's 2017-2021 `tab17t`-style rate/subtraction lookup: find the
-    first row whose threshold exceeds income, tax = rate*income/100 -
-    subtraction (taxsim_2022_10_21.f:~1454-1565). NOT a cumulative
-    bracket table - the subtraction amounts genuinely decrease across the
-    flat-rate tail rows (a real recapture mechanic)."""
+    """Build Arkansas's rate and subtraction lookup."""
 
     def build(income: pl.Expr) -> pl.Expr:
         expr = pl.lit(rows[-1][1] / 100.0) * income - pl.lit(rows[-1][2])
@@ -114,23 +67,26 @@ def _low_income_override(df: pl.DataFrame, effective_year: int) -> pl.Expr | Non
             applies = applies | (status_cond & (pl.col("ar_agi") <= group_upper))
             zero_upper = float(tier_rows["lower_bound"][0])
             tier_val = pl.when(pl.col("ar_agi") <= zero_upper).then(0.0).otherwise(pl.lit(None, dtype=pl.Float64))
-            for row in tier_rows.iter_rows(named=True):
-                offset = float(row["formula_offset"])
-                base = float(row["base"])
-                rate = float(row["rate"])
-                upper = float(row["upper_bound"])
-                excl = bool(row["upper_exclusive"])
+            policy = tier_rows.select(
+                "formula_offset", "base", "rate", "upper_bound", "upper_exclusive"
+            ).to_dict(as_series=False)
+            for offset, base, rate, upper, excl in zip(
+                policy["formula_offset"],
+                policy["base"],
+                policy["rate"],
+                policy["upper_bound"],
+                policy["upper_exclusive"],
+            ):
                 cond = (pl.col("ar_agi") < upper) if excl else (pl.col("ar_agi") <= upper)
                 tier_val = pl.when(cond & tier_val.is_null()).then(base + rate * (pl.col("ar_agi") - offset)).otherwise(tier_val)
             value = pl.when(in_range).then(tier_val.fill_null(0.0)).otherwise(value)
     return pl.when(applies).then(value).otherwise(None)
 
 
-def compute_ar_tax(df: pl.DataFrame, year: int, force_itemize: bool | None = None) -> pl.DataFrame:
+def compute_ar_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     effective_year, flate = resolve_state_year(year)
     p = AR_PARAMS
-    for col in ("proptax", "otheritem", "mortgage", "dividends", "ltcg", "stcg", "intrec", "depx", "dep17", "ui"):
-        df = _with_default(df, col)
+    df = with_defaults(df, ("proptax", "otheritem", "mortgage", "dividends", "ltcg", "stcg", "intrec", "depx", "dep17", "ui"))
 
     # Year>LASTAT (2021): deflate every dollar-valued raw/federal-computed
     # input by `flate`, run 2021's REAL law (`effective_year`, already
@@ -166,11 +122,16 @@ def compute_ar_tax(df: pl.DataFrame, year: int, force_itemize: bool | None = Non
     elif effective_year <= 1998:
         df = df.with_columns(ar_capgn=pl.col("stcg") + pl.col("ltcg"))
     else:
-        pcrcg = {1999: 0.70, 2015: 0.55, 2016: 0.50}
-        rate = float(resolve_year(pcrcg, effective_year))
+        exclusion_rate = float(
+            resolve_year(
+                p["capital_gains_ltcg_exclusion_rate_1999plus"],
+                effective_year,
+            )
+        )
+        rate = 1.0 - exclusion_rate
         capgn = pl.col("stcg") + rate * pl.col("ltcg")
         if effective_year >= 2014:
-            capgn = capgn.clip(None, 10_000_000.0)
+            capgn = capgn.clip(None, float(p["capital_gains_cap_2014plus"]))
         df = df.with_columns(ar_capgn=capgn)
 
     # --- AGI ---
@@ -205,11 +166,11 @@ def compute_ar_tax(df: pl.DataFrame, year: int, force_itemize: bool | None = Non
     df = df.with_columns(ar_xitded_base=pl.col("proptax") + pl.col("otheritem") + pl.col("mortgage"))
     if 1991 <= effective_year <= 2017:
         if effective_year <= 2012:
-            aif92 = AIF92.get(effective_year, 1.0)
+            aif92 = float(resolve_year(STATE_ADJUSTMENT_PARAMS["itemized_phaseout_inflation"], effective_year))
             threshold = float(p["itemized_phaseout_income_pre2013"]) * aif92
             df = df.with_columns(ar_phas=threshold / pl.col("ar_sep"))
         else:
-            aif13 = AIF13[effective_year]
+            aif13 = float(resolve_year(STATE_ADJUSTMENT_PARAMS["itemized_phaseout_inflation"], effective_year))
             thr_expr = pl.lit(None, dtype=pl.Float64)
             for status in _PRE1987_STATUSES:
                 v = float(p["itemized_phaseout_income_2013_2017"][status]) * aif13
@@ -238,8 +199,7 @@ def compute_ar_tax(df: pl.DataFrame, year: int, force_itemize: bool | None = Non
     # the `tabst1` standard-AGI table a naive stded>=xitded check would
     # have picked - because federal's own combined tax is lower there for
     # this era, not because AR's OWN state tax is lower).
-    if force_itemize is False:
-        df = df.with_columns(ar_xitded=pl.lit(0.0))
+    df = df.with_columns(ar_xitded=pl.when(forced_standard()).then(0.0).otherwise(pl.col("ar_xitded")))
 
     df = df.with_columns(ar_deduc=pl.max_horizontal(pl.col("ar_stded"), pl.col("ar_xitded")))
     df = df.with_columns(ar_taxinc=(pl.col("ar_agi") - pl.col("ar_deduc")).clip(0, None))
@@ -270,10 +230,7 @@ def compute_ar_tax(df: pl.DataFrame, year: int, force_itemize: bool | None = Non
     # else itemized/taxinc-based table. `force_itemize=True` always takes
     # the itemized branch (even with $0 itemized deductions - a real,
     # confirmed-via-probe oracle behavior, not a heuristic).
-    if force_itemize is True:
-        prefers_itemized_or_forced = pl.lit(True)
-    else:
-        prefers_itemized_or_forced = pl.col("ar_stded") < pl.col("ar_xitded")
+    prefers_itemized_or_forced = forced_itemized() | (pl.col("ar_stded") < pl.col("ar_xitded"))
     if effective_year <= 1997:
         brackets_std1 = TABST1
         brackets_std2 = TABST2
@@ -418,7 +375,7 @@ def compute_ar_tax(df: pl.DataFrame, year: int, force_itemize: bool | None = Non
     # matching this exactly for years>=1987. Approximated as $0 for
     # years<=1986 (federal_pre1987.py doesn't expose its own internal chcr
     # column) - a documented gap, revisit if the harness shows it matters.
-    child = pl.col("ccc").clip(0, None) if "ccc" in df.columns else pl.lit(0.0)
+    child = pl.col("ccc").clip(0, None) if "ccc" in df.collect_schema().names() else pl.lit(0.0)
     df = df.with_columns(ar_chcr=(child_rate * child).clip(0, None))
     if effective_year == 1982:
         df = df.with_columns(ar_chcr=pl.min_horizontal(pl.col("ar_chcr"), 40.0 * pl.col("depx").clip(0, 2)))

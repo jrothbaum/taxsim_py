@@ -1,97 +1,21 @@
-"""Indiana individual income tax (`intax`, taxsim_2024_09_21.f:5870-6077,
-state id 15). See parameters/states/in/income_tax.yaml for the full scope
-note (confirmed-inert elderly-credit/property-credit/solar-credit fields).
-
-Real, non-obvious mechanics found while building this:
-1. A flat tax rate (`rate(law)`), not brackets - the simplest rate
-   structure of any state built so far.
-2. `comnew(65)` (the 1999-2002 EITC-equivalent formula's own AGI-like
-   comparison figure) is live-probe-confirmed to be federal AGI itself -
-   identical to `comnew(2)` in every probe tried (including with
-   dividends present), so this project's own `agi` column is used
-   directly, no separate reconstruction needed.
-3. Indiana's own Unemployment Compensation exclusion (`unded`) applies
-   EVERY year with nonzero UI, not just 2009/2020 - an AGI-threshold-
-   based worksheet matching the classic pre-1987 FEDERAL UI-exclusion
-   mechanic, but on Indiana's OWN $12,000/$18,000(joint) thresholds and
-   keyed off `comnew(78)` - the TAXABLE (not excluded) portion of UI
-   already included in federal AGI, real and equal to the full UI amount
-   most years but $0 whenever federal fully excludes it (2009/2020) -
-   reconstructed via the same UI "diff trick" several other states
-   already use, generalized to run for ANY year with nonzero UI (not
-   gated to law==2020 like every prior state), since federal.py itself
-   already implements both the 2009 ARRA and 2020 CARES/ARPA exclusions.
-   The formula's own `modagi` (used by the 2011+ EITC schedule below)
-   must read federal's ORIGINAL, unmodified AGI (`comnew(2)`/this
-   project's own `agi` column) here too, NOT Indiana's own progressively-
-   adjusted state AGI - conflating the two was a real bug caught via a
-   live oracle probe (2020/single/$10,000 wages/$8,000 UI: using the
-   state-adjusted AGI wrongly capped the credit at $19.79 instead of the
-   real $40.09, by pushing `modagi` too far into the phaseout band).
-4. The 2009-2010 EITC piggyback recomputes federal EITC with `depx`
-   (not `dep18`) capped at 2 before applying Indiana's own 9% rate
-   (`data(8)=2; call nlaw(...)`) - but federal.py's own EITC formula uses
-   `dep18` (`num_children=dep18.clip(0,3)`), matching this project's own
-   already-established `data(203)=dep18` EIC-eligible-base finding from
-   the very first federal milestone. Capping `depx` alone therefore
-   doesn't change federal.py's own `eitc` column at all (AGI/earned_income/
-   dep18 are all untouched) - implemented as a literal, faithful port of
-   the source's own recompute (capping depx, leaving dep18 alone) rather
-   than "fixed" to cap dep18 instead, since this project replicates the
-   oracle's own real mechanics even when they turn out to be inert here.
-5. The Permanent-Building-Fund-Tax-style flat add-on other states have
-   doesn't exist here, but a near-analogue does for 2012 only: a flat
-   $111-per-filer "Automatic Taxpayer Refund Credit", gated on the tax
-   being positive BEFORE this credit is applied.
-6. `comnew(68)` (exemps count) sits at array position 68 - inside the
-   real dispatcher's own generic `comnew(1:98)` CPI-extrapolation deflate
-   loop (year>2021 only), which divides by `flate` blindly by array
-   POSITION, not by whether the value is actually a dollar amount. A pure
-   integer count getting divided by a CPI ratio is a real, replicated-as-
-   found quirk (matching the general note already in state_cpi_
-   extrapolation.yaml) - caught as a near-uniform ~$1-$4 residual across
-   nearly every 2022/2023 test case (scaling with each case's own
-   exemption count) until `exemps_count` was explicitly divided by
-   `flate` to match. `depx` itself (`data(8)`, array position 8, below
-   the loop's own >=11 floor) is never divided.
-
-Harness: 2,533/2,538 (99.8%). The 5 residuals are all 2023-only, small
-($0.02-$0.21), and trace to the same already-accepted real-vs-oracle 2023
-EITC-table divergence family documented across nearly every state built
-this session (Indiana's own credit is a direct percentage of federal
-EITC, so it inherits that divergence directly). Full multi-state suite
-reconfirmed no regressions elsewhere.
-"""
+"""Indiana individual income tax calculator."""
 
 import polars as pl
 
-from taxsim_py.calculators.federal import compute_regular_tax
 from taxsim_py.calculators.federal_pre1987 import PRE1987_PARAMS
 from taxsim_py.engine.schema import PARAMETERS_ROOT, load_yaml, resolve_year
+from taxsim_py.engine.state import with_defaults, with_default as _with_default
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
 IN_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "in" / "income_tax.yaml")
 
-_RAW_INPUT_COLUMNS = [
-    "mstat", "depx", "dep17", "dep18", "dep6", "dep13", "pwages", "swages",
-    "proptax", "otheritem", "mortgage", "childcare", "intrec", "psemp",
-    "ssemp", "dividends", "stcg", "ltcg", "ui", "pui", "sui",
-]
-
-
-def _with_default(df: pl.DataFrame, column: str, default: float = 0.0) -> pl.DataFrame:
-    if column in df.columns:
-        return df
-    return df.with_columns(pl.lit(default).alias(column))
-
-
-def compute_in_tax(df: pl.DataFrame, year: int, force_itemize: bool | None = None) -> pl.DataFrame:
+def compute_in_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     effective_year, flate = resolve_state_year(year)
     p = IN_PARAMS
-    for col in ("proptax", "dividends", "intrec", "ui", "pui", "sui", "depx", "dep17", "dep18"):
-        df = _with_default(df, col)
+    df = with_defaults(df, ("proptax", "dividends", "intrec", "ui", "pui", "sui", "depx", "dep17", "dep18"))
     df = _with_default(df, "earned_income")
     df = _with_default(df, "eitc")
+    df = _with_default(df, "taxable_unemployment")
 
     df = df.with_columns(
         in_sep=pl.when(pl.col("filing_status") == "married_separate").then(2.0).otherwise(1.0),
@@ -103,7 +27,7 @@ def compute_in_tax(df: pl.DataFrame, year: int, force_itemize: bool | None = Non
         flate,
         [
             "pwages", "swages", "proptax", "otheritem", "mortgage", "dividends", "intrec",
-            "stcg", "ltcg", "ui", "pui", "sui", "agi", "earned_income", "eitc",
+            "stcg", "ltcg", "ui", "pui", "sui", "agi", "earned_income", "eitc", "taxable_unemployment",
         ],
     )
 
@@ -114,7 +38,6 @@ def compute_in_tax(df: pl.DataFrame, year: int, force_itemize: bool | None = Non
     # `comnew(79)` (SS-in-AGI) confirmed inert; `data(22)` confirmed inert.
 
     ui_total = pl.max_horizontal(pl.col("ui"), pl.col("pui") + pl.col("sui"))
-    has_ui = (df.get_column("ui").abs().sum() + df.get_column("pui").abs().sum() + df.get_column("sui").abs().sum()) > 0
 
     if effective_year == 1981:
         excl_table = PRE1987_PARAMS["dividend_exclusion"]
@@ -130,43 +53,28 @@ def compute_in_tax(df: pl.DataFrame, year: int, force_itemize: bool | None = Non
         own_excl = pl.min_horizontal(pl.col("dividends"), own_excl_per_filer * pl.col("in_num_filers"))
         df = df.with_columns(in_agi=pl.col("in_agi") + divexc - own_excl)
 
-    # `comnew(78)` ("untax", federal's own UI-exclusion amount) - needed
-    # for EVERY year with nonzero UI, not just 2020 (Indiana's own general
-    # exclusion formula below reads it every year), since federal.py
-    # itself implements both the 2009 ARRA and 2020 CARES/ARPA exclusions.
-    # Reconstructed via the same diff-trick several other states already
-    # use for 2020 alone, generalized here to run whenever UI is present.
-    if has_ui:
-        df_no_ui = df.select(_RAW_INPUT_COLUMNS).with_columns(ui=pl.lit(0.0), pui=pl.lit(0.0), sui=pl.lit(0.0))
-        fed_no_ui = compute_regular_tax(df_no_ui, effective_year)
-        untax = pl.col("agi") - fed_no_ui.get_column("agi")
-    else:
-        untax = pl.lit(0.0)
-    df = df.with_columns(in_untax=untax)
+    df = df.with_columns(in_untax=pl.col("taxable_unemployment"))
 
     if effective_year == 2020:
         df = df.with_columns(in_agi=pl.col("in_agi") + ui_total - pl.col("in_untax"))
         # `comnew(26)<1` (not itemizing) $300 cash-charity addback: `data(58)`
         # (charity_cash) has no corresponding input column - confirmed inert.
 
-    if effective_year == 2009 and has_ui:
+    if effective_year == 2009:
         cap = float(p["ui_2009_addback_cap_per_filer"][1960])
         df = df.with_columns(in_agi=pl.col("in_agi") + pl.min_horizontal(ui_total, cap * pl.col("in_num_filers")))
 
-    if has_ui:
-        # Indiana's OWN UI exclusion (see module docstring point 3) - a
-        # no-op except for 2009/2020 where `in_untax` (this project's
-        # `comnew(78)` reconstruction) is nonzero.
-        thr_single = float(p["ui_exclusion_threshold_single"][1960])
-        thr_joint = float(p["ui_exclusion_threshold_married_joint"][1960])
-        threshold = pl.when(pl.col("filing_status") == "married_joint").then(thr_joint).otherwise(thr_single)
-        if effective_year <= 2008:
-            xlin6 = pl.min_horizontal(pl.col("in_untax"), 0.5 * (pl.col("agi") - threshold).clip(0, None))
-            unded = pl.col("in_untax") - xlin6
-        else:
-            xlin7 = 0.5 * (pl.col("agi") + ui_total - pl.col("in_untax") - threshold).clip(0, None)
-            unded = (ui_total - xlin7).clip(0, None)
-        df = df.with_columns(in_agi=pl.col("in_agi") - unded)
+    # Indiana's own UI exclusion is zero when no UI is present.
+    thr_single = float(p["ui_exclusion_threshold_single"][1960])
+    thr_joint = float(p["ui_exclusion_threshold_married_joint"][1960])
+    threshold = pl.when(pl.col("filing_status") == "married_joint").then(thr_joint).otherwise(thr_single)
+    if effective_year <= 2008:
+        xlin6 = pl.min_horizontal(pl.col("in_untax"), 0.5 * (pl.col("agi") - threshold).clip(0, None))
+        unded = pl.col("in_untax") - xlin6
+    else:
+        xlin7 = 0.5 * (pl.col("agi") + ui_total - pl.col("in_untax") - threshold).clip(0, None)
+        unded = (ui_total - xlin7).clip(0, None)
+    df = df.with_columns(in_agi=pl.col("in_agi") - unded)
 
     # --- Deductions ---
     # Renter's deduction (`dedr`, real in the source - real caps kept in
@@ -254,14 +162,6 @@ def compute_in_tax(df: pl.DataFrame, year: int, force_itemize: bool | None = Non
         rate_cr = float(p["eitc_2009plus_rate"][1960])
         floor = float(p["eitc_2009plus_federal_floor"][1960])
         fed_eitc = pl.col("eitc")
-        if effective_year in (2009, 2010):
-            has_depx_over_2 = (df.get_column("depx") > 2).any()
-            if has_depx_over_2:
-                df_capped = df.select(_RAW_INPUT_COLUMNS).with_columns(
-                    depx=pl.min_horizontal(pl.col("depx"), 2.0)
-                )
-                fed_capped = compute_regular_tax(df_capped, effective_year)
-                fed_eitc = pl.when(pl.col("depx") > 2).then(fed_capped.get_column("eitc")).otherwise(pl.col("eitc"))
         earncr = pl.when(fed_eitc >= floor).then(rate_cr * fed_eitc).otherwise(0.0)
         if effective_year >= 2011:
             ieic_expr = pl.min_horizontal(pl.col("dep18"), 2.0)

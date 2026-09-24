@@ -1,10 +1,4 @@
-"""Net Investment Income Tax: 3.8% on the lesser of net investment income
-or AGI over a threshold, after subtracting the state/local tax
-attributable to that investment income (pro-rated by its share of AGI,
-capped). Added on top of regular tax + AMT, outside the pool nonrefundable
-credits compete for (taxsim_2022_10_21.f:25999-26026: the credit-cap
-"avail" never includes it, but the final tax total does).
-"""
+"""Net Investment Income Tax calculations."""
 
 import polars as pl
 

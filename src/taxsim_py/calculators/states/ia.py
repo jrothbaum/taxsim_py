@@ -1,121 +1,23 @@
-"""Iowa individual income tax (`iatax`, taxsim_2024_09_21.f:6085-6503,
-state id 16). See parameters/states/ia/income_tax.yaml for the full scope
-note (confirmed-inert Social-Security/pension/casualty/medical/misc-
-itemized fields, and the acknowledged `comnew(34)`/QBI gaps).
-
-The richest, most stateful mechanism built so far:
-1. AGI disallows HALF of the household's own total self-employment tax
-   (`setax`/`comnew(175)`, this project's own `household_self_employment_
-   tax` engine helper, computed at the REAL requested year's rates on
-   REAL undeflated wages/SE income - same technique Alabama's own
-   `setax` reconstruction already established, since `comnew(175)` sits
-   OUTSIDE the real dispatcher's generic comnew(1:98) CPI-extrapolation
-   deflate loop and is produced once at the real year regardless).
-2. Taxable income adds back a SECOND, FULL copy of `setax` on top of the
-   half already folded into `agi` (`yad1=agi+comnew(175)`) - a genuine,
-   literal reading of the source (net effect: 1.5x `setax` added back by
-   the time `taxinc` is computed), not a transcription simplification.
-3. "Married filing combined" - a joint return's income is split between
-   spouses (`agih`/`agiw`, apportioned by each spouse's own wages plus
-   half of any non-wage income) and taxed SEPARATELY against the SAME
-   bracket table; the combined result is compared against the ordinary
-   joint computation and whichever is CHEAPER wins (`statax=min(statax,
-   stath+statw)`). The split standard deduction uses SINGLE's own dollar
-   cap for BOTH spouses (not joint's), and pre-1987 recomputes `taxinh`/
-   `taxinw` a SECOND time with a different (full, not quarter) `setax`
-   weighting than the general formula above it uses.
-4. A real Alternate (flat-rate) Tax for every non-single filer, taken
-   whenever cheaper than the bracket tax.
-5. AMT (`alty`, Form 6251-style since 1985) - `comnew(34)` inside its own
-   `addprf` term is a genuine, ACKNOWLEDGED GAP (live-probe-confirmed
-   real and nonzero, but not identified within this build's scope),
-   treated as $0 - a real simplification, not a silent one, for an
-   already-narrow, high-preference-income-only provision the source's
-   own comments flag as partly a "guess" for 1986-1995.
-6. Three EITC eras, the last one (`law>=2007`) genuinely REFUNDABLE
-   (subtracted from `statax` with NO floor at 0) - and the eligibility
-   caps gating it are a real, replicated-as-found ORACLE QUIRK: flat,
-   NEVER year-indexed dollar amounts applied identically to every single
-   year 1990-2021 (not a transcription shortcut on this project's part).
-   2010's own married_joint branch has a further real, replicated-as-
-   found bug: its second `data(8).eq.2` check (meant to be `.eq.3`,
-   almost certainly) makes that branch's $43,493 cap dead/unreachable,
-   and leaves BOTH depx=0 and depx>=3 with NO eligibility cap at all
-   that year for married_joint specifically.
-
-Two real bugs found via live-oracle-probe validation:
-1. The standard deduction's own single-vs-joint dollar cap is chosen by
-   `if(mst.eq.1.or.mst.eq.3.or.mst.eq.6)` (single cap) `else` (joint
-   cap) - `mst.eq.3` never fires for this schema (real HoH internal code
-   is 4, the same "mst.eq.3 is dead" trap already caught building
-   Georgia), so head_of_household falls into the ELSE branch and gets
-   the LARGER joint cap, not excluded from it. Initially coded backwards
-   (HoH mapped to the single cap).
-2. `comnew(30)` (the itemized-deduction total `xitded` is computed from)
-   isn't exposed by federal_pre1987.py for years<=1986 - reconstructed
-   locally like every other state's own pre-1987 itemized deduction, but
-   the reconstruction must ALSO include `state_sales_or_income_tax_ded`
-   itself as a component (not just proptax+otheritem+mortgage), so it
-   cancels out of `xitded=comnew(30)-data(50)` entirely and leaves the
-   RAW itemized total - live-probe-confirmed (1977/single/$14,000 raw
-   itemized/$2,112 state tax: `comnew(30)`=$16,105 = $14,000+$2,112, not
-   $14,000) via the same pattern DC/GA/HI/Idaho's own pre-1987
-   itemized-deduction reconstructions already established generally, just
-   missed on the first pass here.
-
-Harness: **2,625/2,632 (99.7%)**. The 7 residuals are all 2023-only,
-small, and match the already-accepted real-vs-oracle 2023 EITC-table
-divergence family documented across nearly every state built this
-session. Full multi-state suite reconfirmed no regressions elsewhere.
-"""
+"""Iowa individual income tax calculator."""
 
 import polars as pl
 
-from taxsim_py.calculators.federal import compute_regular_tax
 from taxsim_py.calculators.federal_pre1987 import PRE1987_PARAMS
 from taxsim_py.engine.brackets import bracket_tax
 from taxsim_py.engine.payroll_tax import household_self_employment_tax
 from taxsim_py.engine.schema import PARAMETERS_ROOT, load_yaml, resolve_year
+from taxsim_py.engine.state import (
+    with_defaults,
+    forced_standard,
+    by_filing_status as _by_status,
+    interpolate_table as _tablki,
+    with_default as _with_default,
+)
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
 IA_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "ia" / "income_tax.yaml")
 PAYROLL_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "payroll_tax.yaml")
 _STATUSES = ["single", "married_joint", "married_separate", "head_of_household"]
-
-
-def _with_default(df: pl.DataFrame, column: str, default: float = 0.0) -> pl.DataFrame:
-    if column in df.columns:
-        return df
-    return df.with_columns(pl.lit(default).alias(column))
-
-
-def _by_status(values: dict) -> pl.Expr:
-    expr = pl.lit(None, dtype=pl.Float64)
-    for status, v in values.items():
-        expr = pl.when(pl.col("filing_status") == status).then(pl.lit(float(v))).otherwise(expr)
-    return expr
-
-
-def _tablki(income: pl.Expr, rows: list[list[float]]) -> pl.Expr:
-    """`tablki`-style linear interpolation between adjacent (threshold,
-    value) points - below the first threshold, flat at rows[0]'s value;
-    at/above the last (finite) threshold, flat at the final row's value
-    (a real sentinel row, not a droppable one)."""
-    thresholds = [r[0] for r in rows[:-1]]
-    values = [r[1] for r in rows]
-    expr = pl.lit(values[-1])
-    for i in range(len(thresholds) - 1, -1, -1):
-        t_hi = thresholds[i]
-        v_hi = values[i]
-        if i == 0:
-            below = pl.lit(v_hi)
-        else:
-            t_lo = thresholds[i - 1]
-            v_lo = values[i - 1]
-            w = (income - t_lo) / (t_hi - t_lo)
-            below = pl.when(v_hi > v_lo).then(w * v_lo + (1 - w) * v_hi).otherwise(w * v_hi + (1 - w) * v_lo)
-        expr = pl.when(income < t_hi).then(below).otherwise(expr)
-    return expr
 
 
 _RAW_INPUT_COLUMNS = [
@@ -125,11 +27,10 @@ _RAW_INPUT_COLUMNS = [
 ]
 
 
-def compute_ia_tax(df: pl.DataFrame, year: int, force_itemize: bool | None = None) -> pl.DataFrame:
+def compute_ia_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     effective_year, flate = resolve_state_year(year)
     p = IA_PARAMS
-    for col in ("proptax", "otheritem", "mortgage", "dividends", "intrec", "ui", "pui", "sui", "depx", "psemp", "ssemp"):
-        df = _with_default(df, col)
+    df = with_defaults(df, ("proptax", "otheritem", "mortgage", "dividends", "intrec", "ui", "pui", "sui", "depx", "psemp", "ssemp"))
     df = _with_default(df, "earned_income")
     df = _with_default(df, "eitc")
     df = _with_default(df, "ccc")
@@ -265,8 +166,7 @@ def compute_ia_tax(df: pl.DataFrame, year: int, force_itemize: bool | None = Non
     if effective_year >= 2020:
         df = df.with_columns(ia_xitded=salt_capped_plus_mortgage)
 
-    if force_itemize is False:
-        df = df.with_columns(ia_xitded=pl.lit(0.0))
+    df = df.with_columns(ia_xitded=pl.when(forced_standard()).then(0.0).otherwise(pl.col("ia_xitded")))
 
     df = df.with_columns(ia_deduc=pl.max_horizontal(pl.col("ia_stded"), pl.col("ia_xitded")))
 
@@ -368,7 +268,7 @@ def compute_ia_tax(df: pl.DataFrame, year: int, force_itemize: bool | None = Non
 
     # --- AMT ---
     if effective_year >= 1982:
-        amt_federal = pl.col("amt") if "amt" in df.columns else pl.lit(0.0)
+        amt_federal = pl.col("amt") if "amt" in df.collect_schema().names() else pl.lit(0.0)
         if effective_year == 1982:
             alty = amt_federal * 0.25
         elif effective_year in (1983, 1984):

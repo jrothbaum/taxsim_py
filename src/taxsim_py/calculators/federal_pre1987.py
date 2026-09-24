@@ -1,56 +1,8 @@
-"""Federal income tax, 1977-1986 (`law79`, taxsim_2022_10_21.f:23286-24111) -
-a genuinely separate top-level calculator from `law87`
-(calculators/federal.py), not a plug-in vintage within it. Dispatched
-`if(lawyr.ge.1977.and.lawyr.le.1986) call law79` (taxsim_2022_10_21.f:22152),
-at the SAME level `law87` itself is dispatched from.
-
-See parameters/national/pre1987.yaml for the full scope note on which real
-law79 mechanisms are unreachable through this project's input schema (and so
-are correctly always-zero/inert here, not silently-skipped gaps): medical
-deduction, charitable contributions, casualty losses, the pre-1979 add-on
-minimum tax, income averaging, political/elderly/foreign-tax/investment/
-jobs/energy credits, Keogh/IRA deductions.
-
-Formula structure (matching the source's own control flow closely, for
-auditability):
-1. AGI: dividend exclusion (divall) + capital-gains EXCLUSION (capded,
-   60%/50% of net LTCG excluded from income entirely - not a preferential
-   rate) + wages + interest + gross SE income - two-earner deduction, then
-   the unemployment-compensation exclusion layered on top.
-2. Standard-or-itemized deduction decision (zbr vs proptax+otheritem+
-   mortgage), personal exemption, taxable income - and for 1979-1986 the
-   bracket table already has the standard deduction baked into its own
-   first threshold (confirmed: 1979's own $2,300 single first bracket
-   equals that year's zbr exactly) while 1977-1978's table does not (an
-   explicit zbr subtraction is needed for those two years only).
-3. Two alternative computations that can beat the plain bracket tax:
-   `acgtax` (a capital-gains-specific alternative, real only 1977-1978 and
-   1981) and `etax` (the "maximum tax on earned income", real only
-   1977-1981) - `taxbc = min(regular, acgtax if positive, etax if
-   positive)`.
-4. Child and Dependent Care Credit (only nonrefundable credit reachable in
-   this scope) caps against taxbc; `taxaft = taxbc - credit`.
-5. Minimum tax (three distinct formulas by sub-period) adds on top of
-   taxaft as a floor: `tax = max(taxaft, minimum_tax_amount)`.
-6. EITC (`earncr`, own early rate schedule) is subtracted LAST, after the
-   minimum tax - can make the final liability negative (refundable).
-
-The 1981 Rate Reduction Credit (a one-time, mid-year 1.25% cut) is threaded
-into the regular tax, the capital-gains alternative tax, and the
-maximum-tax-on-earned-income computations individually, matching the
-source line by line rather than applied as one blanket final multiplier.
-
-Implementation note: every intermediate quantity is materialized into its
-own real column via a separate `df.with_columns(...)` call (not chained as
-nested Python expression variables into one giant final expression) -
-Polars' query planner is pathologically slow on deeply-nested expression
-trees built that way (confirmed: one un-staged version of this function
-took ~19s for 200 rows; staged, the same computation is a small fraction
-of a second). Downstream stages reference `pl.col("...")`, never the
-Python expression variable from an earlier stage.
-"""
+"""Federal individual income tax calculator for 1977 through 1986."""
 
 import polars as pl
+
+from taxsim_py.engine.state import FORCE_ITEMIZE, itemize_choice
 
 from taxsim_py.engine.brackets import bracket_tax
 from taxsim_py.engine.eitc import trapezoid_credit
@@ -68,8 +20,11 @@ SEPRET_BY_STATUS = {
 }
 
 
-def _with_default(df: pl.DataFrame, column: str, default: float = 0.0) -> pl.DataFrame:
-    if column in df.columns:
+def _with_default(
+    df: pl.DataFrame | pl.LazyFrame, column: str, default: float = 0.0
+) -> pl.DataFrame | pl.LazyFrame:
+    columns = df.collect_schema().names() if isinstance(df, pl.LazyFrame) else df.columns
+    if column in columns:
         return df
     return df.with_columns(pl.lit(default).alias(column))
 
@@ -101,23 +56,32 @@ def _bracket_tax_by_status(income: pl.Expr, brackets_by_status: dict[str, list[l
     return expr
 
 
-def compute_regular_tax_pre1987(df: pl.DataFrame, year: int, force_itemize: bool | None = None) -> pl.DataFrame:
+def compute_regular_tax_pre1987(
+    df: pl.DataFrame | pl.LazyFrame,
+    year: int,
+) -> pl.DataFrame | pl.LazyFrame:
     p = PRE1987_PARAMS
     # Which intermediate working columns exist varies by year (e.g. the
     # 1977-1978 alternative-capital-gains-tax columns don't exist for
     # 1982+) - keep the original input columns plus a fixed result set at
     # the end so different years' outputs can be `pl.concat`'d together
     # (scripts/validate_federal.py does this across the whole YEARS list).
-    original_columns = list(df.columns)
+    original_columns = (
+        df.collect_schema().names() if isinstance(df, pl.LazyFrame) else list(df.columns)
+    )
     df = df.with_columns(
         filing_status=_filing_status_expr(),
         wages=pl.col("pwages") + pl.col("swages"),
     )
+    if FORCE_ITEMIZE not in (df.collect_schema().names() if isinstance(df, pl.LazyFrame) else df.columns):
+        df = df.with_columns(pl.lit(None).alias(FORCE_ITEMIZE))
     for col in (
         "proptax", "otheritem", "mortgage", "intrec", "psemp", "ssemp", "dividends", "stcg", "ltcg", "ui",
-        "state_sales_or_income_tax_ded",
+        "pui", "sui", "state_sales_or_income_tax_ded",
     ):
         df = _with_default(df, col)
+    # Unemployment compensation as TAXSIM combines it (`data(82)`).
+    df = df.with_columns(ui_combined=pl.max_horizontal(pl.col("ui"), pl.col("pui") + pl.col("sui")))
 
     sepret_expr = _by_status_expr(SEPRET_BY_STATUS)
     brackets_by_status = {status: resolve_year(p["brackets"][status], year) for status in FILING_STATUSES}
@@ -149,15 +113,28 @@ def compute_regular_tax_pre1987(df: pl.DataFrame, year: int, force_itemize: bool
             ints=pl.col("intrec"),
         )
 
-    # Capital gains: an EXCLUSION (not a preferential rate) - `capded` is
-    # excluded from income entirely, `capgn` is what's left to add to AGI.
-    # Scope: stcg/ltcg both assumed non-negative (same limitation as
-    # calculators/federal.py), so the source's net-capital-LOSS branch
-    # (taxsim_2022_10_21.f:23380-23387) never triggers here.
+    # Capital gains: part of a net long-term gain is excluded (`capded`).
+    # A net loss counts short-term losses in full and long-term losses at
+    # `long_term_loss_share`, limited per return and by other income below.
     caprat = float(resolve_year(p["capital_gains_exclusion_rate"], year))
-    df = df.with_columns(fullcg=pl.col("stcg") + pl.col("ltcg"))
-    df = df.with_columns(capded=(caprat * pl.min_horizontal(pl.col("ltcg"), pl.col("fullcg"))).clip(0, None))
-    df = df.with_columns(capgn=pl.col("fullcg") - pl.col("capded"))
+    lt_loss_share = float(resolve_year(p["long_term_loss_share"], year))
+    loss_limit = float(resolve_year(p["net_capital_loss_limit"], year))
+    stcg = pl.col("stcg")
+    ltcg = pl.col("ltcg")
+    df = df.with_columns(fullcg=stcg + ltcg)
+    df = df.with_columns(capded=(caprat * pl.min_horizontal(ltcg, pl.col("fullcg"))).clip(0, None))
+    net_loss = (
+        pl.when(ltcg >= 0)
+        .then(pl.col("fullcg"))
+        .when(stcg >= 0)
+        .then(lt_loss_share * pl.col("fullcg"))
+        .otherwise(stcg + lt_loss_share * ltcg)
+    )
+    df = df.with_columns(
+        capgn=pl.when(pl.col("fullcg") > 0)
+        .then(pl.col("fullcg") - pl.col("capded"))
+        .otherwise(pl.max_horizontal(net_loss, -loss_limit / pl.col("sepret")))
+    )
 
     # Two-earner deduction (1982+ only) - 10% of the lesser-earning
     # spouse's own wages, capped; 1982 itself used a smaller transitional
@@ -177,6 +154,8 @@ def compute_regular_tax_pre1987(df: pl.DataFrame, year: int, force_itemize: bool
     df = df.with_columns(
         ti=pl.col("divall") + pl.col("wages") + pl.col("ints") + pl.col("gross_se_income"),
     )
+    # A net capital loss cannot exceed other income.
+    df = df.with_columns(capgn=pl.max_horizontal(pl.col("capgn"), -pl.col("ti").clip(0, None)))
     df = df.with_columns(agi_pre_ui=pl.col("ti") - pl.col("twoded") + pl.col("capgn"))
 
     # Unemployment compensation: fully excluded pre-1979; from 1979 on,
@@ -191,11 +170,14 @@ def compute_regular_tax_pre1987(df: pl.DataFrame, year: int, force_itemize: bool
         df = df.with_columns(uxemp=uxemp_expr)
         df = df.with_columns(
             untax=pl.min_horizontal(
-                (0.5 * (pl.col("ui") + pl.col("agi_pre_ui") - pl.col("uxemp")).clip(0, None)),
-                pl.col("ui"),
+                (0.5 * (pl.col("ui_combined") + pl.col("agi_pre_ui") - pl.col("uxemp")).clip(0, None)),
+                pl.col("ui_combined"),
             )
         )
-    df = df.with_columns(agi=pl.col("agi_pre_ui") + pl.col("untax"))
+    df = df.with_columns(
+        taxable_unemployment=pl.col("untax"),
+        agi=pl.col("agi_pre_ui") + pl.col("untax"),
+    )
 
     # Itemized deduction: proptax + otheritem + mortgage + the state/sales
     # tax deduction (`data(50)`, real - law79's own `deduc` formula reads
@@ -225,7 +207,7 @@ def compute_regular_tax_pre1987(df: pl.DataFrame, year: int, force_itemize: bool
     if year <= 1981:
         itemizes_expr = pl.col("deduc") > pl.col("zbr")
     else:
-        itemizes_expr = pl.lit(force_itemize) if force_itemize is not None else (pl.col("deduc") > pl.col("zbr"))
+        itemizes_expr = itemize_choice(pl.col("deduc") > pl.col("zbr"))
     df = df.with_columns(itemizes=itemizes_expr)
     df = df.with_columns(excess=pl.when(pl.col("itemizes")).then(pl.col("deduc") - pl.col("zbr")).otherwise(0.0))
 
@@ -327,7 +309,7 @@ def compute_regular_tax_pre1987(df: pl.DataFrame, year: int, force_itemize: bool
             )
             df = df.with_columns(
                 pref=pl.when(pl.col("itemizes"))
-                .then((pl.col("capded") + pl.col("ui") + pl.col("wages") + pl.col("exded_pref")).clip(0, None))
+                .then((pl.col("capded") + pl.col("ui_combined") + pl.col("wages") + pl.col("exded_pref")).clip(0, None))
                 .otherwise(0.0)
             )
             df = df.with_columns(eti=pl.col("taxinc_unclamped") * pl.col("eratio") - pl.col("pref"))
@@ -430,9 +412,14 @@ def compute_regular_tax_pre1987(df: pl.DataFrame, year: int, force_itemize: bool
         t2 = float(resolve_year(p["minimum_tax_tier2_threshold"], year))
         r1 = float(resolve_year(p["minimum_tax_tier1_rate"], year))
         r2 = float(resolve_year(p["minimum_tax_tier2_rate"], year))
+        # The excess-itemized-deduction preference leaves state income tax
+        # out of both the deductions and AGI.
+        salt = pl.col("state_sales_or_income_tax_ded")
+        prfded = (pl.col("deduc") - salt).clip(0, None)
+        prfddy = (pl.col("agi") - salt).clip(0, None)
         df = df.with_columns(
             exded_1979plus=pl.when(pl.col("itemizes"))
-            .then((pl.col("deduc") - 0.6 * pl.col("agi").clip(0, None)).clip(0, None))
+            .then((prfded - 0.6 * prfddy).clip(0, None))
             .otherwise(0.0)
         )
         df = df.with_columns(
@@ -451,8 +438,10 @@ def compute_regular_tax_pre1987(df: pl.DataFrame, year: int, force_itemize: bool
             .then(offset_single_hoh)
             .otherwise(offset_joint_sep / pl.col("sepret"))
         )
-        df = df.with_columns(prfded=pl.when(pl.col("itemizes")).then(pl.col("deduc")).otherwise(0.0))
-        df = df.with_columns(alminy=(pl.col("agi") - pl.col("prfded") + pl.col("capded")).clip(0, None))
+        # Only medical, charitable and casualty deductions reduce this base,
+        # and none of them are inputs, so the base is AGI plus preferences.
+        pref = pl.when(pl.col("fullcg") < 0).then(pl.col("fullcg") - pl.col("capgn")).otherwise(pl.col("capded"))
+        df = df.with_columns(alminy=(pl.col("agi") + pref).clip(0, None))
         df = df.with_columns(mintax_raw=flat_rate * (pl.col("alminy") - pl.col("offset")).clip(0, None))
 
     df = df.with_columns(
@@ -481,15 +470,49 @@ def compute_regular_tax_pre1987(df: pl.DataFrame, year: int, force_itemize: bool
         taxable_income=pl.col("taxable_income_for_bracket"),
         earned_income=pl.col("earned"),
         regular_tax=pl.col("regtax"),
+        pre1987_taxbc=pl.col("taxbc"),
+        pre1987_chcr=pl.col("chcr"),
+        pre1987_earncr=pl.col("earncr"),
+        pre1987_almtax=pl.col("tax_after_mintax") - pl.col("taxaft"),
+        pre1987_capgn=pl.col("capgn"),
+        pre1987_twoded=pl.col("twoded"),
+    )
+    # Federal preference income (`pref`) as the state calculators read it.
+    if year <= 1978:
+        pref_out = pl.col("pref")
+    elif year <= 1982:
+        pref_out = pl.lit(0.0)
+    else:
+        pref_out = pl.when(pl.col("fullcg") < 0).then(pl.col("fullcg") - pl.col("capgn")).otherwise(pl.col("capded"))
+    df = df.with_columns(pre1987_pref=pref_out)
+    # `pretax`: the largest of the tax measures, with final tax counting only
+    # the part of the earned income credit that offsets tax.
+    eitc_offset = pl.min_horizontal(pl.col("earncr"), pl.col("tax_after_mintax").clip(0, None))
+    df = df.with_columns(
+        pre1987_pretax=pl.max_horizontal(
+            pl.col("regtax"),
+            pl.col("taxbc"),
+            pl.col("pre1987_almtax"),
+            pl.col("tax_after_mintax") - pl.col("earncr") + eitc_offset + pl.col("credit"),
+        )
     )
     result_columns = [
         "filing_status",
         "wages",
         "agi",
+        "taxable_unemployment",
         "taxable_income",
         "earned_income",
         "regular_tax",
         "fiitax",
         "credit",
+        "pre1987_taxbc",
+        "pre1987_chcr",
+        "pre1987_earncr",
+        "pre1987_almtax",
+        "pre1987_pretax",
+        "pre1987_capgn",
+        "pre1987_pref",
+        "pre1987_twoded",
     ]
     return df.select([*original_columns, *result_columns])

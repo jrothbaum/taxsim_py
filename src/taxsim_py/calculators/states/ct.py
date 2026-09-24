@@ -1,23 +1,15 @@
-"""Connecticut individual income tax (`cttax`, taxsim_2022_10_21.f:
-3261-3834, state id 7). See parameters/states/ct/income_tax.yaml for the
-full scope note - the largest, richest state built so far.
-
-2022/2023 (CPI-extrapolated, `effective_year` forced to 2021 - see
-engine/state_extrapolation.py): 2,481/2,491 exact. The 10 residuals are
-all 2023-only, sub-$2, and trace directly to `ct_earncr`'s own dependence
-on federal `eitc` - this project's already-accepted real-vs-oracle-2023
-EITC table override (see feedback_real_params_over_oracle_bugs /
-project_taxsim_py_port memory) propagating straight through, same family
-as AL's/CA's own 2023 residuals. `ltg` (federal.py's own derived,
-real-year figure used by the 2013+ AMT recompute) is deflated directly,
-same situation as AR's `wages`/AZ's `salt_capped` elsewhere in this
-project - deflating raw `ltcg` alone wouldn't reach it.
-"""
+"""Connecticut individual income tax calculator."""
 
 import polars as pl
 
 from taxsim_py.engine.brackets import bracket_tax
 from taxsim_py.engine.schema import PARAMETERS_ROOT, load_yaml, resolve_year
+from taxsim_py.engine.state import (
+    by_filing_status as _by_status,
+    checkpoint,
+    with_defaults,
+    interpolate_table as _table_lookup_interp,
+)
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
 CT_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "ct" / "income_tax.yaml")
@@ -30,20 +22,8 @@ _STATUSES = ["single", "married_joint", "married_separate", "head_of_household"]
 _SEPRET_BY_STATUS = {"single": 1.0, "married_joint": 1.0, "head_of_household": 1.0, "married_separate": 2.0}
 
 
-def _by_status(values: dict[str, float]) -> pl.Expr:
-    expr = pl.lit(None, dtype=pl.Float64)
-    for status in _STATUSES:
-        expr = pl.when(pl.col("filing_status") == status).then(pl.lit(float(values[status]))).otherwise(expr)
-    return expr
-
-
-def _federal_tentative_minimum_tax(df: pl.DataFrame, year: int) -> pl.Expr:
-    """Reconstructs federal's own tentative minimum tax (before comparing
-    to regular tax) - engine/amt.py's `alternative_minimum_tax()` computes
-    this internally but returns only the final `max(tmt-regular_tax,0)`
-    excess, so it's duplicated here (same params, same formula) for CT's
-    2013+ AMT credit recompute (`tamt=comnew(88)+comnew(89)`), which needs
-    the raw tmt regardless of whether it exceeds regular tax."""
+def _federal_tentative_minimum_tax(df: pl.DataFrame, year: int) -> tuple[pl.DataFrame, pl.Expr]:
+    """Reconstruct federal tentative minimum tax; returns the frame and the tax."""
     amt_p = FEDERAL_AMT_PARAMS
     cg_p = FEDERAL_CAPITAL_GAINS_PARAMS
     exemption = _by_status({s: resolve_year(amt_p["exemption"][s], year) for s in _STATUSES})
@@ -60,14 +40,20 @@ def _federal_tentative_minimum_tax(df: pl.DataFrame, year: int) -> pl.Expr:
     sep_addback_cap = float(resolve_year(amt_p["exemption"]["married_separate"], year))
     sep_addback_threshold = float(resolve_year(amt_p["separate_return_addback_threshold"], year))
     sep_addback = pl.min_horizontal(sep_addback_cap, 0.25 * (amt_income - sep_addback_threshold).clip(0, None))
-    amt_income = pl.when(sepret == 2.0).then(amt_income + sep_addback).otherwise(amt_income)
+    df, (amt_income,) = checkpoint(
+        df, ct_tmt_income=pl.when(sepret == 2.0).then(amt_income + sep_addback).otherwise(amt_income)
+    )
     exemption_after_phaseout = (exemption - phaseout_rate * (amt_income - threshold).clip(0, None)).clip(0, None)
-    amt_base = (amt_income - exemption_after_phaseout).clip(0, None)
+    df, (amt_base,) = checkpoint(df, ct_tmt_base=(amt_income - exemption_after_phaseout).clip(0, None))
     breakpoint_per_return = rate_bp / sepret
     backout = (rate_hi - rate_lo) * rate_bp / sepret
 
-    ltg = pl.col("ltg") if "ltg" in df.columns else pl.lit(0.0)
-    ltg_capped = pl.min_horizontal(ltg, amt_base)
+    ltg = pl.col("ltg") if "ltg" in df.collect_schema().names() else pl.lit(0.0)
+    df, (ltg_capped, regular_ordinary_income) = checkpoint(
+        df,
+        ct_tmt_ltg=pl.min_horizontal(ltg, amt_base),
+        ct_tmt_regular_ordinary=(pl.col("taxable_income") - ltg).clip(0, None),
+    )
     ordinary_amt_base = (amt_base - ltg_capped).clip(0, None)
     tentative_ordinary_tax = pl.when(ordinary_amt_base <= breakpoint_per_return).then(
         ordinary_amt_base * rate_lo
@@ -77,55 +63,27 @@ def _federal_tentative_minimum_tax(df: pl.DataFrame, year: int) -> pl.Expr:
     rate_15_ceiling = _by_status({s: resolve_year(amt_p["cg_rate_15_ceiling"][s], year) for s in _STATUSES})
     cg_rate_15 = float(resolve_year(cg_p["rate_15"], year))
     cg_rate_0 = float(resolve_year(cg_p["rate_0"], year))
-    regular_ordinary_income = (pl.col("taxable_income") - ltg).clip(0, None)
     zero_pct_room = (rate_0_ceiling - regular_ordinary_income).clip(0, None)
     zero_pct_amount = pl.min_horizontal(zero_pct_room, ltg_capped)
     remaining_after_zero = ltg_capped - zero_pct_amount
     fifteen_pct_room = (rate_15_ceiling - regular_ordinary_income - zero_pct_room).clip(0, None)
     top_slice = (remaining_after_zero - fifteen_pct_room).clip(0, None)
     tentative_ltg_tax = cg_rate_0 * zero_pct_amount + cg_rate_15 * remaining_after_zero + 0.05 * top_slice
-    return tentative_ordinary_tax + tentative_ltg_tax
-
-
-def _with_default(df: pl.DataFrame, column: str, default: float = 0.0) -> pl.DataFrame:
-    if column in df.columns:
-        return df
-    return df.with_columns(pl.lit(default).alias(column))
-
-
-def _table_lookup_interp(income: pl.Expr, rows: list[list[float]]) -> pl.Expr:
-    """`tablki`-style linear interpolation between adjacent points."""
-    thresholds = [r[0] for r in rows[:-1]]
-    values = [r[1] for r in rows]
-    expr = pl.lit(values[-1])
-    for i in range(len(thresholds) - 1, -1, -1):
-        t_hi = thresholds[i]
-        v_hi = values[i]
-        if i == 0:
-            below = pl.lit(v_hi)
-        else:
-            t_lo = thresholds[i - 1]
-            v_lo = values[i - 1]
-            w = (income - t_lo) / (t_hi - t_lo)
-            below = w * v_lo + (1 - w) * v_hi if v_hi > v_lo else w * v_hi + (1 - w) * v_lo
-        expr = pl.when(income < t_hi).then(below).otherwise(expr)
-    return expr
+    return checkpoint(df, ct_tmt=tentative_ordinary_tax + tentative_ltg_tax)[0], pl.col("ct_tmt")
 
 
 def _flat_rate_step(income: pl.Expr, rows: list[list[float]]) -> pl.Expr:
-    """`cttab`-style: FIRST row where income<=threshold wins, a flat
-    (non-marginal) rate - not interpolated, not cumulative."""
+    """Select the first Connecticut rate whose threshold contains income."""
     expr = pl.lit(rows[-1][1])
     for threshold, rate in reversed(rows[:-1]):
         expr = pl.when(income <= threshold).then(pl.lit(rate)).otherwise(expr)
     return expr
 
 
-def compute_ct_tax(df: pl.DataFrame, year: int, force_itemize: bool | None = None) -> pl.DataFrame:
+def compute_ct_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     effective_year, flate = resolve_state_year(year)
     p = CT_PARAMS
-    for col in ("dividends", "intrec", "stcg", "ltcg", "depx", "dep18", "proptax", "psemp", "ssemp", "amt", "mortgage", "ltg"):
-        df = _with_default(df, col)
+    df = with_defaults(df, ("dividends", "intrec", "stcg", "ltcg", "depx", "dep18", "proptax", "psemp", "ssemp", "amt", "mortgage", "ltg"))
 
     # Year>LASTAT (2021): deflate every dollar-valued raw/federal-computed
     # input by `flate`, run 2021's REAL law (`effective_year`, forced to
@@ -382,14 +340,19 @@ def compute_ct_tax(df: pl.DataFrame, year: int, force_itemize: bool | None = Non
         sep_addback = pl.min_horizontal(
             sep_addback_cap, 0.25 * (xprefs_base - sep_addback_threshold).clip(0, None)
         )
-        xprefs_raw = pl.when(is_sep_amt).then(xprefs_base + sep_addback).otherwise(xprefs_base)
+        df, (xprefs_raw,) = checkpoint(
+            df, ct_xprefs_raw=pl.when(is_sep_amt).then(xprefs_base + sep_addback).otherwise(xprefs_base)
+        )
         # `if(mst.eq.3.or.mst.eq.6.and.xprefs.gt.165000.)` - mst.eq.3 is
         # dead for this schema (see module docstring), so this is really
         # just `mst.eq.6` (married_separate) alone.
         is_sep = pl.col("filing_status") == "married_separate"
-        xprefs = pl.when(is_sep & (xprefs_raw > 165000.0)).then(
-            pl.when(xprefs_raw > 255000.0).then(xprefs_raw + 22500.0).otherwise(xprefs_raw + 0.25 * (xprefs_raw - 165000.0))
-        ).otherwise(xprefs_raw)
+        df, (xprefs,) = checkpoint(
+            df,
+            ct_xprefs=pl.when(is_sep & (xprefs_raw > 165000.0)).then(
+                pl.when(xprefs_raw > 255000.0).then(xprefs_raw + 22500.0).otherwise(xprefs_raw + 0.25 * (xprefs_raw - 165000.0))
+            ).otherwise(xprefs_raw),
+        )
         # sorm(mst,a,b) returns b iff mst.eq.2.or.mst.eq.3.or.mst.eq.6 -
         # reachable as married_joint or married_separate (mst.eq.3 dead);
         # head_of_household (mst=4) falls to the "a" default, same as
@@ -399,12 +362,12 @@ def compute_ct_tax(df: pl.DataFrame, year: int, force_itemize: bool | None = Non
         ln9_thr = pl.when(sorm_b_group).then(150000.0 / pl.col("ct_sep")).otherwise(112500.0)
         xln9 = (xprefs - ln9_thr).clip(0, None) * 0.25
         xemp = (xemp_base - xln9).clip(0, None)
-        xln11 = (xprefs - xemp).clip(0, None)
+        df, (xln11,) = checkpoint(df, ct_xln11=(xprefs - xemp).clip(0, None))
         ln11_bp = 175000.0 / pl.col("ct_sep")
         offset = (3500.0 / pl.col("ct_sep")) if effective_year >= 1994 else 0.0
         xln12_hi = (45500.0 / pl.col("ct_sep")) + (xln11 - ln11_bp).clip(0, None) * 0.28 - offset
         xln12_lo = xln11 * 0.26
-        xln12 = pl.when(xln11 > ln11_bp).then(xln12_hi).otherwise(xln12_lo)
+        df, (xln12,) = checkpoint(df, ct_xln12=pl.when(xln11 > ln11_bp).then(xln12_hi).otherwise(xln12_lo))
 
         if effective_year <= 1993:
             amt_final = (xln12 * 0.23 - pl.col("ct_statax")).clip(0, None)
@@ -429,11 +392,11 @@ def compute_ct_tax(df: pl.DataFrame, year: int, force_itemize: bool | None = Non
             # via `_federal_tentative_minimum_tax` below, reusing the
             # exact same params/formula federal.py's own AMT call uses.
             # data(163) confirmed inert (always 0).
-            tamt = _federal_tentative_minimum_tax(df, effective_year)
+            df, tamt = _federal_tentative_minimum_tax(df, effective_year)
             amt1 = 0.19 * tamt
             amt2 = 0.055 * xprefs_raw
             amtfin = pl.min_horizontal(amt1, amt2)
-            amt_final = (pl.col("ct_statax") - amtfin).clip(0, None)
+            df, (amt_final,) = checkpoint(df, ct_amt_final=(pl.col("ct_statax") - amtfin).clip(0, None))
             amcred_final = pl.min_horizontal(xln12 * 0.19, amt_final)
 
         has_amt_pref = xln11 > 0
@@ -460,14 +423,12 @@ def compute_ct_tax(df: pl.DataFrame, year: int, force_itemize: bool | None = Non
             ).otherwise(float(resolve_year(p["property_credit_phaseout_joint"], effective_year)) / pl.col("ct_sep"))
             agix = pl.col("ct_agi").clip(0, None)
             # 8-point phaseout table: (phse+10000*i, step) for i=0..6, then
-            # a final (infinity, 1.0) - `tablki`'s own weighting (see
-            # `_table_lookup_interp`) is used via the shared helper rather
-            # than a hand-rolled (and, in an earlier version of this code,
-            # direction-inverted) interpolation.
-            steps = [0.0, 0.15, 0.30, 0.45, 0.60, 0.75, 0.90]
-            thresholds = [phse + 10000.0 * i for i in range(7)]
-            rows = list(zip(thresholds, steps)) + [(1.0e20, 1.0)]
-            pct = _table_lookup_interp(agix, rows)
+            # a final (infinity, 1.0), looked up as `agix - phse` against
+            # fixed thresholds so the table stays constant across rows.
+            width = float(p["property_credit_phaseout_step_width"])
+            rows = [(width * i, step) for i, step in enumerate(p["property_credit_phaseout_steps"])]
+            rows.append(tuple(p["property_credit_phaseout_final"]))
+            pct = _table_lookup_interp(agix - phse, rows)
             pcred = pcred - pct * pcred
         if effective_year >= 2017:
             no_dep_or_elderly = (pl.col("depx") < 1)
@@ -480,7 +441,7 @@ def compute_ct_tax(df: pl.DataFrame, year: int, force_itemize: bool | None = Non
     # --- EITC (2011+) ---
     if effective_year >= 2011:
         rate = float(resolve_year(p["eitc_rate_by_year"], effective_year))
-        eitc_fed = pl.col("eitc").clip(0, None) if "eitc" in df.columns else pl.lit(0.0)
+        eitc_fed = pl.col("eitc").clip(0, None) if "eitc" in df.collect_schema().names() else pl.lit(0.0)
         df = df.with_columns(ct_earncr=rate * eitc_fed)
     else:
         df = df.with_columns(ct_earncr=pl.lit(0.0))

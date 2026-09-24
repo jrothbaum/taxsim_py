@@ -1,18 +1,4 @@
-"""Payroll tax calculator: produces TAXSIM's `fica`, `ficar`, `tfica`
-columns, for wages and self-employment income (`psemp`/`ssemp`).
-
-Confirmed against taxsim_2022_10_21.f:22166-22457 (function `sstax`) and
-:21281-21295 (how the top-level `fica`/`ficar` columns are assembled from
-sstax's outputs). Only `mtr=85` ("marginal rate with respect to the
-taxpayer's own earnings", TAXSIM's default) is implemented for `ficar` -
-the `mtr=86` (spouse) and `mtr=11` (non-wage) variants are not.
-
-`ficar` here only reflects the OASDI/HI marginal rate on wages, not on
-self-employment income specifically (the source's `r1o`/`r1h` do the same
-- there's no separate SE-income marginal-rate term). Not itemized/business
-income (pbusinc/pprofinc/sbusinc/sprofinc) - deferred like dividends and
-capital gains.
-"""
+"""Federal payroll tax calculator."""
 
 import polars as pl
 
@@ -30,9 +16,12 @@ PAYROLL_TAX_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "payroll_tax.yaml"
 FILING_STATUSES = ["single", "married_joint", "married_separate", "head_of_household"]
 
 
-def compute_payroll_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
+def compute_payroll_tax(
+    df: pl.DataFrame | pl.LazyFrame, year: int
+) -> pl.DataFrame | pl.LazyFrame:
+    columns = df.collect_schema().names() if isinstance(df, pl.LazyFrame) else df.columns
     for col in ("psemp", "ssemp"):
-        if col not in df.columns:
+        if col not in columns:
             df = df.with_columns(pl.lit(0.0).alias(col))
 
     wage_base = float(resolve_year(PAYROLL_TAX_PARAMS["oasdi_wage_base"], year))

@@ -15,12 +15,10 @@
 #
 # Scope: dividends are treated as fully qualified (matches the source's own
 # default when no separate "non-qualified dividends" split is given -
-# taxsim_2022_10_21.f:24307-24315) and short-/long-term capital gains are
-# both assumed non-negative (the source's loss-netting rules for negative
-# stcg/ltcg - taxsim_2022_10_21.f:24302-24306 - are not implemented; a
-# capital loss should be entered as 0, not a negative value, until that's
-# built). Other-property gains (a further, separately-deferred input) are
-# not included either.
+# taxsim_2022_10_21.f:24307-24315). Short- and long-term gains and losses
+# are netted, with a net loss limited by `net_capital_loss_limit` below.
+# Other-property gains (a further, separately-deferred input) are not
+# included.
 # 1994-1996 use yet another, genuinely different vintage subroutine
 # (`tax94`, taxsim_2022_10_21.f:26568-26668) - not a tiered preferential
 # rate at all, but a "cap the marginal rate on net long-term gain at 28%"
@@ -444,3 +442,7 @@ rate_20:  # inert for every year coded here - always shadowed by the
   2007: 0.20
   2008: 0.20
   2022: 0.20
+
+# Net capital loss deductible against other income, divided by `sepret`
+# for married filing separately.
+net_capital_loss_limit: {1987: 3000}

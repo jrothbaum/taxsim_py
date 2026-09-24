@@ -158,6 +158,31 @@ rate_lookup_table:
     - [1.0e+20, 5.9, 247.5]
 
 # Standard deduction: 3 eras.
+pre1987_brackets_primary:
+  - [3000, 0.90]
+  - [4000, 1.70]
+  - [5000, 2.20]
+  - [6000, 2.30]
+  - [7000, 2.50]
+  - [10000, 3.150]
+  - [16000, 4.50]
+  - [17000, 5.90]
+  - [25000, 6.0]
+  - [1.0e+20, 7.0]
+pre1987_brackets_secondary:
+  - [3000, 0.90]
+  - [4000, 1.70]
+  - [5000, 2.20]
+  - [6000, 2.50]
+  - [7000, 3.0]
+  - [9000, 3.50]
+  - [10000, 3.90]
+  - [15000, 4.50]
+  - [16000, 5.20]
+  - [24000, 6.0]
+  - [25000, 6.50]
+  - [1.0e+20, 7.0]
+
 standard_deduction_pct_pre1987: 0.10  # capped at 4000*txp/sep
 standard_deduction_pct_1987_1997: 0.10  # capped at 2000*txp/sep
 standard_deduction_flat_1998plus:  # per exemption unit (`data(7)`)

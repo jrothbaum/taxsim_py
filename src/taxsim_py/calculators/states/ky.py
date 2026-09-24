@@ -1,127 +1,26 @@
-"""Kentucky individual income tax (`kytax`, taxsim_2024_09_21.f:6945-7219,
-state id 18). See parameters/states/ky/income_tax.yaml for the full scope
-note (confirmed-inert Social-Security/pension/IRA/self-employed-health-
-insurance/charity/investment-interest fields, the genuinely vestigial
-Income Gap Tax Credit, and the real 2010-2012 phaseout-suspension bug).
-
-Real, non-obvious mechanics found while building this:
-1. For years<=1989, Kentucky's own AGI SUBTRACTS federal tax liability
-   itself (`agi=comnew(2)-fedtax`, not a taxable-income deduction) -
-   `fedtax` here is Kentucky's OWN reconstruction
-   (`fiitax-setax-max(0,amt-0)`), not `comnew(1)`/`fiitax` directly. For
-   1990 specifically, a DIFFERENT (simpler) subtraction applies
-   (`agi=fed_agi-fiitax`, using raw `fiitax`, not the setax/amt-adjusted
-   `fedtax`) - a real, narrow one-year transition quirk between the
-   pre-1990 and 1991+ AGI regimes.
-2. A real 60% long-term-capital-gains exclusion for 1987-1989 only.
-3. The 1990-2004 Low Income Credit and 2005+ Family Size Tax Credit are
-   mutually exclusive ERAS of the SAME underlying idea (not layered) -
-   but BOTH run alongside the separately-computed Personal Tax Credit
-   (`gcred`), which is computed and subtracted from `statax` FIRST,
-   unconditionally, before either era-specific credit's own subtraction.
-4. Kentucky's own "married filing combined" income split (own explicit
-   `agih`/`agiw` computation, NOT the `look()`-wrapper `-data(2)`
-   mechanic Kansas's own build just used) only runs through 2017 - 2018+
-   is a flat 5% rate, so bracket-compression (the whole reason the split
-   exists) can't happen there at all.
-
-Real bugs found via live-oracle-probe validation, in order of discovery:
-1. The Low Income Credit's own AGI-bracket rate lookup was built as a
-   cascading overwrite (checking brackets broadest-first), which let
-   every broader/later bracket clobber a narrower/earlier match instead
-   of stopping at the first true one - since a LOW AGI satisfies every
-   bracket's own ceiling test simultaneously, this collapsed the whole
-   schedule down to always the LAST (highest-ceiling, $0-rate) bracket,
-   silently zeroing the credit for every filer. Fixed by iterating the
-   brackets narrowest-first so a true match from a later (narrower)
-   iteration correctly overrides an earlier (broader) one.
-2. The 1987-1989 "keep the old federal dividend exclusion" line
-   (`agi=agi-divexc(...)`) turned out to be REDUNDANT with, not
-   additional to, the real `agi -= min(dividends,100*txp)` line right
-   below it in the source (which already covers 1987-1989 as part of its
-   own law<=1997 range) - live-probe-confirmed via a single-filer
-   dividends case where implementing both stacked two $100 exclusions
-   instead of one. Not implemented as a separate term.
-3. Kentucky's own reconstructed `fedtax` (`fiitax-setax-max(0,amt)`) and
-   1990's own separate `subtra` addition both wrongly clipped `fiitax`
-   to non-negative before using it - but the source's ONLY clamp-to-zero
-   wraps the WHOLE expression, not `fiitax` alone, and a genuinely
-   negative (refundable) `fiitax` really does add back to AGI. Caught via
-   a live-probe mismatch on a 1990/HoH/$5,000-wages/1-dependent case with
-   `fiitax`=-$700: AGI needed the full +$700 added back, not $0.
-
-Harness: **2,583/2,585 (99.9%)**. The 2 residuals are both 2022/2023
-(CPI-extrapolation years) Family Size Tax Credit cases, small in
-magnitude - every input feeding the credit's own modified-AGI comparison
-was confirmed correctly deflated, but the tiny residual's exact source
-wasn't identified within this build's scope (flagged for a future
-revisit, same as Kansas's own small Homestead Refund residual). Full
-multi-state suite reconfirmed no regressions elsewhere.
-"""
+"""Kentucky individual income tax calculator."""
 
 import polars as pl
 
 from taxsim_py.calculators.federal_pre1987 import PRE1987_PARAMS
 from taxsim_py.engine.brackets import bracket_tax
-from taxsim_py.calculators.federal import compute_regular_tax
 from taxsim_py.engine.credits import child_care_credit_rate_pre2021
 from taxsim_py.engine.payroll_tax import household_self_employment_tax
 from taxsim_py.engine.schema import PARAMETERS_ROOT, load_yaml, resolve_year
+from taxsim_py.engine.state import (
+    with_defaults,
+    forced_standard,
+    interpolate_table as _tablki,
+    with_default as _with_default,
+)
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
 KY_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "ky" / "income_tax.yaml")
 FEDERAL_CREDITS_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "credits.yaml")
 PAYROLL_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "payroll_tax.yaml")
 
-_RAW_INPUT_COLUMNS = [
-    "mstat", "depx", "dep17", "dep18", "dep6", "dep13", "pwages", "swages",
-    "proptax", "otheritem", "mortgage", "childcare", "intrec", "psemp",
-    "ssemp", "dividends", "stcg", "ltcg", "ui", "pui", "sui",
-]
-
-
-def _with_default(df: pl.DataFrame, column: str, default: float = 0.0) -> pl.DataFrame:
-    if column in df.columns:
-        return df
-    return df.with_columns(pl.lit(default).alias(column))
-
-
-def _by_status(values: dict) -> pl.Expr:
-    expr = pl.lit(None, dtype=pl.Float64)
-    for status, v in values.items():
-        expr = pl.when(pl.col("filing_status") == status).then(pl.lit(float(v))).otherwise(expr)
-    return expr
-
-
-def _tablki(income: pl.Expr, rows: list[list[float]]) -> pl.Expr:
-    """`tablki`-style linear interpolation between adjacent (threshold,
-    value) points - below the first threshold, flat at rows[0]'s value;
-    at/above the last (finite) threshold, flat at the final row's value."""
-    thresholds = [r[0] for r in rows[:-1]]
-    values = [r[1] for r in rows]
-    expr = pl.lit(values[-1])
-    for i in range(len(thresholds) - 1, -1, -1):
-        t_hi = thresholds[i]
-        v_hi = values[i]
-        if i == 0:
-            below = pl.lit(v_hi)
-        else:
-            t_lo = thresholds[i - 1]
-            v_lo = values[i - 1]
-            w = (income - t_lo) / (t_hi - t_lo)
-            below = pl.when(v_hi > v_lo).then(w * v_lo + (1 - w) * v_hi).otherwise(w * v_hi + (1 - w) * v_lo)
-        expr = pl.when(income < t_hi).then(below).otherwise(expr)
-    return expr
-
-
 def _raw_ccc(df: pl.DataFrame, year: int) -> pl.Expr:
-    """`comnew(53)`/`comnew(176)` - federal's own CCC amount BEFORE its
-    nonrefundable cap. federal.py's own `ccc` column deliberately reports
-    $0 for years<1998 (a real, separately-documented federal-side quirk
-    about the credit-STACKING mechanism, not the credit computation
-    itself) - reconstructed locally here for 1987-1997 using federal.py's
-    own pre-2021 rate-schedule primitive, matching the SAME technique
-    Kansas's own build just established for this exact gap."""
+    """Reconstruct the uncapped federal child care credit."""
     ccc_p = FEDERAL_CREDITS_PARAMS["child_care_credit"]
     max_qualifying_persons = float(resolve_year(ccc_p["max_qualifying_persons"], year))
     max_expense_per_person = float(resolve_year(ccc_p["max_expense_per_person_pre2021"], year))
@@ -141,11 +40,10 @@ def _raw_ccc(df: pl.DataFrame, year: int) -> pl.Expr:
     return ccc_rate * ccc_expense
 
 
-def compute_ky_tax(df: pl.DataFrame, year: int, force_itemize: bool | None = None) -> pl.DataFrame:
+def compute_ky_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     effective_year, flate = resolve_state_year(year)
     p = KY_PARAMS
-    for col in ("proptax", "otheritem", "mortgage", "dividends", "intrec", "depx", "dep13", "childcare"):
-        df = _with_default(df, col)
+    df = with_defaults(df, ("proptax", "otheritem", "mortgage", "dividends", "intrec", "depx", "dep13", "childcare"))
     df = _with_default(df, "eitc")
     df = _with_default(df, "ccc")
     df = _with_default(df, "itemized_deduction")
@@ -154,6 +52,7 @@ def compute_ky_tax(df: pl.DataFrame, year: int, force_itemize: bool | None = Non
     df = _with_default(df, "itemizes", False)
     df = _with_default(df, "fiitax")
     df = _with_default(df, "amt")
+    df = _with_default(df, "taxable_unemployment")
 
     df = df.with_columns(
         ky_sep=pl.when(pl.col("filing_status") == "married_separate").then(2.0).otherwise(1.0),
@@ -164,8 +63,7 @@ def compute_ky_tax(df: pl.DataFrame, year: int, force_itemize: bool | None = Non
     # `setax` (comnew(175)) - computed at the REAL `year`'s rates on REAL
     # (undeflated) wages, same technique Alabama/Iowa/Kansas already
     # established.
-    for col in ("psemp", "ssemp"):
-        df = _with_default(df, col)
+    df = with_defaults(df, ("psemp", "ssemp"))
     wage_base = float(resolve_year(PAYROLL_PARAMS["oasdi_wage_base"], year))
     hi_wage_base = float(resolve_year(PAYROLL_PARAMS["hi_wage_base"], year))
     net_earnings_factor = float(resolve_year(PAYROLL_PARAMS["se_net_earnings_factor"], year))
@@ -220,15 +118,8 @@ def compute_ky_tax(df: pl.DataFrame, year: int, force_itemize: bool | None = Non
         agi = pl.col("agi") - subtra  # `data(124)`/`data(22)` confirmed inert.
 
     ui_total = pl.max_horizontal(pl.col("ui"), pl.col("pui") + pl.col("sui"))
-    has_ui = (df.get_column("ui").abs().sum() + df.get_column("pui").abs().sum() + df.get_column("sui").abs().sum()) > 0
     if effective_year in (2009, 2020):
-        if has_ui:
-            df_no_ui = df.select(_RAW_INPUT_COLUMNS).with_columns(ui=pl.lit(0.0), pui=pl.lit(0.0), sui=pl.lit(0.0))
-            fed_no_ui = compute_regular_tax(df_no_ui, effective_year)
-            untax = pl.col("agi") - fed_no_ui.get_column("agi")
-        else:
-            untax = pl.lit(0.0)
-        agi = agi + ui_total - untax
+        agi = agi + ui_total - pl.col("taxable_unemployment")
     if effective_year == 2020:
         # `data(58)` (charity_cash) confirmed inert - no-op.
         agi = pl.when(~pl.col("itemizes")).then(agi + pl.min_horizontal(300.0, 0.0)).otherwise(agi)
@@ -309,8 +200,8 @@ def compute_ky_tax(df: pl.DataFrame, year: int, force_itemize: bool | None = Non
         # `comnew(23)`/`data(66)` confirmed inert.
         xitded = pl.col("mortgage")
 
-    if force_itemize is False and effective_year == 1999:
-        xitded = pl.lit(0.0)
+    if effective_year == 1999:
+        xitded = pl.when(forced_standard()).then(0.0).otherwise(xitded)
 
     df = df.with_columns(ky_xitded=xitded)
     df = df.with_columns(ky_deduc=pl.max_horizontal(pl.col("ky_stded"), pl.col("ky_xitded")))

@@ -398,14 +398,6 @@ ptfc_2018plus_cap:
 ptfc_2018plus_elderly_cap:
   1960: 1200
 
-# Real 2008-2009 federal "additional standard deduction for state and
-# local real estate taxes" addback (Housing Assistance Tax Act of 2008) -
-# federal.py's own `standard_deduction` column doesn't implement this
-# (a federal-side gap, not a Maine-specific one - Idaho's own build
-# already found and worked around the same gap locally the same way).
-standard_deduction_proptax_addback_cap_per_filer_2008_2009:
-  1960: 500
-
 # `xitd(law)` - real itemized-deduction phaseout cap, 2013-2021.
 itemized_deduction_phaseout_cap_2013_2021:
   2013: 27500

@@ -1,75 +1,19 @@
-"""Maine individual income tax (`metax`, taxsim_2024_09_21.f:7437-7886,
-state id 20). See parameters/states/me/income_tax.yaml for the full scope
-note (confirmed-inert Social-Security/pension/IRA/elderly fields - most
-notably the ENTIRE Property Tax Credit and Credit for the Elderly, both
-confirmed permanently $0 for this schema).
-
-Harness: 2,796/2,820 (99.1%). The richest state built this session,
-exceeding even Iowa/Kansas/Kentucky - built by reading the full real
-source directly (unusual for this project; most states so far were
-built from live-probe reconstruction of undocumented `comnew(N)`
-positions, but Maine's own subroutine text was read line-by-line, which
-caught several real bugs before they ever reached the test harness).
-Real, non-obvious mechanics found while building this:
-1. `txp` (`data(7)`) is real ONLY for married_joint (2) - married_
-   separate gets 1, same as single/HoH, a genuinely DIFFERENT concept
-   from `sep` (`data(9)`/`mst.eq.3.or.mst.eq.6`, which IS 2 for
-   married_separate). Caught via a live oracle probe: a flat 1987
-   per-exemption credit came out $9 too generous for married_separate
-   until `txp` was corrected.
-2. `chcr=child(law)*min(comnew(53),comnew(52))` caps the Child Care
-   Credit against `comnew(52)` (federal tax LIABILITY), not against raw
-   childcare expense - an initial wrong-by-construction guess (`min`
-   against the `childcare` input) coincidentally passed most of the
-   harness anyway since `min(fedCCC,expense)` and `min(fedCCC,liability)`
-   usually agree once expenses exceed a few hundred dollars, until a
-   from-source re-derivation caught it.
-3. `comnew(53)` (the raw federal Child Care Credit BEFORE combining
-   with the unrelated 1977-1978 federal General Tax Credit and before
-   the nonrefundable cap) is NOT the same as `federal_pre1987.py`'s own
-   exposed `credit` output column for years<=1986 - that column is the
-   COMBINED, capped total - reconstructed locally instead
-   (`_raw_ccc_pre1987`).
-4. `nexem=int(comnew(68))` - `comnew(68)` is itself divided by `flate`
-   for CPI-extrapolated years (2022/2023 here), and the subsequent
-   `int()` truncation genuinely zeroes the Property Tax Fairness/Sales
-   Tax Fairness Credits for most ordinary households once `flate`>1 -
-   confirmed via a direct oracle probe (a single filer's PTFC/STFC
-   refund present in 2021 disappears entirely in 2022/2023).
-5. Federal.py's own `standard_deduction` column is missing the REAL
-   2008-2009 federal "additional standard deduction for state and local
-   real estate taxes" (Housing Assistance Tax Act of 2008, up to $500
-   single/$1000 joint) - a federal-side gap, not Maine-specific (Idaho's
-   own build already found and worked around the same gap locally).
-6. `comnew(3)` (federal's own standard deduction, used directly for
-   1989+) is real and nonzero ONLY when federal does NOT itemize -
-   matching Idaho's own already-established finding for this array
-   position (confirmed universal, not Idaho-specific).
-7. `comnew(65)`/`comnew(17)` (used for PTFC/STFC's own "total income"
-   test) are AGI plus (and, separately, exactly) half the household's
-   self-employment-tax AGI deduction - matches this project's own
-   already-established Maine-adjacent finding from a prior session.
-8. Head_of_household gets its own `texp=1.5` halve-then-multiply
-   divisor for the bracket lookup (not 1 or 2 like every other status),
-   applied for every year, not just 1977-1987; 1977-1987's own bracket
-   table is a single base table with individual per-year cell patches,
-   not 11 unrelated tables.
-
-Residual failures (24/2820, all in extrapolated 2020/2022/2023 years):
-the same standing real-vs-oracle EITC-table divergence family accepted
-across nearly every other state's own harness, plus one deeper PTFC/
-STFC interaction at very high dependent counts in extrapolated years
-not chased further.
-"""
+"""Maine individual income tax calculator."""
 
 import polars as pl
 
-from taxsim_py.calculators.federal import compute_regular_tax
 from taxsim_py.calculators.federal_pre1987 import PRE1987_PARAMS
 from taxsim_py.engine.brackets import bracket_tax
 from taxsim_py.engine.credits import child_care_credit_rate_pre2021
 from taxsim_py.engine.payroll_tax import household_self_employment_tax
 from taxsim_py.engine.schema import PARAMETERS_ROOT, load_yaml, resolve_year
+from taxsim_py.engine.state import (
+    with_defaults,
+    itemize_choice,
+    by_filing_status as _by_status,
+    interpolate_table as _tablki,
+    with_default as _with_default,
+)
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
 ME_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "me" / "income_tax.yaml")
@@ -78,69 +22,13 @@ PAYROLL_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "payroll_tax.yaml")
 FEDERAL_CREDITS_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "credits.yaml")
 _STATUSES = ["single", "married_joint", "married_separate", "head_of_household"]
 
-_RAW_INPUT_COLUMNS = [
-    "mstat", "depx", "dep17", "dep18", "dep6", "dep13", "pwages", "swages",
-    "proptax", "otheritem", "mortgage", "childcare", "intrec", "psemp",
-    "ssemp", "dividends", "stcg", "ltcg", "ui", "pui", "sui",
-]
-
-
 def _max2(a: pl.Expr, b: pl.Expr) -> pl.Expr:
-    """Two-argument max via `when/then/otherwise` rather than
-    `pl.max_horizontal` - when one side is (or reduces to) an
-    all-constant column, e.g. a `stded=0` year combined with a
-    `pl.when(all_false_cond)...otherwise(0.0)` `xitded`, polars marks
-    the constant side as a scalar-broadcast chunk that `max_horizontal`
-    then fails to re-broadcast against the DataFrame's real height (a
-    genuine, reproduced-in-isolation polars quirk, not a logic bug)."""
+    """Return the row-wise maximum of two expressions."""
     return pl.when(a >= b).then(a).otherwise(b)
 
 
-def _with_default(df: pl.DataFrame, column: str, default: float = 0.0) -> pl.DataFrame:
-    if column in df.columns:
-        return df
-    return df.with_columns(pl.lit(default).alias(column))
-
-
-def _by_status(values: dict) -> pl.Expr:
-    expr = pl.lit(None, dtype=pl.Float64)
-    for status, v in values.items():
-        expr = pl.when(pl.col("filing_status") == status).then(pl.lit(float(v))).otherwise(expr)
-    return expr
-
-
-def _tablki(income: pl.Expr, rows: list[list[float]]) -> pl.Expr:
-    """`tablki`-style linear interpolation between adjacent (threshold,
-    value) points - below the first threshold, flat at rows[0]'s value;
-    at/above the last (finite) threshold, flat at the final row's value."""
-    thresholds = [r[0] for r in rows[:-1]]
-    values = [r[1] for r in rows]
-    expr = pl.lit(values[-1])
-    for i in range(len(thresholds) - 1, -1, -1):
-        t_hi = thresholds[i]
-        v_hi = values[i]
-        if i == 0:
-            below = pl.lit(v_hi)
-        else:
-            t_lo = thresholds[i - 1]
-            v_lo = values[i - 1]
-            w = (income - t_lo) / (t_hi - t_lo)
-            below = pl.when(v_hi > v_lo).then(w * v_lo + (1 - w) * v_hi).otherwise(w * v_hi + (1 - w) * v_lo)
-        expr = pl.when(income < t_hi).then(below).otherwise(expr)
-    return expr
-
-
 def _raw_ccc_pre1987(df: pl.DataFrame, year: int) -> pl.Expr:
-    """The raw federal Child Care Credit amount for years<=1986, BEFORE
-    it's combined with the unrelated federal General Tax Credit
-    (`gencr`, 1977-1978 only) and BEFORE the `taxbc` nonrefundable cap -
-    `federal_pre1987.py`'s own `credit` output column is that COMBINED,
-    capped total (`min(chcr+gencr, taxbc)`), not the CCC portion alone,
-    so reusing it directly as `comnew(53)` wrongly pulled in `gencr` for
-    1977-1978 (caught when the corrected `chcr=child(law)*min(comnew53,
-    comnew52)` formula stopped masking it against a $0 childcare
-    input). Reconstructed here matching `federal_pre1987.py`'s own
-    internal (unexposed) `chcr` computation exactly."""
+    """Reconstruct the uncapped pre-1987 federal child care credit."""
     expense_cap = float(resolve_year(PRE1987_PARAMS["child_care_credit_expense_cap"], year))
     chmax = expense_cap * pl.col("dep13").clip(0, 2)
     chwage = (pl.col("pwages") + pl.col("swages")).clip(0, None)
@@ -154,12 +42,7 @@ def _raw_ccc_pre1987(df: pl.DataFrame, year: int) -> pl.Expr:
 
 
 def _raw_ccc(df: pl.DataFrame, year: int) -> pl.Expr:
-    """`comnew(53)` - federal's own CCC amount. federal.py's own `ccc`
-    column deliberately reports $0 for years<1998 (a real, separately-
-    documented federal-side quirk about the credit-stacking mechanism,
-    not the credit computation itself) - reconstructed locally here for
-    1987-1997 the same way Kansas/Kentucky/Louisiana's own builds
-    already established for this exact gap."""
+    """Reconstruct the uncapped federal child care credit."""
     ccc_p = FEDERAL_CREDITS_PARAMS["child_care_credit"]
     max_qualifying_persons = float(resolve_year(ccc_p["max_qualifying_persons"], year))
     max_expense_per_person = float(resolve_year(ccc_p["max_expense_per_person_pre2021"], year))
@@ -180,9 +63,7 @@ def _raw_ccc(df: pl.DataFrame, year: int) -> pl.Expr:
 
 
 def _federal_personal_exemption(df: pl.DataFrame, year: int) -> pl.Expr:
-    """`comnew(83)` - federal's own computed personal-exemption total,
-    same local reconstruction Idaho's own build already established
-    (federal.py never exposes this as a column)."""
+    """Reconstruct the federal personal exemption."""
     if year >= 2018 or year < 1987:
         return pl.lit(0.0)
     pe_p = FEDERAL_PERSONAL_EXEMPTION_PARAMS
@@ -209,11 +90,10 @@ def _federal_personal_exemption(df: pl.DataFrame, year: int) -> pl.Expr:
     return amex_base * (1.0 - pep_ratio * amphs_fraction)
 
 
-def compute_me_tax(df: pl.DataFrame, year: int, force_itemize: bool | None = None) -> pl.DataFrame:
+def compute_me_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     effective_year, flate = resolve_state_year(year)
     p = ME_PARAMS
-    for col in ("proptax", "otheritem", "mortgage", "dividends", "intrec", "depx", "childcare"):
-        df = _with_default(df, col)
+    df = with_defaults(df, ("proptax", "otheritem", "mortgage", "dividends", "intrec", "depx", "childcare"))
     df = _with_default(df, "eitc")
     df = _with_default(df, "ccc")
     df = _with_default(df, "itemized_deduction")
@@ -226,6 +106,7 @@ def compute_me_tax(df: pl.DataFrame, year: int, force_itemize: bool | None = Non
     df = _with_default(df, "standard_deduction")
     df = _with_default(df, "credit")
     df = _with_default(df, "earned_income")
+    df = _with_default(df, "taxable_unemployment")
 
     is_joint = pl.col("filing_status") == "married_joint"
     is_hoh = pl.col("filing_status") == "head_of_household"
@@ -251,8 +132,8 @@ def compute_me_tax(df: pl.DataFrame, year: int, force_itemize: bool | None = Non
     se_oasdi_rate = float(resolve_year(PAYROLL_PARAMS["se_oasdi_rate"], year))
     se_hi_rate = float(resolve_year(PAYROLL_PARAMS["se_hi_rate"], year))
     setax = household_self_employment_tax(
-        pl.col("psemp") if "psemp" in df.columns else pl.lit(0.0),
-        pl.col("ssemp") if "ssemp" in df.columns else pl.lit(0.0),
+        pl.col("psemp") if "psemp" in df.collect_schema().names() else pl.lit(0.0),
+        pl.col("ssemp") if "ssemp" in df.collect_schema().names() else pl.lit(0.0),
         pl.col("pwages"), pl.col("swages"),
         net_earnings_factor, wage_base, se_oasdi_rate, se_hi_rate, hi_wage_base,
     )
@@ -313,19 +194,6 @@ def compute_me_tax(df: pl.DataFrame, year: int, force_itemize: bool | None = Non
         # position (confirmed here to be a universal, not Idaho-
         # specific, quirk).
         stded = pl.when(~pl.col("itemizes")).then(pl.col("standard_deduction")).otherwise(0.0)
-        if 2008 <= effective_year <= 2009:
-            # Real 2008-2009 federal "additional standard deduction for
-            # state and local real estate taxes" (Housing Assistance
-            # Tax Act of 2008) - federal.py's own `standard_deduction`
-            # column doesn't implement this (a federal-side gap, not a
-            # Maine-specific one, confirmed via a live oracle probe:
-            # `comnew(3)` came out $500 higher than federal.py's own
-            # column whenever `proptax>0` for these two years) -
-            # reconstructed locally the same way Idaho's own build
-            # already worked around this exact gap.
-            addback_cap = float(p["standard_deduction_proptax_addback_cap_per_filer_2008_2009"][1960])
-            addback = pl.min_horizontal(addback_cap * pl.col("me_txp"), pl.col("proptax"))
-            stded = pl.when(~pl.col("itemizes")).then(stded + addback).otherwise(stded)
         if (2003 <= effective_year <= 2011) or (2013 <= effective_year <= 2017):
             gets_override = is_joint | is_sep
             override_val = float(resolve_year(p["standard_deduction_married_override"], effective_year)) / pl.col("me_sep")
@@ -351,7 +219,7 @@ def compute_me_tax(df: pl.DataFrame, year: int, force_itemize: bool | None = Non
         if effective_year <= 1981:
             itemizes_local = itemized_deduction_local > zbr
         else:
-            itemizes_local = pl.lit(force_itemize) if force_itemize is not None else (itemized_deduction_local > zbr)
+            itemizes_local = itemize_choice(itemized_deduction_local > zbr)
     else:
         salt_plus_mortgage = pl.col("salt_capped") + pl.col("mortgage")
         itemized_deduction_local = pl.col("itemized_deduction")
@@ -476,7 +344,7 @@ def compute_me_tax(df: pl.DataFrame, year: int, force_itemize: bool | None = Non
     else:
         comnew28 = pl.col("regular_tax")
     comnew69 = pl.col("agi") - pl.when(pl.col("itemizes")).then(pl.col("mortgage")).otherwise(0.0)
-    amt = pl.col("amt") if "amt" in df.columns else pl.lit(0.0)
+    amt = pl.col("amt") if "amt" in df.collect_schema().names() else pl.lit(0.0)
     txm = pl.lit(0.0)
     if effective_year <= 1985:
         txm = pl.when(amt > 0).then(0.15 * (amt - comnew28).clip(0, None)).otherwise(0.0)
@@ -622,14 +490,7 @@ def compute_me_tax(df: pl.DataFrame, year: int, force_itemize: bool | None = Non
         tis = pl.col("agi") + pl.col("me_setax") * 0.5 - pl.min_horizontal(capgn, 0.0)
         if effective_year == 2020:
             ui_total = pl.max_horizontal(pl.col("ui"), pl.col("pui") + pl.col("sui"))
-            has_ui = (df.get_column("ui").abs().sum() + df.get_column("pui").abs().sum() + df.get_column("sui").abs().sum()) > 0
-            if has_ui:
-                df_no_ui = df.select(_RAW_INPUT_COLUMNS).with_columns(ui=pl.lit(0.0), pui=pl.lit(0.0), sui=pl.lit(0.0))
-                fed_no_ui = compute_regular_tax(df_no_ui, effective_year)
-                untax = pl.col("agi") - fed_no_ui.get_column("agi")
-            else:
-                untax = pl.lit(0.0)
-            tis = tis + ui_total - untax
+            tis = tis + ui_total - pl.col("taxable_unemployment")
         nmst_eligible = ~is_sep  # `data(105)` confirmed inert.
         nexem_capped = nexem.clip(0, 4)
         threshold = (

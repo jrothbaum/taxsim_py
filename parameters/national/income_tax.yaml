@@ -202,6 +202,12 @@ brackets:
     2022: [[0, 0.10], [14650, 0.12], [55900, 0.22], [89050, 0.24], [170050, 0.32], [215950, 0.35], [539900, 0.37]]
     2023: [[0, 0.10], [15700, 0.12], [59850, 0.22], [95350, 0.24], [182100, 0.32], [231250, 0.35], [578125, 0.37]]
 
+# 2008-2009 additional standard deduction for real property taxes paid,
+# per taxpayer (joint returns get twice this).
+standard_deduction_real_property_tax_cap:
+  2008: 500
+  2010: 0
+
 standard_deduction:
   # zbrack(nfile,lawyr): single=zbrack(1), married_joint=zbrack(2),
   # head_of_household=zbrack(3) - `common /user/`, extracted via the same

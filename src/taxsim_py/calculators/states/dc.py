@@ -1,125 +1,10 @@
-"""District of Columbia individual income tax (`dctax`/`dcstax`,
-taxsim_2024_09_21.f:4168-4707, state id 9). See parameters/states/dc/
-income_tax.yaml for the full scope note (bracket tables, the confirmed-
-inert elderly/blind/dependent-return/political-credit fields, and the
-2007 married-joint-split bracket quirk).
-
-Real, non-obvious mechanics found while building this:
-1. The unemployment-compensation exclusion (`agi = agi - data(82)`) has NO
-   `if(law...)` gate in the source at all, despite a comment reading "For
-   2021+" right above it - taken at face value this makes the exclusion
-   UNCONDITIONAL for every year, not just 2021+ (unlike Delaware's own,
-   genuinely 2021-only version of the same mechanic). Implemented exactly
-   as written (unconditional) rather than trusting the comment over the
-   code, per this project's standing rule - flagged for extra scrutiny
-   during validation given how surprising this is.
-2. The itemized-deduction SALT-feedback removal (`xitded = comnew(24)*
-   (1-data(50)/comnew(30))`) is a genuinely different technique from
-   every other state built so far: it scales the FEDERAL POST-Pease
-   itemized total (`comnew(24)`, this project's own `itemized_deduction`)
-   by the fraction `data(50)/comnew(30)` (state-tax-liability's share of
-   the federal PRE-Pease raw total) - not "subtract data(50) from the raw
-   total then apply DC's own phaseout" like AL/AZ/CA/AR/DE all do.
-3. `comnew(32)` (the pre-1987 AGI addback for 1982-1986) is the federal
-   two-earner deduction ("twoded") - the SAME quantity CO's own module
-   already found and locally reconstructs from
-   `parameters/national/pre1987.yaml`'s two-earner rate/cap, reused here
-   identically.
-4. The married-joint earner-split relief mechanic (`dcstax`) uses a
-   SEPARATE bracket-table set from the main calculation's own `look`
-   call - genuinely identical to the main tables for every year EXCEPT
-   2007, where the split calculation is stale by one year (uses 2006's
-   rates, not 2007's real ones) - see the YAML's own
-   `brackets_2007_split` note.
-
-Child/Dependent Care Credit uses `comnew(176)` (the federal credit BEFORE
-its own nonrefundable cap against tax liability) per the source's own
-comment - approximated here with this project's own `ccc` column (already
-capped at federal tax_before_credits), which understates DC's credit only
-in the rare case where that federal cap actually binds.
-
-Harness (1977-2023, extrapolation built in from the start - see
-engine/state_extrapolation.py): **2,444/2,491 (98.1%)**. This state's own
-itemized-deduction mechanism turned out to be the richest, most error-
-prone part of the build - five real bugs found via live-oracle-probe
-validation, in order of discovery:
-5. `xitded`'s AGI>$200k/sep 5%-of-excess reduction sits INSIDE the same
-   per-record gate as the whole itemized section in the source, so it
-   applies to EVERY era including <=1981 - two separate first-pass
-   mistakes (wiring it only into the 2018+ branch, then only extending it
-   to >=1982) each understated high-income itemizers before both were
-   caught via debug-instrumented oracle probes at different income tiers.
-6. `xitded` is a single Fortran local, initialized to 0 BEFORE the outer
-   `if(comnew(26).gt.0.and.comnew(30).gt.0)` gate - when federal doesn't
-   itemize, the whole block (and thus the formula) never runs, so `xitded`
-   stays exactly 0, not "computed but discarded." A first pass computed
-   the formula unconditionally and only gated whether the MAIN deduction
-   read it, leaving a stale nonzero value visible to `dcstax`'s own,
-   separately-computed `stded.ge.xitded` split-relief comparison - forcing
-   the married-joint earner split to itemize even when it shouldn't.
-7. Reconstructing federal's OWN itemize-vs-standard decision for
-   years<=1986 (not exposed as a column by federal_pre1987.py) took two
-   wrong proxies before landing on the right one: `dc_raw_itemized>0`
-   (any itemizable amount, however small) over-triggered on the tiny
-   self-referential state-tax-only deduction that exists even with zero
-   real proptax/otheritem/mortgage; `dc_xitded>dc_stded` (DC's own two
-   options compared directly) over-triggered too, since DC's OWN standard
-   deduction is much smaller than federal's. Reusing federal_pre1987.py's
-   own `PRE1987_PARAMS["standard_deduction"]` zero-bracket table (the same
-   lookup it already makes internally, just never exposed) to replicate
-   the real federal-side comparison fixed the general case - a narrow,
-   unresolved residual remains where this comparison sits right at the
-   zbr threshold (see below).
-8. The <=1981 AGI formula's `subtra=comnew(78)+data(22)+data(26)` term -
-   `data(22)`/`data(26)` are both confirmed permanently $0 elsewhere in
-   this project, but `comnew(78)` ("untax", the taxable portion of
-   unemployment compensation) is real and, like Alabama's own identical
-   situation, not exposed as a column by federal_pre1987.py - fixed with
-   the same "diff trick" (rerun federal with ui/pui/sui zeroed, take the
-   AGI difference) Alabama already established.
-9. The 2021+ childless-worker EITC's disqualified-income test (`disqy`,
-   `comnew(159)`) does NOT include capital gains, unlike this project's
-   own federal EITC disqy or California's state-EITC disqy (both
-   capital-gains-inclusive) - confirmed via a single/wages=$20,000/
-   ltcg=$15,000/2021 probe showing a real, nonzero EIC despite ltcg alone
-   exceeding `dylim`. Uses `dividends+intrec` only.
-
-Two more, unrelated to itemized deductions: the unemployment-compensation
-exclusion's `data(82)` is `max(ui,pui+sui)` (matching federal.py's own
-`ui_total` - `pui`/`sui` are a SPLIT of `ui`, not additional income, the
-same lesson Delaware's build already surfaced); `wages` (federal.py's own
-pwages+swages sum, needed by the married-joint earner split) needed direct
-deflation for an extrapolated year, same situation as AR's own `wages`.
-
-Known residuals in the 47 remaining failures, none chased further:
-- 37 are a single recurring test case ("property tax credit, single low
-  income") off by a consistent ~$0.04 across dozens of years - confirmed
-  via an isolated single-record oracle probe matching this project's own
-  isolated computation exactly, while the BATCHED comparison (taxsim2024.exe
-  run against all 2,491 DC cases at once, as scripts/validate_states.py
-  does) shows a slightly different value - the same "oracle batch/
-  iteration staleness" artifact family already accepted elsewhere in this
-  project (e.g. Alabama's married_separate residual), not a code bug.
-- 3 ("wages, single, wages=30000", 1982-1984) are a genuine convergence/
-  fixed-point sensitivity in the self-referential 1982-1986 itemization
-  mechanism (point 7 above) landing right at federal's own zero-bracket
-  threshold - the self-referential state-tax-only itemized total and
-  federal's zbr are close enough that which fixed point the 3-iteration
-  federal/state loop converges to becomes path-dependent; higher and
-  lower incomes both resolve unambiguously (which is why they pass) but
-  this narrow band doesn't. Not chased further given the ambiguous
-  underlying math and the narrow (0.1%) impact.
-- The remainder are 2023-only, sub-$2, tracing directly to `dc_earncr`'s
-  dependence on federal `eitc` - the same already-accepted real-vs-oracle-
-  2023 EITC table override (see feedback_real_params_over_oracle_bugs /
-  project_taxsim_py_port memory) already seen in AL/CA/CO/CT/IL.
-"""
+"""District of Columbia individual income tax calculator."""
 
 import polars as pl
 
-from taxsim_py.calculators.federal_pre1987 import compute_regular_tax_pre1987
 from taxsim_py.engine.brackets import bracket_tax
 from taxsim_py.engine.schema import PARAMETERS_ROOT, load_yaml, resolve_year
+from taxsim_py.engine.state import with_defaults, with_default as _with_default, forced_standard
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
 DC_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "dc" / "income_tax.yaml")
@@ -128,39 +13,16 @@ FEDERAL_PERSONAL_EXEMPTION_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "pe
 PRE1987_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "pre1987.yaml")
 _PRE1987_STATUSES = ["single", "married_joint", "married_separate", "head_of_household"]
 
-# Raw federal input columns only - re-invoking `compute_regular_tax_pre1987`
-# (the <=1981 "untax" diff trick, see the AGI section below) must start
-# from JUST these, not this module's own already-federal-processed `df`.
-_RAW_INPUT_COLUMNS_PRE1987 = [
-    "mstat", "depx", "dep17", "dep18", "dep6", "dep13", "pwages", "swages",
-    "proptax", "otheritem", "mortgage", "intrec", "psemp", "ssemp",
-    "dividends", "stcg", "ltcg", "ui", "pui", "sui", "childcare",
-]
-
-
-def _with_default(df: pl.DataFrame, column: str, default: float = 0.0) -> pl.DataFrame:
-    if column in df.columns:
-        return df
-    return df.with_columns(pl.lit(default).alias(column))
-
-
-def _by_status(values: dict) -> pl.Expr:
-    expr = pl.lit(None, dtype=pl.Float64)
-    for status, v in values.items():
-        expr = pl.when(pl.col("filing_status") == status).then(pl.lit(float(v))).otherwise(expr)
-    return expr
-
-
-def compute_dc_tax(df: pl.DataFrame, year: int, force_itemize: bool | None = None) -> pl.DataFrame:
+def compute_dc_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     effective_year, flate = resolve_state_year(year)
     p = DC_PARAMS
-    for col in ("proptax", "otheritem", "mortgage", "depx", "dep17", "dividends", "intrec", "ui", "pui", "sui", "childcare"):
-        df = _with_default(df, col)
+    df = with_defaults(df, ("proptax", "otheritem", "mortgage", "depx", "dep17", "dividends", "intrec", "ui", "pui", "sui", "childcare"))
     df = _with_default(df, "state_sales_or_income_tax_ded")
     df = _with_default(df, "ccc")
     df = _with_default(df, "eitc")
     df = _with_default(df, "stcg")
     df = _with_default(df, "ltcg")
+    df = _with_default(df, "taxable_unemployment")
     # `itemizes`/`itemized_deduction`/`salt_capped` aren't exposed by
     # federal_pre1987.py (years<=1986) - the <=1986 itemized-deduction
     # branch below never reads them (uses the raw proptax+otheritem+
@@ -203,23 +65,9 @@ def compute_dc_tax(df: pl.DataFrame, year: int, force_itemize: bool | None = Non
             divexc_expr = pl.when(pl.col("filing_status") == status).then(pl.lit(fed_divexc)).otherwise(divexc_expr)
         dividends_plus_fudge = pl.col("dividends") + 0.001
         addit = pl.min_horizontal(dividends_plus_fudge, divexc_expr).clip(0, None)
-        # `subtra=comnew(78)+data(22)+data(26)` - `data(22)`/`data(26)`
-        # both confirmed permanently $0 elsewhere in this project (AL's
-        # own scope note), but `comnew(78)` ("untax", the taxable portion
-        # of unemployment compensation) is real and, like AL's own
-        # identical situation, not exposed as a column by federal_
-        # pre1987.py - reconstructed via the SAME "diff trick" AL uses:
-        # rerun federal with ui/pui/sui zeroed and take the AGI
-        # difference. Missing this understated `dc_agi` by exactly the
-        # federally-taxable UI amount, caught via a married_joint/
-        # ui=$8,000/sui=$4,000/1980 probe.
-        if (df.get_column("ui").abs().sum() + df.get_column("pui").abs().sum() + df.get_column("sui").abs().sum()) > 0:
-            df_no_ui = df.select(_RAW_INPUT_COLUMNS_PRE1987).with_columns(ui=pl.lit(0.0), pui=pl.lit(0.0), sui=pl.lit(0.0))
-            fed_no_ui = compute_regular_tax_pre1987(df_no_ui, effective_year)
-            untax = pl.col("agi") - fed_no_ui.get_column("agi")
-        else:
-            untax = pl.lit(0.0)
-        df = df.with_columns(dc_agi=pl.col("agi") + addit - untax)
+        df = df.with_columns(
+            dc_agi=pl.col("agi") + addit - pl.col("taxable_unemployment")
+        )
     else:
         df = df.with_columns(dc_agi=pl.col("agi"))
         if 1982 <= effective_year <= 1986:
@@ -424,8 +272,8 @@ def compute_dc_tax(df: pl.DataFrame, year: int, force_itemize: bool | None = Non
     # the split relief's own comparison in one place.
     df = df.with_columns(dc_xitded=pl.when(itemizing_gate).then(pl.col("dc_xitded")).otherwise(0.0))
 
-    if force_itemize is False and effective_year == 1999:
-        df = df.with_columns(dc_xitded=pl.lit(0.0))
+    if effective_year == 1999:
+        df = df.with_columns(dc_xitded=pl.when(forced_standard()).then(0.0).otherwise(pl.col("dc_xitded")))
 
     df = df.with_columns(
         dc_deduc=pl.when(itemizing_gate).then(pl.col("dc_xitded")).otherwise(pl.col("dc_deduc"))

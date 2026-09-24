@@ -68,6 +68,8 @@ def build_mi_test_cases() -> list[dict[str, Any]]:
         rows.append(case(year, "MI dividends, single", mstat=1, pwages=30000, dividends=5000))
         rows.append(case(year, "MI capital gains, single", mstat=1, pwages=20000, ltcg=15000))
         rows.append(case(year, "MI capital gains, high income", mstat=1, pwages=200000, ltcg=100000))
+        rows.append(case(year, "MI capital loss with dividends, single", mstat=1, pwages=30000, dividends=3000, ltcg=-5000))
+        rows.append(case(year, "MI short-term loss offsetting long-term gain, single", mstat=1, pwages=30000, stcg=-8000, ltcg=20000))
         rows.append(case(year, "MI self-employment, single", mstat=1, psemp=50000))
         rows.append(case(year, "MI self-employment, married_joint", mstat=2, pwages=20000, psemp=40000))
         rows.append(case(year, "MI two-earner joint, balanced wages", mstat=2, pwages=60000, swages=55000))

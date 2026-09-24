@@ -1,59 +1,4 @@
-"""Maryland individual income tax (`mdtax`, taxsim_2024_09_21.f:7893-8281,
-state id 21). See parameters/states/md/income_tax.yaml for the full scope
-note (confirmed-inert elderly/pension/political-contribution/tax-
-preference fields).
-
-Harness: 2,855/2,867 (99.6%); the 12 residuals are all small 2023-only
-cases in the standing real-vs-oracle EITC-table divergence family.
-
-The densest state built this session by real mechanism count (unlike
-Maine, where much of the length came from confirmed-inert provisions,
-almost everything here is a real, active formula). Built by reading the
-full 388-line source directly. Real, non-obvious mechanics:
-0. `comnew(N)` mirrors the federal `/newshr/` common block
-   (taxsim_2024_09_21.f:23350) slot for slot - the key that decoded
-   `comnew(36)` as federal PREFERENCE income (see the AGI section) and
-   also pins (4)=divall, (5)=fullcg, (6)=capgn, (7)=capded,
-   (25)=polcon, (32)=twoded, (37)=earned. The 1977-1978 preference
-   figure includes WAGES but only for federal itemizers, and a pure-wage
-   filer becomes a federal itemizer once their own Maryland tax (fed back
-   as a SALT deduction) exceeds the federal standard deduction.
-1. `divexc()` (the federal dividend/interest exclusion swap other states
-   only ever call for 1981) is called here for EVERY year<=1986 -
-   generalized to `min(dividends[+intrec if 1981], dividend_exclusion
-   table[status,year])`, reusing the same per-status table (already
-   covering 1977-1986, not just 1981) every other pre-1987 state build
-   already established.
-2. Single/married_separate filers get a COMPRESSED top-bracket schedule
-   from 2008 on - genuinely lower dollar thresholds for the SAME
-   marginal rates as joint/head_of_household filers, not a transcription
-   quirk.
-3. TWO distinct two-earner-couple provisions coexist: the pre-1987
-   federal `comnew(32)` addback (1982-1986, reused from DC/Colorado/
-   Georgia's own established reconstruction) and Maryland's OWN, much
-   later two-earner SUBTRACTION (1992+, using an explicit husband/wife
-   AGI split - `agih`/`agiw` - the same mechanic Iowa's own build
-   already established, just with Maryland's own dollar caps).
-4. The 2008+ exemption phaseout REPLACES the per-exemption dollar amount
-   outright by federal-AGI bracket (not a percentage reduction) - and
-   the bracket boundaries themselves shift between the 2008-2011 and
-   2012+ eras.
-5. The refundable Earned Income Credit is gated differently by year:
-   1998-2008 and 2020+ require having a qualifying dependent; 2009-2019
-   is available to childless filers too; 2020+ ALSO has a separate,
-   smaller flat-floor provision specifically for childless filers whose
-   nonrefundable credit already zeroed out their tax.
-6. The 2019-2021 standard-deduction floor/ceiling DATA statements fill in
-   strict Fortran column-major order for a `(2,2019:2021)` array, not the
-   "three floors, then three ceilings" grouping their continuation-line
-   layout suggests (2019 joint/HoH: floor $3,050, ceiling $3,100).
-
-Probing caveat found here: the oracle executable can give a DIFFERENT
-answer for the first row of an input file than for the identical row
-placed after any other row (a $200k-wages/$100k-LTCG 1983 case gave
-$14,785 alone but $13,035 as row 2). The batched harness values are the
-consistent ones - live probes should always put a throwaway row first.
-"""
+"""Maryland individual income tax calculator."""
 
 import polars as pl
 
@@ -61,6 +6,7 @@ from taxsim_py.calculators.federal_pre1987 import PRE1987_PARAMS
 from taxsim_py.engine.brackets import bracket_tax
 from taxsim_py.engine.credits import child_care_credit_rate_pre2021
 from taxsim_py.engine.schema import PARAMETERS_ROOT, load_yaml, resolve_year
+from taxsim_py.engine.state import with_defaults, by_filing_status as _by_status, with_default as _with_default
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
 MD_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "md" / "income_tax.yaml")
@@ -68,23 +14,8 @@ FEDERAL_CREDITS_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "credits.yaml"
 _STATUSES = ["single", "married_joint", "married_separate", "head_of_household"]
 
 
-def _with_default(df: pl.DataFrame, column: str, default: float = 0.0) -> pl.DataFrame:
-    if column in df.columns:
-        return df
-    return df.with_columns(pl.lit(default).alias(column))
-
-
-def _by_status(values: dict) -> pl.Expr:
-    expr = pl.lit(None, dtype=pl.Float64)
-    for status, v in values.items():
-        expr = pl.when(pl.col("filing_status") == status).then(pl.lit(float(v))).otherwise(expr)
-    return expr
-
-
 def _tiered_replace(income: pl.Expr, tiers: list[list[float]]) -> pl.Expr:
-    """`>lo and <=hi -> value` bracket-replacement (not additive) - the
-    2008+ exemption phaseout REPLACES the per-exemption dollar amount by
-    federal-AGI bracket rather than reducing it proportionally."""
+    """Select a replacement value from an income tier."""
     expr = pl.lit(None, dtype=pl.Float64)
     for lo, hi, value in tiers:
         cond = (income > lo) & (income <= hi)
@@ -93,11 +24,7 @@ def _tiered_replace(income: pl.Expr, tiers: list[list[float]]) -> pl.Expr:
 
 
 def _raw_ccc_pre1987(df: pl.DataFrame, year: int) -> pl.Expr:
-    """`comnew(53)` for years<=1986 - the raw federal Child Care Credit
-    amount before combining with the unrelated federal General Tax
-    Credit and before the nonrefundable cap, matching Maine's own
-    already-established reconstruction (`federal_pre1987.py`'s own
-    exposed `credit` column is the COMBINED, capped total instead)."""
+    """Reconstruct the uncapped pre-1987 federal child care credit."""
     expense_cap = float(resolve_year(PRE1987_PARAMS["child_care_credit_expense_cap"], year))
     chmax = expense_cap * pl.col("dep13").clip(0, 2)
     chwage = (pl.col("pwages") + pl.col("swages")).clip(0, None)
@@ -111,10 +38,7 @@ def _raw_ccc_pre1987(df: pl.DataFrame, year: int) -> pl.Expr:
 
 
 def _raw_ccc_1987_1997(df: pl.DataFrame, year: int) -> pl.Expr:
-    """`comnew(53)` for 1987-1997 - federal.py's own `ccc` column is
-    deliberately $0 for years<1998 (a real, separately-documented
-    federal-side quirk about the credit-stacking mechanism), reused from
-    the same Kansas/Kentucky/Louisiana/Maine reconstruction."""
+    """Reconstruct the uncapped 1987-1997 federal child care credit."""
     ccc_p = FEDERAL_CREDITS_PARAMS["child_care_credit"]
     max_qualifying_persons = float(resolve_year(ccc_p["max_qualifying_persons"], year))
     max_expense_per_person = float(resolve_year(ccc_p["max_expense_per_person_pre2021"], year))
@@ -134,11 +58,10 @@ def _raw_ccc_1987_1997(df: pl.DataFrame, year: int) -> pl.Expr:
     return ccc_rate * ccc_expense
 
 
-def compute_md_tax(df: pl.DataFrame, year: int, force_itemize: bool | None = None) -> pl.DataFrame:
+def compute_md_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     effective_year, flate = resolve_state_year(year)
     p = MD_PARAMS
-    for col in ("proptax", "otheritem", "mortgage", "dividends", "intrec", "depx", "dep17", "dep18", "childcare"):
-        df = _with_default(df, col)
+    df = with_defaults(df, ("proptax", "otheritem", "mortgage", "dividends", "intrec", "depx", "dep17", "dep18", "childcare"))
     df = _with_default(df, "eitc")
     df = _with_default(df, "ccc")
     df = _with_default(df, "itemized_deduction")

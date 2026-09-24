@@ -124,6 +124,14 @@ capital_gains_exclusion_rate:
 # 10% of the lesser-earning spouse's own wages, capped in dollars. 1982
 # ONLY used a smaller, transitional 5%/$1,500 version (taxsim_2022_10_21.f:
 # 23421-23425) before the full 10%/$3,000 version took effect 1983+.
+# Net capital loss deductible against other income (`clslim`, divided by
+# `sepret` for married filing separately), and the share of a net
+# long-term loss that counts toward it.
+net_capital_loss_limit:
+  1977: 2000
+  1978: 3000
+long_term_loss_share: {1977: 0.5}
+
 two_earner_deduction_rate:
   1982: 0.05
   1983: 0.10

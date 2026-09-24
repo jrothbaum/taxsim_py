@@ -450,6 +450,13 @@ capital_gains_exclusion_rate:
 # Personal exemption dollar amount per exemption unit (`exemps` = self/
 # spouse count + depx; elderly/blind additions are inert here - see module
 # docstring). taxsim_2022_10_21.f:22643-22653.
+# Net capital loss deductible against other income (`clslim`). Married
+# filing separately gets half from 1971 on.
+net_capital_loss_limit: {1960: 1000}
+net_capital_loss_limit_married_separate:
+  1960: 1000
+  1971: 500
+
 personal_exemption_amount:
   1960: 600
   1970: 625

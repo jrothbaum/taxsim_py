@@ -1,41 +1,10 @@
-"""Colorado individual income tax (`cotax`, taxsim_2022_10_21.f:2930-3260,
-state id 6). See parameters/states/co/income_tax.yaml for the full scope
-note - much smaller than Arkansas/California: for 1987+ Colorado taxes
-FEDERAL TAXABLE INCOME directly at a flat rate (the simplest federal-
-conformity mechanism of any state built so far), plus its own mini-AMT
-(a flat rate on the federal AMT base, added on top whenever it exceeds
-CO's own regular tax).
-
-Full real-law range (1977-2021) validated via scripts/validate_states.py:
-2,057/2,070 exact (99.4%). Two real bugs found via live oracle probes:
-`comnew(3)` (`zbr`) is NOT a dead pre-1987 relic in `law87` - it's
-reassigned there to the FEDERAL standard deduction amount, which the
-2000-2002 Marriage Penalty Subtraction formula genuinely needs (a first
-pass assuming it was $0 overstated that subtraction by the filer's full
-standard deduction); and the 1982-1986 two-earner-deduction addback
-(`comnew(32)`), initially skipped as an acknowledged gap, turned out to
-matter even though it's capped/reversed elsewhere - fixed by recomputing
-it locally (same technique `federal_pre1987.py` uses internally without
-exposing it). Oddly, the SEPARATE 1992+ state-tax-itemized-deduction
-addback (`comnew(24)-comnew(3)`) empirically needs `comnew(3)` treated as
-$0 despite reading the identical variable - not fully reconciled, but
-confirmed correct by direct comparison against the oracle rather than
-assumed from one formula to the other.
-
-Remaining 13 failures, not chased further: ~6 sub-$2 residuals on
-dividend-income cases (unisolated, likely a small rounding artifact in
-the pre-1987 AGI reconstruction) and 7 cases (married_separate, $260,000
-wages, 2006-2012) showing the same self-referential SALT-feedback-loop
-sensitivity already documented for California/Arizona - CO's own state-
-tax-paid addback interacts with the 3-iteration federal/state fixed point
-in a way that's more sensitive for married_separate specifically at this
-income level.
-"""
+"""Colorado individual income tax calculator."""
 
 import polars as pl
 
 from taxsim_py.engine.brackets import bracket_tax
 from taxsim_py.engine.schema import PARAMETERS_ROOT, load_yaml, resolve_year
+from taxsim_py.engine.state import with_defaults, interpolate_table as _table_lookup, with_default as _with_default
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
 CO_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "co" / "income_tax.yaml")
@@ -45,41 +14,13 @@ FEDERAL_AMT_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "amt.yaml")
 _STATUSES = ["single", "married_joint", "married_separate", "head_of_household"]
 
 
-def _with_default(df: pl.DataFrame, column: str, default: float = 0.0) -> pl.DataFrame:
-    if column in df.columns:
-        return df
-    return df.with_columns(pl.lit(default).alias(column))
-
-
-def _table_lookup(income: pl.Expr, rows: list[list[float]]) -> pl.Expr:
-    """`tablki`-style: linear interpolation between adjacent (threshold,
-    value) points; flat at the first value below the first threshold and
-    at the last value at/above the last (finite) threshold."""
-    thresholds = [r[0] for r in rows[:-1]]
-    values = [r[1] for r in rows]
-    expr = pl.lit(values[-1])
-    for i in range(len(thresholds) - 1, -1, -1):
-        t_hi = thresholds[i]
-        v_hi = values[i]
-        if i == 0:
-            below = pl.lit(v_hi)
-        else:
-            t_lo = thresholds[i - 1]
-            v_lo = values[i - 1]
-            w = (income - t_lo) / (t_hi - t_lo)
-            below = w * v_lo + (1 - w) * v_hi if v_hi > v_lo else w * v_hi + (1 - w) * v_lo
-        expr = pl.when(income < t_hi).then(below).otherwise(expr)
-    return expr
-
-
-def compute_co_tax(df: pl.DataFrame, year: int, force_itemize: bool | None = None) -> pl.DataFrame:
+def compute_co_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     effective_year, flate = resolve_state_year(year)
     p = CO_PARAMS
-    for col in (
+    df = with_defaults(df, (
         "proptax", "otheritem", "mortgage", "dividends", "ltcg", "stcg", "intrec",
         "depx", "dep18", "childcare", "psemp", "ssemp",
-    ):
-        df = _with_default(df, col)
+    ))
 
     # Year>2021 (LASTAT): no real CO law exists in the oracle past this
     # point - it deflates every dollar-valued input by `flate`, runs 2021's
@@ -260,7 +201,7 @@ def compute_co_tax(df: pl.DataFrame, year: int, force_itemize: bool | None = Non
         # though the marriage-penalty formula below needs it treated as
         # the real federal standard deduction - not fully reconciled, but
         # matching the oracle takes priority; see that note for context.
-        if effective_year >= 1992 and "itemized_deduction" in df.columns and "itemizes" in df.columns:
+        if effective_year >= 1992 and "itemized_deduction" in df.collect_schema().names() and "itemizes" in df.collect_schema().names():
             addback = pl.when(pl.col("itemizes")).then(
                 pl.min_horizontal(pl.col("state_sales_or_income_tax_ded").clip(0, None), pl.col("itemized_deduction"))
             ).otherwise(0.0)
@@ -277,7 +218,7 @@ def compute_co_tax(df: pl.DataFrame, year: int, force_itemize: bool | None = Non
         # 24262) - confirmed via a live oracle probe showing the real
         # subtraction is ~$1,450 (xmar-stded), not the full $8,800 flat
         # `xmar` a first pass assumed by treating comnew(3) as $0.
-        if 2000 <= effective_year <= 2002 and "itemizes" in df.columns:
+        if 2000 <= effective_year <= 2002 and "itemizes" in df.collect_schema().names():
             xmar = float(p["marriage_penalty_subtraction_2000_2002"][effective_year])
             is_joint = pl.col("filing_status") == "married_joint"
             zbr = pl.col("standard_deduction")
@@ -328,7 +269,7 @@ def compute_co_tax(df: pl.DataFrame, year: int, force_itemize: bool | None = Non
         df = df.with_columns(co_salesrefund=pl.lit(0.0))
 
     # --- Child Care Credit ---
-    child_fed = pl.col("ccc").clip(0, None) if "ccc" in df.columns else pl.lit(0.0)
+    child_fed = pl.col("ccc").clip(0, None) if "ccc" in df.collect_schema().names() else pl.lit(0.0)
     if effective_year in (1996, 1997) or effective_year >= 2002:
         rate = _table_lookup(pl.col("agi").clip(0, None), p["child_care_credit_table_1996plus"])
         df = df.with_columns(co_chcr=rate * child_fed)
@@ -346,7 +287,7 @@ def compute_co_tax(df: pl.DataFrame, year: int, force_itemize: bool | None = Non
         df = df.with_columns(co_chcr=pl.lit(0.0))
 
     # --- Earned Income Credit ---
-    eitc_fed = pl.col("eitc").clip(0, None) if "eitc" in df.columns else pl.lit(0.0)
+    eitc_fed = pl.col("eitc").clip(0, None) if "eitc" in df.collect_schema().names() else pl.lit(0.0)
     if effective_year == 1999:
         df = df.with_columns(co_earncr=float(p["eitc_rate_1999"]) * eitc_fed)
     elif (2000 <= effective_year <= 2001) or effective_year >= 2015:

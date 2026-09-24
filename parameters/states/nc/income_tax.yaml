@@ -1,0 +1,114 @@
+# North Carolina individual income tax (TAXSIM `nctax`, taxsim_2024_09_21.f:15186-15741).
+# Brackets are [start, rate] rows converted from TAXSIM's `look2` upper-bound
+# tables (the last rate continues beyond the table).
+
+# --- Through 1988: separate spouse returns, 1977 schedule ---
+brackets_1977: [[0, 0.03], [2000, 0.04], [4000, 0.05], [6000, 0.06], [10000, 0.07]]
+# Exemptions: `xmp` taxpayer (and wife's own on a joint return), `xmp2` the
+# husband's own on a joint return and each age/blind addition, `xmpc` each dependent.
+exemption_taxpayer: {1977: 2000.0, 1980: 2100.0}
+exemption_additional: {1977: 1000.0, 1980: 1100.0}
+exemption_dependent: {1977: 600.0, 1980: 700.0, 1981: 800.0}
+standard_deduction_rate_pre1989: 0.10
+standard_deduction_cap_pre1989: {1977: 500.0, 1980: 550.0}
+charity_limit_share_pre1989: 0.15
+# Child care expenses deducted as an itemized deduction.
+childcare_deduction_cap_1977_1978: 4800.0
+childcare_deduction_per_child_1979_1980: 2000.0
+# Interest exclusion 1980-1982 (split between spouses on a joint return).
+interest_exclusion_1980_1982: 100.0
+# Low income credit 1986-1988: [income upper bound, credit].
+low_income_credit: [[5000, 25.0], [10000, 20.0], [15000, 15.0]]
+
+# --- 1989 on: from federal taxable income ---
+standard_deduction:
+  single: {1989: 3000.0, 2014: 7500.0, 2016: 8250.0, 2017: 8750.0, 2019: 10000.0, 2020: 10750.0}
+  head_of_household: {1989: 4400.0, 2014: 12000.0, 2016: 13200.0, 2017: 14000.0, 2019: 15000.0, 2020: 16125.0}
+  # Married; halved for married filing separately.
+  married: {1989: 5000.0, 2003: 5500.0, 2004: 6000.0, 2014: 15000.0, 2016: 16500.0, 2017: 17500.0, 2019: 20000.0, 2020: 21500.0}
+# 2014+: mortgage interest plus property tax capped.
+mortgage_property_tax_cap_2014plus: 20000.0
+medical_floor_2020plus: 0.075
+
+# Exemption amount per exemption, 1990-1994.
+exemption_1990_1994: {1990: 50.0, 1991: 150.0, 1992: 300.0, 1993: 350.0, 1994: 450.0}
+# 1995-2013 addition per exemption: worksheet A (federal AGI at or below the
+# phaseout) and worksheet B (above).
+exemption_addition_a: {1995: 250.0, 1996: 50.0, 1997: 150.0, 1998: 200.0, 1999: 250.0, 2000: 300.0, 2001: 400.0, 2002: 500.0, 2003: 550.0, 2004: 600.0, 2005: 700.0, 2006: 800.0, 2007: 900.0, 2008: 1000.0, 2009: 1150.0, 2011: 1200.0, 2012: 2500.0}
+exemption_addition_b: {1995: 500.0, 1996: 550.0, 1997: 650.0, 1998: 700.0, 1999: 750.0, 2000: 800.0, 2001: 900.0, 2002: 1000.0, 2003: 1100.0, 2004: 1200.0, 2006: 1300.0, 2007: 1400.0, 2008: 1500.0, 2009: 1650.0, 2011: 1700.0, 2012: 2000.0}
+exemption_phaseout_agi: {single: 60000.0, married_joint: 100000.0, head_of_household: 80000.0, married_separate: 50000.0}
+# Federal exemption amount per exemption before phaseout (`exem`).
+federal_exemption_amount: {1987: 1900.0, 1988: 1950.0, 1989: 2000.0, 1990: 2050.0, 1991: 2150.0, 1992: 2300.0, 1993: 2350.0, 1994: 2450.0, 1995: 2500.0, 1996: 2550.0, 1997: 2650.0, 1998: 2700.0, 1999: 2750.0, 2000: 2800.0, 2001: 2900.0, 2002: 3000.0, 2003: 3050.0, 2004: 3100.0, 2005: 3200.0, 2006: 3300.0, 2007: 3400.0, 2008: 3500.0, 2009: 3650.0, 2011: 3700.0, 2012: 3800.0, 2013: 3900.0}
+# 2006-2009: federal AGI band above the federal phaseout start where only a
+# share of the worksheet B addition applies.
+exemption_partial_phaseout_start:
+  2006: {single: 150500.0, married_joint: 225750.0, head_of_household: 188150.0, married_separate: 112875.0}
+  2007: {single: 156400.0, married_joint: 234600.0, head_of_household: 195500.0, married_separate: 117300.0}
+  2008: {single: 159950.0, married_joint: 239950.0, head_of_household: 199950.0, married_separate: 119975.0}
+  2009: {single: 166800.0, married_joint: 250200.0, head_of_household: 208500.0, married_separate: 125000.0}
+exemption_partial_phaseout_width: 122500.0
+exemption_partial_share: {2006: 0.333, 2008: 0.666}
+
+# Net business income deduction 2012-2013, per taxpayer.
+business_income_deduction_2012_2013: 50000.0
+
+# Child deduction 2018+ per CTC-eligible child, by federal AGI (`tablki`).
+child_deduction:
+  married_joint: [[40000, 2500.0], [60000, 2000.0], [80000, 1500.0], [100000, 1000.0], [120000, 500.0], [1.0e+20, 0.0]]
+  single: [[20000, 2500.0], [30000, 2000.0], [40000, 1500.0], [50000, 1000.0], [60000, 500.0], [1.0e+20, 0.0]]
+  head_of_household: [[30000, 2500.0], [45000, 2000.0], [60000, 1500.0], [75000, 1000.0], [90000, 500.0], [1.0e+20, 0.0]]
+
+brackets:
+  1989:
+    single: [[0, 0.06], [12750, 0.07]]
+    head_of_household: [[0, 0.06], [17000, 0.07]]
+    married: [[0, 0.06], [21750, 0.07]]
+  1991:
+    single: [[0, 0.06], [12750, 0.07], [60000, 0.0775]]
+    head_of_household: [[0, 0.06], [17000, 0.07], [80000, 0.0775]]
+    married: [[0, 0.06], [21250, 0.07], [100000, 0.0775]]
+  2001:
+    single: [[0, 0.06], [12750, 0.07], [60000, 0.0775], [120000, 0.0825]]
+    head_of_household: [[0, 0.06], [17000, 0.07], [80000, 0.0775], [160000, 0.0825]]
+    married: [[0, 0.06], [21250, 0.07], [100000, 0.0775], [200000, 0.0825]]
+  2007:
+    single: [[0, 0.06], [12750, 0.07], [60000, 0.0775], [120000, 0.08]]
+    head_of_household: [[0, 0.06], [17000, 0.07], [80000, 0.0775], [160000, 0.08]]
+    married: [[0, 0.06], [21250, 0.07], [100000, 0.0775], [200000, 0.08]]
+  2008:
+    single: [[0, 0.06], [12750, 0.07], [60000, 0.0775]]
+    head_of_household: [[0, 0.06], [17000, 0.07], [80000, 0.0775]]
+    married: [[0, 0.06], [21250, 0.07], [100000, 0.0775]]
+flat_rate: {2014: 0.058, 2015: 0.0575, 2017: 0.05499, 2019: 0.0525}
+
+# Surtax 2009-2010 on taxable income: [lower bound, multiplier] above each bound
+# (married thresholds halved for married filing separately).
+surtax_2009_2010:
+  single: [[60000, 1.02], [150000, 1.03]]
+  head_of_household: [[80000, 1.02], [200000, 1.03]]
+  married: [[100000, 1.02], [250000, 1.03]]
+
+# Child care credit: eligible expense per child (`child`), with the number of
+# children counted as at most 2.
+child_care_expense_per_child: {1981: 2000.0, 1985: 2200.0, 1990: 2400.0, 2006: 3000.0}
+child_care_rate: {1981: 0.07, 1990: 0.10}
+# 1994-2013 rate by federal AGI (`tablki`; married uses AGI times `sep`).
+child_care_rate_1994:
+  married: [[25000, 0.09], [40000, 0.08], [1.0e+20, 0.07]]
+  single: [[15000, 0.09], [24000, 0.08], [1.0e+20, 0.07]]
+  head_of_household: [[20000, 0.09], [32000, 0.08], [1.0e+20, 0.07]]
+
+# Child tax credit 1995-2017.
+child_credit: {1995: 60.0, 2003: 75.0, 2004: 100.0}
+child_credit_agi_limit: {single: 60000.0, married_joint: 100000.0, head_of_household: 80000.0, married_separate: 50000.0}
+child_credit_low_amount_2014: 125.0
+child_credit_low_agi_2014: {single: 20000.0, married_joint: 40000.0, head_of_household: 32000.0, married_separate: 20000.0}
+child_credit_high_agi_2014: {single: 50000.0, married_joint: 100000.0, head_of_household: 80000.0, married_separate: 50000.0}
+
+# Charitable credit for federal non-itemizers 1997-2013.
+charity_credit_floor_share: 0.02
+charity_credit_rate: {1997: 0.0275, 1999: 0.07}
+charity_nonitemizer_addback_2020: 300.0
+
+# EITC match of the federal credit 2008-2013.
+eitc_rate: {2008: 0.035, 2009: 0.05, 2013: 0.045}

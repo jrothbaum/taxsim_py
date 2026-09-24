@@ -1,91 +1,11 @@
-"""Alabama individual income tax (`altax`, taxsim_2022_10_21.f:549-727,
-state id 1). See parameters/states/al/income_tax.yaml for the full scope
-note (which real `altax` mechanisms are unreachable given this project's
-federal input schema, and the year-extrapolation note for 2022+).
-
-Takes BOTH the federal calculator's own output (`compute_regular_tax`) AND
-the payroll calculator's output (`compute_payroll_tax`) - unlike Illinois,
-Alabama's itemized deduction includes a real addback for half of FICA/
-self-employment tax, so the caller must run payroll before this.
-
-Two techniques used here that Illinois didn't need:
-1. The federal dividend/capital-gains-exclusion addback (real 1977-1986,
-   negligible 1987+, same mechanism already found for Illinois) is reused
-   directly from parameters/national/pre1987.yaml rather than re-derived.
-2. Federal `untax` (the taxable portion of unemployment compensation - AL
-   exempts UI entirely, so whatever the federal return taxed must be added
-   back) isn't exposed as its own column by EITHER federal calculator
-   module (federal_pre1987.py trims its output, and law87's own internal
-   `untax` differs by era in ways this module doesn't want to re-derive).
-   Computed instead via a "diff trick": call `compute_regular_tax` a
-   second time with ui/pui/sui zeroed and take the AGI difference - valid
-   because `agi` is genuinely additive in the taxable-UI term in both
-   federal eras, and reuses the already-validated federal calculator
-   instead of re-implementing its own per-era UI formula.
-
-Harness: 1,296/1,310 exact on `siitax` (98.9%) as of Arkansas's own build
-(the fix that got Arkansas to 100% - `federal.py`'s `compute_regular_tax`
-dispatcher was silently dropping `force_itemize` for every year<=1986
-instead of forwarding it to `federal_pre1987.py` - turned out to be
-responsible for most of what this docstring used to describe as ~57
-"accepted artifacts" for Alabama too, not AR-specific at all). The
-remaining 14 failures (all married_separate at high income, 2008+) are a
-genuine, confirmed oracle artifact, not a missing formula - verified via a
-debug-instrumented, single-record (non-batched) oracle probe:
-- married_separate at high income, 2008+: the oracle's OWN internal
-  federal tax figure (idtl=2's `v19`/`v27`, matching this project's
-  isolated federal calculation exactly) disagrees with what it finally
-  reports as `fiitax` for the SAME record - a genuine WITHIN-record
-  staleness bug in the source's own `tcalc`/`tcalc2` iteration (likely
-  because `sstax`, which computes `fica`/`setax`, runs once per `tcalc2`
-  call rather than once per internal iteration, so those values lag by
-  one iteration within a single record's own convergence). This is a NEW
-  variant of the already-established "oracle iteration/batch artifact"
-  family (see the frate knife-edges and cross-record staleness documented
-  elsewhere in this project) - confirmed, not chased into bit-exact
-  replication, per the same precedent.
-
-2022/2023 (CPI-extrapolated, `effective_year` forced to 2021 - see
-engine/state_extrapolation.py): harness sits at 1,353/1,368 (98.9%),
-extending the SAME married_separate artifact above (now also appearing in
-extrapolated 2022, since it runs the identical code path) plus 4 new
-high-income 2023 cases, all off by the same constant $20.46 - matching
-this project's already-accepted real-vs-oracle-2023 parameter overrides
-(see feedback_real_params_over_oracle_bugs / project_taxsim_py_port
-memory): AL's federal-tax-paid deduction (`al_fedtax`, below) consumes
-`tax_before_credits` at the REAL year undeflated (see the deflate-column
-comment below), so a deliberate real-parameter substitution in federal.py
-for 2023 propagates straight through, exactly as expected. Getting here
-required two real fixes beyond the initial deflate/reinflate skeleton:
-1. `al_setax`/the UI diff-trick's `al_taxable_ui` must be computed at the
-   REAL `year`'s rates on REAL (undeflated) wages, not `effective_year`'s
-   - `setax`/`untax` are each produced ONCE by the real dispatcher's main
-   federal pass, at the real year, BEFORE `statax`'s own deflate loop
-   runs (taxsim_2022_10_21.f:62-65) - "deflate wages then compute" and
-   "compute then deflate the result" are NOT interchangeable since a
-   later real year's own rates/thresholds differ from 2021's by more
-   than just the CPI ratio.
-2. The dispatcher's own generic deflate loop only covers `comnew(1:98)` -
-   `comnew(154)` (the >=2009 `al_fedtax` formula), `comnew(173)`=niit,
-   `comnew(175)`=setax, and `comnew(180)`=addmed all sit OUTSIDE that
-   range and reach `altax` completely UNSCALED even in an extrapolated
-   year, while `agi`/`fica`/`eitc`/`actc`/`ccc`/`odc` (comnew 2/75/59/
-   93/53/81ish) are all inside it and DO get scaled - a genuine,
-   confirmed mix of deflated and undeflated quantities within the same
-   formula, replicated as found rather than "corrected" to be uniform.
-Also: the old `effective_year==2021` "federal lookback to law year 2020"
-branch (matching an OLDER oracle vintage, taxsim_2022_10_21.f) no longer
-applies - taxsim_2024_09_21.f has that whole mechanism commented out in
-favor of one unconditional >=2009 formula (see the `al_fedtax` section
-below for the live-probe derivation of `comnew(154)`).
-"""
+"""Alabama individual income tax calculator."""
 
 import polars as pl
 
-from taxsim_py.calculators.federal import compute_regular_tax
 from taxsim_py.engine.brackets import bracket_tax
 from taxsim_py.engine.payroll_tax import self_employment_tax
 from taxsim_py.engine.schema import PARAMETERS_ROOT, load_yaml, resolve_year
+from taxsim_py.engine.state import with_defaults, with_default as _with_default
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
 AL_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "al" / "income_tax.yaml")
@@ -93,30 +13,11 @@ PRE1987_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "pre1987.yaml")
 PAYROLL_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "payroll_tax.yaml")
 _PRE1987_STATUSES = ["single", "married_joint", "married_separate", "head_of_household"]
 
-# Raw federal input columns only - re-invoking `compute_regular_tax` (the
-# "diff trick" and the 2021 lookback, see module docstring) must start from
-# JUST these, not this module's own already-federal-processed `df` (which
-# already has `filing_status`/`agi`/etc. added - re-running the federal
-# calculator on top of those would try to add `filing_status` a second
-# time and collide).
-_RAW_INPUT_COLUMNS = [
-    "mstat", "depx", "dep17", "dep18", "dep6", "dep13", "pwages", "swages",
-    "proptax", "otheritem", "mortgage", "childcare", "intrec", "psemp",
-    "ssemp", "dividends", "stcg", "ltcg", "ui", "pui", "sui",
-]
-
-
-def _with_default(df: pl.DataFrame, column: str, default: float = 0.0) -> pl.DataFrame:
-    if column in df.columns:
-        return df
-    return df.with_columns(pl.lit(default).alias(column))
-
-
 def compute_al_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     effective_year, flate = resolve_state_year(year)
     p = AL_PARAMS
-    for col in ("proptax", "otheritem", "mortgage", "dividends", "ltcg", "intrec", "ui", "pui", "sui", "psemp", "ssemp"):
-        df = _with_default(df, col)
+    df = with_defaults(df, ("proptax", "otheritem", "mortgage", "dividends", "ltcg", "intrec", "ui", "pui", "sui", "psemp", "ssemp"))
+    df = _with_default(df, "taxable_unemployment")
 
     df = df.with_columns(
         al_sep=pl.when(pl.col("filing_status") == "married_separate").then(2.0).otherwise(1.0)
@@ -172,19 +73,8 @@ def compute_al_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     )
     df = df.with_columns(al_setax=al_setax_p + al_setax_s)
 
-    # Taxable-UI addback via the "diff trick" (see module docstring) - AL
-    # fully exempts unemployment compensation, so whatever the federal
-    # return taxed must be added back onto AL's own AGI. Same reasoning as
-    # `setax` above: computed at the REAL `year` on REAL (undeflated)
-    # wages, since federal `untax`/comnew(78) is likewise produced once at
-    # the real year before statax's own deflate loop runs - not
-    # recomputed locally at `effective_year` on already-deflated wages.
-    if (df.get_column("ui").abs().sum() + df.get_column("pui").abs().sum() + df.get_column("sui").abs().sum()) > 0:
-        df_no_ui = df.select(_RAW_INPUT_COLUMNS).with_columns(ui=pl.lit(0.0), pui=pl.lit(0.0), sui=pl.lit(0.0))
-        fed_no_ui = compute_regular_tax(df_no_ui, year)
-        df = df.with_columns(al_taxable_ui=(pl.col("agi") - fed_no_ui.get_column("agi")))
-    else:
-        df = df.with_columns(al_taxable_ui=pl.lit(0.0))
+    # AL exempts the unemployment compensation included in federal AGI.
+    df = df.with_columns(al_taxable_ui=pl.col("taxable_unemployment"))
 
     # Year>LASTAT (2021): no real AL law exists in the oracle past this
     # point - deflate every dollar-valued raw/federal-computed input by

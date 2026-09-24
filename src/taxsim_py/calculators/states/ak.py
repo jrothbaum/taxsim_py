@@ -1,8 +1,4 @@
-"""Alaska individual income tax (`aktax`, taxsim_2022_10_21.f:728-808,
-state id 2). See parameters/states/ak/income_tax.yaml for the full scope
-note - real only 1977-1979 (repealed 1980+ "after the oil boom"), the
-smallest reachable range of any state.
-"""
+"""Alaska individual income tax calculator."""
 
 import polars as pl
 

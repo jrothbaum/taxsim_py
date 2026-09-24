@@ -73,6 +73,27 @@ special_exemption:
   2011: 2400
   2012: 0
 
+dependent_exemption:
+  1977: 0
+  1998: 300
+  2000: 600
+  2012: 0
+
+# AGI addback for the deductible portion of self-employment tax.
+self_employment_tax_agi_addback_rate:
+  1998: 0.5
+self_employment_tax_agi_addback_threshold:
+  2011: 14204
+self_employment_tax_agi_addback_lower_rate:
+  2011: 0.5751
+self_employment_tax_agi_addback_upper_rate:
+  2011: 0.5
+self_employment_tax_agi_addback_amount:
+  2011: 1067
+
+special_exemption_ui_share:
+  1987: 0.5
+
 # Homestead property tax credit: household-resources ceiling above which
 # the credit phases down 10% per $1,000 (`pallow`); fully gone $9,000
 # above it.
@@ -85,6 +106,22 @@ property_credit_phaseout_start:
   2012: 41000
   2018: 51000
   2021: 51600
+property_credit_income_share:
+  1977: 0.035
+  2018: 0.032
+property_credit_self_employment_tax_deduction_rate:
+  1977: 0.5
+property_credit_rate:
+  1977: 0.6
+property_credit_cap:
+  1977: 1200
+  2018: 1500
+property_credit_phaseout_rate:
+  1977: 0.1
+property_credit_phaseout_step:
+  1977: 1000
+property_credit_phaseout_range:
+  1977: 9000
 
 # Home heating credit.
 heating_credit_share:  # `frt` - share of the computed credit actually paid
@@ -101,6 +138,8 @@ heating_credit_share:  # `frt` - share of the computed credit actually paid
   2019: 0.80
   2020: 0.85
   2021: 1.0
+heating_credit_income_rate:
+  1977: 0.035
 heating_credit_base_1977_1984:  # `fuelc1`, by exemptions 1-6
   - [200, 240, 280, 310, 340, 370]
 heating_credit_inflation_1977_1984:  # `cin`

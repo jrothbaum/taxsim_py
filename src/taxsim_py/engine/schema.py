@@ -1,9 +1,4 @@
-"""Parameter loading and effective-year resolution.
-
-Parameters are stored with sparse integer-year keys (see the design doc): a value
-is only present for a year if it changed from the prior coded year. Resolution
-picks the value at the largest coded year <= the requested year.
-"""
+"""Parameter loading and effective-year resolution."""
 
 from pathlib import Path
 from typing import Any
@@ -13,17 +8,17 @@ import yaml
 PARAMETERS_ROOT = Path(__file__).resolve().parents[3] / "parameters"
 
 
+# The C loader parses identically to the pure-Python safe loader, faster.
+_YAML_LOADER = getattr(yaml, "CSafeLoader", yaml.SafeLoader)
+
+
 def load_yaml(path: Path) -> dict[str, Any]:
     with path.open() as f:
-        return yaml.safe_load(f)
+        return yaml.load(f, Loader=_YAML_LOADER)
 
 
 def resolve_year(by_year: dict[int, Any], year: int) -> Any:
-    """Pick the value at the largest coded year <= `year`.
-
-    Raises if `year` is before the first coded year - callers should not
-    silently extrapolate backward past known law.
-    """
+    """Return the latest parameter value in effect for a year."""
     coded_years = sorted(by_year)
     candidates = [y for y in coded_years if y <= year]
     if not candidates:

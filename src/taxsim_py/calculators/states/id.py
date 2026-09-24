@@ -1,93 +1,11 @@
-"""Idaho individual income tax (`idtax`, taxsim_2024_09_21.f:5508-5782,
-state id 13). See parameters/states/id/income_tax.yaml for the full scope
-note (confirmed-inert age/blind/dependent-return/solar/political/jobs-
-credit/investment-credit fields, and the genuine QBI-deduction scope gap
-inherited from federal.py itself never having implemented it).
-
-Real, non-obvious mechanics found while building this:
-1. `exemp=comnew(83)` - Idaho's own exemption is federal's OWN computed
-   personal-exemption total, not a locally-derived formula the way every
-   other state built so far computes its own exemption. `comnew(83)`
-   isn't exposed as a federal.py column (it's a local Python variable,
-   `amex`, inside `compute_regular_tax`, never persisted) - reconstructed
-   here via `_federal_personal_exemption()`, a deliberate near-duplicate
-   of federal.py's own PEP-phaseout logic (the same kind of local
-   reconstruction Connecticut's own `_federal_tentative_minimum_tax`
-   already does for federal's AMT).
-2. `stded=comnew(3)` for 1978-1992 - Idaho's own standard deduction reuses
-   federal's own zero-bracket-amount/standard-deduction, but split by
-   sub-era, discovered via a mix of a debug-instrumented oracle probe
-   (unreliable - see bug #1 below) and real-expected-tax algebra:
-   - 1978-1986 (law79): the REAL federal zbr (`PRE1987_PARAMS["standard_
-     deduction"]`), unconditionally.
-   - 1987-1992 (law87): federal's real `standard_deduction` column, but
-     ONLY when federal itself does NOT itemize - the moment federal
-     itemizes (which, via the circular federal/state SALT loop, can
-     happen even with zero itemizable inputs once Idaho's own growing
-     state tax liability alone exceeds the flat standard deduction),
-     `comnew(3)` reverts to its initialized $0 (see bug #2).
-   - 1993+: Idaho's own flat, Idaho-specific `deds`/`dedh`/`dedj`/`dedw`
-     per-status tables (fed-independent) - `dedw` (married_separate,
-     1999+) is a REAL, distinct table from `dedj/sep` (bug #3).
-3. Married_joint AND head_of_household BOTH get the halve-then-double
-   `txp=2` treatment against a SINGLE shared bracket table - unlike every
-   other state built so far, Idaho has no separate HoH table at all (nor
-   a separate single-vs-married one); all four statuses share one table,
-   split only by whether `txp` is 1 or 2.
-4. 2001+ brackets are additionally deflated by a real inflation-
-   adjustment factor (`aif01`) before the lookup and the resulting tax
-   reinflated by the same factor - matching the shared `look`/`look2`
-   subroutine's own generic `aif` parameter (the same mechanic already
-   documented for Arizona's own bracket tables, just unused by every
-   other already-built state's own calls to `look`).
-5. The Permanent Building Fund Tax is a real, flat $10 ADD-ON to the
-   final tax (not a credit reduction) - gated on household income
-   exceeding a status-specific exemption limit.
-6. The ENTIRE AGI-adjustment block (childcare deduction, state-tax-
-   refund/alt-energy subtraction, `xjobs()`, SS-in-AGI) is gated
-   `if(law.ge.1978)` in the source - 1977 gets NO adjustments at all,
-   straight `agi=comnew(2)`; easy to miss since 1977 also has its own,
-   separately-gated standard-deduction formula right below.
-
-Real bugs found via live-oracle-probe/algebraic validation (harness:
-2,350/2,350, 100%):
-1. `idtl=6` debug dumps of `comnew()`/`data()` are UNRELIABLE for this
-   state: the source's own marginal-tax-rate computation loop
-   (taxsim_2024_09_21.f:21358-21400) reruns `tcalc` with wages bumped by
-   +/-$0.01 AFTER the real record's own pass and never restores `comnew`
-   before printing - so an `idtl=6` probe reflects a perturbed, ITEMIZE-
-   OR-STANDARD-flipped rerun, not the actual filed case. Real expected-
-   siitax reverse-engineering (inverting the bracket table algebraically)
-   was needed instead once this was discovered.
-2. `comnew(3)` (1987-1992's `stded`) is $0 whenever federal itemizes, not
-   just when explicitly forced to - confirmed algebraically for 1987/
-   single: `deduc+exemp` is exactly $4,440 ($2,540 std + $1,900 exemption)
-   for wages<=$30,000, but drops to exactly $1,900 (deduc=$0) for wages>=
-   $50,000, the exact income band where Idaho's own state tax liability
-   first exceeds the $2,540 standard deduction and starts winning the
-   federal itemize-vs-standard comparison on its own, with zero other
-   itemizable inputs entered.
-3. `dedw` (married_separate's own 1999+ standard-deduction table) is a
-   REAL, distinct table from `dedj` - initially mistakenly coded as
-   `dedj(law)/sep`; caught via 1999-2023 married_separate residuals (a
-   real, small, per-year table divergence, e.g. 2021: dedw=$25,500 vs
-   dedj=$25,100).
-4. 1990's married_separate-only standard-deduction reduction
-   (`stded=stded-150*nblage+25`) has a REAL, unconditional `+25` addback
-   that survives even at nblage=0 (the age/blind-exemption count is
-   permanently $0 for this schema) - confirmed via a constant ~$2.05
-   (=$25 * marginal rate) residual across every married_separate income
-   level tested for 1990 specifically, and confirmed the `+25` applies
-   even when `comnew(3)` itself is $0 (i.e., it's added AFTER, not
-   folded into, the itemize-vs-standard gate from bug #2).
-"""
+"""Idaho individual income tax calculator."""
 
 import polars as pl
 
-from taxsim_py.calculators.federal import compute_regular_tax
 from taxsim_py.calculators.federal_pre1987 import PRE1987_PARAMS
 from taxsim_py.engine.brackets import bracket_tax
 from taxsim_py.engine.schema import PARAMETERS_ROOT, load_yaml, resolve_year
+from taxsim_py.engine.state import with_defaults, by_filing_status as _by_status, with_default as _with_default, forced_standard
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
 ID_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "id" / "income_tax.yaml")
@@ -95,34 +13,8 @@ FEDERAL_PERSONAL_EXEMPTION_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "pe
 _STATUSES = ["single", "married_joint", "married_separate", "head_of_household"]
 _SEPRET_BY_STATUS = {"single": 1.0, "married_joint": 1.0, "head_of_household": 1.0, "married_separate": 2.0}
 
-# Raw federal input columns only - re-invoking `compute_regular_tax` (the
-# 2020 UI "untax" diff trick) must start from JUST these.
-_RAW_INPUT_COLUMNS = [
-    "mstat", "depx", "dep17", "dep18", "dep6", "dep13", "pwages", "swages",
-    "proptax", "otheritem", "mortgage", "childcare", "intrec", "psemp",
-    "ssemp", "dividends", "stcg", "ltcg", "ui", "pui", "sui",
-]
-
-
-def _with_default(df: pl.DataFrame, column: str, default: float = 0.0) -> pl.DataFrame:
-    if column in df.columns:
-        return df
-    return df.with_columns(pl.lit(default).alias(column))
-
-
-def _by_status(values: dict) -> pl.Expr:
-    expr = pl.lit(None, dtype=pl.Float64)
-    for status, v in values.items():
-        expr = pl.when(pl.col("filing_status") == status).then(pl.lit(float(v))).otherwise(expr)
-    return expr
-
-
 def _federal_personal_exemption(df: pl.DataFrame, year: int) -> pl.Expr:
-    """`comnew(83)` - federal's own computed personal-exemption total
-    (`amex` inside `calculators/federal.py::compute_regular_tax`, never
-    exposed as a column) - a near-duplicate of that exact logic, kept in
-    sync manually the same way CT's own `_federal_tentative_minimum_tax`
-    duplicates federal's AMT."""
+    """Reconstruct the federal personal exemption."""
     if year >= 2018:
         return pl.lit(0.0)
     if year <= 1986:
@@ -161,15 +53,15 @@ def _federal_personal_exemption(df: pl.DataFrame, year: int) -> pl.Expr:
         return amex_base * (1.0 - pep_ratio * amphs_fraction)
 
 
-def compute_id_tax(df: pl.DataFrame, year: int, force_itemize: bool | None = None) -> pl.DataFrame:
+def compute_id_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     effective_year, flate = resolve_state_year(year)
     p = ID_PARAMS
-    for col in ("proptax", "otheritem", "mortgage", "depx", "dep17", "dividends", "intrec", "childcare", "ui", "pui", "sui"):
-        df = _with_default(df, col)
+    df = with_defaults(df, ("proptax", "otheritem", "mortgage", "depx", "dep17", "dividends", "intrec", "childcare", "ui", "pui", "sui"))
     df = _with_default(df, "state_sales_or_income_tax_ded")
     df = _with_default(df, "itemized_deduction")
     df = _with_default(df, "standard_deduction")
     df = _with_default(df, "earned_income")
+    df = _with_default(df, "taxable_unemployment")
 
     df = df.with_columns(
         id_sep=pl.when(pl.col("filing_status") == "married_separate").then(2.0).otherwise(1.0),
@@ -210,13 +102,9 @@ def compute_id_tax(df: pl.DataFrame, year: int, force_itemize: bool | None = Non
 
     if effective_year == 2020:
         ui_total = pl.max_horizontal(pl.col("ui"), pl.col("pui") + pl.col("sui"))
-        if (df.get_column("ui").abs().sum() + df.get_column("pui").abs().sum() + df.get_column("sui").abs().sum()) > 0:
-            df_no_ui = df.select(_RAW_INPUT_COLUMNS).with_columns(ui=pl.lit(0.0), pui=pl.lit(0.0), sui=pl.lit(0.0))
-            fed_no_ui = compute_regular_tax(df_no_ui, effective_year)
-            untax = pl.col("agi") - fed_no_ui.get_column("agi")
-        else:
-            untax = pl.lit(0.0)
-        df = df.with_columns(id_agi=pl.col("id_agi") + ui_total - untax)
+        df = df.with_columns(
+            id_agi=pl.col("id_agi") + ui_total - pl.col("taxable_unemployment")
+        )
 
     # --- Itemized deduction --- (state-tax-declaration-phaseout formula,
     # same `comnew(24)*(1-data(50)/comnew(30))` scaling DC's own itemized
@@ -339,8 +227,8 @@ def compute_id_tax(df: pl.DataFrame, year: int, force_itemize: bool | None = Non
     # Age/blind additional standard deduction and the dependent-return
     # standard-deduction cap both confirmed permanently inert.
 
-    if force_itemize is False and effective_year == 1999:
-        df = df.with_columns(id_xitded=pl.lit(0.0))
+    if effective_year == 1999:
+        df = df.with_columns(id_xitded=pl.when(forced_standard()).then(0.0).otherwise(pl.col("id_xitded")))
 
     df = df.with_columns(id_deduc=pl.max_horizontal(pl.col("id_xitded"), pl.col("id_stded")))
 

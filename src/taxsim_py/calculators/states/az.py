@@ -1,83 +1,24 @@
-"""Arizona individual income tax (`aztax`, taxsim_2022_10_21.f:809-1168,
-state id 3). See parameters/states/az/income_tax.yaml for the full scope
-note.
-
-Full real-law range (1977-2021) validated via scripts/validate_states.py:
-**1,729/1,729 exact (100%)** - the last ~80 sub-$0.25 discrepancies
-(wages-only, no-itemized-deduction cases in 1982-1986, originally
-attributed to within-record oracle iteration staleness, matching al.py's
-own docstring at the time) turned out to be a REAL, fixable bug found
-while building Arkansas: `federal.py`'s `compute_regular_tax` dispatcher
-was silently dropping `force_itemize` for every year<=1986 instead of
-forwarding it to `federal_pre1987.py`, and `federal_pre1987.py` itself
-was applying `force_itemize` even for lawyr<=1981 (a year range where the
-real source's own itemize-vs-standard choice is never actually
-forceable - the `data(4)` checks there are dead/commented-out code).
-Confirmed no regression against the full federal suite (still 32 accepted
-knife-edge `frate` artifacts, unchanged) or IL/AK; AL improved from
-1,253/1,310 to 1,296/1,310 by the same fix.
-
-Two real, non-obvious mechanics found via live oracle probes while
-building this (not visible from a plain source read):
-1. `xitded` for law<=1990 double-counts `otheritem` (data(54)) - the
-   source's own raw federal itemized total already includes it once, and
-   this era's own formula adds it a SECOND time on top. Confirmed via a
-   probe (proptax=4000/otheritem=2000/mortgage=8000, 1977) showing
-   xitded=16000=4000+8000+2*2000, not 4000+8000+2000.
-2. `xitded` for law>=1991 uses `comnew(30)` directly (undiminished by
-   `-data(50)`) - AZ's own prior-iteration tax LIABILITY, fed back as
-   `state_sales_or_income_tax_ded` by the shared 3-iteration federal/state
-   loop (engine/federal_state.py), becomes itself deductible against AZ's
-   own itemized total. A real, self-referential quirk, not a bug.
-Also: `look`/`look2`'s CPI factor (`aif`/`brkif`/`aiflk`, used for the
-personal exemption, standard deduction, and every bracket table through
-2021) divides income before the bracket lookup AND THEN multiplies the
-resulting tax by the same factor again (taxsim_2022_10_21.f:358:
-`statax=aif*ajnt*(yleft*rate+statax)`) - not just a bracket-threshold
-rescale, which would omit the final re-multiplication.
-And: several credit formulas (the Family Income Credit's per-exemption
-amount, the Excise Tax Credit, the 2019+ Dependent Tax Credit phaseout)
-read `data(7)` (the RAW self/spouse exemption count) directly rather than
-the local `txp` variable used everywhere else - so head_of_household's own
-+1 `txp` bump must NOT apply to those three (`az_txp_raw` vs `az_txp`
-below), confirmed via a live probe showing a real $25-75 mismatch when
-this was missed.
-"""
+"""Arizona individual income tax calculator."""
 
 import polars as pl
 
 from taxsim_py.engine.brackets import bracket_tax
 from taxsim_py.engine.eitc import trapezoid_credit
 from taxsim_py.engine.schema import PARAMETERS_ROOT, load_yaml, resolve_year
+from taxsim_py.engine.state import with_defaults, with_default as _with_default
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
 AZ_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "az" / "income_tax.yaml")
 PRE1987_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "pre1987.yaml")
+STATE_ADJUSTMENT_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "state_adjustments.yaml")
 _PRE1987_STATUSES = ["single", "married_joint", "married_separate", "head_of_household"]
 
 _RICH_STATUSES = ["married_joint", "head_of_household"]  # mst.eq.2/4/7 in the source
 
-# `aif(law)` (taxsim_2022_10_21.f:11190-11191, dimensioned 1977:2021, all
-# 1.0 from 1990 on) - a real, un-rounded CPI-adjustment factor applied to
-# the pre-1990 personal/dependent exemption and standard-deduction formulas.
-AIF_PRE1990 = {
-    1977: 1.00, 1978: 1.1010, 1979: 1.2260, 1980: 1.4220, 1981: 1.5890,
-    1982: 1.7290, 1983: 1.7590, 1984: 1.8340, 1985: 1.9410, 1986: 1.9960,
-    1987: 2.0450, 1988: 2.1250, 1989: 2.2290,
-}
-
-
-def _with_default(df: pl.DataFrame, column: str, default: float = 0.0) -> pl.DataFrame:
-    if column in df.columns:
-        return df
-    return df.with_columns(pl.lit(default).alias(column))
-
-
 def compute_az_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     effective_year, flate = resolve_state_year(year)
     p = AZ_PARAMS
-    for col in ("proptax", "otheritem", "mortgage", "dividends", "ltcg", "intrec", "depx", "dep17"):
-        df = _with_default(df, col)
+    df = with_defaults(df, ("proptax", "otheritem", "mortgage", "dividends", "ltcg", "intrec", "depx", "dep17"))
 
     # Year>LASTAT (2021): deflate every dollar-valued raw/federal-computed
     # input by `flate`, run 2021's REAL law (`effective_year`, forced to
@@ -195,7 +136,7 @@ def compute_az_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         pe = float(resolve_year(p["personal_exemption_amount_pre1990"], effective_year))
         de = float(resolve_year(p["dependent_exemption_amount_pre1990"], effective_year))
         hoh_backout = float(resolve_year(p["hoh_exemption_backout_pre1979"], effective_year))
-        aif = AIF_PRE1990[effective_year]
+        aif = float(resolve_year(p["pre1990_inflation"], effective_year))
         df = df.with_columns(
             az_exemp=((pl.col("az_txp") * pe + pl.col("az_nchild") * de) * aif)
             - (
@@ -239,7 +180,7 @@ def compute_az_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     if effective_year <= 1989:
         pct = float(resolve_year(p["standard_deduction_pct_pre1990"], effective_year))
         cap = float(resolve_year(p["standard_deduction_cap_per_exemption_pre1990"], effective_year))
-        aif = AIF_PRE1990[effective_year]
+        aif = float(resolve_year(p["pre1990_inflation"], effective_year))
         if effective_year <= 1983:
             fctr = round(aif * 10.0) / 10.0
         elif effective_year in (1984, 1985):
@@ -301,17 +242,21 @@ def compute_az_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         df = df.with_columns(az_xitded_base=pl.col("salt_capped") + pl.col("mortgage"))
         if 1991 <= effective_year <= 2017:
             if effective_year <= 2012:
-                aif92 = {
-                    1992: 1.0525, 1993: 1.0845, 1994: 1.118, 1995: 1.147, 1996: 1.1795,
-                    1997: 1.212, 1998: 1.245, 1999: 1.266, 2000: 1.2895, 2001: 1.3295,
-                    2002: 1.373, 2003: 1.395, 2004: 1.427, 2005: 1.4595, 2006: 1.505,
-                    2007: 1.564, 2008: 1.5995, 2009: 1.668, 2010: 1.6955, 2011: 1.6955,
-                    2012: 1.7365,
-                }.get(effective_year, 1.0)
+                aif92 = float(
+                    resolve_year(
+                        STATE_ADJUSTMENT_PARAMS["itemized_phaseout_inflation"],
+                        effective_year,
+                    )
+                )
                 threshold = float(p["itemized_phaseout_income_pre2013"][1991]) * aif92
                 df = df.with_columns(az_phas=threshold / pl.col("az_sep"))
             else:
-                aif13 = {2013: 1.0, 2014: 1.0168, 2015: 1.033, 2016: 1.0376, 2017: 1.046}[effective_year]
+                aif13 = float(
+                    resolve_year(
+                        STATE_ADJUSTMENT_PARAMS["itemized_phaseout_inflation"],
+                        effective_year,
+                    )
+                )
                 thr_expr = pl.lit(None, dtype=pl.Float64)
                 for status in _PRE1987_STATUSES:
                     v = float(p["itemized_phaseout_income_2013_2017"][status]) * aif13
@@ -346,14 +291,11 @@ def compute_az_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     # joint-or-HoH (and, 1990+, HoH gets its own table distinct from joint
     # too). ---
     if effective_year <= 1989:
-        brkif = {
-            1983: 1.1017, 1984: 1.061, 1985: 1.123, 1986: 1.155,
-            1987: 1.183, 1988: 1.229, 1989: 1.29,
-        }.get(effective_year, 1.0)
+        brkif = float(resolve_year(p["pre1990_bracket_inflation"], effective_year))
         brackets = p["brackets_pre1990"]
         df = df.with_columns(az_regtax=brkif * bracket_tax(pl.col("az_taxinc") / brkif, brackets))
     elif effective_year >= 2019:
-        aif19 = {2019: 1.0, 2020: 1.029132, 2021: 1.04935849}.get(effective_year, 1.0)
+        aif19 = float(resolve_year(p["bracket_inflation_2019plus"], effective_year))
         brackets = p["brackets_2019plus"]
         df = df.with_columns(
             az_taxy=pl.when(pl.col("az_rich")).then(pl.col("az_taxinc") / 2).otherwise(pl.col("az_taxinc"))
@@ -376,7 +318,7 @@ def compute_az_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
             if lo <= effective_year <= hi:
                 key = k
                 break
-        aif15 = {2015: 1.0163, 2016: 1.01785, 2017: 1.0346, 2018: 1.0602}.get(effective_year, 1.0)
+        aif15 = float(resolve_year(p["bracket_inflation_2015_2018"], effective_year))
         brackets_single = p[f"brackets_{key}_single"]
         brackets_rich = p[f"brackets_{key}_joint_or_hoh"]
         df = df.with_columns(

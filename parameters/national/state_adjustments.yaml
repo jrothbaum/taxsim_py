@@ -1,0 +1,34 @@
+# Inflation factors shared by state itemized-deduction phaseouts.
+itemized_phaseout_inflation:
+  1991: 1.0
+  1992: 1.0525
+  1993: 1.0845
+  1994: 1.118
+  1995: 1.147
+  1996: 1.1795
+  1997: 1.212
+  1998: 1.245
+  1999: 1.266
+  2000: 1.2895
+  2001: 1.3295
+  2002: 1.373
+  2003: 1.395
+  2004: 1.427
+  2005: 1.4595
+  2006: 1.505
+  2007: 1.564
+  2008: 1.5995
+  2009: 1.668
+  2010: 1.6955
+  2012: 1.7365
+  2013: 1.0
+  2014: 1.0168
+  2015: 1.033
+  2016: 1.0376
+  2017: 1.046
+
+# TAXSIM's household-income total (`data(159)`) adds a fixed amount to the
+# dividend input and, for every record after the first in a run, a
+# leftover `data(93)` value of 1.
+household_income_dividend_adjustment: {1960: 0.001}
+household_income_record_adjustment: {1960: 1}

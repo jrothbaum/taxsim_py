@@ -1,99 +1,30 @@
-"""Massachusetts individual income tax (`matax`, taxsim_2024_09_21.f:
-8284-8899, state id 22). See parameters/states/ma/income_tax.yaml for the
-scope note (confirmed-inert elderly/medical/rent/pension/carryover inputs).
-
-Harness: 3,041/3,055 (99.5%) on the first validation run - the 14
-residuals are all 2023-only, all under $1.60, all EITC-driven (the
-standing real-vs-oracle EITC-table divergence family). Built entirely by
-reading the source first; the four `data(N)` input slots this subroutine
-needed that no earlier state had used were decoded from the reader code
-(taxsim_2024_09_21.f:21100-21260) rather than probed.
-
-Massachusetts taxes income in separate PARTS at separate flat rates, not
-through a bracket schedule:
-- Part B ("basic" income: wages, self-employment, taxable UI, and from
-  1999 interest over $100/$200 and dividends) at ~5-6%.
-- Part A (interest/dividends/net capital gains through 1998; short-term
-  gains only from 1999) at 10%, then 12% from 1990.
-- Part C (long-term capital gains, 1997+) at ~5%.
-Deductions and exemptions are taken against Part B first; any unused
-exemption spills over to Part A (and, 1999+, through a transcribed
-Schedule B/D worksheet to dividends and gains). A No Tax Status / Limited
-Income Credit (1984+) and a refundable share of the federal EITC (1997+)
-follow.
-
-Real, non-obvious mechanics:
-1. The payroll-tax deduction is `min(comnew(183),2000)+min(comnew(84),
-   2000)`. `comnew(183)` is the primary earner's payroll tax as `sstax`
-   computes it (BOTH halves of wage FICA, plus 92.35% of their own
-   self-employment tax); `comnew(84)` is slot 84 of the federal common
-   block - `ssa`, Social Security benefits, $0 here - not the spouse's
-   payroll tax (`comnew(184)`). An apparent `84`-for-`184` typo in the
-   source that the oracle genuinely runs with: the spouse's payroll tax
-   is never deducted.
-2. The marital flag `x` (which lets unused exemptions spill into Part A)
-   is `mst.ne.3.or.mst.ne.6` from 1985 on - always true, so it applies to
-   every filing status, not just couples.
-3. The 2010-2020 childcare-expense deduction is gated `law.eq.2010.and.
-   law.le.2020` - i.e. 2010 only. For 2011-2020 only the flat per-child
-   dependent deduction applies.
-4. For 1988 and earlier, deductions/exemptions are re-applied to Part B
-   income purely to compute the Part A spillover and Massachusetts AGI
-   (used by the No Tax Status test), while the Part B tax itself uses the
-   separately computed taxable amount.
-"""
+"""Massachusetts individual income tax calculator."""
 
 import polars as pl
 
-from taxsim_py.calculators.federal import compute_regular_tax
 from taxsim_py.engine.payroll_tax import capped_se_tax, hi_tax, oasdi_tax
 from taxsim_py.engine.schema import PARAMETERS_ROOT, load_yaml, resolve_year
+from taxsim_py.engine.state import with_defaults, with_default as _with_default
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
 MA_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "ma" / "income_tax.yaml")
 PAYROLL_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "payroll_tax.yaml")
 
-_RAW_INPUT_COLUMNS = [
-    "mstat", "depx", "dep17", "dep18", "dep6", "dep13", "pwages", "swages",
-    "proptax", "otheritem", "mortgage", "childcare", "intrec", "psemp",
-    "ssemp", "dividends", "stcg", "ltcg", "ui", "pui", "sui",
-]
-
-
-def _with_default(df: pl.DataFrame, column: str, default: float = 0.0) -> pl.DataFrame:
-    if column in df.columns:
-        return df
-    return df.with_columns(pl.lit(default).alias(column))
-
-
 def _p(name: str, year: int) -> float:
     return float(resolve_year(MA_PARAMS[name], year))
 
 
-def _untax(df: pl.DataFrame, year: int) -> pl.Expr:
-    """`comnew(78)` - the taxable portion of UI in federal AGI, via the
-    same "rerun federal with UI zeroed" diff-trick DC/Indiana/Maine use.
-    Run on the raw (undeflated) inputs at the real requested year, since
-    federal AGI itself is always computed at the real year."""
-    has_ui = (df.get_column("ui").abs().sum() + df.get_column("pui").abs().sum() + df.get_column("sui").abs().sum()) > 0
-    if not has_ui:
-        return pl.lit(0.0)
-    df_no_ui = df.select(_RAW_INPUT_COLUMNS).with_columns(ui=pl.lit(0.0), pui=pl.lit(0.0), sui=pl.lit(0.0))
-    fed_no_ui = compute_regular_tax(df_no_ui, year)
-    return pl.col("agi") - pl.lit(fed_no_ui.get_column("agi"))
-
-
-def compute_ma_tax(df: pl.DataFrame, year: int, force_itemize: bool | None = None) -> pl.DataFrame:
+def compute_ma_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     effective_year, flate = resolve_state_year(year)
     y = effective_year
-    for col in ("dividends", "intrec", "stcg", "ltcg", "ui", "pui", "sui", "childcare", "psemp", "ssemp",
-                "depx", "dep13", "dep18"):
-        df = _with_default(df, col)
+    df = with_defaults(df, ("dividends", "intrec", "stcg", "ltcg", "ui", "pui", "sui", "childcare", "psemp", "ssemp",
+                "depx", "dep13", "dep18"))
     df = _with_default(df, "eitc")
     df = _with_default(df, "earned_income")
     df = _with_default(df, "ltg")
+    df = _with_default(df, "taxable_unemployment")
 
-    df = df.with_columns(ma_untax=_untax(df, year))
+    df = df.with_columns(ma_untax=pl.col("taxable_unemployment"))
     df = deflate_for_extrapolation(
         df,
         flate,
@@ -206,6 +137,22 @@ def compute_ma_tax(df: pl.DataFrame, year: int, force_itemize: bool | None = Non
     chcred = pl.when(has_dep).then(chcred).otherwise(0.0)
 
     bded = fica + ch  # rent/business/other Part B deductions confirmed inert
+    df = df.with_columns(
+        _ma_binc=binc,
+        _ma_bded=bded,
+        _ma_exemp=exemp,
+        _ma_chcred=chcred,
+        _ma_ndep=ndep,
+        _ma_b1inc=b1inc,
+        _ma_b2inc=b2inc,
+    )
+    binc = pl.col("_ma_binc")
+    bded = pl.col("_ma_bded")
+    exemp = pl.col("_ma_exemp")
+    chcred = pl.col("_ma_chcred")
+    ndep = pl.col("_ma_ndep")
+    b1inc = pl.col("_ma_b1inc")
+    b2inc = pl.col("_ma_b2inc")
     tbinc1 = (binc - bded).clip(0, None)
     tbinc2 = (tbinc1 - exemp).clip(0, None)
 
@@ -303,6 +250,21 @@ def compute_ma_tax(df: pl.DataFrame, year: int, force_itemize: bool | None = Non
     elif y >= 1997:
         cinc = pl.col("ltg")  # `comnew(15)` (1987+ federal `ltg`)
 
+    df = df.with_columns(
+        _ma_binc_for_agi=binc_for_agi,
+        _ma_binc1=binc1,
+        _ma_tbinc2=tbinc2,
+        _ma_tbinc3=tbinc3,
+        _ma_ainc=ainc,
+        _ma_cinc=cinc,
+    )
+    binc_for_agi = pl.col("_ma_binc_for_agi")
+    binc1 = pl.col("_ma_binc1")
+    tbinc2 = pl.col("_ma_tbinc2")
+    tbinc3 = pl.col("_ma_tbinc3")
+    ainc = pl.col("_ma_ainc")
+    cinc = pl.col("_ma_cinc")
+
     taxbin = tbinc2 + tbinc3
     rate_b = _p("part_b_rate", y)
     if y == 1989:
@@ -321,6 +283,9 @@ def compute_ma_tax(df: pl.DataFrame, year: int, force_itemize: bool | None = Non
 
     # --- Massachusetts AGI and No Tax Status / Limited Income Credit ---
     ma_agi = (binc_for_agi + binc1 + stcg + ltcg + pl.min_horizontal(intrec, 100.0 * n_tp)).clip(0, None)
+    df = df.with_columns(_ma_pretax=pretax, _ma_agi=ma_agi)
+    pretax = pl.col("_ma_pretax")
+    ma_agi = pl.col("_ma_agi")
     ntscr = pl.lit(0.0)
     txcr = pl.lit(0.0)
     scred = pl.lit(0.0)
@@ -364,7 +329,23 @@ def compute_ma_tax(df: pl.DataFrame, year: int, force_itemize: bool | None = Non
     if y >= 2021:
         statax = statax - pl.max_horizontal(chcred, ndep * 180.0)
 
-    return df.with_columns(siitax=statax * flate)
+    return df.with_columns(siitax=statax * flate).drop(
+        "_ma_binc",
+        "_ma_bded",
+        "_ma_exemp",
+        "_ma_chcred",
+        "_ma_ndep",
+        "_ma_b1inc",
+        "_ma_b2inc",
+        "_ma_binc_for_agi",
+        "_ma_binc1",
+        "_ma_tbinc2",
+        "_ma_tbinc3",
+        "_ma_ainc",
+        "_ma_cinc",
+        "_ma_pretax",
+        "_ma_agi",
+    )
 
 
 def _p_payroll(name: str, year: int) -> float:

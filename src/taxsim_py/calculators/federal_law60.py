@@ -1,59 +1,4 @@
-"""Federal income tax, 1960-1976 (`law60`, taxsim_2022_10_21.f:22458-23281) -
-a third, entirely separate top-level federal calculator from `law79`/
-`law87`, dispatched `if(lawyr.le.1976) call law60` (taxsim_2022_10_21.f:
-22151) at the SAME level those two are dispatched from, not a plug-in
-vintage within either. Built in two phases (Phase 1: 1971-1976, Phase 2:
-1960-1970, both now covered by this module) - see law60.yaml's module
-docstring for the full scope note on which real law60 mechanisms are
-unreachable given this project's input schema.
-
-Structural differences from law79 worth flagging:
-1. No AGI adjustments reach this scope at all (Keogh/IRA/two-earner
-   deduction are all inert) - AGI simply equals total income (`ti`), no
-   `adjust` term of any kind.
-2. Unemployment compensation is NOT part of AGI/taxable income anywhere in
-   this range - it only surfaces as a preference-income addback inside the
-   "maximum tax on earned income" computation.
-3. Taxable income has no "excess itemized deductions over the standard
-   deduction" add-back the way law79 does - it's simply
-   `agi - (itemized if itemizing else standard) - exemption`, clipped at 0.
-4. The add-on minimum tax (`addmin`) is genuinely ADDITIVE to tax (`tax =
-   taxaft + addmin`), not a floor/`max()` the way law79/law87's minimum tax
-   is - and, confirmed directly from the source's own year gate
-   (`if(lawyr.ge.1969.and.lawyr.le.1978) tax=tax+addmin`), it's computed but
-   never actually ADDED for 1960-1968 (the same "computed but not applied"
-   pattern already known from 1997-1999's AMT) - handled here by always
-   computing `addmin` but only adding it into `tax_after_addmin` for
-   year>=1969.
-5. Childcare expenses are an uncapped itemized deduction for 1971-1975
-   (folded directly into `deduc`), switching to a real credit (`chcr`, flat
-   20%) only in 1976; neither exists at all before 1971 (`data(64)` never
-   enters `deduc` before `lawyr.le.1975`'s own lower bound of... - actually
-   real for 1960-1975 per the source's `if(lawyr.le.1975) deduc=deduc+
-   data(64)`, no lower bound - so Phase 2 keeps the same uncapped-itemized-
-   deduction treatment as 1971-1975, not a third shape).
-6. Phase 2 (1960-1970) has its own married_separate quirk, simpler than
-   Phase 1's joint/2: `tax62`/`tax64`/`tax70` take NO `sepret` argument at
-   all, and the source's own `nfile1` resolution explicitly redirects
-   married_separate to nfile=1 (SINGLE's own bracket table, no scaling) for
-   `lawyr.le.1970` (taxsim_2022_10_21.f:22720-22723) - only from 1971 does
-   married_separate switch to the joint/2 mechanism.
-7. A real, one-time Vietnam-era surtax (1968-1970: 7.5%/10%/2.5% flat
-   multipliers) applies to the ALREADY-COMBINED `tax`/`rate` (after the
-   regular/capital-gains-alt/maximum-tax/income-averaging `min()`
-   combination, before credits) - taxsim_2022_10_21.f:23047-23056. Simpler
-   than 1981's Rate Reduction Credit, which threaded its own multiplier into
-   3 separate sub-computations individually.
-8. The capital-gains alternative tax's `$50,000/sepret`-threshold blend
-   (real 1970-1975) has a THIRD distinct cap rate for 1970 specifically
-   (29.5%, vs 1971's 32.5% and 1972-1975's uncapped) - modeled as a single
-   `alt_capital_gains_cap_rate` parameter with a large sentinel for the
-   uncapped years rather than a separate code branch.
-9. The "maximum tax on earned income" mechanism doesn't exist at all before
-   1971 (the source's own `ebs`/`ebm`/`ebh`/`ebsep`/`eas`/`eam`/`eah`/
-   `easep` arrays are dimensioned `1971:1979`, no earlier entries) - `etax`
-   is forced inert for year<1971 without attempting any parameter lookup.
-"""
+"""Federal individual income tax calculator for 1960 through 1976."""
 
 import polars as pl
 
@@ -72,8 +17,11 @@ SEPRET_BY_STATUS = {
 }
 
 
-def _with_default(df: pl.DataFrame, column: str, default: float = 0.0) -> pl.DataFrame:
-    if column in df.columns:
+def _with_default(
+    df: pl.DataFrame | pl.LazyFrame, column: str, default: float = 0.0
+) -> pl.DataFrame | pl.LazyFrame:
+    columns = df.collect_schema().names() if isinstance(df, pl.LazyFrame) else df.columns
+    if column in columns:
         return df
     return df.with_columns(pl.lit(default).alias(column))
 
@@ -116,11 +64,15 @@ def _bracket_tax_by_status(income: pl.Expr, brackets_by_status: dict[str, list[l
     return expr
 
 
-def compute_regular_tax_law60(df: pl.DataFrame, year: int) -> pl.DataFrame:
+def compute_regular_tax_law60(
+    df: pl.DataFrame | pl.LazyFrame, year: int
+) -> pl.DataFrame | pl.LazyFrame:
     if year < 1960:
         raise NotImplementedError("law60 only covers 1960-1976 - see parameters/national/law60.yaml")
     p = LAW60_PARAMS
-    original_columns = list(df.columns)
+    original_columns = (
+        df.collect_schema().names() if isinstance(df, pl.LazyFrame) else list(df.columns)
+    )
     df = df.with_columns(
         filing_status=_filing_status_expr(),
         wages=pl.col("pwages") + pl.col("swages"),
@@ -158,13 +110,24 @@ def compute_regular_tax_law60(df: pl.DataFrame, year: int) -> pl.DataFrame:
     df = df.with_columns(divexc=divexc_expr)
     df = df.with_columns(divall=(pl.col("dividends") - pl.col("divexc")).clip(0, None))
 
-    # Capital gains: a 50% EXCLUSION (caprat), same shape as law79's, real
-    # only for net gains (stcg/ltcg both assumed non-negative in this
-    # project's scope, same limitation as calculators/federal.py).
+    # Capital gains: part of the long-term gain is excluded (`capded`),
+    # applied to the net gain when a short-term loss offsets it. A net
+    # loss is limited per return.
     caprat = float(resolve_year(p["capital_gains_exclusion_rate"], year))
+    loss_limit = pl.when(pl.col("filing_status") == "married_separate").then(
+        float(resolve_year(p["net_capital_loss_limit_married_separate"], year))
+    ).otherwise(float(resolve_year(p["net_capital_loss_limit"], year)))
     df = df.with_columns(fullcg=pl.col("stcg") + pl.col("ltcg"))
-    df = df.with_columns(capded=(caprat * pl.col("ltcg")).clip(0, None))
-    df = df.with_columns(capgn=pl.col("fullcg") - pl.col("capded"))
+    df = df.with_columns(
+        capded=pl.when((pl.col("fullcg") > 0) & (pl.col("ltcg") > 0))
+        .then(caprat * pl.when(pl.col("stcg") < 0).then(pl.col("fullcg")).otherwise(pl.col("ltcg")))
+        .otherwise(0.0)
+    )
+    df = df.with_columns(
+        capgn=pl.when(pl.col("fullcg") > 0)
+        .then(pl.col("fullcg") - pl.col("capded"))
+        .otherwise(pl.max_horizontal(pl.col("fullcg"), -loss_limit))
+    )
 
     # Total income and AGI - no adjustments of any kind reach this scope
     # (see module docstring point 1); unemployment compensation plays no
@@ -373,12 +336,18 @@ def compute_regular_tax_law60(df: pl.DataFrame, year: int) -> pl.DataFrame:
     else:
         df = df.with_columns(etax=pl.lit(-1.0))
 
-    # --- Combine alternatives: altax = min(regular, acgtax, etax) ---
+    # --- Combine alternatives. When both the maximum tax and the
+    # alternative capital gains tax save tax, their savings stack. ---
     df = df.with_columns(
-        altax=pl.when(pl.col("acgtax") > 0).then(pl.min_horizontal(pl.col("acgtax"), pl.col("regtax"))).otherwise(pl.col("regtax"))
+        acgsav=pl.when(pl.col("acgtax") > 0).then((pl.col("regtax") - pl.col("acgtax")).clip(0, None)).otherwise(0.0)
     )
+    df = df.with_columns(altax=pl.col("regtax") - pl.col("acgsav"))
     df = df.with_columns(
-        altax=pl.when((pl.col("etax") > 0) & (pl.col("etax") < pl.col("altax"))).then(pl.col("etax")).otherwise(pl.col("altax"))
+        altax=pl.when((pl.col("etax") > 0) & (pl.col("etax") < pl.col("regtax")) & (pl.col("acgsav") > 0))
+        .then(pl.col("etax") - pl.col("acgsav"))
+        .when((pl.col("etax") > 0) & (pl.col("etax") < pl.col("altax")))
+        .then(pl.col("etax"))
+        .otherwise(pl.col("altax"))
     )
 
     # --- Vietnam-era surtax (1968-1970 only, module docstring point 7) - a
@@ -472,6 +441,7 @@ def compute_regular_tax_law60(df: pl.DataFrame, year: int) -> pl.DataFrame:
     df = df.with_columns(fiitax=pl.col("tax_after_addmin") - pl.col("earncr"))
     df = df.with_columns(
         taxable_income=pl.col("taxable_income"),
+        taxable_unemployment=pl.lit(0.0),
         earned_income=pl.col("earned"),
         regular_tax=pl.col("regtax"),
     )
@@ -479,6 +449,7 @@ def compute_regular_tax_law60(df: pl.DataFrame, year: int) -> pl.DataFrame:
         "filing_status",
         "wages",
         "agi",
+        "taxable_unemployment",
         "taxable_income",
         "earned_income",
         "regular_tax",

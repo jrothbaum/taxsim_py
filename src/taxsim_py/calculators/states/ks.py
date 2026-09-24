@@ -1,93 +1,4 @@
-"""Kansas individual income tax (`kstax`, taxsim_2024_09_21.f:6507-6941,
-state id 17). See parameters/states/ks/income_tax.yaml for the full scope
-note (confirmed-inert elderly/blind/rentpaid/medical/casualty fields, the
-live-probe-confirmed-$0 `comnew(8)/(20)/(23)/(25)`, and the genuine dead
-1989-1991 alternative-bracket branch).
-
-Real, non-obvious mechanics found while building this:
-1. `look()`'s own real "married filing combined" comparison - splitting a
-   joint return's income between spouses by wages (same shape Iowa's own
-   mechanic uses) and comparing against the plain halved-then-doubled
-   joint bracket total, taking whichever is cheaper - fires ONLY for
-   years<=1987 and years>=2013 (the source's own `-data(2)` vs `0.0d0`
-   third argument to `look()`); 1988-2012 instead use entirely separate,
-   explicit single-vs-joint bracket tables with no halving at all.
-2. 2013-2016's own "Schedule S Part A" AGI modification fully EXCLUDES
-   self-employment income from Kansas AGI (`agi=agi+.5*setax-comnew(8)-
-   se_income`, live-probe-confirmed: `comnew(8)` is $0 and the formula
-   nets out to exactly `federal_agi - se_income`, i.e. self-employment
-   profit is entirely untaxed those years, undoing federal's own half-SE-
-   tax deduction on top) - a real, deliberate Brownback-era "pass-through
-   exemption" provision, not a bug.
-3. The Child/Dependent Care Credit has NO branch at all for 2013-2018 in
-   the source - a real, deliberate suspension (not a gap): `chcr` stays
-   at its initialized $0 those years.
-4. The 1989-1991 alternative "federal-tax-subtracted" bracket computation
-   is real, unreachable DEAD CODE in the source (confirmed by control-
-   flow reading: the two `elseif` branches immediately above it already
-   exhaustively cover 1988-1991) - not implemented here.
-
-Real bugs found via live-oracle-probe validation, in order of discovery:
-1. `itemizes` isn't exposed by federal_pre1987.py at all (unlike
-   federal.py) - left silently absent, this read as a permanent False and
-   zeroed out every pre-1987 itemized deduction. Reconstructed locally via
-   the same `deduc>zbr` comparison federal_pre1987.py makes internally.
-2. `ided`/`data(4)` (`force_itemize`) is never read ANYWHERE in `kstax`
-   at all (confirmed by mapping every `data(4)`/`ided` reference in the
-   whole source file to its enclosing subroutine - unlike Arkansas's
-   `artax` and Iowa's `iatax`, which DO read it and are faithfully
-   forced elsewhere in this project). Kansas's own itemize decision is
-   ALWAYS the natural `deduc>zbr` dollar comparison, every year, never
-   forced. Respecting `force_itemize` here anyway was a real bug: this
-   project's generic `resolve_federal_and_state` 3-iteration "compare
-   forced-itemize vs forced-standard combined tax" mechanism doesn't
-   know Kansas never forces, and Kansas's own EXTRA state-only itemized
-   components (`soc`/`addtx`, nowhere in federal's own `deduc` test) let
-   a forced-itemize branch look artificially cheaper than the real,
-   natural decision would ever allow. Fixed by having Kansas's own
-   itemize decision ignore `force_itemize` entirely, matching the
-   source exactly (an audit of every other already-built pre-1987 state
-   found none with this SAME combination - reading `force_itemize`
-   directly on its own itemize test AND having extra state-only
-   deduction components - so no other state needed this same fix; see
-   project memory for the full per-state audit).
-3. `socmax`/`selfmx` (the pre-1987 FICA/SE-tax itemized-deduction addback
-   caps) are real, explicit dollar caps ONLY for 1977-1984 - the source's
-   own DATA statement is genuinely UNCAPPED (`1.e20`) for 1985-1997, not
-   frozen at 1984's dollar figure.
-4. `data(159)` (`hy`, household income) is live-probe-confirmed to
-   include UI too, a real component this project's own earlier-
-   established `hy=wages+dividends` formula (used by Idaho and
-   elsewhere) never needed to account for since none of those states'
-   own test suites exercised `hy` with nonzero UI present at the same
-   time.
-5. `comnew(68)` (exemps count) is divided by the CPI-extrapolation
-   `flate` for years past 2021 (the same real, replicated-as-found quirk
-   already documented/fixed for Indiana) - needed fixing in BOTH of
-   Kansas's own two separate uses of it (the exemption formula and the
-   2013+ Food Sales Tax Refund, which reads `comnew(68)` directly, NOT
-   Kansas's own HoH-adjusted `exemps` local variable used by the
-   pre-2013 formula - a real, distinct-quantity trap).
-6. Federal.py's own `ccc` (Child/Dependent Care Credit) column is
-   deliberately zeroed for years<1998 (a documented, real federal-side
-   quirk: the "stacking" mechanism that actually applies CCC to federal
-   tax liability doesn't exist in the source before 1998) - but Kansas's
-   own `comnew(53)`/`comnew(176)` reads the RAW, un-zeroed credit amount
-   directly, unaffected by that federal-side quirk. Reconstructed locally
-   for 1988-1997 using the same pre-2021 rate-schedule primitive
-   federal.py itself uses.
-
-Harness: **2,647/2,679 (98.8%)**. Two residual families remain, both
-small and neither blocking: (a) a handful of pre-2006 Homestead Property
-Tax Refund cases off by $0.02-$0.05 - narrowed down to the `tablki`-
-interpolated refund rate itself (confirmed the interpolation formula and
-every input feeding it match the source exactly; the tiny residual's
-root cause wasn't identified within this build's scope) - and (b) the
-already-accepted real-vs-oracle 2023 EITC-table divergence family this
-project has documented across nearly every state (Kansas's own EIC is a
-direct percentage of federal EITC, so it inherits that divergence
-directly). Full multi-state suite reconfirmed no regressions elsewhere.
-"""
+"""Kansas individual income tax calculator."""
 
 import polars as pl
 
@@ -96,6 +7,13 @@ from taxsim_py.engine.brackets import bracket_tax
 from taxsim_py.engine.credits import child_care_credit_rate_pre2021
 from taxsim_py.engine.payroll_tax import household_self_employment_tax
 from taxsim_py.engine.schema import PARAMETERS_ROOT, load_yaml, resolve_year
+from taxsim_py.engine.state import (
+    with_defaults,
+    itemize_choice,
+    by_filing_status as _by_status,
+    interpolate_table as _tablki,
+    with_default as _with_default,
+)
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
 KS_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "ks" / "income_tax.yaml")
@@ -103,45 +21,10 @@ PAYROLL_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "payroll_tax.yaml")
 FEDERAL_CREDITS_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "credits.yaml")
 
 
-def _with_default(df: pl.DataFrame, column: str, default: float = 0.0) -> pl.DataFrame:
-    if column in df.columns:
-        return df
-    return df.with_columns(pl.lit(default).alias(column))
-
-
-def _by_status(values: dict) -> pl.Expr:
-    expr = pl.lit(None, dtype=pl.Float64)
-    for status, v in values.items():
-        expr = pl.when(pl.col("filing_status") == status).then(pl.lit(float(v))).otherwise(expr)
-    return expr
-
-
-def _tablki(income: pl.Expr, rows: list[list[float]]) -> pl.Expr:
-    """`tablki`-style linear interpolation between adjacent (threshold,
-    value) points - below the first threshold, flat at rows[0]'s value;
-    at/above the last (finite) threshold, flat at the final row's value."""
-    thresholds = [r[0] for r in rows[:-1]]
-    values = [r[1] for r in rows]
-    expr = pl.lit(values[-1])
-    for i in range(len(thresholds) - 1, -1, -1):
-        t_hi = thresholds[i]
-        v_hi = values[i]
-        if i == 0:
-            below = pl.lit(v_hi)
-        else:
-            t_lo = thresholds[i - 1]
-            v_lo = values[i - 1]
-            w = (income - t_lo) / (t_hi - t_lo)
-            below = pl.when(v_hi > v_lo).then(w * v_lo + (1 - w) * v_hi).otherwise(w * v_hi + (1 - w) * v_lo)
-        expr = pl.when(income < t_hi).then(below).otherwise(expr)
-    return expr
-
-
-def compute_ks_tax(df: pl.DataFrame, year: int, force_itemize: bool | None = None) -> pl.DataFrame:
+def compute_ks_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     effective_year, flate = resolve_state_year(year)
     p = KS_PARAMS
-    for col in ("proptax", "otheritem", "mortgage", "dividends", "intrec", "depx", "psemp", "ssemp"):
-        df = _with_default(df, col)
+    df = with_defaults(df, ("proptax", "otheritem", "mortgage", "dividends", "intrec", "depx", "psemp", "ssemp"))
     df = _with_default(df, "earned_income")
     df = _with_default(df, "eitc")
     df = _with_default(df, "ccc")
@@ -289,7 +172,7 @@ def compute_ks_tax(df: pl.DataFrame, year: int, force_itemize: bool | None = Non
         if effective_year <= 1981:
             itemizing = itemized_deduction_local > zbr
         else:
-            itemizing = pl.lit(force_itemize) if force_itemize is not None else (itemized_deduction_local > zbr)
+            itemizing = itemize_choice(itemized_deduction_local > zbr)
     else:
         salt_plus_mortgage = pl.col("salt_capped") + pl.col("mortgage")
         itemized_deduction_local = pl.col("itemized_deduction")
@@ -465,8 +348,8 @@ def compute_ks_tax(df: pl.DataFrame, year: int, force_itemize: bool | None = Non
             floor_rate=float(resolve_year(ccc_p["pre2021_rate_floor"], effective_year)),
             step_amount=float(resolve_year(ccc_p["pre2021_step_amount"], effective_year)),
         )
-        num_qualifying_persons = pl.col("dep13").clip(0, max_qualifying_persons) if "dep13" in df.columns else pl.lit(0.0)
-        qualifying_expense = pl.col("childcare").clip(0, num_qualifying_persons * max_expense_per_person) if "childcare" in df.columns else pl.lit(0.0)
+        num_qualifying_persons = pl.col("dep13").clip(0, max_qualifying_persons) if "dep13" in df.collect_schema().names() else pl.lit(0.0)
+        qualifying_expense = pl.col("childcare").clip(0, num_qualifying_persons * max_expense_per_person) if "childcare" in df.collect_schema().names() else pl.lit(0.0)
         ccc_earned_income_cap = pl.when(is_joint).then(
             pl.min_horizontal(pl.col("pwages"), pl.col("swages"))
         ).otherwise(pl.col("wages"))

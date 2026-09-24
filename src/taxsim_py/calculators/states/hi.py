@@ -1,134 +1,25 @@
-"""Hawaii individual income tax (`hitax`, taxsim_2024_09_21.f:4960-5503,
-state id 12). See parameters/states/hi/income_tax.yaml for the full scope
-note (confirmed-inert elderly/blind/medical/solar/renters-credit/charity
-fields) - the richest, most elaborate state built so far: a real capital-
-gains alternative tax, five separate/stacking itemized-deduction
-reductions, and half a dozen era-specific credits.
-
-Real, non-obvious mechanics found while building this:
-1. `xitded=comnew(30)` - Hawaii uses the FULL raw pre-Pease federal
-   itemized total directly (unlike DC/Georgia's own `comnew(24)`-based
-   POST-Pease approaches), then applies FIVE of its own, separately-
-   stacking reductions on top: a 2011+ SALT-deductibility income
-   threshold, a 1991-2010 Pease-style reduction, a SEPARATE 2011+ Pease-
-   style reduction with its own, different threshold, a 2011-2015
-   absolute-dollar cap, and (1982-1986 only) a "subtract that era's own
-   standard deduction back out of both xitded AND stded" cancellation
-   mechanic matching California's own pre-1987 pattern.
-2. The capital-gains alternative tax (`max(comnew(6),0).gt.0`): taxable
-   income EXCLUDING net capital gains is taxed at ordinary rates (floored
-   at a bracket-specific minimum so this never produces a WORSE outcome
-   than the regular computation), net capital gains are taxed at a flat
-   7.25%, and the smaller of (ordinary regular tax) vs (this alternative
-   total) wins - a real, general mechanism, not a Hawaii-only oddity (the
-   same shape federal's own historical alternative tax on capital gains
-   used).
-3. The Renter's Credit is confirmed permanently inert - gated on
-   `data(160)`=rentpaid>=$1,000, the SAME field California's own Renter's
-   Credit already established is never populated by this project's input
-   schema.
-4. The 2020/2021 up-to-$300/$600 cash-contribution-while-taking-the-
-   standard-deduction AGI reduction is confirmed permanently inert too -
-   gated on `data(58)`, the same unimplementable `charity_cash` field
-   already documented as a gap at the federal level (no input column
-   ever drives it).
-
-The 2018-2022 state EITC is nonrefundable (`earncr=min(.2*fed_eitc,
-max(0,statax))`), unlike Delaware's own choice-of-refundable-or-not
-mechanism or Colorado's fully refundable one.
-
-Harness (1977-2023, extrapolation built in from the start): **2,341/2,350
-(99.6%)**. Two real bugs, both in the bracket tables themselves rather
-than the surrounding formula logic:
-5. Nearly every bracket table (20 of 22) was transcribed missing its own
-   FINAL (highest-threshold, top-rate) row - a systematic transcription
-   slip, not a one-off, caught only because it understated tax at every
-   income level once taxable income crossed the table's second-to-last
-   threshold (671 of 2,350 cases failed on the first validation pass).
-   Fixed by re-deriving every table's expected row count directly from
-   the source's own `dimension` declarations (`stab89(2,8)` etc.) and
-   verifying each YAML entry against it, rather than trusting a single
-   by-hand transcription pass.
-6. `comnew(6)` (net capital gain, used by the alternative tax) is
-   federal's own gain INCLUDED IN AGI, not the raw `stcg+ltcg` sum - for
-   years<=1986 that differs by the real federal pre-1987 LTCG exclusion
-   (50% in 1977, 60% 1978-1986, the SAME `PRE1987_PARAMS[
-   "capital_gains_exclusion_rate"]` other states already established),
-   confirmed via a debug-instrumented oracle probe (ltcg=$100,000, 1980:
-   `comnew(6)`=$40,000=$100,000*(1-0.60), not $100,000) - years>=1987
-   need no adjustment (the federal exclusion was repealed, matching the
-   already-passing 1987+ capital-gains test cases).
-
-The 2 residuals beyond the already-accepted 2023 real-vs-oracle-EITC
-divergence family (see feedback_real_params_over_oracle_bugs /
-project_taxsim_py_port memory) are self-employment cases matching this
-project's own EARLIEST documented artifact (from the federal build,
-before any state was started): SE-income OASDI/HI amounts live in the
-oracle's own COMMON block and aren't explicitly zeroed between records,
-so a batched run can inherit a stale value from an unrelated prior
-record - confirmed by computing the SAME case in isolation (bypassing
-`scripts/validate_states.py`'s own batching) and getting an EXACT match
-to the "expected" value.
-"""
+"""Hawaii individual income tax calculator."""
 
 import polars as pl
 
-from taxsim_py.calculators.federal import compute_regular_tax
 from taxsim_py.engine.brackets import bracket_tax
 from taxsim_py.engine.schema import PARAMETERS_ROOT, load_yaml, resolve_year
+from taxsim_py.engine.state import with_defaults, interpolate_table as _tablki, with_default as _with_default, forced_standard
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
 HI_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "hi" / "income_tax.yaml")
 PRE1987_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "pre1987.yaml")
 
-# Raw federal input columns only - re-invoking `compute_regular_tax` (the
-# 2020/2021 UI "untax" diff trick) must start from JUST these.
-_RAW_INPUT_COLUMNS = [
-    "mstat", "depx", "dep17", "dep18", "dep6", "dep13", "pwages", "swages",
-    "proptax", "otheritem", "mortgage", "childcare", "intrec", "psemp",
-    "ssemp", "dividends", "stcg", "ltcg", "ui", "pui", "sui",
-]
-
-
-def _with_default(df: pl.DataFrame, column: str, default: float = 0.0) -> pl.DataFrame:
-    if column in df.columns:
-        return df
-    return df.with_columns(pl.lit(default).alias(column))
-
-
-def _tablki(income: pl.Expr, rows: list[list[float]]) -> pl.Expr:
-    """`tablki`-style linear interpolation between adjacent (threshold,
-    value) points - below the first threshold, flat at rows[0]'s value;
-    at/above the last (finite) threshold, flat at the final row's value
-    (a real sentinel row, not a droppable one - see the YAML's own note).
-    """
-    thresholds = [r[0] for r in rows[:-1]]
-    values = [r[1] for r in rows]
-    expr = pl.lit(values[-1])
-    for i in range(len(thresholds) - 1, -1, -1):
-        t_hi = thresholds[i]
-        v_hi = values[i]
-        if i == 0:
-            below = pl.lit(v_hi)
-        else:
-            t_lo = thresholds[i - 1]
-            v_lo = values[i - 1]
-            w = (income - t_lo) / (t_hi - t_lo)
-            below = (w * v_lo + (1 - w) * v_hi) if v_hi > v_lo else (w * v_hi + (1 - w) * v_lo)
-        expr = pl.when(income < t_hi).then(below).otherwise(expr)
-    return expr
-
-
-def compute_hi_tax(df: pl.DataFrame, year: int, force_itemize: bool | None = None) -> pl.DataFrame:
+def compute_hi_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     effective_year, flate = resolve_state_year(year)
     p = HI_PARAMS
-    for col in ("proptax", "otheritem", "mortgage", "depx", "dividends", "intrec", "childcare", "ui", "pui", "sui"):
-        df = _with_default(df, col)
+    df = with_defaults(df, ("proptax", "otheritem", "mortgage", "depx", "dividends", "intrec", "childcare", "ui", "pui", "sui"))
     df = _with_default(df, "state_sales_or_income_tax_ded")
     df = _with_default(df, "itemized_deduction")
     df = _with_default(df, "eitc")
     df = _with_default(df, "stcg")
     df = _with_default(df, "ltcg")
+    df = _with_default(df, "taxable_unemployment")
 
     df = df.with_columns(
         hi_sep=pl.when(pl.col("filing_status") == "married_separate").then(2.0).otherwise(1.0),
@@ -154,18 +45,12 @@ def compute_hi_tax(df: pl.DataFrame, year: int, force_itemize: bool | None = Non
     df = df.with_columns(hi_agi=pl.col("agi"))
     # 2020/2021: full unemployment compensation IS taxable in HI (unlike
     # federal's own CARES/ARPA exclusion) - add back whatever federal
-    # excluded, via the same "untax" diff trick Alabama/Georgia already
-    # established (federal_pre1987.py never runs for these years, so no
-    # pre-1987 variant is needed here).
+    # excluded.
     if effective_year in (2020, 2021):
         ui_total = pl.max_horizontal(pl.col("ui"), pl.col("pui") + pl.col("sui"))
-        if (df.get_column("ui").abs().sum() + df.get_column("pui").abs().sum() + df.get_column("sui").abs().sum()) > 0:
-            df_no_ui = df.select(_RAW_INPUT_COLUMNS).with_columns(ui=pl.lit(0.0), pui=pl.lit(0.0), sui=pl.lit(0.0))
-            fed_no_ui = compute_regular_tax(df_no_ui, effective_year)
-            untax = pl.col("agi") - fed_no_ui.get_column("agi")
-        else:
-            untax = pl.lit(0.0)
-        df = df.with_columns(hi_agi=pl.col("hi_agi") + ui_total - untax)
+        df = df.with_columns(
+            hi_agi=pl.col("hi_agi") + ui_total - pl.col("taxable_unemployment")
+        )
     # Pensions confirmed permanently $0 for this schema (no pension
     # input) - the `agi = agi - data(72)` subtraction is a no-op.
 
@@ -279,8 +164,8 @@ def compute_hi_tax(df: pl.DataFrame, year: int, force_itemize: bool | None = Non
             hi_stded=(pl.col("hi_stded") - std_era).clip(0, None),
         )
 
-    if force_itemize is False and effective_year == 1999:
-        df = df.with_columns(hi_xitded=pl.lit(0.0))
+    if effective_year == 1999:
+        df = df.with_columns(hi_xitded=pl.when(forced_standard()).then(0.0).otherwise(pl.col("hi_xitded")))
 
     df = df.with_columns(hi_deduc=pl.max_horizontal(pl.col("hi_xitded"), pl.col("hi_stded")))
     # 2020/2021 cash-contribution-while-standard AGI reduction confirmed

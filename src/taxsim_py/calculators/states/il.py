@@ -1,15 +1,4 @@
-"""Illinois individual income tax (`iltax`, taxsim_2022_10_21.f:5772-5848,
-state id 14). See parameters/states/il/income_tax.yaml for the full scope
-note (which real `iltax` mechanisms are unreachable given this project's
-federal input schema, the property-tax mechanism's real 1991 formula-shape
-change, and the year-extrapolation note for 2022+).
-
-Takes the FEDERAL calculator's own output dataframe (already has `agi`,
-`eitc`, `filing_status`, `depx`, `proptax`, `dividends` computed) rather
-than recomputing federal quantities from scratch - `iltax` itself only ever
-reads federal-computed values (`comnew(...)`) and a handful of raw inputs,
-never anything state-specific beyond that.
-"""
+"""Illinois individual income tax calculator."""
 
 import polars as pl
 

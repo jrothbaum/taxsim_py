@@ -1,2 +1,5 @@
 *.f
 *.exe
+__pycache__/
+*.py[cod]
+*.pyc

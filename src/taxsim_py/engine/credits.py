@@ -1,8 +1,4 @@
-"""Nonrefundable credit with a linear phaseout, capped so it never drives
-liability below zero and never refunds the unused excess. Shared shape behind
-the federal Credit for Other Dependents (and generally: CTC-style credits
-before their refundable portion, several state credits).
-"""
+"""Federal tax credit calculations."""
 
 import polars as pl
 
@@ -18,14 +14,7 @@ def child_care_credit_rate(
     second_phase_ceiling: float,
     second_phase_step_amount: float,
 ) -> pl.Expr:
-    """The Child and Dependent Care Credit's rate schedule - a step-down
-    formula, not a smooth interpolation (see parameters/national/credits.yaml
-    for why it's genuinely discontinuous at the two ceilings). Both ceiling
-    comparisons are strictly-less-than, confirmed empirically against
-    taxsim2022.exe: AGI exactly at $183,000 or $438,000 falls to the next
-    flat rate, not the phase-down formula (a boundary condition easy to
-    misread as <= from the source's own if/elseif chain - verified by
-    testing the exact boundary and both neighbors directly)."""
+    """Calculate the post-2020 child care credit rate."""
     first_phase_rate = top_rate - ((agi - first_phase_start) / first_phase_step_amount).clip(0, None) * 0.01
     second_phase_rate = mid_rate - (
         (agi - second_phase_start) / second_phase_step_amount
@@ -50,14 +39,7 @@ def child_care_credit_rate_pre2021(
     floor_rate: float,
     step_amount: float,
 ) -> pl.Expr:
-    """The Child and Dependent Care Credit's rate schedule for lawyr
-    2003-2020: a single continuous step-down from top_rate to floor_rate
-    (1 percentage point per step_amount of AGI above phase_start), which
-    holds at floor_rate forever above that - unlike the 2021+ schedule,
-    this is a plain max()/no branching in the source, so it's smooth with
-    no discontinuity to worry about. Verified against
-    taxsim_2022_10_21.f:25519-25521:
-    chr = .01*max(20.0, 35. - max((agi-15000.)/2000., 0.0))"""
+    """Calculate the pre-2021 child care credit rate."""
     stepped_down = top_rate - ((agi - phase_start) / step_amount).clip(0, None) * 0.01
     return pl.max_horizontal(stepped_down, pl.lit(floor_rate))
 

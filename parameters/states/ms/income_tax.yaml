@@ -1,0 +1,124 @@
+# Mississippi individual income tax (`mstax`, taxsim_2024_09_21.f:11085-11267,
+# state id 25).
+#
+# Inputs this schema never supplies make these provisions inactive:
+# retirement/pension exclusion, Social Security, IRA/Keogh, elderly/blind
+# exemptions, charitable/medical detail before 1979.
+
+# --- Rate schedules (start, rate) ---
+brackets:
+  1977: [[0, 0.03], [5000, 0.04]]
+  1983: [[0, 0.03], [5000, 0.04], [10000, 0.05]]
+  2018: [[0, 0.0], [1000, 0.03], [5000, 0.04], [10000, 0.05]]
+  2019: [[0, 0.0], [2000, 0.03], [5000, 0.04], [10000, 0.05]]
+  2020: [[0, 0.0], [3000, 0.03], [5000, 0.04], [10000, 0.05]]
+  2021: [[0, 0.0], [4000, 0.03], [5000, 0.04], [10000, 0.05]]
+
+# --- Income ---
+# Mississippi adds back the federal deduction for half of self-employment
+# tax, then phases in its own deduction (share of self-employment tax).
+self_employment_tax_addback_rate:
+  1977: 0.5
+self_employment_tax_addback_threshold:
+  2011: 14204
+self_employment_tax_addback_lower_rate:
+  2011: 0.5751
+self_employment_tax_addback_upper_rate:
+  2011: 0.5
+self_employment_tax_addback_amount:
+  2011: 1067
+self_employment_tax_deduction_rate:
+  1977: 0.0
+  2017: 0.17
+  2018: 0.34
+  2019: 0.5
+charity_nonitemizer_addback: {2020: 300}
+
+# --- Exemptions ---
+exemption:
+  single:
+    1977: 4500
+    1979: 5250
+    1981: 6000
+  married_joint:
+    1977: 6500
+    1979: 8000
+    1981: 9500
+    1998: 10000
+    1999: 11000
+    2000: 12000
+  married_separate:  # the married amount, halved with dependents below
+    1977: 6500
+    1979: 8000
+    1981: 9500
+    1998: 10000
+    1999: 11000
+    2000: 12000
+  head_of_household:
+    1977: 8000
+dependent_exemption:
+  1977: 750
+  1979: 1500
+
+# --- Standard deduction ---
+standard_deduction_pct: {1977: 0.15}
+standard_deduction_cap_per_taxpayer:  # through 1979
+  1977: 750
+  1979: 1500
+standard_deduction:  # 1980 on; married separate gets half the married amount
+  single:
+    1980: 2300
+  married_joint:
+    1980: 3400
+    1998: 4200
+    1999: 4600
+  married_separate:
+    1980: 3400
+    1998: 4200
+    1999: 4600
+  head_of_household:
+    1980: 3400
+
+# --- Itemized deductions ---
+# Through 1978, excess charitable contributions over this share of AGI are
+# removed from itemized deductions.
+charity_agi_limit: {1977: 0.2}
+# 1991-2017: federal high-income itemized-deduction limit applies above
+# this AGI threshold (`phas92`).
+itemized_limit_threshold_base: {1991: 100000, 2013: 250000}
+itemized_limit_inflation:
+  1991: 1.0
+  1992: 1.0525
+  1993: 1.0845
+  1994: 1.118
+  1995: 1.147
+  1996: 1.1795
+  1997: 1.212
+  1998: 1.245
+  1999: 1.266
+  2000: 1.2895
+  2001: 1.3295
+  2002: 1.373
+  2003: 1.395
+  2004: 1.427
+  2005: 1.4595
+  2006: 1.505
+  2007: 1.564
+  2008: 1.5995
+  2009: 1.668
+  2010: 1.6955
+  2012: 1.7365
+  2013: 1.0
+  2014: 1.0168
+  2015: 1.033
+  2016: 1.0376
+  2017: 1.046
+itemized_limit_status_multiplier:  # 2013 on; earlier years divide by `sep`
+  single: 1.0
+  married_joint: 1.2
+  married_separate: 0.6
+  head_of_household: 1.1
+
+# Married couples may be taxed as two separate returns: the higher earner
+# takes their own wages plus this share of the couple's other income.
+joint_split_other_income_share: {1977: 0.5}
