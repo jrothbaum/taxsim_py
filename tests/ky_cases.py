@@ -74,6 +74,7 @@ def build_ky_test_cases() -> list[dict[str, Any]]:
         rows.append(case(year, "KY self-employment, single", mstat=1, psemp=50000))
         rows.append(case(year, "KY self-employment, married_joint", mstat=2, pwages=20000, psemp=40000))
         rows.append(case(year, "KY childcare, single low income", mstat=1, pwages=25000, depx=1, dep13=1, dep17=1, dep18=1, childcare=2000))
+        rows.append(case(year, "KY childcare above federal tax, single two kids", mstat=1, pwages=16000, depx=2, dep13=2, dep17=2, dep18=2, childcare=5000))
         rows.append(case(year, "KY low income, single", mstat=1, pwages=8000))
         rows.append(case(year, "KY low income, single with dependent", mstat=1, depx=1, dep17=1, dep18=1, pwages=8000))
         rows.append(case(year, "KY low income, married_joint with dependent", mstat=2, depx=1, dep18=1, pwages=10000))
@@ -84,3 +85,8 @@ def build_ky_test_cases() -> list[dict[str, Any]]:
         rows.append(case(year, "KY unemployment, married_joint", mstat=2, pwages=15000, swages=5000, ui=8000, sui=4000))
 
     return rows
+
+
+def shared_case_divergent(row: dict[str, Any]) -> bool:
+    """The oracle's 1996 pension split disagrees with its coded KY table."""
+    return row["year"] == 1996 and row["description"].startswith("KY new inputs: aged single, wages and pensions")

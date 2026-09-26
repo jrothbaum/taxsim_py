@@ -603,3 +603,22 @@ eitc_2017plus_amax:  # `amax17(ieic,law)`
   2019: [30000, 30000, 30000, 30000]
   2020: [30000, 30000, 30000, 30000]
   2021: [30000, 30000, 30000, 30000]
+
+# Renter's credit (for renters paying no property tax): single-filer and
+# other-filer amounts, 1977-1992; 1991-1992 only below the AGI limits
+# (half the credit in the top $500/$1,000 band); from 1998 $60 per
+# taxpayer ($120 for joint and head of household) up to an indexed AGI
+# limit of $25,000 per taxpayer. Married separate filers get half the
+# other-filer amount 1979-1990.
+renter_credit_single: {1977: 37, 1979: 60}
+renter_credit_other: {1977: 37, 1979: 137, 1990: 120}
+renter_credit_1991_agi_limit: {single: 20000, other: 40000}
+renter_credit_1991_half_band: {single: 500, other: 1000}
+renter_credit_1991_inflation: {1991: 1.0, 1992: 1.036}
+renter_credit_1998_amount: 60
+renter_credit_1998_agi_limit: 25000
+renter_credit_1998_inflation: {1998: 1.0, 1999: 1.026, 2000: 1.06396, 2001: 1.12036, 2002: 1.13716, 2003: 1.16216, 2004: 1.1982, 2005: 1.23176, 2006: 1.29088, 2007: 1.33088, 2008: 1.35744, 2009: 1.37648, 2010: 1.38888, 2011: 1.42636, 2013: 1.4782, 2014: 1.51072, 2015: 1.53036, 2016: 1.56248, 2017: 1.60312, 2018: 1.66564, 2019: 1.71728, 2020: 1.74132}
+# 1985-1986 exclusion per taxpayer 65 or older, reduced by half of income
+# above $25,000 per aged taxpayer.
+aged_exclusion_1985: 1000
+aged_exclusion_income_limit_1985: 25000

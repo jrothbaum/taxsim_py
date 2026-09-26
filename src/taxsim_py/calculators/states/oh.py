@@ -2,9 +2,10 @@
 
 import polars as pl
 
-from taxsim_py.engine.brackets import bracket_tax
+from taxsim_py.engine.brackets import bracket_rate, bracket_tax
+from taxsim_py.engine.inputs import aged_count, is_dependent_filer, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, load_yaml, resolve_year
-from taxsim_py.engine.state import checkpoint, interpolate_table, tier_values, with_defaults
+from taxsim_py.engine.state import checkpoint, interpolate_table, tier_values, with_defaults, with_state_detail
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
 OH_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "oh" / "income_tax.yaml")
@@ -45,30 +46,42 @@ def compute_oh_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     p = OH_PARAMS
     df = with_defaults(df, (
         "psemp", "ssemp", "depx", "taxable_unemployment", "earned_income", "ccc_uncapped", "eitc",
-        "se_adjustment", "pre1987_twoded",
+        "se_adjustment", "pre1987_twoded", "pensions", "taxable_social_security", "nonprop",
     ))
     df = deflate_for_extrapolation(
         df, flate,
-        ["pwages", "swages", "psemp", "ssemp", "agi", "taxable_unemployment", "earned_income", "eitc", "se_adjustment"],
+        [
+            "pwages", "swages", "psemp", "ssemp", "agi", "taxable_unemployment", "earned_income", "eitc",
+            "se_adjustment", "pensions", "taxable_social_security", "nonprop",
+        ],
     )
 
     status = pl.col("filing_status")
     is_joint = status == "married_joint"
     sep = pl.when(status == "married_separate").then(2.0).otherwise(1.0)
-    taxpayers = pl.when(is_joint).then(2.0).otherwise(1.0)
+    taxpayers = taxpayer_count()
+    aged = aged_count()
     depx = pl.col("depx")
     exemptions = taxpayers + depx
 
     # --- AGI and the business income deduction ---
     agi = pl.col("agi")
+    if y <= 1982:
+        agi = agi - pl.when(aged > 0).then(
+            pl.min_horizontal(pl.col("pensions"), float(p["pension_exclusion_1977_1982"]))
+        ).otherwise(0.0)
+    if y >= 1984:
+        agi = agi - pl.col("taxable_social_security")
     businc = pl.lit(0.0)
     statb = pl.lit(0.0)
+    business_rate = pl.lit(0.0)
     if y >= 2015:
         business = (pl.col("psemp") + pl.col("ssemp")).clip(0, None)
         busded = pl.min_horizontal(_p("business_deduction_share", y) * business, _p("business_deduction_cap", y) / sep)
         agi = agi - busded
         businc = (business - busded).clip(0, None)
         statb = bracket_tax(businc, p["business_brackets"])
+        business_rate = bracket_rate(businc, p["business_brackets"])
     df, (agi, businc) = checkpoint(df, oh_agi=agi, oh_businc=businc)
 
     # --- Exemptions ---
@@ -83,11 +96,13 @@ def compute_oh_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
                 .otherwise(amount)
             )
         exemp = amount * exemptions
+    exemp = pl.when(is_dependent_filer()).then(0.0).otherwise(exemp)
     df, (taxinc,) = checkpoint(df, oh_taxinc=(agi - businc - exemp).clip(0, None))
 
     # --- Child care credit (share of the federal credit before its tax limit) ---
     chcrbc = pl.col("ccc_uncapped")
     regcr = pl.lit(0.0)
+    earncr = pl.lit(0.0)
     if 1989 <= y <= 1992:
         c = p["child_care_1989_1992"]
         regcr = pl.when(agi < c["agi_limit"]).then(pl.min_horizontal(c["rate"] * chcrbc, pl.lit(c["cap"]))).otherwise(0.0)
@@ -97,6 +112,20 @@ def compute_oh_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
             pl.when(agi < c["low_agi"]).then(c["low_rate"] * chcrbc).otherwise(c["rate"] * chcrbc)
         ).otherwise(0.0)
 
+    # Senior citizen credit, and from 1983 a retirement income credit by
+    # pensions, for taxpayers 65 or older.
+    if y <= 1982:
+        senior = pl.lit(float(p["senior_credit_1977_1982"]))
+    else:
+        retcr = interpolate_table(pl.col("pensions"), p["retirement_income_credit"])
+        if y >= 1990:
+            retcr = retcr.clip(None, p["retirement_income_credit_cap_1990"])
+        senior = pl.when(taxinc <= p["senior_credit_taxable_income_limit"]).then(
+            float(p["senior_credit"]) + retcr
+        ).otherwise(0.0)
+    chcr = regcr
+    regcr = regcr + pl.when(aged > 0).then(senior).otherwise(0.0)
+
     excred = pl.lit(0.0)
     if 1983 <= y <= 2012:
         excred = p["exemption_credit"] * exemptions
@@ -105,8 +134,10 @@ def compute_oh_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
 
     # --- Joint filing credit eligibility: each spouse's income share ---
     wages = pl.col("pwages").clip(0, None) + pl.col("swages").clip(0, None)
+    # Federal adjustments (`comnew(17)`), where non-property income enters negatively.
     adjust = pl.col("se_adjustment") if y >= 1987 else (pl.col("pre1987_twoded") if y >= 1982 else pl.lit(0.0))
-    xlind = wages + pl.col("psemp") + pl.col("ssemp") + pl.col("taxable_unemployment") - adjust
+    adjust = adjust - pl.col("nonprop")
+    xlind = wages + pl.col("psemp") + pl.col("ssemp") + pl.col("pensions") + pl.col("taxable_unemployment") - adjust
     hagi = pl.col("pwages").clip(0, None) + 0.5 * (xlind - wages)
     wagi = xlind - hagi
     min_income = p["joint_credit_min_spouse_income"]
@@ -118,6 +149,7 @@ def compute_oh_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         # Through 1988 the joint filing credit is not limited to joint returns.
         statax = (bracket_tax(taxinc, brackets) - regcr).clip(0, None)
         statax = _joint_credit(statax, taxinc, businc, y, joint_eligible)
+        rate = bracket_rate(taxinc, brackets)
     elif y <= 1988:
         # Method 1 (a deduction per exemption, then the joint credit) unless
         # method 2 (a credit per exemption) is lower than method 1 before the
@@ -131,16 +163,19 @@ def compute_oh_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
             stax2 = stax2.clip(0, None)
         df, (stax1, stax2) = checkpoint(df, oh_stax1=stax1, oh_stax2=stax2)
         statax = pl.when(stax2 < stax1).then(stax2).otherwise(_joint_credit(stax1, taxinc, businc, y, joint_eligible))
+        rate = pl.when(stax2 < stax1).then(bracket_rate(taxinc, brackets)).otherwise(
+            bracket_rate((taxinc - dedy).clip(0, None), brackets)
+        )
         statax = (statax - excred).clip(0, None)
     else:
         statax = bracket_tax(taxinc, brackets)
+        rate = bracket_rate(taxinc, brackets)
         if y >= 2017:
             statax = pl.when(taxinc <= _p("zero_bracket", y)).then(0.0).otherwise(statax)
         statax = statax + statb
         statax = (statax - regcr).clip(0, None)
         statax = (statax - excred).clip(0, None)
         df, (statax,) = checkpoint(df, oh_statax=statax)
-        earncr = pl.lit(0.0)
         if y >= 2013:
             earncr = _p("eitc_rate", y) * pl.col("eitc")
             if y <= 2018:
@@ -150,8 +185,24 @@ def compute_oh_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         statax = _joint_credit(statax, taxinc, businc, y, is_joint & joint_eligible)
         statax = (statax - earncr).clip(0, None)
 
+    credits = regcr + excred + earncr
     if 2005 <= y <= 2016:
-        statax = pl.when(taxinc <= p["low_income_exemption_2005_2016"]).then(0.0).otherwise(statax)
+        # TAXSIM returns before the credits and the tax table.
+        exempt = taxinc <= p["low_income_exemption_2005_2016"]
+        statax = pl.when(exempt).then(0.0).otherwise(statax)
+        chcr = pl.when(exempt).then(0.0).otherwise(chcr)
+        earncr = pl.when(exempt).then(0.0).otherwise(earncr)
+        credits = pl.when(exempt).then(0.0).otherwise(credits)
+        rate = pl.when(exempt).then(business_rate).otherwise(rate)
 
     df = df.with_columns(siitax=statax * flate)
-    return df
+    return with_state_detail(
+        df,
+        agi=agi,
+        exemptions=exemp,
+        taxable_income=taxinc,
+        child_care_credit=chcr,
+        eic=earncr,
+        credits=credits,
+        rate=rate,
+    )

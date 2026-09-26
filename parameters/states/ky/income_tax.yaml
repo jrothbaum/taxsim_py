@@ -1,24 +1,14 @@
 # Kentucky individual income tax (`kytax`, taxsim_2024_09_21.f:6945-7219,
 # state id 18). See calculators/states/ky.py for the full mechanism.
 #
-# Confirmed inert given this project's input schema (not silent gaps):
-# elderly/blind (`data(9)`/`data(10)`, unpopulated page/sage); Social
-# Security benefits (`comnew(79)`) and pension/retirement income
-# (`data(20)`/`data(72)`, driving the ENTIRE retirement-income-exclusion
-# table to a permanent no-op - `pensions` was never added to this
-# project's own INPUT_COLUMNS, the same schema-level gap already
-# documented for Iowa/Kansas); self-employed health insurance
-# (`data(124)`), IRA contributions (`data(29)`), non-itemizer charitable
-# cash/asset contributions (`data(58)`/`data(59)`/`data(60)`), investment
-# interest expense (`data(57)`), misc. 2018+ itemized components
-# (`data(66)`), solar credit (`data(38)`), and `comnew(28)`/`comnew(23)` -
-# none ever assigned by the input reader.
+# Not TAXSIM inputs, so always zero: blindness, self-employed health
+# insurance (`data(124)`), IRA contributions (`data(29)`), non-itemizer
+# charitable contributions (`data(58)`-`data(60)`), investment interest
+# expense (`data(57)`), misc. 2018+ itemized components (`data(66)`), the
+# solar credit (`data(38)`), `comnew(28)` and `comnew(23)`.
 #
-# The Income Gap Tax Credit (`gapcr`, 2019-2020) is REAL but genuinely
-# VESTIGIAL for this project's own observable output: the source computes
-# it and folds it into `credit` (an internal reporting total this project
-# never exposes as a column) but never actually subtracts it from
-# `statax` - confirmed by direct source reading, not a gap.
+# The Income Gap Tax Credit (`gapcr`, 2019-2020) is included in TAXSIM's
+# detailed `credit` output but is not subtracted from `statax`.
 #
 # The 2010-2012 itemized-deduction-phaseout suspension has a real,
 # replicated-as-found BUG in the source's own condition:
@@ -137,8 +127,6 @@ personal_credit_amount_pre2004:
   1960: 20
 personal_credit_amount_2014_2017:
   1960: 10
-# (2018+'s own $40-elderly/blind-only credit is confirmed inert here -
-# `data(9)`/`data(10)` both always $0.)
 
 # Low Income Credit (1990-2004) - a real percentage-of-tax schedule by
 # AGI bracket.
@@ -204,6 +192,45 @@ family_size_credit_table_4person:
   - [25155, 0.2]
   - [25736, 0.10]
   - [100000000, 0.0]
+
+# 2019-2020 Income Gap Tax Credit. These are interpolated using the same
+# family-size-specific CPI divisor as the Family Size Tax Credit.
+income_gap_credit_table_1person:
+  - [9570, 0]
+  - [9953, 11]
+  - [10336, 20]
+  - [10718, 29]
+  - [11101, 37]
+  - [11484, 45]
+  - [11867, 51]
+  - [12154, 58]
+  - [12441, 64]
+  - [12728, 69]
+  - [100000000, 0]
+income_gap_credit_table_2person:
+  - [12830, 0]
+  - [13343, 7]
+  - [13856, 13]
+  - [14370, 18]
+  - [14883, 22]
+  - [15396, 24]
+  - [15909, 26]
+  - [16294, 27]
+  - [16679, 28]
+  - [17064, 28]
+  - [100000000, 0]
+income_gap_credit_table_3person:
+  - [16090, 0]
+  - [16734, 3]
+  - [17377, 6]
+  - [18021, 6]
+  - [18664, 6]
+  - [19308, 4]
+  - [19952, 0]
+  - [20434, 0]
+  - [20917, 0]
+  - [21400, 0]
+  - [100000000, 0]
 family_size_credit_aif_1person:
   2005: 1.0
   2006: 1.024
@@ -276,3 +303,10 @@ family_size_credit_aif_4person:
   2019: 1.331
   2020: 1.354
   2021: 1.369
+
+# 1995+ retirement income exclusion: this share of pensions, up to the cap.
+retirement_exclusion_share: {1995: 0.25, 1996: 0.5, 1997: 0.75, 1998: 1.0}
+retirement_exclusion_cap: {1995: 6250, 1996: 12500, 1997: 18750, 1998: 35000, 1999: 35700, 2000: 36414, 2001: 37500, 2002: 38775, 2003: 39400, 2004: 40200, 2005: 41110, 2018: 31110}
+# Personal credits per taxpayer 65 or older: counted twice before 2004;
+# $40 in 2014-2017 and 2018+.
+aged_personal_credit_2014: 40

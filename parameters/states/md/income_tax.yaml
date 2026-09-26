@@ -1,17 +1,8 @@
 # Maryland individual income tax (`mdtax`, taxsim_2024_09_21.f:7893-8281,
 # state id 21). See calculators/states/md.py for the full mechanism.
 #
-# Confirmed inert given this project's input schema (not silent Fortran
-# gaps): elderly/blind (`data(9)`/`data(10)`, unpopulated) - makes the
-# ENTIRE pension exclusion AND the "blind/aged" standard-deduction and
-# exemption addbacks permanent no-ops; pension/retirement income
-# (`data(20)`/`data(72)`/`data(91)`); Social-Security-in-AGI
-# (`comnew(79)`); `xjobs()`; political contributions (`comnew(25)` =
-# `polcon`, no input in this schema feeds it); the "dependent of another
-# return" flag (`data(105)`). NOT inert despite first appearances:
-# `comnew(36)` (federal preference income - wages for 1977-1978
-# itemizers, the capital-gains deduction for 1983-1986), reconstructed in
-# md.py.
+# Not TAXSIM inputs, so always zero: `xjobs()` (the jobs credit) and
+# political contributions (`comnew(25)`).
 #
 # `divexc()` (the federal dividend/interest exclusion swap other states
 # only exercise for 1981) is called by Maryland for EVERY year<=1986 -
@@ -302,3 +293,54 @@ refundable_eitc_rate:
 # 2020+ childless-worker refundable floor (`min(530,comnew(59))`).
 refundable_eitc_childless_floor_2020plus:
   1960: 530
+
+# Pension exclusion per taxpayer 65 or older (`pex`), less Social Security
+# benefits.
+pension_exclusion:
+  1977: 3200
+  1978: 5200
+  1979: 5700
+  1980: 6400
+  1981: 7400
+  1982: 8700
+  1983: 8500
+  1986: 8600
+  1987: 9100
+  1988: 9500
+  1989: 10100
+  1990: 10800
+  1991: 11800
+  1992: 12300
+  1993: 13100
+  1994: 13600
+  1995: 13800
+  1996: 14400
+  1997: 15000
+  1998: 15900
+  1999: 16100
+  2000: 16500
+  2001: 17300
+  2002: 18500
+  2003: 19900
+  2004: 20700
+  2005: 21500
+  2006: 22600
+  2007: 23600
+  2008: 24000
+  2009: 24500
+  2010: 26100
+  2011: 26300
+  2012: 27100
+  2013: 27800
+  2014: 29000
+  2015: 29200
+  2016: 29400
+  2017: 29900
+  2018: 30600
+  2019: 31100
+  2020: 33100
+  2021: 34300
+# 1987-1989 additional standard deduction per taxpayer 65 or older.
+standard_deduction_aged_addition_1987_1989: 800
+# 1990+ exemption per taxpayer 65 or older (`blage`).
+aged_exemption: 1000

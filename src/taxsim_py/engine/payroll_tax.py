@@ -104,3 +104,93 @@ def household_self_employment_tax(
         gross_se_income_secondary, wages_secondary, wage_base, se_oasdi_rate, se_hi_rate, net_earnings_factor, hi_wage_base
     )
     return setax_1 + setax_2
+
+
+# TAXSIM's `sstax` earnings items per earner: wages, self-employment income,
+# then two business incomes. Its lookup table gives the primary earner both
+# non-professional business incomes and the spouse both professional ones.
+PAYROLL_ITEMS = (
+    ("pwages", "psemp", "pbusinc", "sbusinc"),
+    ("swages", "ssemp", "pprofinc", "sprofinc"),
+)
+# Taxpayer's own share of each item's tax (`g` in `sstax`).
+_OWN_SHARE = (1.0, 0.9235, 0.9235, 0.9235)
+
+
+def _capped_items(
+    items: list[pl.Expr], factors: list[float], rates: list[float], cap: float, factor_in_rate: bool
+) -> tuple[list[pl.Expr], pl.Expr]:
+    """Per-item tax with the cap applied to running factor-weighted earnings.
+
+    The first item whose running total reaches the cap is reduced by the
+    excess and later items pay nothing; the flag reports whether any did.
+    """
+    taxes = []
+    running = pl.lit(0.0)
+    capped_before = pl.lit(False)
+    for item, factor, rate in zip(items, factors, rates):
+        running = running + item
+        effective_rate = factor * rate if factor_in_rate else rate
+        full = (item * effective_rate) if factor_in_rate else (factor * item * rate)
+        over = running * factor > cap
+        reduced = full - (running * factor - cap) * effective_rate
+        taxes.append(pl.when(capped_before).then(0.0).when(over).then(reduced).otherwise(full))
+        capped_before = capped_before | over
+    return taxes, capped_before
+
+
+def taxsim_payroll(
+    wage_base: float,
+    hi_wage_base: float,
+    oasdi_rate: float,
+    se_oasdi_rate: float,
+    hi_rate: float,
+    net_earnings_factor: float,
+    addmed_rate: float,
+    addmed_threshold: pl.Expr,
+) -> dict[str, pl.Expr]:
+    """Payroll and self-employment tax as TAXSIM's `sstax` computes them.
+
+    Returns expressions for `wage_tax` (both halves of wage FICA), `setax`
+    (all self-employment tax, `comnew(175)`), `setax_qbi` and `setax_sstb`
+    (tax on the third and fourth items, TAXSIM `setxprof` and `setxsstb`,
+    which its QBI deduction nets against non-professional and professional
+    income respectively),
+    `addmed`, `fica`, `tfica`, `own_fica_primary` (`comnew(183)`), and the
+    primary earner's marginal wage rates `oasdi_rate_primary`/`hi_rate_primary`.
+    """
+    factors = [1.0, net_earnings_factor, net_earnings_factor, net_earnings_factor]
+    oasdi_rates = [oasdi_rate, se_oasdi_rate, se_oasdi_rate, se_oasdi_rate]
+    streams = []
+    for names in PAYROLL_ITEMS:
+        # Negative wages are dropped; losses reduce the tax.
+        items = [pl.col(names[0]).clip(0, None), *[pl.col(n) for n in names[1:]]]
+        oasdi, oasdi_capped = _capped_items(items, factors, oasdi_rates, wage_base, factor_in_rate=False)
+        hi, hi_capped = _capped_items(items, factors, [hi_rate] * 4, hi_wage_base, factor_in_rate=True)
+        streams.append(([o + h for o, h in zip(oasdi, hi)], oasdi_capped, hi_capped))
+
+    wage_tax = streams[0][0][0] + streams[1][0][0]
+    setax_self = streams[0][0][1] + streams[1][0][1]
+    setax_qbi = streams[0][0][2] + streams[1][0][2]
+    setax_sstb = streams[0][0][3] + streams[1][0][3]
+    setax = setax_self + setax_qbi + setax_sstb
+    # TAXSIM counts both earners' self-employment income for each earner here.
+    earnings = pl.lit(0.0)
+    for names in PAYROLL_ITEMS:
+        earnings = earnings + pl.col(names[0]).clip(0, None)
+        earnings = earnings + net_earnings_factor * (pl.col("psemp") + pl.col("ssemp"))
+        earnings = earnings + net_earnings_factor * (pl.col(names[2]) + pl.col(names[3]))
+    addmed = additional_medicare_tax(earnings, addmed_threshold, addmed_rate)
+    primary = streams[0]
+    return {
+        "wage_tax": wage_tax,
+        "setax": setax,
+        "setax_qbi": setax_qbi,
+        "setax_sstb": setax_sstb,
+        "addmed": addmed,
+        "fica": setax + wage_tax + addmed,
+        "tfica": setax + wage_tax / 2 + addmed,
+        "own_fica_primary": pl.sum_horizontal(share * tax for share, tax in zip(_OWN_SHARE, primary[0])),
+        "oasdi_rate_primary": pl.when(primary[1]).then(0.0).otherwise(oasdi_rate),
+        "hi_rate_primary": pl.when(primary[2]).then(0.0).otherwise(hi_rate),
+    }

@@ -1,9 +1,8 @@
 # New Jersey gross income tax (`njtax`, taxsim_2024_09_21.f:12879-13262,
 # state id 31).
 #
-# Inputs this schema never supplies make these provisions inactive:
-# pension and retirement exclusions, elderly/disabled exemptions and
-# rebates, tenant credits and rebates, medical expense deduction.
+# Not TAXSIM inputs, so always zero: blindness/disability and the medical
+# expense deduction.
 
 # --- No tax on income at or below these amounts ---
 # 1977-1999: one amount (halved for married separate); 1994-1996 test is
@@ -58,13 +57,42 @@ brackets:
 # `property_tax_excess_credit_rate` on any deduction exceeding income ---
 property_tax_floor_1985_1989: [[20000, 3250], [50000, 2600], [1.0e+20, 1857]]
 property_tax_excess_credit_rate: 0.02
-# 1985-1989 credit for homeowners with income at or below the no-tax
-# threshold.
+# 1985-1989 credit for homeowners (renters: the smaller amount) with
+# income at or below the no-tax threshold.
 low_income_homeowner_credit_1985_1989: 65
+low_income_renter_credit_1985_1989: 35
+# 1985-1989 renters without property tax deduct the larger of rent at this
+# share and the floor times the renter share.
+rent_deduction_share_1985_1989: 0.18
+rent_deduction_floor_share_1985_1989: 0.54
+# Through 1984: a credit for renters, larger for taxpayers 65 or older.
+renter_credit_through_1984: 65
+renter_credit_aged_addition_through_1984: 35
+# From 1985 rent counts toward property tax at this share.
+property_tax_rent_share: 0.18
 
-# --- 1990-2003 homestead rebate for homeowners under 65 ---
-homestead_rebate: {1977: 0, 1990: 90, 2004: 0}
+# --- 1990-2003 homestead rebate (2004-2008 only when rent is paid) ---
+# Under 65: homeowners with income under the limit; renters (who then get
+# the renter amount) with income under the renter limit.
+homestead_rebate: {1990: 90}
 homestead_rebate_income_limit: {1990: 40000}
+homestead_rebate_renter: {1990: 30, 1999: 40, 2000: 60, 2001: 100, 2004: 150}
+homestead_rebate_renter_income_limit: {1990: 40000, 1999: 100000, 2004: 1.0e+20}
+# 65 or older: property tax over 5% of income, between a minimum and a
+# maximum, by income tier (up to $35,000; to $70,000, where only joint and
+# head of household returns keep the formula; to $100,000).
+homestead_rebate_aged:
+  income_share: 0.05
+  tier_limits: [35000, 70000, 100000]
+  maximum: {1990: 500, 2001: 775}
+  owner_minimum: {1990: 150}
+  owner_middle_other: {1990: 150}
+  owner_top: {1990: 100}
+  renter_minimum: {1990: 65, 2001: 100}
+  # From 2001 renters above $35,000 get a flat amount in the middle tier.
+  renter_middle_flat: {2001: 100}
+  renter_middle_other: {1990: 65, 2001: 100}
+  renter_top: {1990: 35, 1999: 40, 2000: 60, 2001: 100, 2004: 150}
 
 # --- 1996 on: property tax deduction, or a credit when the deduction
 # saves less than the credit amount ---
@@ -99,3 +127,17 @@ eitc_match_rate:
   2019: 0.39
   2020: 0.4
 eitc_income_limit_2000_2006: 20000
+
+# Pension exclusion for taxpayers 65 or older, by filing status; from 2005
+# only for household income up to the limit. Unused exclusion covers
+# other income when wages and self-employment income are at most the
+# earnings limit.
+pension_exclusion:
+  single: {1977: 7500, 2000: 9375, 2001: 11250, 2002: 13125, 2003: 15000, 2017: 30000, 2018: 45000, 2019: 60000, 2020: 75000}
+  married_joint: {1977: 10000, 2000: 12500, 2001: 15000, 2002: 17500, 2003: 20000, 2017: 40000, 2018: 60000, 2019: 80000, 2020: 100000}
+  married_separate: {1977: 5000, 2000: 6250, 2001: 7500, 2002: 8750, 2003: 10000, 2017: 20000, 2018: 30000, 2019: 40000, 2020: 50000}
+  head_of_household: {1977: 7500, 2000: 9375, 2001: 11250, 2002: 13125, 2003: 15000, 2017: 30000, 2018: 45000, 2019: 60000, 2020: 75000}
+pension_exclusion_household_income_limit: {2005: 100000}
+other_retirement_exclusion_earnings_limit: 3000
+# Exemption per taxpayer 65 or older.
+exemption_per_aged_taxpayer: {1977: 1000}

@@ -1,0 +1,78 @@
+# Virginia individual income tax (TAXSIM `vatax`, taxsim_2024_09_21.f:19226-19563).
+# Brackets are [start, rate] rows converted from TAXSIM's `look2` upper-bound
+# tables (the last rate continues beyond the table).
+
+# No return (no tax) below these AGIs: 1979-1986; 1987-2004 single / married
+# (halved for married filing separately); 2005 on per taxpayer.
+filing_minimum_1979: 3000.0
+filing_minimum_1987: {single: 5000.0, married: 8000.0}
+filing_minimum_2005: 7000.0
+# No tax at or below these AGIs: through 2004 single and head of household /
+# others per taxpayer; 2005 on per taxpayer by year.
+zero_tax_agi_2004: {single: 5000.0, married_per_taxpayer: 4000.0}
+zero_tax_agi_per_taxpayer: {2005: 7000.0, 2008: 11250.0, 2010: 11650.0, 2012: 11950.0}
+
+standard_deduction_1986: {rate: 0.15, low: 1300.0, high: 2000.0}
+standard_deduction_1987: {joint: 2000.0, other: 1000.0}
+standard_deduction_1988: {joint: 2700.0, other: 1350.0}
+# 1989-2004: single-type / married (halved for married filing separately).
+standard_deduction_1989: {single: 3000.0, married: 5000.0}
+standard_deduction_per_taxpayer: {2005: 3000.0, 2019: 4500.0}
+
+# State income tax deduction limit (1991-2017): the federal-style limit
+# threshold and rates.
+itemized_limit_threshold: 100000.0
+itemized_limit_index: {1991: 1.0, 1992: 1.0525, 1993: 1.0845, 1994: 1.118, 1995: 1.147, 1996: 1.1795, 1997: 1.2120, 1998: 1.2450, 1999: 1.2660, 2000: 1.2895, 2001: 1.3295, 2002: 1.3730, 2003: 1.3950, 2004: 1.4270, 2005: 1.4595, 2006: 1.505, 2007: 1.564, 2008: 1.5995, 2009: 1.6680, 2010: 1.6955, 2012: 1.7365}
+itemized_limit_threshold_2013: 250000.0
+itemized_limit_index_2013: {2013: 1.0, 2014: 1.0168, 2015: 1.033, 2016: 1.0376, 2017: 1.046}
+itemized_limit_status_factor_2013: {single: 1.0, married_joint: 1.2, head_of_household: 1.1, married_separate: 0.6}
+itemized_limit_share: 0.8
+itemized_limit_rate: 0.03
+salt_cap: 10000.0
+# 2019 on: Virginia's own limit on itemized deductions above federal AGI of
+# (by filing status), with the threshold test scaled by year (logged).
+itemized_limit_2019: {single: 271700.0, married_joint: 326050.0, married_separate: 163025.0, head_of_household: 298850.0}
+itemized_limit_2019_test_index: {2019: 1.0, 2021: 1.25}
+
+# Child care expense deduction per child (at most two); none in 2003.
+child_care_deduction_per_child: {1979: 2000.0, 1983: 2400.0, 2003: 0.0, 2004: 3000.0}
+
+exemption: {1977: 600.0, 1987: 700.0, 1988: 800.0, 2005: 900.0, 2008: 930.0}
+
+brackets_top_start: {1977: 12000.0, 1987: 14000.0, 1988: 15000.0, 1989: 16000.0, 1990: 17000.0}
+brackets_rates: [[0, 0.02], [3000, 0.03], [5000, 0.05], [null, 0.0575]]
+
+# Spouse tax adjustment 2000 on, when taxable income exceeds $3,000; capped.
+spouse_adjustment_min_taxable: 3000.0
+spouse_adjustment_cap: 259.0
+
+# Credit for low-income individuals (2000 on): $300 per person when AGI is
+# at or below the poverty-style limit for the household; from 2006 the larger
+# of that and 20% of the federal EITC; limited to tax.
+low_income_credit_per_person: 300.0
+low_income_limit: {2000: 8350.0, 2001: 8590.0, 2002: 8860.0, 2003: 8980.0, 2004: 9310.0, 2005: 9570.0, 2006: 9800.0, 2007: 10210.0, 2008: 10400.0, 2009: 10830.0, 2011: 10890.0, 2012: 11170.0, 2013: 11490.0, 2014: 11670.0, 2015: 11770.0, 2016: 11880.0, 2017: 12060.0, 2018: 12140.0, 2019: 12490.0, 2020: 12760.0, 2021: 12880.0}
+low_income_limit_per_person: {2000: 2900.0, 2001: 3020.0, 2002: 3080.0, 2003: 3140.0, 2004: 3180.0, 2005: 3260.0, 2006: 3400.0, 2007: 3480.0, 2008: 3600.0, 2009: 3740.0, 2011: 3820.0, 2012: 3960.0, 2013: 4020.0, 2014: 4060.0, 2015: 4160.0, 2017: 4180.0, 2018: 4320.0, 2019: 4420.0, 2020: 4480.0, 2021: 4540.0}
+eitc_rate_2006: 0.2
+
+# Through 1987: deduction per taxpayer 65 or older.
+aged_deduction_1977_1987: {1977: 400, 1987: 200}
+# 1989: retirement income subtraction for taxpayers 65 or older: all
+# retirement income up to $16,000; from $16,001 to $40,000 one sixth of
+# $64,000 less retirement income, up to $7,992.
+retirement_subtraction_1989: {full_limit: 16000, partial_start: 16001, partial_end: 40000, base: 64000, divisor: 6, cap: 7992}
+# 1990+: age deduction per taxpayer 65 or older (1992: one amount per
+# return), up to federal AGI; from 2004 reduced dollar for dollar by
+# federal AGI less taxable Social Security over the limit.
+age_deduction: {1990: 12000, 1992: 12472, 1993: 12944, 1995: 10000, 1996: 12000}
+age_deduction_income_limit: {single: 50000, married_joint: 75000}
+# 2005+: exemption per taxpayer 65 or older.
+aged_exemption_2005: 800
+# Spouse tax adjustment: a spouse 65 or older has this age deduction.
+spouse_adjustment_age_deduction: 12000
+# Through 1989: credit of 5% of a Social Security maximum per taxpayer 65 or
+# older, less benefits and twice income over $12,000 (1989: none with
+# retirement income of $2,000 or more).
+old_age_credit_rate: 0.05
+old_age_credit_income_start: 12000
+old_age_credit_retirement_limit_1989: 2000
+old_age_credit_base: {1977: 4952, 1978: 5518, 1979: 6640, 1980: 6864, 1981: 8124, 1982: 9035, 1983: 8508, 1984: 8436, 1985: 8926, 1986: 9120, 1987: 9468, 1988: 10056, 1989: 10788}

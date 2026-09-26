@@ -238,3 +238,12 @@ personal_credit_rate_by_year:  # `pcr(law)`, dimensioned 1987:2021
 # Child/Dependent Care Credit: 20% of the federal credit (10% pre-1998).
 child_care_credit_rate_1998plus: 0.20
 child_care_credit_rate_pre1998: 0.10
+
+# Pension exclusion: 1983 up to a flat amount; 1984-1989 up to an amount per
+# taxpayer; from 1990 up to $6,000 per taxpayer 65 or older (as TAXSIM
+# models it).
+pension_exclusion_amount: {1983: 1000, 1984: 2000, 1985: 6000}
+pension_exclusion_basis: {1983: return, 1984: taxpayer, 1990: aged}
+# Personal credit per taxpayer 65 or older before 1987 (dependents: $6).
+personal_credit_pre1987: 17.5
+dependent_credit_pre1987: 6.0

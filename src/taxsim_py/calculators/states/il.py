@@ -2,6 +2,8 @@
 
 import polars as pl
 
+from taxsim_py.engine.inputs import aged_count, is_dependent_filer, taxpayer_count
+from taxsim_py.engine.state import with_defaults, with_state_detail
 from taxsim_py.engine.schema import PARAMETERS_ROOT, load_yaml, resolve_year
 from taxsim_py.engine.state_extrapolation import resolve_state_year
 
@@ -13,6 +15,7 @@ _PRE1987_STATUSES = ["single", "married_joint", "married_separate", "head_of_hou
 def compute_il_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     effective_year, flate = resolve_state_year(year)
     p = IL_PARAMS
+    df = with_defaults(df, ("pensions", "taxable_social_security"))
     rate = float(resolve_year(p["rate"], effective_year))
     exemption_amount = float(resolve_year(p["personal_exemption_amount"], effective_year))
 
@@ -22,10 +25,13 @@ def compute_il_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     # (taxsim_2022_10_21.f:62-65 scales comnew(1-98) uniformly except 4
     # named exceptions, none of which is comnew(68)), not a modeling choice
     # of this project's.
-    df = df.with_columns(
-        il_exemps=(1.0 + pl.col("depx") + pl.when(pl.col("filing_status") == "married_joint").then(1.0).otherwise(0.0))
-        / flate
-    )
+    # Federal exemption count: taxpayers and dependents (none for a
+    # dependent filer from 1987), plus the aged before 1987.
+    if effective_year <= 1986:
+        exemps = taxpayer_count() + pl.col("depx") + aged_count()
+    else:
+        exemps = pl.when(is_dependent_filer()).then(0.0).otherwise(taxpayer_count() + pl.col("depx"))
+    df = df.with_columns(il_exemps=exemps / flate)
 
     # Federal AGI plus the dividend-exclusion and capital-gains-exclusion
     # addbacks (`divexc(...)` and `comnew(7)=capded` in the source) -
@@ -70,8 +76,21 @@ def compute_il_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         # -comnew(4)`) - not a residual $0.001, genuinely 0.
         df = df.with_columns(il_dividend_addback=pl.lit(0.0), il_capgains_addback=pl.lit(0.0))
 
-    df = df.with_columns(il_agi=(pl.col("agi") + pl.col("il_dividend_addback") + pl.col("il_capgains_addback")) / flate)
-    df = df.with_columns(il_exemption=exemption_amount * pl.col("il_exemps"))
+    # Pensions and Social Security benefits are exempt.
+    df = df.with_columns(
+        il_agi=(
+            pl.col("agi") + pl.col("il_dividend_addback") + pl.col("il_capgains_addback")
+            - pl.col("pensions") - pl.col("taxable_social_security")
+        ) / flate
+    )
+    exemption = exemption_amount * pl.col("il_exemps")
+    if effective_year >= 1990:
+        exemption = exemption + p["aged_exemption_1990"] * aged_count()
+    # A dependent filer gets one exemption only if income is at most that amount.
+    exemption = pl.when(is_dependent_filer()).then(
+        pl.when(pl.col("il_agi") <= exemption_amount).then(exemption_amount).otherwise(0.0)
+    ).otherwise(exemption)
+    df = df.with_columns(il_exemption=exemption)
     df = df.with_columns(il_proptax=pl.col("proptax") / flate)
 
     # Property tax: three genuinely different formula shapes over time, not
@@ -89,12 +108,12 @@ def compute_il_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     if effective_year >= 1991:
         credit_rate = float(resolve_year(p["property_tax_credit_rate"], effective_year))
         df = df.with_columns(
-            il_income_cap_multiplier=pl.when(pl.col("filing_status") == "married_joint").then(2.0).otherwise(1.0)
+            il_income_cap_multiplier=taxpayer_count()
         )
         if effective_year >= 2017:
             income_cap = float(resolve_year(p["property_tax_credit_income_cap"], effective_year))
             df = df.with_columns(
-                il_property_tax_credit=pl.when(pl.col("il_agi") > income_cap * pl.col("il_income_cap_multiplier"))
+                il_property_tax_credit=pl.when(pl.col("agi") / flate > income_cap * pl.col("il_income_cap_multiplier"))
                 .then(0.0)
                 .otherwise(pl.min_horizontal(pl.col("il_tax_before_credits"), credit_rate * pl.col("il_proptax")))
             )
@@ -139,4 +158,13 @@ def compute_il_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     df = df.with_columns(il_tax_after_eitc=pl.col("il_tax_after_property_credit") - pl.col("il_eitc"))
 
     df = df.with_columns(siitax=pl.col("il_tax_after_eitc") * flate)
-    return df
+    return with_state_detail(
+        df,
+        agi=pl.col("il_agi"),
+        exemptions=pl.col("il_exemption"),
+        taxable_income=pl.col("il_taxinc"),
+        property_credit=pl.col("il_property_tax_credit"),
+        eic=pl.col("il_eitc"),
+        credits=pl.col("il_property_tax_credit") + pl.col("il_eitc"),
+        rate=rate,
+    )

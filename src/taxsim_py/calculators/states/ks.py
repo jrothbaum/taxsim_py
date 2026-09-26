@@ -2,29 +2,31 @@
 
 import polars as pl
 
-from taxsim_py.calculators.federal_pre1987 import PRE1987_PARAMS
-from taxsim_py.engine.brackets import bracket_tax
+from taxsim_py.calculators.payroll import payroll_parts
+from taxsim_py.engine.brackets import bracket_rate, bracket_tax
 from taxsim_py.engine.credits import child_care_credit_rate_pre2021
-from taxsim_py.engine.payroll_tax import household_self_employment_tax
+from taxsim_py.engine.inputs import aged_count, is_dependent_filer, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, load_yaml, resolve_year
 from taxsim_py.engine.state import (
-    with_defaults,
-    itemize_choice,
     by_filing_status as _by_status,
+    household_income,
     interpolate_table as _tablki,
     with_default as _with_default,
+    taxsim_socsec,
+    with_defaults,
+    with_state_detail,
 )
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
+STATE_ADJUSTMENT_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "state_adjustments.yaml")
 KS_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "ks" / "income_tax.yaml")
-PAYROLL_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "payroll_tax.yaml")
 FEDERAL_CREDITS_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "credits.yaml")
 
 
 def compute_ks_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     effective_year, flate = resolve_state_year(year)
     p = KS_PARAMS
-    df = with_defaults(df, ("proptax", "otheritem", "mortgage", "dividends", "intrec", "depx", "psemp", "ssemp"))
+    df = with_defaults(df, ("federal_chcr", "proptax", "otheritem", "mortgage", "dividends", "intrec", "depx", "psemp", "ssemp"))
     df = _with_default(df, "earned_income")
     df = _with_default(df, "eitc")
     df = _with_default(df, "ccc")
@@ -36,7 +38,7 @@ def compute_ks_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
 
     df = df.with_columns(
         ks_sep=pl.when(pl.col("filing_status") == "married_separate").then(2.0).otherwise(1.0),
-        ks_txp=pl.when(pl.col("filing_status") == "married_joint").then(2.0).otherwise(1.0),
+        ks_txp=taxpayer_count(),
     )
     is_joint = pl.col("filing_status") == "married_joint"
     is_hoh = pl.col("filing_status") == "head_of_household"
@@ -44,21 +46,23 @@ def compute_ks_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     # `setax` (comnew(175)) - computed at the REAL `year`'s rates on REAL
     # (undeflated) wages, same technique Alabama/Iowa already established
     # (sits outside the real dispatcher's own generic deflate loop).
-    wage_base = float(resolve_year(PAYROLL_PARAMS["oasdi_wage_base"], year))
-    hi_wage_base = float(resolve_year(PAYROLL_PARAMS["hi_wage_base"], year))
-    net_earnings_factor = float(resolve_year(PAYROLL_PARAMS["se_net_earnings_factor"], year))
-    se_oasdi_rate = float(resolve_year(PAYROLL_PARAMS["se_oasdi_rate"], year))
-    se_hi_rate = float(resolve_year(PAYROLL_PARAMS["se_hi_rate"], year))
-    setax = household_self_employment_tax(
-        pl.col("psemp"), pl.col("ssemp"), pl.col("pwages"), pl.col("swages"),
-        net_earnings_factor, wage_base, se_oasdi_rate, se_hi_rate, hi_wage_base,
-    )
+    setax = payroll_parts(year)["setax"]  # `comnew(175)`, real-year and undeflated
     df = df.with_columns(ks_setax=setax)
 
+    df = with_defaults(df, ("taxable_social_security", "earned_income", "pre1987_deduc"))
+    df = df.with_columns(
+        ks_household_income=household_income(
+            float(resolve_year(STATE_ADJUSTMENT_PARAMS["household_income_dividend_adjustment"], effective_year)),
+            float(resolve_year(STATE_ADJUSTMENT_PARAMS["household_income_record_adjustment"], effective_year)),
+        )
+    )
     df = deflate_for_extrapolation(
         df,
         flate,
         [
+            "federal_chcr",
+            "taxable_social_security", "gssi", "rentpaid", "otherprop", "scorp", "ks_household_income",
+            "pre1987_deduc",
             "pwages", "swages", "proptax", "otheritem", "mortgage", "dividends", "intrec",
             "stcg", "ltcg", "ui", "pui", "sui", "agi", "earned_income", "eitc", "ccc",
             "itemized_deduction", "salt_capped", "state_sales_or_income_tax_ded", "fiitax",
@@ -66,13 +70,18 @@ def compute_ks_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     )
 
     # --- AGI ---
-    df = df.with_columns(ks_agi=pl.col("agi"))  # `data(22)` confirmed inert.
-    # `xjobs()` and the 2007+ SS-benefits exclusion (`comnew(79)`, gated
-    # on federal AGI thresholds) both confirmed inert - no-ops.
+    df = df.with_columns(ks_agi=pl.col("agi"))
+    # Social Security benefits are exempt below a federal AGI limit (2007+).
+    if effective_year >= 2007:
+        limit = float(resolve_year(p["social_security_agi_limit"], effective_year))
+        df = df.with_columns(
+            ks_agi=pl.when(pl.col("agi") <= limit).then(pl.col("ks_agi") - pl.col("taxable_social_security")).otherwise(pl.col("ks_agi"))
+        )
     if 2013 <= effective_year <= 2016:
+        # Self-employment, S corporation and other property income removed.
         se_income = pl.col("psemp") + pl.col("ssemp")
-        df = df.with_columns(ks_agi=pl.col("ks_agi") + 0.5 * pl.col("ks_setax") - se_income)
-        # `comnew(8)` live-probe-confirmed $0; `data(21)` confirmed inert.
+        schedule_e = pl.col("otherprop") + pl.col("scorp")
+        df = df.with_columns(ks_agi=pl.col("ks_agi") + 0.5 * pl.col("ks_setax") - se_income - schedule_e)
 
     fedtax = pl.col("fiitax").clip(0, None)
     if effective_year <= 1982 or (1987 <= effective_year <= 1988):
@@ -107,72 +116,19 @@ def compute_ks_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         else:
             table = p["standard_deduction_2021plus"]
         stded = _by_status(table)
-        # 1988+ elderly/blind addback and the dependent-return cap
-        # (`data(9)/(10)/(105)`) both confirmed inert.
+        if effective_year >= 1998:
+            limit = pl.max_horizontal(pl.lit(float(p["dependent_standard_deduction_minimum"])), pl.col("earned_income"))
+            stded = pl.when(is_dependent_filer()).then(pl.min_horizontal(stded, limit)).otherwise(stded)
+        single_amount, married_amount = resolve_year(p["aged_standard_deduction"], effective_year)
+        married_type = pl.col("filing_status").is_in(["married_joint", "married_separate"])
+        stded = stded + pl.when(married_type).then(float(married_amount)).otherwise(float(single_amount)) * aged_count()
     df = df.with_columns(ks_stded=stded)
 
     # --- Itemized deduction ---
-    # `itemized_deduction` (comnew(24)) and `salt_capped` (part of
-    # comnew(30)) are both federal.py-ONLY columns, never exposed by
-    # federal_pre1987.py - reconstructed locally for years<=1986 from the
-    # raw proptax/otheritem/mortgage inputs PLUS `state_sales_or_income_
-    # tax_ded` itself (so it cancels out of `xitded=comnew(24)-data(50)`
-    # entirely, same pattern DC/GA/HI/Idaho/Iowa's own pre-1987
-    # reconstructions already established - live-probe-confirmed here via
-    # a 1979/single/$15,000-wages/$2,500-proptax case: real `xitem`=
-    # $3,419, only reachable by including the state-tax component).
     if effective_year <= 1986:
-        salt_plus_mortgage = pl.col("proptax") + pl.col("otheritem") + pl.col("mortgage") + pl.col("state_sales_or_income_tax_ded")
-        itemized_deduction_local = salt_plus_mortgage
-        # `itemizes` isn't exposed by federal_pre1987.py at all (unlike
-        # federal.py, years>=1987) - reconstructed locally via the SAME
-        # `deduc>zbr` comparison federal_pre1987.py makes internally,
-        # reusing the already-established `PRE1987_PARAMS["standard_
-        # deduction"]` table (the same one Idaho's own pre-1987 build
-        # already uses for this exact purpose). Missing this entirely
-        # left `itemizes` silently absent from the dataframe, which read
-        # as a permanent False and zeroed out every pre-1987 itemized
-        # deduction - caught via a live-probe mismatch (1977/single/
-        # $14,000 raw itemized: real return clearly itemizes, but the
-        # bug made `itemizing` False in BOTH the forced-itemize AND
-        # forced-standard passes).
-        zbr = _by_status({s: resolve_year(PRE1987_PARAMS["standard_deduction"][s], effective_year) for s in ("single", "head_of_household", "married_joint", "married_separate")})
-        # `ided`/`data(4)` (`force_itemize`) is never read anywhere in
-        # `kstax` itself - Kansas's own subroutine has no explicit
-        # itemize-forcing logic at all (confirmed by mapping every
-        # `data(4)`/`ided` reference in the whole source to its enclosing
-        # subroutine - unlike Arkansas's `artax`/Iowa's `iatax`, which DO
-        # read it and are faithfully forced elsewhere in this project).
-        # But Kansas's own formula still reads FEDERAL's real outputs
-        # (`comnew(24)`, `fedtax`), which DO genuinely differ between a
-        # forced-itemize and forced-standard federal pass for 1982-1986
-        # (federal_pre1987.py itself respects `force_itemize` those
-        # years) - so passing `force_itemize` through here for 1982-1986
-        # is CORRECT, not a workaround: it mirrors a real difference in
-        # what federal actually computed, not an invented one. Only for
-        # years<=1981 does federal_pre1987.py's own itemize decision
-        # become invariant to `force_itemize` (ALWAYS the natural
-        # `deduc>zbr` test) - so respecting it here too, for those years
-        # specifically, creates a FALSE divergence between the two forced
-        # Kansas branches that doesn't correspond to any real federal
-        # difference, letting Kansas's own EXTRA state-only deduction
-        # terms (`soc`/`addtx`, nowhere in federal's own `deduc` test)
-        # spuriously win the "cheaper combined total" comparison - caught
-        # via a live-probe mismatch on a pure-self-employment 1980 case
-        # (real: standard wins, $2,026.22; bugged: $1,910.52). An audit
-        # of every other already-built pre-1987 state found none with
-        # this SAME combination (reading `force_itemize` directly on its
-        # own itemize test AND having extra state-only deduction
-        # components), so no other state needs this fix - see project
-        # memory for the full per-state audit. (An earlier attempt to
-        # "simplify" this by ignoring `force_itemize` for ALL years<=1986,
-        # reasoning from "`kstax` never reads `ided`" alone, broke
-        # 1982-1986 - confirming the year boundary must track federal's
-        # OWN real forcing behavior, not just Kansas's own source text.)
-        if effective_year <= 1981:
-            itemizing = itemized_deduction_local > zbr
-        else:
-            itemizing = itemize_choice(itemized_deduction_local > zbr)
+        # Federal itemized deductions (zero when not itemizing federally).
+        itemized_deduction_local = pl.col("pre1987_deduc")
+        itemizing = pl.col("pre1987_itemizes")
     else:
         salt_plus_mortgage = pl.col("salt_capped") + pl.col("mortgage")
         itemized_deduction_local = pl.col("itemized_deduction")
@@ -184,15 +140,7 @@ def compute_ks_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         # `edm`/`data(44)` confirmed inert. Household FICA/SE-tax paid,
         # capped, real addback (see module docstring point for the
         # `socsec()` reconstruction).
-        rate_ss = float(resolve_year(p["socsec_rate"], effective_year))
-        ceil_ss = float(resolve_year(p["socsec_wage_ceiling"], effective_year))
-        fica_h = pl.min_horizontal(pl.col("pwages"), ceil_ss) * rate_ss + (pl.col("pwages") - ceil_ss).clip(0, None) * 0.0145
-        fica_s = pl.min_horizontal(pl.col("swages"), ceil_ss) * rate_ss + (pl.col("swages") - ceil_ss).clip(0, None) * 0.0145
-        fica = pl.when(is_joint).then(fica_h + fica_s).otherwise(
-            pl.min_horizontal(pl.col("pwages") + pl.col("swages"), ceil_ss) * rate_ss
-            + (pl.col("pwages") + pl.col("swages") - ceil_ss).clip(0, None) * 0.0145
-        )
-        socsec = fica + pl.col("ks_setax")
+        socsec = taxsim_socsec(effective_year, pl.col("ks_setax"))
         # `socmax`/`selfmx` are real, explicit caps ONLY for 1977-1984 -
         # the source's own DATA statement has `13*1.e20` after that (1985-
         # 1997), i.e. genuinely UNCAPPED, not frozen at 1984's dollar
@@ -249,7 +197,12 @@ def compute_ks_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     # quirk already documented/fixed for Indiana) - the `+1` HoH addition
     # happens in Kansas's OWN subroutine code on the ALREADY-divided
     # value, so it's added AFTER dividing, not before.
-    comnew68 = (pl.col("ks_txp") + pl.col("depx")) / flate  # `comnew(68)`
+    # Federal exemption count (`comnew(68)`): the aged count before 1987;
+    # none for a dependent filer from 1987.
+    if effective_year <= 1986:
+        comnew68 = (pl.col("ks_txp") + pl.col("depx") + aged_count()) / flate
+    else:
+        comnew68 = pl.when(is_dependent_filer()).then(0.0).otherwise(pl.col("ks_txp") + pl.col("depx")) / flate
     exemps = pl.when(is_hoh).then(comnew68 + 1.0).otherwise(comnew68)
     xmp = float(resolve_year(p["personal_exemption_amount"], effective_year))
     df = df.with_columns(ks_exemp=exemps * xmp)
@@ -266,14 +219,21 @@ def compute_ks_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         halved = pl.when(is_joint).then(pl.col("ks_taxinc") / 2.0).otherwise(pl.col("ks_taxinc"))
         doubler = pl.when(is_joint).then(2.0).otherwise(1.0)
         statax = bracket_tax(halved, table) * doubler
+        rate_expr = bracket_rate(pl.col("ks_taxinc"), table)
     elif effective_year <= 1989:
         statax = pl.when(is_joint).then(bracket_tax(pl.col("ks_taxinc"), p["brackets_1988_1989_joint"])).otherwise(
             bracket_tax(pl.col("ks_taxinc"), p["brackets_1988_1989_single"])
         )
+        rate_expr = pl.when(is_joint).then(
+            bracket_rate(pl.col("ks_taxinc"), p["brackets_1988_1989_joint"])
+        ).otherwise(bracket_rate(pl.col("ks_taxinc"), p["brackets_1988_1989_single"]))
     elif effective_year <= 1991:
         statax = pl.when(is_joint).then(bracket_tax(pl.col("ks_taxinc"), p["brackets_1990_1991_joint"])).otherwise(
             bracket_tax(pl.col("ks_taxinc"), p["brackets_1990_1991_single"])
         )
+        rate_expr = pl.when(is_joint).then(
+            bracket_rate(pl.col("ks_taxinc"), p["brackets_1990_1991_joint"])
+        ).otherwise(bracket_rate(pl.col("ks_taxinc"), p["brackets_1990_1991_single"]))
     elif effective_year <= 2012:
         if effective_year <= 1996:
             single_table = p["brackets_1992_1996_single"]
@@ -284,6 +244,9 @@ def compute_ks_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         statax = pl.when(is_joint).then(bracket_tax(pl.col("ks_taxinc"), p["brackets_1992_2012_joint"])).otherwise(
             bracket_tax(pl.col("ks_taxinc"), single_table)
         )
+        rate_expr = pl.when(is_joint).then(
+            bracket_rate(pl.col("ks_taxinc"), p["brackets_1992_2012_joint"])
+        ).otherwise(bracket_rate(pl.col("ks_taxinc"), single_table))
     else:
         if effective_year == 2013:
             table = p["brackets_2013"]
@@ -298,6 +261,7 @@ def compute_ks_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         halved = pl.when(is_joint).then(pl.col("ks_taxinc") / 2.0).otherwise(pl.col("ks_taxinc"))
         doubler = pl.when(is_joint).then(2.0).otherwise(1.0)
         statax = bracket_tax(halved, table) * doubler
+        rate_expr = bracket_rate(pl.col("ks_taxinc"), table)
 
     if _split_allowed(effective_year):
         wages = pl.col("pwages") + pl.col("swages")
@@ -306,6 +270,9 @@ def compute_ks_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         tax_h = bracket_tax(yh.clip(0, None), table)
         tax_w = bracket_tax(yw.clip(0, None), table)
         statax = pl.when(is_joint).then(pl.min_horizontal(statax, tax_h + tax_w)).otherwise(statax)
+        # TAXSIM's shared bracket-rate variable is left by the first
+        # (higher-earner) half of the split-return calculation.
+        rate_expr = pl.when(is_joint).then(bracket_rate(yh.clip(0, None), table)).otherwise(rate_expr)
 
     df = df.with_columns(ks_statax=statax)
 
@@ -356,7 +323,11 @@ def compute_ks_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         ccc_expense = pl.min_horizontal(qualifying_expense, ccc_earned_income_cap).clip(0, None)
         chcare = ccc_rate * ccc_expense
     else:
-        chcare = pl.col("ccc")
+        chcare = pl.col("federal_chcr")
+    # Kansas uses `min(comnew(53), max(0, comnew(52)-data(34)))` rather
+    # than the uncapped federal credit. `data(34)` is unavailable through
+    # TAXSIM's public input schema and therefore zero here.
+    chcare = pl.min_horizontal(chcare, pl.col("regular_tax").clip(0, None))
     if effective_year <= 1987:
         chcr = chcare * _tablki(pl.col("ks_agi"), p["child_care_credit_table_pre1988"])
     elif (1988 <= effective_year <= 2012) or effective_year >= 2020:
@@ -371,15 +342,9 @@ def compute_ks_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     encred = pl.lit(0.0)
 
     # Homestead Property Tax Refund / food credit (`pcred`).
-    pr1 = pl.col("proptax")  # rentpaid (`data(160)`) confirmed inert.
-    # `data(159)` (`hy`) is live-probe-confirmed to include UI too (a
-    # $10,000-wages/$8,000-UI 1992 case: `data(159)`=$18,000, not
-    # $10,000) - a real component this project's own earlier-established
-    # `hy=wages+dividends` formula (used by Idaho and elsewhere) never
-    # needed to account for since none of those states' own test suites
-    # exercised `hy` with nonzero UI present at the same time.
-    ui_total_for_hy = pl.max_horizontal(pl.col("ui"), pl.col("pui") + pl.col("sui"))
-    hy = pl.col("wages") + pl.col("dividends") + ui_total_for_hy
+    rent_share = float(resolve_year(p["homestead_rent_share"], effective_year))
+    pr1 = pl.col("proptax") + rent_share * pl.col("rentpaid")
+    hy = pl.col("ks_household_income")
     pcred = pl.lit(0.0)
     if effective_year in (1977, 1978):
         ceiling = float(p["homestead_1977_income_ceiling" if effective_year == 1977 else "homestead_1978_income_ceiling"][1960])
@@ -421,6 +386,9 @@ def compute_ks_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         ).otherwise(0.0)
     elif effective_year in (1995, 1996):
         ceiling = float(p["homestead_1995_1996_income_ceiling"][1960])
+        if effective_year == 1996:
+            # TAXSIM's test reads `1996 or (1995 and income <= ceiling)`.
+            ceiling = 1.0e20
         claw = (
             pl.when(hy <= 4200.0).then((hy - 3400.0).clip(0, None) * 0.02)
             .when(hy <= 4600.0).then(16.0 + (hy - 4200.0).clip(0, None) * 0.04)
@@ -437,17 +405,26 @@ def compute_ks_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         if effective_year <= 2005:
             hhy = hy
         else:
-            hhy = pl.col("ks_agi") + pl.col("eitc")  # `.5*data(91)` confirmed inert
+            hhy = pl.col("ks_agi") + pl.col("eitc") + 0.5 * pl.col("gssi")
         pmax = float(resolve_year(p["homestead_hy_ceiling_by_year"], effective_year))
         table = p["homestead_table_1997_2004"] if effective_year <= 2004 else p["homestead_table_2005plus"]
         pcred = pl.when(hhy < pmax).then(ptax * _tablki(hhy, table)).otherwise(0.0)
-        # Kansas Property Tax Relief Claim for Low Income Seniors (2008+,
-        # `data(9)>0` gate) confirmed inert.
+        if effective_year >= 2008:
+            # Property Tax Relief for low income seniors replaces it.
+            share = float(resolve_year(p["senior_property_relief_share"], effective_year))
+            limit = float(resolve_year(p["senior_property_relief_income_limit"], effective_year))
+            senior = (aged_count() > 0) & (pl.col("proptax") > 0) & (hy < limit)
+            pcred = pl.when(senior).then(share * pl.col("proptax")).otherwise(pcred)
     df = df.with_columns(ks_pcred=pcred)
 
     # Food Sales Tax Refund.
     fd = pl.lit(0.0)
-    if 1986 <= effective_year <= 1997:
+    if effective_year <= 1985:
+        per_aged = float(p["food_refund_aged_pre1986"])
+        fd = pl.when(hy <= p["food_refund_aged_income_limit_pre1986"]).then(
+            per_aged * pl.min_horizontal(aged_count(), pl.col("ks_txp") + pl.col("depx"))
+        ).otherwise(0.0)
+    elif 1986 <= effective_year <= 1997:
         extra = pl.col("ks_txp") + pl.col("depx") - 1.0
         fd = (
             pl.when(hy < 5000.0).then(40.0 + 30.0 * extra)
@@ -456,7 +433,7 @@ def compute_ks_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
             .otherwise(0.0)
         )
     elif effective_year >= 1998:
-        eligible = pl.col("depx") > 0
+        eligible = (pl.col("depx") + aged_count()) > 0
         food_amt = float(resolve_year(p["food_sales_tax_credit_amount"], effective_year))
         if effective_year <= 2012:
             agimax = float(resolve_year(p["food_sales_tax_refund_agi_ceiling"], effective_year))
@@ -466,7 +443,6 @@ def compute_ks_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         else:
             agimax = float(resolve_year(p["food_sales_tax_refund_agi_ceiling"], effective_year))
             fd = pl.when(eligible & (pl.col("agi") <= agimax)).then(food_amt * comnew68).otherwise(0.0)
-    # 1977-1985 branch confirmed inert (depends solely on elderly/blind count).
     df = df.with_columns(ks_fd=fd)
 
     # Earned Income Credit.
@@ -488,4 +464,16 @@ def compute_ks_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         )
 
     df = df.with_columns(siitax=pl.col("ks_statax") * flate)
-    return df
+    return with_state_detail(
+        df,
+        agi=pl.col("ks_agi"),
+        exemptions=pl.col("ks_exemp"),
+        standard_deduction=pl.col("ks_stded"),
+        itemized_deductions=pl.col("ks_xitded"),
+        taxable_income=pl.col("ks_taxinc"),
+        property_credit=pl.col("ks_pcred"),
+        child_care_credit=pl.col("ks_chcr"),
+        eic=pl.col("ks_earncr"),
+        credits=encred + pl.col("ks_chcr") + pl.col("ks_fd") + pl.col("ks_earncr") + pl.col("ks_pcred"),
+        rate=rate_expr,
+    )

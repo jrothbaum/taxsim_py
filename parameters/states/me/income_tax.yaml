@@ -2,27 +2,10 @@
 # state id 20). See calculators/states/me.py for the full mechanism - the
 # richest state built this session, exceeding even Iowa/Kansas/Kentucky.
 #
-# Confirmed inert given this project's input schema (not silent gaps):
-# elderly/blind (`data(9)`/`data(10)`, unpopulated page/sage); pension/
-# retirement/Social-Security income (`data(20)`/`data(72)`/`data(91)`/
-# `comnew(79)`, unpopulated "pensions"/"gssi" inputs, the same schema-
-# level gap already documented for Iowa/Kansas/Kentucky) - makes the
-# ENTIRE pension-income-exclusion formula a permanent no-op; IRA
-# contributions (`data(42)`, never assigned - makes the entire `iratax`
-# add-on a permanent no-op); the property-tax-qualifier flag (`data(25)`,
-# never assigned); the solar/energy credit (`data(38)`); the "dependent
-# of another return" flag (`data(105)`); `data(34)`/`data(41)` (the
-# latter only ever referenced in commented-out dead code); transfers
-# (`data(41)` would also be schema-unpopulated even if the Fortran read
-# it). The ENTIRE Property Tax Credit (`pcred`, 1977-1988 era) is
-# confirmed PERMANENTLY inert for EVERY year via a universal, final
-# `pcred=pcred*clip(data(9)+data(10),0,1)` multiplication that applies
-# regardless of era - since elderly+blind is always $0, this zeroes the
-# credit unconditionally, so none of its many sub-formulas needed
-# transcribing. The Credit for the Elderly (`eldcr=.2*comnew(54)`) is
-# ALSO confirmed inert - `comnew(54)` is live-probe-confirmed $0 in every
-# case tried (consistent with it being itself elderly-gated upstream,
-# matching every other state's own elderly-credit findings).
+# Not TAXSIM inputs, so always zero: IRA contributions (`data(42)`, the
+# `iratax` add-on), the property-tax qualifier flag (`data(25)`), the
+# solar/energy credit (`data(38)`), the jobs credit (`data(37)`, `xjobs`)
+# and `data(34)`.
 #
 # `comnew(65)` is live-probe-confirmed to be TOTAL income - AGI PLUS
 # whatever the half-self-employment-tax AGI deduction subtracted, NOT
@@ -226,18 +209,15 @@ standard_deduction_married_override:
   2014: 12400
   2015: 12600
   2016: 23200
-# `old(law)` - additional-standard-deduction-per-elderly/blind addback
-# (real, but permanently inert here - `data(9)`/`data(10)` always $0 -
-# kept for documentation only).
-standard_deduction_elderly_addback_2003_2017:  # `old(law)` - permanently
-  # inert (elderly/blind confirmed $0), kept for documentation only.
+# Additional standard deduction per taxpayer 65 or older (`old`, `olds`).
+standard_deduction_aged_addition_2003_2017:
   2003: 1000
   2007: 1050
   2009: 1100
   2011: 1150
   2012: 1200
   2015: 1250
-standard_deduction_elderly_addback_2016_2017:
+standard_deduction_aged_addition_2016_2017:
   1960: 1550
 standard_deduction_hoh_2016_2017:
   1960: 17400
@@ -325,6 +305,8 @@ eitc_rate:
   2011: 0.05
   2020: 0.12
   2021: 0.2
+# 2020 only: filers with no EITC-qualifying children get this share.
+eitc_rate_childless_2020: 0.25
 
 # 1987/1978 one-off flat credits.
 credit_1987_per_exemption:
@@ -452,3 +434,50 @@ stfc_credit_amount:  # by exemption count (1-4) and year
     2017: 225
     2020: 230
     2021: 235
+
+# Pension deduction per taxpayer (`pended`), less Social Security benefits.
+pension_deduction_per_taxpayer:
+  2000: 6000
+  2014: 10000
+
+# Credit for the elderly: share of the federal credit, 1978-2016.
+elderly_credit_share: 0.2
+
+# Property tax credit for taxpayers 65 or older, 1977-1988. Property tax
+# counts rent at this share.
+property_tax_credit_rent_share: 0.25
+property_tax_credit_cap: 400
+# Household income limit (`hylim`), 1977-1987.
+property_tax_credit_income_limit:
+  one_taxpayer:
+    1977: 4500
+    1978: 5000
+    1981: 5600
+    1982: 6200
+    1985: 7400
+  two_taxpayers:
+    1977: 5000
+    1978: 6000
+    1981: 6700
+    1982: 7400
+    1985: 9200
+# 1977: property tax less 10% of household income over $3,000.
+property_tax_credit_1977_reduction_rate: 0.1
+property_tax_credit_1977_income_floor: 3000
+# 1988: [household income up to, maximum credit, share of property tax].
+property_tax_credit_1988:
+  one_taxpayer:
+    - [6800, 400, 1.0]
+    - [7000, 300, 0.75]
+    - [7200, 200, 0.5]
+    - [7400, 100, 0.25]
+  two_taxpayers:
+    - [8100, 400, 1.0]
+    - [8500, 300, 0.75]
+    - [8800, 200, 0.5]
+    - [9200, 100, 0.25]
+
+# Property Tax Fairness Credit: rent counted toward property tax.
+ptfc_rent_share:
+  2013: 0.2125
+  2014: 0.1275

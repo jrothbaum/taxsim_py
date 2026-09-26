@@ -2,12 +2,9 @@
 # taxsim_2024_09_21.f:9235-11080, state id 24). Year tables are the
 # source's DATA statements with repeat counts expanded, forward-filled.
 #
-# Inputs this schema never supplies make these provisions inactive:
-# elderly/blind (deduction for the elderly, aged standard-deduction
-# additions, pension exclusion, elderly property-refund branches),
-# renters (`data(160)`), charitable/medical/casualty amounts, political
-# contributions (`data(65)`), IRA/Keogh, energy credit, tuition
-# (education credit), dependent-of-another-return.
+# Not TAXSIM inputs, so always zero: blindness, charitable, medical and
+# casualty amounts, political contributions (`data(65)`), IRA/Keogh, the
+# energy credit and tuition (the education credit).
 
 # --- Rate schedules (start, rate) and their inflation factors ---
 brackets_1977_1984_base:  # `tb77`; the top two rates are set by year below
@@ -1111,3 +1108,207 @@ property_credit_1977_1978:
   maximum: 800
   maximum_top_start: 28000
   maximum_top_rate: 0.1
+
+# Additional standard deduction per taxpayer 65 or older (`stnd(law,4)`
+# single and head of household, `stnd(law,5)` married).
+standard_deduction_aged_addition:
+  single:
+    1988: 750
+    1990: 800
+    1991: 850
+    1992: 900
+    1994: 950
+    1996: 1000
+    1998: 1050
+    2001: 1100
+    2002: 1150
+    2004: 1200
+    2005: 1250
+    2007: 1300
+    2008: 1350
+    2009: 1400
+    2011: 1450
+    2013: 1500
+    2014: 1550
+    2018: 1600
+    2019: 1650
+  married:
+    1988: 600
+    1990: 650
+    1992: 700
+    1994: 750
+    1996: 800
+    1998: 850
+    2001: 900
+    2003: 950
+    2005: 1000
+    2007: 1050
+    2009: 1100
+    2011: 1150
+    2013: 1200
+    2015: 1250
+    2018: 1300
+standard_deduction_2018_aged_addition:
+  single: 1600
+  married_joint: 1300
+  married_separate: 1300
+  head_of_household: 1600
+# 2018+: a dependent filer's standard deduction is limited to the larger
+# of this floor and earned income plus the addition.
+dependent_standard_deduction_floor: {2018: 1050}
+dependent_standard_deduction_earned_addition: {2018: 350}
+
+# Pension exclusion through 1986: up to the maximum, reduced dollar for
+# dollar by federal AGI over the threshold; 1985-1986 only for taxpayers
+# 65 or older.
+pension_exclusion_max:
+  1977: 0
+  1978: 7200
+  1979: 10000
+  1980: 11000
+pension_exclusion_income_threshold:
+  1977: 0
+  1978: 13000
+  1979: 17000
+
+# Subtraction for the elderly (1988-2016): an amount less nontaxable Social
+# Security and half of federal AGI over a start, for federal AGI up to a
+# limit. [joint both 65+, joint one 65+, single or head of household,
+# married filing separately].
+elderly_subtraction:
+  1988:
+    income_limit: [35000, 32000, 28000, 17500]
+    amount: [10000, 10000, 8000, 5000]
+    reduction_start: [15000, 12000, 12000, 7500]
+  1994:
+    income_limit: [42000, 38500, 33700, 21000]
+    amount: [12000, 12000, 9600, 6000]
+    reduction_start: [18000, 14500, 14500, 9000]
+elderly_subtraction_reduction_rate: 0.5
+
+# 2017+ Social Security subtraction: up to a maximum, less 20% of
+# provisional income (federal AGI less taxable benefits plus half of all
+# benefits) over a threshold; married amounts are halved for separate filers.
+social_security_subtraction_threshold:
+  single:
+    2017: 60200
+    2018: 61400
+    2019: 61080
+    2020: 62090
+    2021: 62710
+  married:
+    2017: 77000
+    2018: 78530
+    2019: 78180
+    2020: 79480
+    2021: 80270
+social_security_subtraction_max:
+  single:
+    2017: 3500
+    2019: 4020
+    2020: 4090
+    2021: 4130
+  married:
+    2017: 4500
+    2019: 5150
+    2020: 5240
+    2021: 5950
+social_security_subtraction_benefit_share: 0.5
+social_security_subtraction_phaseout_rate: 0.2
+
+# 1987: share of the federal credit for the elderly.
+elderly_credit_share_1987: 0.4
+
+# 1978-1984 homemaker credit, for a dependent filer with dependents, no
+# earnings over the limit and federal AGI up to the limit.
+homemaker_credit: 50
+homemaker_credit_earnings_limit: 50
+homemaker_credit_agi_limit: 25000
+
+# Property tax refund for renters (1989+): rent counts at this share.
+property_refund_rent_share:
+  1989: 0.19
+  2009: 0.15
+  2010: 0.19
+  2011: 0.17
+# Household income limit (`rrrent`) and its inflation factor (`aifr`).
+property_refund_renter_income_limit:
+  1989: 28034
+  2000: 28117
+  2001: 26919
+  2002: 26960
+  2003: 34903
+  2004: 35118
+  2005: 35100
+  2006: 35139
+  2007: 35045
+  2008: 35124
+  2009: 34911
+  2010: 35016
+  2011: 35035
+  2012: 34941
+  2013: 35312
+  2014: 35209
+  2015: 35044
+  2016: 35278
+  2017: 35291
+  2018: 35261
+  2019: 35240
+  2020: 35195
+  2021: 35206
+property_refund_renter_inflation:
+  1989: 1.0
+  1994: 1.03
+  1995: 1.06
+  1996: 1.09
+  1997: 1.12
+  1998: 1.14
+  1999: 1.16
+  2000: 1.195
+  2001: 1.235
+  2002: 1.259
+  2003: 1.289
+  2004: 1.309
+  2005: 1.349
+  2006: 1.399
+  2007: 1.439
+  2008: 1.489
+  2009: 1.519
+  2010: 1.529
+  2011: 1.559
+  2012: 1.609
+  2013: 1.619
+  2014: 1.649
+  2015: 1.659
+  2016: 1.669
+  2017: 1.699
+  2018: 1.739
+  2019: 1.769
+  2020: 1.789
+  2021: 1.844
+# Maximum refund (`p112r`, 2013-2018 `p116r`), threshold percent of income
+# (`p212r`, 2013-2018 `p216r`) and copayment (`p16r`), by income / `aifr`.
+property_refund_renter_max: [[28000, 995], [29000, 900], [30000, 800], [31000, 700], [32000, 600], [33000, 500], [34000, 300], [35000, 100]]
+property_refund_renter_max_2013_2018: [[4000, 1235], [5000, 1200], [7000, 1175], [10000, 1100], [11000, 1075], [13000, 1050], [28000, 1020], [29000, 925], [30000, 835], [31000, 707], [32000, 617], [33000, 557], [34000, 305], [35000, 125]]
+property_refund_renter_threshold: [[4000, 1.0], [5000, 1.1], [7000, 1.2], [9000, 1.3], [11000, 1.4], [13000, 1.5], [14000, 1.6], [15000, 1.7], [17000, 1.8], [18000, 1.9], [19000, 2.0], [20000, 2.2], [21000, 2.4], [22000, 2.6], [23000, 2.7], [24000, 2.8], [25000, 2.9], [26000, 3.0], [27000, 3.1], [28000, 3.2], [29000, 3.3], [30000, 3.4], [35000, 3.5]]
+property_refund_renter_threshold_2013_2018: [[4000, 1.0], [5000, 1.1], [7000, 1.2], [9000, 1.3], [11000, 1.4], [13000, 1.5], [14000, 1.6], [15000, 1.7], [17000, 1.8], [18000, 1.9], [35000, 2.0]]
+property_refund_renter_copay: [[3000, 0.05], [7000, 0.1], [10000, 0.15], [14000, 0.2], [17000, 0.25], [21000, 0.3], [24000, 0.35], [28000, 0.4], [31000, 0.45], [35000, 0.5]]
+# Refund income for taxpayers 65 or older is also reduced by the
+# exemption amount; in 1994 by this amount by number of dependents
+# (`oldep`) instead.
+property_refund_aged_subtraction_1994: [0, 5880, 9065, 12005, 14700, 17150]
+
+# Property tax credit before 1989: rent counts at this share.
+property_credit_rent_share: 0.2
+# 1985-1986: household income is reduced for taxpayers 65 or older.
+property_credit_1985_1986_aged_income_reduction: 2000
+# 1983-1984 copayment for taxpayers 65 or older (`p2eld`).
+property_credit_1983_1984_copay_aged: [[10000, 0.05], [11000, 0.06], [12000, 0.07], [13000, 0.08], [14000, 0.09], [16000, 0.10], [18000, 0.11], [20000, 0.12], [21000, 0.13], [22000, 0.15], [23000, 0.18], [24000, 0.21], [25000, 0.24], [26000, 0.27], [27000, 0.30], [28000, 0.35], [29000, 0.40], [30000, 0.45], [1.0e+20, 0.50]]
+# 1977-1982 first-step credit for taxpayers 65 or older (`p772`, `p822`).
+property_credit_1977_1978_aged:
+  first_step: [[3000, 13], [3500, 25], [4000, 50], [4500, 70], [5000, 90], [6000, 110], [7000, 130], [8000, 160], [9000, 200], [10000, 240], [11000, 280], [12000, 320], [13000, 360], [14000, 400], [15000, 440], [16000, 480], [17000, 520], [18000, 560], [19000, 600], [20000, 640], [21000, 675]]
+  first_step_top_base: 675
+  second_step_share: 0.5
+property_credit_1979_1982_aged:
+  first_step: [[3000, 13], [3500, 25], [4000, 50], [4500, 70], [5000, 100], [6000, 130], [7000, 150], [8000, 200], [9000, 250], [10000, 300], [11000, 350], [12000, 400], [13000, 450], [14000, 500], [15000, 550], [16000, 600], [17000, 650], [18000, 700], [19000, 750], [20000, 800], [21000, 850]]
+  first_step_top_base: 850

@@ -1,0 +1,104 @@
+# Vermont personal income tax (TAXSIM `vttax`, taxsim_2024_09_21.f:18876-19222).
+# Brackets are [start, rate] rows converted from TAXSIM's `look2` upper-bound
+# tables (the last rate continues beyond the table).
+
+# --- Through 2000: a share of federal tax (regular tax plus minimum tax, less
+# the federal child care credit); 1991-1993 a schedule on that federal tax ---
+federal_tax_share: {1977: 0.25, 1979: 0.23, 1982: 0.24, 1983: 0.26, 1985: 0.265, 1987: 0.258, 1988: 0.23, 1989: 0.25, 1991: 0.28, 1994: 0.25, 2000: 0.24}
+federal_tax_brackets_1991: [[0, 0.28], [3400, 0.31], [13100, 0.34]]
+
+# --- 2001-2017: schedule on federal taxable income ---
+brackets:
+  2001:
+    single: [[0, 0.036], [27050, 0.0672], [65550, 0.0744], [136750, 0.0864], [297350, 0.095]]
+    head_of_household: [[0, 0.036], [36250, 0.0672], [93650, 0.0744], [151650, 0.0864], [297350, 0.095]]
+    married: [[0, 0.036], [45200, 0.0672], [109250, 0.0744], [166500, 0.0864], [297350, 0.095]]
+  2002:
+    single: [[0, 0.036], [27950, 0.072], [67700, 0.085], [141250, 0.09], [307050, 0.095]]
+    head_of_household: [[0, 0.036], [37450, 0.072], [96700, 0.085], [156600, 0.09], [307050, 0.095]]
+    married: [[0, 0.036], [46700, 0.072], [112850, 0.085], [171950, 0.09], [307050, 0.095]]
+  2009:
+    single: [[0, 0.0355], [33950, 0.07], [82250, 0.0825], [171550, 0.089], [372950, 0.094]]
+    head_of_household: [[0, 0.0355], [45500, 0.07], [117450, 0.0825], [190200, 0.089], [372950, 0.094]]
+    married: [[0, 0.0355], [56700, 0.07], [137050, 0.0825], [208850, 0.089], [372950, 0.094]]
+  2010:
+    single: [[0, 0.0355], [34000, 0.068], [82400, 0.078], [171850, 0.088], [373650, 0.0895]]
+    head_of_household: [[0, 0.0355], [45550, 0.068], [117650, 0.078], [190550, 0.088], [373650, 0.0895]]
+    married: [[0, 0.0355], [56800, 0.068], [137300, 0.078], [209250, 0.088], [373650, 0.0895]]
+  2018:
+    single: [[0, 0.0335], [38700, 0.066], [93700, 0.076], [195450, 0.0875]]
+    head_of_household: [[0, 0.0335], [51850, 0.066], [133850, 0.076], [216700, 0.0875]]
+    married: [[0, 0.0335], [64600, 0.066], [156150, 0.076], [237950, 0.0875]]
+# Thresholds scaled by year (2009 unscaled).
+bracket_index: {2001: 1.0, 2002: 1.0, 2003: 1.016, 2004: 1.04, 2005: 1.063, 2006: 1.0966, 2007: 1.1395348830, 2008: 1.16457960, 2009: 1.0, 2010: 1.0, 2011: 1.015, 2012: 1.04, 2013: 1.066, 2014: 1.085, 2015: 1.1015, 2016: 1.107, 2017: 1.115, 2018: 1.0, 2019: 1.024, 2020: 1.043, 2021: 1.058}
+# Capital gain exclusion: 40% of net gain (2002-2007), limited to 40% of
+# federal taxable income (2008 on); 2010 at most $2,500; 2011 on the larger
+# of $5,000 (at most the gain) and 40%.
+capital_gain_exclusion_share: 0.4
+capital_gain_exclusion_cap_2010: 2500.0
+capital_gain_exclusion_flat_2011: 5000.0
+# 2015-2017 addback for federal itemizers: itemized deductions other than
+# medical, charity and state tax above this multiple of the standard deduction.
+itemized_addback_multiple: 2.5
+# 2018 on: tax at least this share of federal AGI above the threshold.
+minimum_tax_share: 0.03
+minimum_tax_agi: 150000.0
+exemption_2018: {2018: 4150.0, 2019: 4250.0, 2020: 4350.0}
+standard_deduction_2018: {2018: 6000.0, 2019: 6200.0, 2020: 6250.0, 2021: 6350.0}
+standard_deduction_factor: {head_of_household: 1.5, married_joint: 2.0}
+
+# --- Credits ---
+# Low income credit (share of tax by tax, `tablki`) for household income at most $7,000.
+low_income_credit_income: 7000.0
+low_income_credit_1978: [[50, 1.0], [65, 0.9], [80, 0.8], [95, 0.7], [110, 0.6], [125, 0.5], [140, 0.4], [155, 0.3], [170, 0.2], [185, 0.1], [1.0e+20, 0.0]]
+low_income_credit_1982: [[52, 1.0], [68, 0.9], [84, 0.8], [99, 0.7], [115, 0.6], [130, 0.5], [145, 0.4], [162, 0.3], [178, 0.2], [195, 0.1], [1.0e+20, 0.0]]
+# Student credit through 1988, given to every non-dependent filer (logged).
+student_credit_1988: 10.0
+# Telephone credit (refundable) from 2000 for households below an income limit.
+telephone_credit: {1986: 72.0, 1987: 86.4, 1989: 108.0, 1998: 126.0, 2002: 156.0, 2003: 162.0, 2007: 156.0, 2012: 111.0}
+telephone_credit_income_limit: {2000: 16875.0, 2001: 17415.0, 2002: 17910.0, 2003: 18180.0, 2004: 18735.0, 2005: 19245.0, 2006: 19800.0, 2007: 20535.0, 2008: 21000.0, 2009: 21855.0, 2011: 22065.0, 2012: 22695.0, 2013: 23265.0, 2014: 23596.0, 2015: 23895.0, 2017: 24030.0}
+eitc_rate: {1988: 0.23, 1989: 0.28, 1994: 0.25, 2000: 0.32, 2018: 0.36}
+# Child care credit: 24% of the federal credit (nonrefundable), or from 2003
+# 50% (refundable) at federal AGI up to $39,999 joint / $29,999 others.
+child_care_rate: 0.24
+child_care_refundable_rate: 0.5
+child_care_refundable_agi: {married_joint: 39999.0, other: 29999.0}
+charity_credit_2018: {rate: 0.05, cap: 20000.0}
+
+# Telephone credit income limit for taxpayers 65 or older (1986+).
+telephone_credit_aged_income_limit: {1986: 13000, 1990: 14735, 1991: 15096, 1993: 16500, 1994: 17200, 1995: 17553, 1996: 18130, 1997: 18568, 1998: 18988, 1999: 19408, 2000: 19688, 2001: 20318, 2002: 20895, 2003: 21210, 2004: 21858, 2005: 22453, 2006: 23100, 2007: 23958, 2008: 24500, 2009: 25498, 2011: 25743, 2012: 26478, 2013: 27143, 2014: 27528, 2015: 27898, 2017: 28035}
+# 1977: the low-income credit applies to taxpayers 65 or older with
+# household income below this.
+low_income_credit_aged_income_1977: 6000.0
+# 2018+: additional standard deduction per taxpayer 65 or older.
+standard_deduction_aged_addition_2018: {2018: 1000.0, 2021: 1050.0}
+# 2018+: taxable Social Security is exempt, phased out over $10,000 of
+# federal AGI above the start.
+social_security_exemption_start: {married_joint: 60000.0, other: 45000.0}
+social_security_exemption_range: 10000.0
+
+# Homeowner/renter rebate (refundable). Property tax plus a share of rent
+# over a share of household income (`tablki` tables, truncated to the
+# year's row count as TAXSIM does), up to a maximum; through 1997 only for
+# taxpayers 65 or older. From 1995 renters only, on Vermont household
+# income (`vthy`).
+property_rebate:
+  1977: {rent_share: 0.2, max: 500, table: [[4000, 0.04], [8000, 0.045], [12000, 0.05], [16000, 0.055], [20000, 0.06], [25000, 0.07]]}
+  1983: {rent_share: 0.2, max: 500, table: [[4000, 0.04], [8000, 0.045], [12000, 0.05], [16000, 0.055], [20000, 0.06], [25000, 0.07], [1.0e+20, 0.0]]}
+  1985: {rent_share: 0.2, max: 750, table: [[4000, 0.035], [8000, 0.04], [12000, 0.045], [16000, 0.05], [20000, 0.055], [24000, 0.06], [28000, 0.065], [32000, 0.07], [1.0e+20, 0.0]]}
+  1986: {rent_share: 0.2, max: 750, table: [[4000, 0.035], [8000, 0.04], [12000, 0.045], [32000, 0.05], [1.0e+20, 0.0]]}
+  1987: {rent_share: 0.24, max: 1.0e+20, table: [[4000, 0.035], [8000, 0.04], [12000, 0.045], [1.0e+20, 0.05]]}
+  1990: {rent_share: 0.24, max: 2000, income_limit: 60001, table: [[4000, 0.035], [8000, 0.04], [12000, 0.045], [1.0e+20, 0.05]]}
+  1991: {rent_share: 0.2, max: 1350, income_limit: 45000.01, table: [[4000, 0.035], [8000, 0.04], [12000, 0.045], [1.0e+20, 0.05]]}
+renter_rebate_rent_share: 0.21
+renter_rebate_table:
+  1995: [[5000, 0.035], [10000, 0.04], [15000, 0.045], [1.0e+20, 0.05]]
+  1998: [[5000, 0.035], [10000, 0.04], [25000, 0.045], [1.0e+20, 0.05]]
+  2006: [[10000, 0.02], [25000, 0.045], [1.0e+20, 0.05]]
+# 1995-1997: up to the maximum through the first limit, then reduced by
+# half the excess; none above the final limit (all years from 1995).
+renter_rebate_max_1995_1997: 1500
+renter_rebate_full_limit_1995_1997: 44000
+renter_rebate_income_limit: 47000
+# Vermont household income counts interest and dividends above this again.
+renter_income_investment_threshold: 10000

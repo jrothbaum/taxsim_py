@@ -4,6 +4,7 @@ import polars as pl
 
 from taxsim_py.engine.brackets import bracket_tax
 from taxsim_py.engine.eitc import trapezoid_credit
+from taxsim_py.engine.inputs import aged_count, filing_status, is_dependent_filer, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, load_yaml, resolve_year
 
 LAW60_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "law60.yaml")
@@ -34,16 +35,7 @@ def _by_status_expr(values_by_status: dict[str, float]) -> pl.Expr:
 
 
 def _filing_status_expr() -> pl.Expr:
-    return (
-        pl.when(pl.col("mstat").is_in([1, 3]) & (pl.col("depx") > 0))
-        .then(pl.lit("head_of_household"))
-        .when(pl.col("mstat").is_in([1, 3]))
-        .then(pl.lit("single"))
-        .when(pl.col("mstat") == 2)
-        .then(pl.lit("married_joint"))
-        .when(pl.col("mstat").is_in([6, 66]))
-        .then(pl.lit("married_separate"))
-    )
+    return filing_status()
 
 
 def _halve_thresholds(brackets: list[list[float]]) -> list[list[float]]:
@@ -80,6 +72,7 @@ def compute_regular_tax_law60(
     for col in (
         "proptax", "otheritem", "mortgage", "intrec", "psemp", "ssemp",
         "dividends", "stcg", "ltcg", "ui", "pui", "sui", "childcare", "depx",
+        "pensions", "otherprop", "nonprop", "page", "sage",
     ):
         df = _with_default(df, col)
 
@@ -129,13 +122,14 @@ def compute_regular_tax_law60(
         .otherwise(pl.max_horizontal(pl.col("fullcg"), -loss_limit))
     )
 
-    # Total income and AGI - no adjustments of any kind reach this scope
-    # (see module docstring point 1); unemployment compensation plays no
-    # role here either (point 2).
+    # Total income includes pensions and other property income; other
+    # non-property income is the only adjustment in scope. Unemployment
+    # compensation plays no role here.
     df = df.with_columns(
         ti=pl.col("divall") + pl.col("wages") + pl.col("intrec") + pl.col("se_income") + pl.col("capgn")
+        + pl.col("pensions") + pl.col("otherprop")
     )
-    df = df.with_columns(agi=pl.col("ti"))
+    df = df.with_columns(agi=pl.col("ti") + pl.col("nonprop"))
 
     # Itemized deduction: proptax + otheritem + mortgage, plus (1971-1975
     # only) childcare as an uncapped itemized deduction - see module
@@ -148,11 +142,9 @@ def compute_regular_tax_law60(
 
     df = df.with_columns(agix=pl.col("agi").clip(0, None))
     exemption_amount = float(resolve_year(p["personal_exemption_amount"], year))
-    df = df.with_columns(
-        exemps_count=(
-            pl.when(pl.col("filing_status") == "married_joint").then(2.0).otherwise(1.0) + pl.col("depx")
-        )
-    )
+    # Taxpayers (none for a dependent filer), dependents and one more for
+    # each taxpayer 65 or older.
+    df = df.with_columns(exemps_count=taxpayer_count() + pl.col("depx") + aged_count())
     if year <= 1963:
         # <=1963: a straight percentage of AGI capped at a flat ceiling, NO
         # floor term at all - taxsim_2022_10_21.f:22673-22674.
@@ -308,7 +300,7 @@ def compute_regular_tax_law60(
         etop_mult = float(resolve_year(p["max_tax_earned_income_etop_multiplier"], year))
         df = df.with_columns(ebot=ebot_expr, eacc=eacc_expr)
         df = df.with_columns(
-            psinc=pl.when(pl.col("agi") > 0).then(pl.col("earned").clip(0, pl.col("agi"))).otherwise(pl.col("earned"))
+            psinc=pl.when(pl.col("agi") > 0).then((pl.col("earned") + pl.col("pensions")).clip(0, pl.col("agi"))).otherwise((pl.col("earned") + pl.col("pensions")))
         )
         df = df.with_columns(
             eratio=pl.when(pl.col("agi") == 0)
@@ -431,7 +423,7 @@ def compute_regular_tax_law60(
             earncr_raw=trapezoid_credit(pl.col("earned"), pl.col("agi"), rate_in, max_credit, phaseout_start, rate_out)
         )
         df = df.with_columns(
-            earncr=pl.when((pl.col("filing_status") == "married_separate") | (pl.col("depx") == 0))
+            earncr=pl.when((pl.col("filing_status") == "married_separate") | (pl.col("depx") == 0) | is_dependent_filer())
             .then(0.0)
             .otherwise(pl.col("earncr_raw"))
         )
@@ -444,6 +436,19 @@ def compute_regular_tax_law60(
         taxable_unemployment=pl.lit(0.0),
         earned_income=pl.col("earned"),
         regular_tax=pl.col("regtax"),
+        # Detail-output figures (TAXSIM's `comnew` slots for this law).
+        credit=pl.col("credit"),
+        federal_chcr=pl.col("chcr"),
+        pre1987_chcr=pl.col("chcr"),
+        pre1987_earncr=pl.col("earncr"),
+        pre1987_taxbc=pl.col("altax"),
+        pre1987_almtax=pl.lit(0.0),
+        pre1987_zbr=pl.col("zbr"),
+        pre1987_amex=pl.col("amex"),
+        pre1987_deduc=pl.when(pl.col("itemizes")).then(pl.col("deduc")).otherwise(0.0),
+        pre1987_gencr=pl.col("gencr"),
+        pre1987_alminy=pl.lit(0.0),
+        pre1987_taxinc=pl.col("taxable_income"),
     )
     result_columns = [
         "filing_status",
@@ -454,5 +459,17 @@ def compute_regular_tax_law60(
         "earned_income",
         "regular_tax",
         "fiitax",
+        "credit",
+        "federal_chcr",
+        "pre1987_chcr",
+        "pre1987_earncr",
+        "pre1987_taxbc",
+        "pre1987_almtax",
+        "pre1987_zbr",
+        "pre1987_amex",
+        "pre1987_deduc",
+        "pre1987_gencr",
+        "pre1987_alminy",
+        "pre1987_taxinc",
     ]
     return df.select([*original_columns, *result_columns])

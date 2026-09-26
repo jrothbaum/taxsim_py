@@ -126,3 +126,24 @@ child_care_credit_dependent_offset_2000_2001: 300  # subtracted per dependent
 # --- Earned Income Credit (flat % of federal EITC) ---
 eitc_rate_1999: 0.085
 eitc_rate_2000_2001_2015plus: 0.10
+
+# Pension and Social Security exclusion per taxpayer, for returns with a
+# taxpayer 65 or older (TAXSIM `pnsion`).
+pension_exclusion: {1977: 3000, 1978: 4000, 1979: 5000, 1982: 20000, 2000: 24000}
+# 2001-2002 joint returns: subtraction per taxpayer 65 or older.
+aged_marriage_subtraction_2001: 900
+
+# Pre-1987 property tax and heating credits for taxpayers 65 or older, by
+# household income (doubled for married separate filers): the maximum,
+# reduced at `phaseout_rate` above the start, up to property tax plus 20% of
+# rent (heating: 10% of rent), zero above the income limit. 1977 adds 10% of
+# property tax plus 15% of rent.
+property_credit:
+  maximum: {1977: 410, 1980: 500}
+  phaseout_start: {single: {1977: 3000, 1978: 3300, 1980: 5000}, other: {1977: 4300, 1978: 6700, 1980: 8700}}
+  phaseout_rate: {1977: 0.10, 1980: 0.20}
+  income_limit: {single: {1977: 7300, 1980: 7500}, other: {1977: 8300, 1978: 10800, 1980: 11200}}
+heating_credit:
+  maximum: 160
+  phaseout_start: {single: {1977: 3000, 1978: 3300, 1980: 5000}, other: {1977: 4300, 1978: 6700, 1980: 8700}}
+  phaseout_rate: {1977: 0.04, 1978: 0.064}

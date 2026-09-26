@@ -2,43 +2,20 @@
 
 import polars as pl
 
-from taxsim_py.calculators.federal_pre1987 import PRE1987_PARAMS
-from taxsim_py.engine.brackets import bracket_tax
-from taxsim_py.engine.credits import child_care_credit_rate_pre2021
+from taxsim_py.engine.brackets import bracket_rate, bracket_tax
+from taxsim_py.engine.inputs import aged_count, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, load_yaml, resolve_year
-from taxsim_py.engine.state import with_defaults, with_default as _with_default
+from taxsim_py.engine.state import with_defaults, with_default as _with_default, with_state_detail
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
 LA_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "la" / "income_tax.yaml")
 FEDERAL_INCOME_TAX_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "income_tax.yaml")
-FEDERAL_CREDITS_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "credits.yaml")
-
-
-def _raw_ccc(df: pl.DataFrame, year: int) -> pl.Expr:
-    """Reconstruct the uncapped federal child care credit."""
-    ccc_p = FEDERAL_CREDITS_PARAMS["child_care_credit"]
-    max_qualifying_persons = float(resolve_year(ccc_p["max_qualifying_persons"], year))
-    max_expense_per_person = float(resolve_year(ccc_p["max_expense_per_person_pre2021"], year))
-    ccc_rate = child_care_credit_rate_pre2021(
-        pl.col("agi"),
-        phase_start=float(resolve_year(ccc_p["pre2021_phase_start"], year)),
-        top_rate=float(resolve_year(ccc_p["pre2021_rate_top"], year)),
-        floor_rate=float(resolve_year(ccc_p["pre2021_rate_floor"], year)),
-        step_amount=float(resolve_year(ccc_p["pre2021_step_amount"], year)),
-    )
-    num_qualifying_persons = pl.col("dep13").clip(0, max_qualifying_persons)
-    qualifying_expense = pl.col("childcare").clip(0, num_qualifying_persons * max_expense_per_person)
-    ccc_earned_income_cap = pl.when(pl.col("filing_status") == "married_joint").then(
-        pl.min_horizontal(pl.col("pwages"), pl.col("swages"))
-    ).otherwise(pl.col("wages"))
-    ccc_expense = pl.min_horizontal(qualifying_expense, ccc_earned_income_cap).clip(0, None)
-    return ccc_rate * ccc_expense
 
 
 def compute_la_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     effective_year, flate = resolve_state_year(year)
     p = LA_PARAMS
-    df = with_defaults(df, ("proptax", "depx", "childcare"))
+    df = with_defaults(df, ("federal_chcr", "proptax", "depx", "childcare"))
     df = _with_default(df, "eitc")
     df = _with_default(df, "ccc")
     df = _with_default(df, "odc")
@@ -48,6 +25,7 @@ def compute_la_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     df = _with_default(df, "fiitax")
     df = _with_default(df, "regular_tax")
     df = _with_default(df, "amt")
+    df = with_defaults(df, ("pensions", "taxable_social_security", "cares"))
 
     df = df.with_columns(
         la_sep=pl.when(pl.col("filing_status") == "married_separate").then(2.0).otherwise(1.0),
@@ -61,25 +39,30 @@ def compute_la_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         df,
         flate,
         [
+            "federal_chcr",
             "pwages", "swages", "proptax", "otheritem", "mortgage", "dividends", "intrec",
             "stcg", "ltcg", "ui", "pui", "sui", "agi", "eitc", "ccc", "odc",
-            "itemized_deduction", "fiitax", "regular_tax", "amt",
+            "itemized_deduction", "fiitax", "regular_tax", "amt", "pensions",
+            "taxable_social_security", "cares",
         ],
     )
 
-    # --- AGI --- (see module docstring point 3 - the retirement/SS
-    # exclusion mechanism is confirmed permanently inert for this schema)
-    df = df.with_columns(la_agi=pl.col("agi"))
+    # --- AGI --- less exempt retirement income and Social Security, net of
+    # the federal tax attributable to them.
+    penexc = (
+        pl.col("pensions").clip(0, p["aged_pension_exemption"] * aged_count()) if effective_year >= 1981 else pl.lit(0.0)
+    )
+    ssi = pl.col("taxable_social_security") if effective_year >= 1985 else pl.lit(0.0)
+    subtr = penexc + ssi
+    fedtax = pl.col("fiitax") + (pl.col("cares") if effective_year >= 2020 else 0.0)
+    ftadd1 = pl.when(subtr <= p["exempt_income_tax_break"]).then(
+        p["exempt_income_tax_rate_low"] * (subtr - p["exempt_income_tax_floor"]).clip(0, None)
+    ).otherwise(p["exempt_income_tax_base_high"] + p["exempt_income_tax_rate_high"] * (subtr - p["exempt_income_tax_break"]))
+    ftadd2 = fedtax * pl.min_horizontal(pl.lit(1.0), subtr / pl.col("agi"))
+    ftadd = pl.when((pl.col("agi") > 0) & (fedtax > 0) & (subtr > 0)).then(pl.min_horizontal(ftadd1, ftadd2)).otherwise(0.0)
+    df = df.with_columns(la_agi=pl.col("agi") - (subtr - ftadd))
 
     # --- "Excess federal itemized deductions" ---
-    def _zbr_pre1987() -> pl.Expr:
-        table = PRE1987_PARAMS["standard_deduction"]
-        expr = pl.lit(None, dtype=pl.Float64)
-        for status in ("single", "head_of_household", "married_joint", "married_separate"):
-            v = float(resolve_year(table[status], effective_year))
-            expr = pl.when(pl.col("filing_status") == status).then(pl.lit(v)).otherwise(expr)
-        return expr
-
     deduc = pl.lit(0.0)
     if effective_year >= 1980:
         if effective_year >= 1987:
@@ -94,26 +77,12 @@ def compute_la_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
             )
             itemized_deduction_local = pl.col("itemized_deduction")
         else:
-            fedbas = _zbr_pre1987()
-            # `itemized_deduction` (comnew(24)) is a federal.py-ONLY
-            # column, never exposed by federal_pre1987.py for years<=1986
-            # - left at its silent $0 default, this made `la_deduc`
-            # permanently $0 for 1980-1986 regardless of `force_itemize`
-            # (caught via a live-probe mismatch on a 1980/single/
-            # $120,000-wages case: both forced branches gave identical,
-            # wrong results since neither could ever produce a real
-            # itemized total). Reconstructed locally from raw proptax/
-            # otheritem/mortgage PLUS `state_sales_or_income_tax_ded`
-            # itself, same cancellation pattern DC/GA/HI/Idaho/Iowa/
-            # Kansas/Kentucky's own pre-1987 reconstructions already
-            # established.
-            itemized_deduction_local = (
-                pl.col("proptax") + pl.col("otheritem") + pl.col("mortgage") + pl.col("state_sales_or_income_tax_ded")
-            )
+            fedbas = pl.col("pre1987_zbr")
+            itemized_deduction_local = pl.col("pre1987_deduc")
 
         excess = (itemized_deduction_local - fedbas).clip(0, None)
         if effective_year <= 1986:
-            itemizing = itemized_deduction_local > fedbas
+            itemizing = pl.col("pre1987_itemizes")
         else:
             itemizing = pl.col("itemizes")
         if effective_year <= 1999 or effective_year >= 2009:
@@ -126,7 +95,7 @@ def compute_la_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
             deduc_real = float(p["excess_itemized_pct_2007"][1960]) * excess
         elif effective_year == 2008:
             cap_pf = float(p["excess_itemized_2008_proptax_addback_cap_per_filer"][1960])
-            pded = pl.when(pl.col("proptax") > 0).then(pl.min_horizontal(cap_pf * pl.col("la_txp"), pl.col("proptax"))).otherwise(0.0)
+            pded = pl.when(pl.col("proptax") > 0).then(pl.min_horizontal(cap_pf * taxpayer_count(), pl.col("proptax"))).otherwise(0.0)
             deduc_real = float(p["excess_itemized_pct_2008"][1960]) * (pl.col("itemized_deduction") - (fedbas + pded)).clip(0, None)
         else:
             # 2003-2006: real, deliberate gap in the source - no branch,
@@ -158,7 +127,9 @@ def compute_la_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     if effective_year <= 1979:
         la_fedtax = pl.col("regular_tax").clip(0, None)
     elif effective_year <= 1986:
-        la_fedtax = pl.col("fiitax").clip(0, None)
+        # `comnew(52)` is after nonrefundable credits but before the EITC;
+        # `fiitax` has already subtracted that refundable credit.
+        la_fedtax = (pl.col("fiitax") + pl.col("pre1987_earncr")).clip(0, None)
     elif year == 2021:
         # ARPA made BOTH CCC and CTC/ODC fully refundable for 2021 only,
         # with no tax-liability cap at all (both already documented as
@@ -194,10 +165,16 @@ def compute_la_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
 
     # --- Bracket tax ---
     xmpd = float(resolve_year(p["dependent_tax_reduction_amount"], effective_year))
+    # Dependents and taxpayers 65 or older each count toward the reduction.
+    dependents = pl.col("depx") + aged_count()
     if effective_year <= 1979:
-        statax = bracket_tax(pl.col("la_taxinc"), p["brackets_1977_1979"])
+        table = p["brackets_1977_1979"]
+        statax = bracket_tax(pl.col("la_taxinc"), table)
+        rate_expr = bracket_rate(pl.col("la_taxinc"), table)
     elif effective_year <= 1982:
-        statax = bracket_tax(pl.col("la_taxinc"), p["brackets_1980_1982"])
+        table = p["brackets_1980_1982"]
+        statax = bracket_tax(pl.col("la_taxinc"), table)
+        rate_expr = bracket_rate(pl.col("la_taxinc"), table)
     else:
         if effective_year <= 2002:
             single_table, married_table, hoh_table = p["brackets_1983_2002_single"], p["brackets_1983_2002_married"], p["brackets_1983_2002_hoh"]
@@ -206,23 +183,28 @@ def compute_la_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         else:
             single_table, married_table, hoh_table = p["brackets_2009plus_single"], p["brackets_2009plus_married"], p["brackets_2009plus_hoh"]
 
-        tax_single = (bracket_tax(pl.col("la_taxinc"), single_table) - 0.02 * xmpd * pl.col("depx")).clip(0, None)
-        tax_married = (bracket_tax(pl.col("la_taxinc"), married_table) - 0.02 * xmpd * pl.col("depx")).clip(0, None)
+        tax_single = (bracket_tax(pl.col("la_taxinc"), single_table) - 0.02 * xmpd * dependents).clip(0, None)
+        tax_married = (bracket_tax(pl.col("la_taxinc"), married_table) - 0.02 * xmpd * dependents).clip(0, None)
         if effective_year <= 2002:
             tax_hoh = (
                 bracket_tax(pl.col("la_taxinc"), hoh_table)
-                - xmpd * (0.02 * pl.col("depx").clip(0, 1) + 0.04 * (pl.col("depx") - 1).clip(0, None))
+                - xmpd * (0.02 * dependents.clip(0, 1) + 0.04 * (dependents - 1).clip(0, None))
             ).clip(0, None)
         else:
             tax_hoh = (
                 bracket_tax(pl.col("la_taxinc"), hoh_table)
                 - xmpd * (
-                    0.02 * pl.col("depx").clip(0, 3)
-                    + 0.03 * (pl.col("depx") - 4).clip(0, 1)
-                    + 0.04 * (pl.col("depx") - 5).clip(0, None)
+                    0.02 * dependents.clip(0, 3)
+                    + 0.03 * (dependents - 4).clip(0, 1)
+                    + 0.04 * (dependents - 5).clip(0, None)
                 )
             ).clip(0, None)
         statax = pl.when(is_single_or_sep).then(tax_single).when(is_joint).then(tax_married).otherwise(tax_hoh)
+        rate_expr = (
+            pl.when(is_single_or_sep).then(bracket_rate(pl.col("la_taxinc"), single_table))
+            .when(is_joint).then(bracket_rate(pl.col("la_taxinc"), married_table))
+            .otherwise(bracket_rate(pl.col("la_taxinc"), hoh_table))
+        )
 
     df = df.with_columns(la_statax=statax)
 
@@ -238,25 +220,8 @@ def compute_la_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     if effective_year <= 1979:
         fedcr = pl.lit(0.0)
     else:
-        # `data(34)`/`comnew(54)` - the former confirmed inert; the
-        # latter an acknowledged gap (never identified within this
-        # build's scope - a narrow, $25-capped 10%-of-credits component).
-        # `comnew(53)` (federal's own CCC) isn't exposed as the `ccc`
-        # column for years<=1986 (federal_pre1987.py doesn't compute it
-        # that way) - federal_pre1987.py's OWN `credit` column already IS
-        # the CCC-equivalent for that vintage ("the only nonrefundable
-        # credit reachable in this scope", per its own docstring), so
-        # it's reused directly rather than reconstructed - caught via a
-        # live-probe mismatch (1980/single/$2,000 childcare/1 dependent
-        # under 13: real credit implies the $400 CCC amount, matching
-        # federal_pre1987.py's own `credit` column exactly, while `ccc`
-        # defaults to $0 for this era).
-        if effective_year <= 1986:
-            ccc_for_fedcr = pl.col("credit")
-        elif effective_year <= 1997:
-            ccc_for_fedcr = _raw_ccc(df, effective_year)
-        else:
-            ccc_for_fedcr = pl.col("ccc")
+        # A share of the federal child care credit (`comnew(53)`).
+        ccc_for_fedcr = pl.col("federal_chcr")
         pct = float(p["federal_credit_pct"][1960])
         fedcr = pct * ccc_for_fedcr
         if effective_year >= 1986:
@@ -292,4 +257,13 @@ def compute_la_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     df = df.with_columns(la_statax=pl.col("la_statax") - earncr - chcref)
 
     df = df.with_columns(siitax=pl.col("la_statax") * flate)
-    return df
+    return with_state_detail(
+        df,
+        agi=pl.col("la_agi"),
+        exemptions=pl.col("la_exemp"),
+        taxable_income=pl.col("la_taxinc"),
+        child_care_credit=chcr + chcref,
+        eic=earncr,
+        credits=credit + earncr + chcref,
+        rate=rate_expr,
+    )

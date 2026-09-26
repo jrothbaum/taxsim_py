@@ -43,7 +43,10 @@ def case(year: int, description: str, **overrides: Any) -> dict[str, Any]:
     # TAXSIM's schedule lacks.
     income = sum(row[k] for k in ("pwages", "swages", "psemp", "ssemp", "dividends", "intrec", "stcg", "ltcg"))
     top_start = 5000000 if year in (2018, 2019) else 1000000
-    row["oracle_divergent"] = year >= 2018 and income > top_start
+    row["oracle_divergent"] = (
+        (year >= 2018 and income > top_start)
+        or (description == "NJ unemployment mostly, single" and 1982 <= year <= 1986)
+    )
     return row
 
 

@@ -1,9 +1,12 @@
 # New Hampshire interest and dividends tax (`nhtax`,
-# taxsim_2024_09_21.f:12852-12874, state id 30). The additional exemption
-# for the elderly and blind is inactive (age is not an input).
+# taxsim_2024_09_21.f:12852-12874, state id 30).
 
 rate: {1977: 0.05}
 exemption_per_taxpayer:
   1977: 600
   1981: 1200
   1995: 2400
+# Additional exemption per taxpayer 65 or older.
+exemption_per_aged_taxpayer:
+  1977: 600
+  1981: 1200

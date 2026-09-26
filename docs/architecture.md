@@ -31,7 +31,106 @@ pass serves records from several states. With a mapping, each pass collects
 the federal result once, splits it with `partition_by("state")`, and runs every
 state's lazy plan together through `pl.collect_all`. The first two passes
 collect only the row keys and the next pass's deduction; only the last pass
-collects every column. State calculators receive a `LazyFrame`.
+collects every column. State calculators receive a `LazyFrame`. Because
+state calculators deflate federal columns in place for projected years, the
+final pass keeps the federal pass's own columns and joins in only the columns
+each state adds. The public API normally projects state plans to `siitax`
+before collection; `keep_intermediate=True` retains their worksheet columns.
+
+The public `taxsim_py.calculate_taxes` API accepts an eager or lazy Polars
+frame containing one or more years and states. It partitions by year, builds
+one shared federal plan for each feedback pass, partitions the collected
+federal result by state, and collects only the state plans represented in the
+batch. Pass `state_id_type="fips"` for Census state FIPS codes; TAXSIM state
+codes are the default. State 0 (no state) and the states without a broad
+income tax (Florida, Nevada, South Dakota, Texas, Washington, Wyoming) use a
+zero-tax calculator; the federal sales tax deduction still uses their rates.
+Absent or null inputs default to 0 (`dep13`, `dep17` and `dep18` to `depx`), counts are
+cast to integers and dollar amounts to floats. A row that gives any child age
+(`age1`-`age3`) takes its age-group dependent counts from the ages instead;
+TAXSIM applies ages to every row of a file with age columns, so the oracle
+runner sends rows with ages as a separate batch. The result is the input frame,
+unchanged, plus `api.OUTPUT_COLUMNS`; `keep_intermediate=True` adds every
+intermediate federal and state column.
+
+When marginal rates are requested, the base and upward-perturbed rows are
+stacked into one resolver call so they share plan-construction overhead. Only
+rows whose upward difference falls outside TAXSIM's accepted rate range are
+rerun with a downward perturbation.
+
+`idtl=2` adds TAXSIM's detailed federal outputs (`engine.detail`,
+`credits` and `v10`-`v29`, `v42`-`v45`), each read from the base run's federal
+columns. Pre-1987 law fills different TAXSIM slots, so the 1960-1986
+calculators export `pre1987_` columns for them. Several federal figures that
+states read have their own shared column: `federal_chcr` is the child care
+credit states see (`comnew(53)`), `ccc_uncapped` the credit before its
+liability limit (`comnew(176)`, 0 before 1987).
+
+`idtl=2` also adds the state worksheet TAXSIM prints (`v30`-`v41`, `staxbc`):
+household income, rent, and the state's AGI, exemptions, standard and
+itemized deductions, taxable income, property tax credit, child care credit,
+EITC, total credits and marginal rate (`v41`, percent). Each state calculator
+ends with `engine.state.with_state_detail(df, agi=..., rate=..., ...)`, which
+stores the values as `state_*` columns; values a state never sets report 0,
+as TAXSIM zeroes them before each state. Detail values are in law-year
+dollars for projected years; household income and rent are the undeflated
+inputs. `staxbc` is always 0 (TAXSIM never sets it). The reported rate is the
+rate of the bracket from TAXSIM's last lookup in that state routine, which is
+not always the taxpayer's statutory bracket (for example a spouse's share on
+split joint returns).
+
+TAXSIM prints the state worksheet of the last calculation it runs for a
+record, which is the marginal-rate perturbation (+$0.01, or -$0.01 when the
+increase gives an out-of-range rate), while federal detail comes from the base
+run. With a marginal-rate input the API does the same: the state worksheet
+columns come from that perturbed row, and household income moves by the step
+unless the perturbed input is a deduction (`data(47)`-`data(63)`).
+
+Several states (Nebraska through 1986, North Dakota's short form, Rhode Island
+and Vermont through 2000) report a share of TAXSIM's own analytic federal
+marginal rate (`comnew(72)`), which is not the finite-difference `frate`. The
+federal calculators export it as `federal_source_rate`, in percent: the
+1977-1986 calculator follows law79 and `federal._law87_analytic_rate` follows
+law87 for 1987-2000. It is the bracket rate of TAXSIM's tax routine plus the
+slopes of the phase-ins and phase-outs the record is in (Social Security,
+EITC, child care and elderly credits, exemption and itemized deduction
+phase-outs, surtaxes and the AMT), with the inputs kept as `analytic_*`
+columns and constants in `parameters/national/analytic_rate.yaml`. Later years
+keep the bracket rate, since no state reads the analytic rate after 2000.
+
+Input handling shared by the federal eras lives in `engine.inputs`: filing
+status and the TAXSIM counts of taxpayers (0 for a dependent filer, `mstat` 8)
+and of taxpayers 65 or older. Payroll and self-employment tax follow TAXSIM's
+`sstax` (`engine.payroll_tax.taxsim_payroll`, via `calculators.payroll.
+payroll_parts`), which federal AGI, the payroll outputs and the states that
+read self-employment tax all use.
+
+Both validators compare marginal rates. A rate-only mismatch that disappears
+when wages move by $1 comes from TAXSIM's single-precision constants at an
+exact threshold and is reported as a count, not a failure.
+
+The state validator runs with `idtl=2` and compares the state worksheet too
+(with a relative tolerance of 1e-6 for projected-year deflation round-off).
+TAXSIM adds $1 to household income for every record after the first in a run,
+so the oracle runner prepends a warm-up record. A worksheet-only mismatch on a
+record whose itemizing and standard totals tie exactly is TAXSIM's round-off
+choosing the itemized run; the validator counts it when itemizing on ties
+reproduces the oracle. Other worksheet-only mismatches that agree a dollar
+away are the same threshold round-off: TAXSIM prints the downward run's
+worksheet when round-off puts the upward rate out of range. A state tax
+mismatch counts as the same round-off only when the records a dollar above
+and a dollar below both agree (for example TAXSIM's single-precision
+two-earner deduction leaving AGI a fraction of a cent under a table row). A
+2023 case whose federal tax, payroll tax or standard
+deduction differs from the oracle's (known real-parameter choices) counts as
+an expected difference.
+
+The state validator builds its registry from `tests/<xx>_cases.py` (each
+defines `STATE_<XX>`, `build_<xx>_test_cases` and `YEARS`, and optionally
+`shared_case_divergent(row)` to flag shared new-input cases that hit a known
+oracle divergence) and takes calculators from
+`calculators.states.STATE_CALCULATOR_PATHS`, so a new state is registered
+once, in the API registry.
 
 Calculators read the itemize choice through `engine.state.itemize_choice`,
 `forced_itemized` and `forced_standard`, not a Python argument, and are called

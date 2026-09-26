@@ -1,19 +1,8 @@
 # Indiana individual income tax (`intax`, taxsim_2024_09_21.f:5870-6077,
 # state id 15). See calculators/states/in.py for the full mechanism.
 #
-# Confirmed inert given this project's input schema (not silent gaps):
-# elderly/blind exemption counts (`data(9)`/`data(10)`) are driven by
-# `page`/`sage` (filer/spouse age) inputs, which this project's own
-# INPUT_COLUMNS never populates - so `data(9)` is ALWAYS $0 here, unlike
-# most other states where age/blind is inert because the FIELD itself is
-# never assigned at all. This makes the ENTIRE elderly property-tax
-# credit (`pcred`, pre-1981), the entire elderly credit (`ecred`, all
-# years), and the 1999+ elderly-exemption addback all permanently $0/no-op
-# for this schema - not modeled gaps, confirmed inert. Also inert: the
-# "dependent of another return" flag (`data(105)`, same field already
-# confirmed inert elsewhere - a no-op additive term in the exemption
-# formula here, not a zeroing gate) and the Solar/Wind Energy Carry-Over
-# Credit (`data(38)`, never assigned, repealed since 1995 anyway).
+# Not TAXSIM inputs, so always zero: blindness and the solar/wind energy
+# carry-over credit (`data(38)`, repealed since 1995).
 #
 # `comnew(65)` (used in the 1999-2002 EITC-equivalent formula) is real,
 # live-probe-confirmed to be federal AGI itself (identical to `comnew(2)`
@@ -186,3 +175,21 @@ eitc_rtless_2kids:
 # statax (before this credit) is positive.
 automatic_taxpayer_refund_credit_2012_per_filer:
   1960: 111
+
+# Through 1980, taxpayers 65 or older: a share of property tax plus 20% of
+# rent, by household income, up to $500.
+property_credit_share_table: [[500, 0.75], [1000, 0.70], [1500, 0.50], [2000, 0.40], [2500, 0.30], [3000, 0.25], [4000, 0.20], [5000, 0.10]]
+property_credit_rent_share: 0.2
+property_credit_cap: 500
+# Credit for taxpayers 65 or older with federal AGI under $10,000: through
+# 1980 $25 when household income is under $15,000; then a table by federal
+# AGI, plus a second-spouse amount on joint returns with two aged.
+elderly_credit_agi_limit: 10000
+elderly_credit_pre1981: 25
+elderly_credit_pre1981_income_limit: 15000
+elderly_credit_table_1981: [[1000, 65], [3000, 35], [10000, 25], [1.0e20, 0]]
+elderly_credit_table_1985: [[1000, 100], [3000, 50], [10000, 40], [1.0e20, 0]]
+elderly_credit_second_aged: {1981: 25, 1985: 40}
+# 1999+: additional exemption per aged taxpayer with federal AGI under $40,000.
+aged_low_income_exemption: 500
+aged_low_income_exemption_agi_limit: 40000

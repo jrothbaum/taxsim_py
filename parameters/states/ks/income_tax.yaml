@@ -1,20 +1,11 @@
 # Kansas individual income tax (`kstax`, taxsim_2024_09_21.f:6507-6941,
 # state id 17). See calculators/states/ks.py for the full mechanism.
 #
-# Confirmed inert given this project's input schema (not silent gaps):
-# elderly/blind (`data(9)`/`data(10)`, unpopulated page/sage) - makes the
-# ENTIRE elderly/blind standard-deduction addback, the "Kansas Property
-# Tax Relief Claim for Low Income Seniors" homestead branch, and the
-# pre-1986 food-sales-tax-refund formula (which depends SOLELY on
-# elderly/blind count) all permanently inert; rentpaid (`data(160)`, not
-# in this project's own INPUT_COLUMNS, same gap already documented for
-# Indiana/Hawaii) - drops out of the homestead-refund `pr1`/`ptax`
-# formulas entirely; medical expenses (`data(47)/(48)/(49)`), casualty
-# losses (`data(61)`), the "dependent filing own return" childcare
-# addback (`data(34)`), the "dependent of another return" flag
-# (`data(105)`), and the solar/energy credit (`data(38)`) - none ever
-# assigned by the input reader. `comnew(8)`, `comnew(20)`, `comnew(23)`,
-# and `comnew(25)` are all live-probe-confirmed $0.
+# Not TAXSIM inputs, so always zero: blindness, medical expenses
+# (`data(47)`-`data(49)`), casualty losses (`data(61)`), the childcare addback
+# for a dependent filing its own return (`data(34)`) and the solar/energy
+# credit (`data(38)`). `comnew(8)`, `comnew(20)`, `comnew(23)` and
+# `comnew(25)` are $0 in the oracle.
 #
 # The 1989-1991 alternative "federal-tax-subtracted" bracket computation
 # (`ftabs`/`ftabm`, `taxy=taxinc-fedtax`) is REAL, DEAD CODE in the
@@ -184,33 +175,7 @@ personal_exemption_amount:
   1998: 2250
 
 # Pre-1987 itemized-deduction addback: household FICA/self-employment
-# tax paid (`socsec()`), capped, plus a $100/filer dividend/interest
-# exclusion swap (1979-1986, `comnew(25)` live-probe-confirmed $0, so
-# this collapses to $0 too - kept in the YAML for documentation, unused
-# in the code's own formula since the cap alone can't matter when the
-# thing it caps is confirmed zero).
-socsec_rate:
-  1977: 0.0585
-  1978: 0.0605
-  1979: 0.0613
-  1981: 0.0665
-  1982: 0.0670
-  1984: 0.0700
-  1985: 0.0705
-  1986: 0.0715
-  1988: 0.0751
-socsec_wage_ceiling:
-  1977: 16500
-  1978: 17700
-  1979: 22900
-  1980: 25900
-  1981: 29700
-  1982: 32400
-  1983: 35700
-  1984: 37800
-  1985: 39600
-  1986: 42000
-  1987: 43800
+# tax paid (TAXSIM `socsec`, `engine.state.taxsim_socsec`), capped.
 socsec_max_1977_1986:  # `socmax(law)` - cap on the FICA-portion addback
   1977: 965.25
   1978: 1070.8
@@ -262,8 +227,8 @@ child_care_credit_table_pre1988:  # `tablki`-style linear interpolation
 # income-bracket-based program, several distinct eras.
 # `pt(law)` - a real, year-indexed table, INDEPENDENT of the formula-
 # selection if/else boundaries below (which pick which of three
-# rentpaid-dependent formulas applies, all confirmed inert here since
-# rentpaid=0 - `pt(law)` itself changes at 2007, not 2008).
+# rent-dependent formulas applies - `pt(law)` itself changes at 2007, not
+# 2008).
 homestead_pt_cap:
   1997: 600
   2007: 700
@@ -392,3 +357,20 @@ eitc_rate:
   2007: 0.17
   2010: 0.18
   2013: 0.17
+
+# 2008+ Property Tax Relief for low income seniors: a share of property tax
+# when household income is under the limit (replaces the homestead refund).
+senior_property_relief_share: {2008: 0.45, 2011: 0.75}
+senior_property_relief_income_limit: {2008: 16800, 2009: 17500, 2011: 17700, 2012: 18200, 2013: 18600, 2014: 18900, 2015: 19100, 2016: 19200, 2017: 19500, 2018: 19800, 2019: 20300, 2020: 20700, 2021: 20900}
+# Homestead: rent counts at this share with property tax.
+homestead_rent_share: {1977: 0.12, 1979: 0.15, 1997: 0.20, 2008: 0.15, 2013: 0.0}
+# Additional standard deduction per taxpayer 65 or older (single-type,
+# married-type).
+aged_standard_deduction: {1988: [750, 600], 1998: [850, 700]}
+dependent_standard_deduction_minimum: 500
+# Social Security exempt at federal AGI up to this amount.
+social_security_agi_limit: {2007: 50000, 2008: 75000}
+# Food sales tax refund before 1986: per aged taxpayer (up to the number of
+# exemptions) with household income up to $10,000.
+food_refund_aged_pre1986: 20
+food_refund_aged_income_limit_pre1986: 10000

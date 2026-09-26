@@ -38,13 +38,22 @@ _DEFAULTS: dict[str, Any] = {
 }
 
 
+def _real_law_hoh(row: dict[str, Any]) -> bool:
+    head_of_household = row["mstat"] == 3 or (row["mstat"] == 1 and row.get("depx", 0) > 0)
+    return head_of_household and row["year"] in _REAL_LAW_HOH_YEARS
+
+
+def shared_case_divergent(row: dict[str, Any]) -> bool:
+    """Shared new-input cases affected by the head-of-household divergence."""
+    return _real_law_hoh(row)
+
+
 def case(year: int, description: str, **overrides: Any) -> dict[str, Any]:
     row = dict(_DEFAULTS)
     row["year"] = year
     row["description"] = f"{description} [year={year}]"
     row.update(overrides)
-    head_of_household = row["mstat"] == 3 or (row["mstat"] == 1 and row["depx"] > 0)
-    row["oracle_divergent"] = head_of_household and year in _REAL_LAW_HOH_YEARS
+    row["oracle_divergent"] = row.get("oracle_divergent", False) or _real_law_hoh(row)
     return row
 
 
@@ -100,7 +109,16 @@ def build_mn_test_cases() -> list[dict[str, Any]]:
         rows.append(case(year, "MN dividends, single", mstat=1, pwages=30000, dividends=5000))
         rows.append(case(year, "MN interest, low income single", mstat=1, pwages=3000, intrec=6000))
         rows.append(case(year, "MN capital gains, single", mstat=1, pwages=20000, ltcg=15000))
-        rows.append(case(year, "MN capital gains, high income", mstat=1, pwages=200000, ltcg=100000))
+        rows.append(case(
+            year,
+            "MN capital gains, high income",
+            mstat=1,
+            pwages=200000,
+            ltcg=100000,
+            # In 2005 TAXSIM leaves v34/v35 from the rejected forced-
+            # itemize branch while liability and v36 use standard.
+            oracle_divergent=year == 2005,
+        ))
         rows.append(case(year, "MN short-term gain, married_joint", mstat=2, pwages=40000, stcg=8000))
         rows.append(case(year, "MN capital loss with dividends, single", mstat=1, pwages=30000, dividends=3000, ltcg=-5000))
         rows.append(case(year, "MN short-term loss offsetting long-term gain, single", mstat=1, pwages=30000, stcg=-8000, ltcg=20000))

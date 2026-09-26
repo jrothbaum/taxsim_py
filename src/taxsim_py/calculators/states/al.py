@@ -2,15 +2,15 @@
 
 import polars as pl
 
-from taxsim_py.engine.brackets import bracket_tax
-from taxsim_py.engine.payroll_tax import self_employment_tax
+from taxsim_py.calculators.payroll import payroll_parts
+from taxsim_py.engine.brackets import bracket_rate, bracket_tax
+from taxsim_py.engine.inputs import taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, load_yaml, resolve_year
-from taxsim_py.engine.state import with_defaults, with_default as _with_default
+from taxsim_py.engine.state import with_defaults, with_default as _with_default, with_state_detail
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
 AL_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "al" / "income_tax.yaml")
 PRE1987_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "pre1987.yaml")
-PAYROLL_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "payroll_tax.yaml")
 _PRE1987_STATUSES = ["single", "married_joint", "married_separate", "head_of_household"]
 
 def compute_al_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
@@ -18,6 +18,7 @@ def compute_al_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     p = AL_PARAMS
     df = with_defaults(df, ("proptax", "otheritem", "mortgage", "dividends", "ltcg", "intrec", "ui", "pui", "sui", "psemp", "ssemp"))
     df = _with_default(df, "taxable_unemployment")
+    df = _with_default(df, "taxable_social_security")
 
     df = df.with_columns(
         al_sep=pl.when(pl.col("filing_status") == "married_separate").then(2.0).otherwise(1.0)
@@ -29,49 +30,10 @@ def compute_al_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     # deduction cap and the 2007+ formula's `stmin` - a genuinely different
     # quantity from the personal-exemption dollar amount below (which DOES
     # give HoH the same $3,000 as married_joint).
-    df = df.with_columns(
-        al_exemps_count=pl.when(pl.col("filing_status") == "married_joint").then(2.0).otherwise(1.0)
-    )
+    df = df.with_columns(al_exemps_count=taxpayer_count())
 
-    # `setax` (comnew(175)) - the SAME `c(175)` figure `sstax` produces
-    # for `fica`/`tfica` everywhere else (see engine/payroll_tax.py's own
-    # `capped_se_tax`/`self_employment_tax` docstrings for the exact
-    # cap-check shape and the OASDI/HI rate asymmetry). An earlier version
-    # of this code, built against taxsim_2022_10_21.f, found AL's own
-    # `setax` used FLAT, hardcoded 12.4%/2.9% rates for every year with HI
-    # never wage-base-capped - a real quirk of that OLD source's own
-    # `sstax`, confirmed via a live probe (1983, married_joint,
-    # $20,000 wages/$40,000 psemp: real setax $3,106.80, only matching a
-    # flat-rate formula). The taxsim_2024_09_21.f rewrite's `setax` is
-    # just the ordinary, year-specific-rate `c(175)` like every other
-    # state that reads it - confirmed via the same technique (1977,
-    # single, psemp=$50,000, no wages: real setax $1,303.50, matching
-    # 1977's own historical 7.0%/0.9% SE rates, not 12.4%/2.9%).
-    #
-    # Computed at the REAL `year`'s rates on REAL (undeflated) wages, NOT
-    # `effective_year`/already-deflated wages - `setax` (like `untax`
-    # below) is produced ONCE by the main federal dispatch's own `sstax`
-    # call, at the real year, BEFORE `statax`'s own generic deflate loop
-    # divides comnew(175) by flate (taxsim_2022_10_21.f:62-65). 2021's own
-    # rates/wage-base differ from a later real year's by more than just the
-    # CPI ratio, so "deflate wages then compute at 2021's rates" and
-    # "compute at the real year's rates then deflate the result" are NOT
-    # interchangeable - an earlier version of this retrofit did the former
-    # and was off by $20-$339 on 2022/2023 married_separate/HoH cases,
-    # caught by `deflate_for_extrapolation` below now including this
-    # (already real-year-computed) result instead.
-    wage_base = float(resolve_year(PAYROLL_PARAMS["oasdi_wage_base"], year))
-    hi_wage_base = float(resolve_year(PAYROLL_PARAMS["hi_wage_base"], year))
-    net_earnings_factor = float(resolve_year(PAYROLL_PARAMS["se_net_earnings_factor"], year))
-    se_oasdi_rate = float(resolve_year(PAYROLL_PARAMS["se_oasdi_rate"], year))
-    se_hi_rate = float(resolve_year(PAYROLL_PARAMS["se_hi_rate"], year))
-    al_setax_p = self_employment_tax(
-        pl.col("psemp"), pl.col("pwages"), wage_base, se_oasdi_rate, se_hi_rate, net_earnings_factor, hi_wage_base
-    )
-    al_setax_s = self_employment_tax(
-        pl.col("ssemp"), pl.col("swages"), wage_base, se_oasdi_rate, se_hi_rate, net_earnings_factor, hi_wage_base
-    )
-    df = df.with_columns(al_setax=al_setax_p + al_setax_s)
+    # Self-employment tax (`comnew(175)`), real-year and undeflated.
+    df = df.with_columns(al_setax=payroll_parts(year)["setax"])
 
     # AL exempts the unemployment compensation included in federal AGI.
     df = df.with_columns(al_taxable_ui=pl.col("taxable_unemployment"))
@@ -107,7 +69,7 @@ def compute_al_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         [
             "pwages", "swages", "proptax", "otheritem", "mortgage", "dividends",
             "ltcg", "intrec", "ui", "pui", "sui", "psemp", "ssemp", "childcare",
-            "agi", "fica", "odc", "ccc", "eitc", "actc", "fiitax", "al_taxable_ui",
+            "agi", "fica", "odc", "ccc", "eitc", "actc", "fiitax", "al_taxable_ui", "taxable_social_security",
         ],
     )
 
@@ -181,6 +143,8 @@ def compute_al_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         + pl.col("al_twoded_addback")
         + pl.col("al_setax_addback")
         - pl.col("al_taxable_ui")
+        # Social Security benefits are exempt from 1984.
+        - (pl.col("taxable_social_security") if effective_year >= 1984 else 0.0)
     )
 
     # --- Standard vs. itemized deduction ---
@@ -320,6 +284,7 @@ def compute_al_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     if effective_year <= 1981:
         brackets = p["brackets_pre1982"]
         df = df.with_columns(al_regtax=bracket_tax(pl.col("al_taxinc"), brackets))
+        rate = bracket_rate(pl.col("al_taxinc"), brackets)
     else:
         brackets = p["brackets"]
         df = df.with_columns(
@@ -329,6 +294,15 @@ def compute_al_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         df = df.with_columns(
             al_regtax=pl.when(pl.col("filing_status") == "married_joint").then(pl.col("al_stat") * 2).otherwise(pl.col("al_stat"))
         )
+        rate = bracket_rate(pl.col("al_taxy"), brackets)
 
     df = df.with_columns(siitax=pl.col("al_regtax").clip(0, None) * flate)
-    return df
+    return with_state_detail(
+        df,
+        agi=pl.col("al_agi"),
+        exemptions=pl.col("al_exemp"),
+        standard_deduction=pl.col("al_stded"),
+        itemized_deductions=pl.col("al_xitded"),
+        taxable_income=pl.col("al_taxinc"),
+        rate=rate,
+    )

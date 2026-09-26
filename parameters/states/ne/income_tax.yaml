@@ -1,9 +1,8 @@
 # Nebraska individual income tax (`netax`, taxsim_2024_09_21.f:12010-12847,
 # state id 28).
 #
-# Inputs this schema never supplies make these provisions inactive:
-# Social Security subtraction, elderly credit, residential energy credit,
-# additional standard deduction for age/blindness.
+# Not TAXSIM inputs, so always zero: the residential energy credit and
+# blindness.
 
 # --- Through 1986: a share of federal income tax (`pretax`) ---
 federal_tax_share:
@@ -363,3 +362,34 @@ minimum_tax_share:
   1993: 0.296
   2014: 0.0
 eitc_match_rate: {1977: 0.0, 2006: 0.08, 2007: 0.10}
+
+# 2018+ additional standard deduction per taxpayer 65 or older (`addst`,
+# not divided for separate filers).
+standard_deduction_aged_addition_2018plus:
+  single:
+    2018: 1600
+    2020: 1650
+  married:
+    2018: 1300
+    2020: 1350
+  head_of_household:
+    2018: 1600
+    2020: 1650
+
+# Social Security subtraction: all taxable benefits for federal AGI up to
+# the limit (2015+); from 2021 5% of them above it.
+social_security_exclusion_agi_limit:
+  single:
+    2015: 43000
+    2021: 44460
+  married_joint:
+    2015: 58000
+    2021: 59960
+social_security_exclusion_share_above_limit:
+  2015: 0.0
+  2021: 0.05
+
+# Credit for the elderly: share of the federal credit (1981+).
+elderly_credit_share:
+  1981: 0.5
+  1989: 1.0

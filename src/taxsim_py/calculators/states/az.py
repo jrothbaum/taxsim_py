@@ -2,10 +2,11 @@
 
 import polars as pl
 
-from taxsim_py.engine.brackets import bracket_tax
+from taxsim_py.engine.brackets import bracket_rate, bracket_tax
 from taxsim_py.engine.eitc import trapezoid_credit
+from taxsim_py.engine.inputs import aged_count, is_dependent_filer, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, load_yaml, resolve_year
-from taxsim_py.engine.state import with_defaults, with_default as _with_default
+from taxsim_py.engine.state import household_income, interpolate_table, with_defaults, with_default as _with_default, with_state_detail
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
 AZ_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "az" / "income_tax.yaml")
@@ -19,6 +20,13 @@ def compute_az_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     effective_year, flate = resolve_state_year(year)
     p = AZ_PARAMS
     df = with_defaults(df, ("proptax", "otheritem", "mortgage", "dividends", "ltcg", "intrec", "depx", "dep17"))
+    df = _with_default(df, "taxable_social_security")
+    df = df.with_columns(
+        az_household_income=household_income(
+            float(resolve_year(STATE_ADJUSTMENT_PARAMS["household_income_dividend_adjustment"], effective_year)),
+            float(resolve_year(STATE_ADJUSTMENT_PARAMS["household_income_record_adjustment"], effective_year)),
+        )
+    )
 
     # Year>LASTAT (2021): deflate every dollar-valued raw/federal-computed
     # input by `flate`, run 2021's REAL law (`effective_year`, forced to
@@ -39,7 +47,8 @@ def compute_az_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         flate,
         [
             "agi", "salt_capped", "mortgage", "pwages", "swages", "dividends",
-            "proptax", "otheritem", "ltcg", "intrec",
+            "proptax", "otheritem", "ltcg", "intrec", "taxable_social_security", "pensions", "gssi", "rentpaid",
+            "az_household_income",
         ],
     )
 
@@ -52,16 +61,12 @@ def compute_az_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     # 2019+ Dependent Tax Credit phaseout, per the source's own literal
     # `data(7)` reads there (confirmed via a live oracle probe showing
     # `head_of_household`'s `txp` bump must NOT apply to those two).
-    df = df.with_columns(
-        az_txp_raw=pl.when(pl.col("filing_status") == "married_joint").then(2.0).otherwise(1.0)
-    )
+    df = df.with_columns(az_txp_raw=taxpayer_count())
     # local `txp` (bumped +1 for head_of_household specifically) - used by
     # the exemption/standard-deduction formulas and the Family Income
     # Credit.
     df = df.with_columns(
-        az_txp=pl.when(pl.col("filing_status") == "married_joint")
-        .then(2.0)
-        .otherwise(1.0)
+        az_txp=pl.col("az_txp_raw")
         + pl.when(pl.col("filing_status") == "head_of_household").then(1.0).otherwise(0.0)
     )
     # `nchild` (`data(8)`=depx), forced to 0 for 2019+ (dependent exemption
@@ -91,8 +96,10 @@ def compute_az_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     else:
         df = df.with_columns(az_twoded_addback=pl.lit(0.0))
 
+    # Social Security benefits are exempt from 1984.
+    exempt_ss = pl.col("taxable_social_security") if effective_year >= 1984 else pl.lit(0.0)
     df = df.with_columns(
-        az_agi_1=pl.col("agi") + pl.col("az_div_addback") + pl.col("az_twoded_addback")
+        az_agi_1=pl.col("agi") + pl.col("az_div_addback") + pl.col("az_twoded_addback") - exempt_ss
     )
     # federal tax subtracted from AGI directly for <=1989 (NOT an itemized
     # addition like Alabama) - `fedtax=max(0,comnew(1)+comnew(59)+comnew(58))`
@@ -175,6 +182,14 @@ def compute_az_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         )
     else:  # 2019+ - confirmed $0 (see YAML note)
         df = df.with_columns(az_exemp=pl.lit(0.0))
+    # Each taxpayer 65 or older adds an exemption.
+    if effective_year <= 1989:
+        aged_amount = float(resolve_year(p["personal_exemption_amount_pre1990"], effective_year)) * float(
+            resolve_year(p["pre1990_inflation"], effective_year)
+        )
+    else:
+        aged_amount = float(resolve_year(p["aged_exemption"], effective_year))
+    df = df.with_columns(az_exemp=pl.col("az_exemp") + aged_amount * aged_count())
 
     # --- Standard deduction (3 eras) ---
     if effective_year <= 1989:
@@ -213,9 +228,7 @@ def compute_az_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     if effective_year <= 1990:
         df = _with_default(df, "childcare")
         df = _with_default(df, "wages")
-        df = df.with_columns(
-            az_hy=pl.col("pwages") + pl.col("swages") + pl.col("dividends")
-        )
+        df = df.with_columns(az_hy=pl.col("az_household_income"))
         df = df.with_columns(
             az_childcare_ded=pl.when(pl.col("az_hy") < 6000.0 / pl.col("az_sep"))
             .then(pl.col("childcare").clip(0, 1200))
@@ -294,6 +307,7 @@ def compute_az_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         brkif = float(resolve_year(p["pre1990_bracket_inflation"], effective_year))
         brackets = p["brackets_pre1990"]
         df = df.with_columns(az_regtax=brkif * bracket_tax(pl.col("az_taxinc") / brkif, brackets))
+        rate_expr = bracket_rate(pl.col("az_taxinc") / brkif, brackets)
     elif effective_year >= 2019:
         aif19 = float(resolve_year(p["bracket_inflation_2019plus"], effective_year))
         brackets = p["brackets_2019plus"]
@@ -302,6 +316,7 @@ def compute_az_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         )
         df = df.with_columns(az_stat=aif19 * bracket_tax(pl.col("az_taxy") / aif19, brackets))
         df = df.with_columns(az_regtax=pl.when(pl.col("az_rich")).then(pl.col("az_stat") * 2).otherwise(pl.col("az_stat")))
+        rate_expr = bracket_rate(pl.col("az_taxy") / aif19, brackets)
     else:
         era_key = {
             (1990, 1993): "1990_1993",
@@ -326,6 +341,9 @@ def compute_az_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
             * pl.when(pl.col("az_rich"))
             .then(bracket_tax(pl.col("az_taxinc") / aif15, brackets_rich))
             .otherwise(bracket_tax(pl.col("az_taxinc") / aif15, brackets_single))
+        )
+        rate_expr = pl.when(pl.col("az_rich")).then(bracket_rate(pl.col("az_taxinc") / aif15, brackets_rich)).otherwise(
+            bracket_rate(pl.col("az_taxinc") / aif15, brackets_single)
         )
 
     # --- Credits ---
@@ -396,12 +414,48 @@ def compute_az_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         cap = float(resolve_year(p["excise_credit_cap"], effective_year))
         numb = pl.when(pl.col("filing_status") == "head_of_household").then(2.0).otherwise(pl.col("az_txp_raw"))
         df = df.with_columns(
-            az_excise=pl.when(pl.col("az_agi") <= thr * numb)
+            az_excise=pl.when((pl.col("az_agi") <= thr * numb) & ~is_dependent_filer())
             .then(pl.min_horizontal(per * (pl.col("az_txp_raw") + pl.col("depx")), cap))
             .otherwise(0.0)
         )
     else:
         df = df.with_columns(az_excise=pl.lit(0.0))
 
-    df = df.with_columns(siitax=(pl.col("az_after_famcr") - pl.col("az_excise")).clip(None, None) * flate)
-    return df
+    # Refundable property tax credit (taxpayers 65 or older with pension or
+    # Social Security income) or renter credit, whichever is larger.
+    more = (pl.col("filing_status") != "single") | (pl.col("depx") > 0)
+    shift = pl.when(more).then(float(p["property_tax_credit_family_addition"])).otherwise(0.0)
+    if effective_year <= 1989:
+        aif = float(resolve_year(p["pre1990_inflation"], effective_year))
+        amounts = [aif * float(v) for v in p["property_tax_credit_pre1990"]]
+    else:
+        amounts = [float(v) for v in p["property_tax_credit_1990"]]
+    rows = [[float(t) + shift, a] for t, a in zip(p["property_tax_credit_thresholds"], amounts)] + [[1.0e20, 0.0]]
+    pensions = pl.col("pensions") + pl.col("gssi")
+    property_credit = pl.when((aged_count() > 0) & (pensions > 0)).then(
+        interpolate_table(pl.col("az_household_income"), rows)
+    ).otherwise(0.0)
+    if effective_year <= 1991:
+        rate = float(resolve_year(p["renter_credit_rate"], effective_year))
+        cap = float(resolve_year(p["renter_credit_cap"], effective_year))
+        renter_credit = (rate * pl.col("rentpaid")).clip(0, cap)
+        if effective_year >= 1990:
+            renter_credit = pl.when(pl.col("az_agi") <= p["renter_credit_agi_limit_1990"]).then(
+                renter_credit.clip(None, p["renter_credit_max_1990"])
+            ).otherwise(0.0)
+    else:
+        renter_credit = pl.lit(0.0)
+    df = df.with_columns(az_credit=pl.max_horizontal(property_credit, renter_credit))
+
+    df = df.with_columns(siitax=(pl.col("az_after_famcr") - pl.col("az_excise") - pl.col("az_credit")) * flate)
+    return with_state_detail(
+        df,
+        agi=pl.col("az_agi"),
+        exemptions=pl.col("az_exemp"),
+        standard_deduction=pl.col("az_stded"),
+        itemized_deductions=pl.col("az_xitded"),
+        taxable_income=pl.col("az_taxinc"),
+        property_credit=property_credit,
+        credits=pl.col("az_credit") + pl.col("az_excise") + pl.col("az_famcr") + pl.col("az_ctc"),
+        rate=rate_expr,
+    )

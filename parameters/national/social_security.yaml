@@ -1,0 +1,19 @@
+# Taxation of Social Security benefits (TAXSIM law87, :24557-24581).
+# Provisional income is AGI plus half the benefits plus `transfers` (where
+# the law has tax-exempt interest), and in 2020 also unemployment benefits.
+# Married filing separately has no base amounts.
+first_tier_rate: 0.5
+second_tier_rate: 0.85
+# Before 1994 only the 50% tier exists.
+second_tier_start_year: 1994
+base_amount:
+  single: 25000
+  head_of_household: 25000
+  married_joint: 32000
+  married_separate: 0
+# Width of the 50% tier (1994+).
+first_tier_width:
+  single: 9000
+  head_of_household: 9000
+  married_joint: 12000
+  married_separate: 0

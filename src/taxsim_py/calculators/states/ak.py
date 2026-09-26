@@ -2,8 +2,9 @@
 
 import polars as pl
 
-from taxsim_py.engine.brackets import bracket_tax
+from taxsim_py.engine.brackets import bracket_rate, bracket_tax
 from taxsim_py.engine.schema import PARAMETERS_ROOT, load_yaml, resolve_year
+from taxsim_py.engine.state import with_state_detail
 
 AK_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "ak" / "income_tax.yaml")
 
@@ -29,7 +30,8 @@ def compute_ak_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         .otherwise(std_single)
     )
     # AGI is federal AGI directly, no addbacks of any kind.
-    df = df.with_columns(ak_taxinc=(pl.col("agi") - pl.col("ak_stded")).clip(0, None))
+    # Reported taxable income may be negative; the bracket lookup floors it.
+    df = df.with_columns(ak_taxinc=pl.col("agi") - pl.col("ak_stded"))
 
     # married_separate reuses SINGLE's own bracket table (not its own, not
     # married_joint/2) - only its standard deduction differs; head_of_
@@ -37,13 +39,17 @@ def compute_ak_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     brackets_single = p["brackets_single"]
     brackets_joint = p["brackets_married_joint"]
     brackets_hoh = p["brackets_head_of_household"]
-    df = df.with_columns(
-        ak_regtax=pl.when(pl.col("filing_status") == "married_joint")
-        .then(bracket_tax(pl.col("ak_taxinc"), brackets_joint))
-        .when(pl.col("filing_status") == "head_of_household")
-        .then(bracket_tax(pl.col("ak_taxinc"), brackets_hoh))
-        .otherwise(bracket_tax(pl.col("ak_taxinc"), brackets_single))
-    )
+    def by_status(lookup) -> pl.Expr:
+        taxinc = pl.col("ak_taxinc").clip(0, None)
+        return (
+            pl.when(pl.col("filing_status") == "married_joint")
+            .then(lookup(taxinc, brackets_joint))
+            .when(pl.col("filing_status") == "head_of_household")
+            .then(lookup(taxinc, brackets_hoh))
+            .otherwise(lookup(taxinc, brackets_single))
+        )
+
+    df = df.with_columns(ak_regtax=by_status(bracket_tax))
 
     # Flat, year-specific credit (doubled for married_joint only) - the
     # "minimum tax" term and the small win-credit-based credit are both
@@ -52,4 +58,11 @@ def compute_ak_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         ak_flat_credit=pl.when(pl.col("filing_status") == "married_joint").then(2.0 * flat_credit).otherwise(flat_credit)
     )
     df = df.with_columns(siitax=(pl.col("ak_regtax") - pl.col("ak_flat_credit")).clip(0, None))
-    return df
+    # The reported credit excludes the flat credit.
+    return with_state_detail(
+        df,
+        agi=pl.col("agi"),
+        standard_deduction=pl.col("ak_stded"),
+        taxable_income=pl.col("ak_taxinc"),
+        rate=by_status(bracket_rate),
+    )

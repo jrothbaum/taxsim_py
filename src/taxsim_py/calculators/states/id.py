@@ -3,55 +3,17 @@
 import polars as pl
 
 from taxsim_py.calculators.federal_pre1987 import PRE1987_PARAMS
-from taxsim_py.engine.brackets import bracket_tax
+from taxsim_py.engine.brackets import bracket_rate, bracket_tax
+from taxsim_py.engine.inputs import aged_count, is_dependent_filer, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, load_yaml, resolve_year
-from taxsim_py.engine.state import with_defaults, by_filing_status as _by_status, with_default as _with_default, forced_standard
+from taxsim_py.engine.state import by_filing_status as _by_status, forced_standard, household_income, with_default as _with_default, with_defaults, with_state_detail
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
 ID_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "id" / "income_tax.yaml")
-FEDERAL_PERSONAL_EXEMPTION_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "personal_exemption.yaml")
+FEDERAL_INCOME_TAX_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "income_tax.yaml")
+STATE_ADJUSTMENT_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "state_adjustments.yaml")
 _STATUSES = ["single", "married_joint", "married_separate", "head_of_household"]
 _SEPRET_BY_STATUS = {"single": 1.0, "married_joint": 1.0, "head_of_household": 1.0, "married_separate": 2.0}
-
-def _federal_personal_exemption(df: pl.DataFrame, year: int) -> pl.Expr:
-    """Reconstruct the federal personal exemption."""
-    if year >= 2018:
-        return pl.lit(0.0)
-    if year <= 1986:
-        # `law79`'s own flat, non-phased-out exemption (PEP didn't exist
-        # law before 1991) - federal_pre1987.py's own `amex` formula.
-        exemption_amount = float(resolve_year(PRE1987_PARAMS["personal_exemption_amount"], year))
-        exemps_count = pl.when(pl.col("filing_status") == "married_joint").then(2.0).otherwise(1.0) + pl.col("depx")
-        return exemption_amount * exemps_count
-    pe_p = FEDERAL_PERSONAL_EXEMPTION_PARAMS
-    exemption_amount = float(resolve_year(pe_p["amount"], year))
-    exemption_count = 1.0 + pl.col("depx") + pl.when(pl.col("filing_status") == "married_joint").then(1.0).otherwise(0.0)
-    amex_base = exemption_amount * exemption_count
-    sepret_expr = _by_status(_SEPRET_BY_STATUS)
-    if 2010 <= year <= 2012 or year < 1991:
-        return amex_base
-    elif year <= 1996:
-        pep_threshold_expr = _by_status(
-            {status: resolve_year(pe_p["high_income_phaseout_threshold"][status], year) for status in _STATUSES}
-        )
-        pep_rate = float(resolve_year(pe_p["phaseout_rate"], year))
-        pep_bracket_size = float(resolve_year(pe_p["phaseout_bracket_size"], year))
-        pep_ratio = pep_rate * (pl.col("agi") - pep_threshold_expr).clip(0, None) / (pep_bracket_size / sepret_expr)
-        return (amex_base * (1.0 - pep_ratio)).clip(0, None)
-    else:
-        pep_threshold_expr = _by_status(
-            {status: resolve_year(pe_p["high_income_phaseout_threshold"][status], year) for status in _STATUSES}
-        )
-        pep_rate = float(resolve_year(pe_p["phaseout_rate"], year))
-        pep_bracket_size = float(resolve_year(pe_p["phaseout_bracket_size"], year))
-        pep_ratio = (pep_rate * (pl.col("agi") - pep_threshold_expr).clip(0, None) / (pep_bracket_size / sepret_expr)).clip(0, 1)
-        amphs_fraction = 1.0
-        if year in (2006, 2007):
-            amphs_fraction = 2.0 / 3.0
-        if year in (2008, 2009):
-            amphs_fraction = 1.0 / 3.0
-        return amex_base * (1.0 - pep_ratio * amphs_fraction)
-
 
 def compute_id_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     effective_year, flate = resolve_state_year(year)
@@ -65,7 +27,7 @@ def compute_id_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
 
     df = df.with_columns(
         id_sep=pl.when(pl.col("filing_status") == "married_separate").then(2.0).otherwise(1.0),
-        id_texp=pl.when(pl.col("filing_status") == "married_joint").then(2.0).otherwise(1.0),
+        id_texp=taxpayer_count(),
     )
 
     # Year>LASTAT (2021): deflate every dollar-valued raw/federal-computed
@@ -73,10 +35,18 @@ def compute_id_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     # 2021 by `resolve_state_year`) on the deflated figures, then reinflate
     # the final tax below (see engine/state_extrapolation.py). A no-op for
     # year<=2021 (`flate==1`).
+    df = with_defaults(df, ("taxable_social_security", "pre1987_amex", "personal_exemptions", "qbi_deduction"))
+    df = df.with_columns(
+        id_household_income=household_income(
+            float(resolve_year(STATE_ADJUSTMENT_PARAMS["household_income_dividend_adjustment"], effective_year)),
+            float(resolve_year(STATE_ADJUSTMENT_PARAMS["household_income_record_adjustment"], effective_year)),
+        )
+    )
     df = deflate_for_extrapolation(
         df,
         flate,
         [
+            "taxable_social_security", "pre1987_amex", "personal_exemptions", "id_household_income",
             "pwages", "swages", "proptax", "otheritem", "mortgage", "dividends", "intrec",
             "stcg", "ltcg", "ui", "pui", "sui", "agi", "salt_capped", "state_sales_or_income_tax_ded",
             "itemized_deduction", "standard_deduction", "earned_income", "childcare",
@@ -97,6 +67,8 @@ def compute_id_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
             cc_cap = 3000.0 * pl.min_horizontal(pl.col("depx"), 2.0)
         cc_ded = pl.min_horizontal(pl.col("childcare"), pl.col("earned_income"), cc_cap)
         df = df.with_columns(id_agi=pl.col("id_agi") - cc_ded)
+        if effective_year >= 1984:
+            df = df.with_columns(id_agi=pl.col("id_agi") - pl.col("taxable_social_security"))
     # `xjobs()` (1979-1986), Social Security in AGI (comnew(79)), and
     # `data(22)`/`data(38)` all confirmed permanently $0 for this schema.
 
@@ -227,15 +199,44 @@ def compute_id_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     # Age/blind additional standard deduction and the dependent-return
     # standard-deduction cap both confirmed permanently inert.
 
+    df = df.with_columns(id_xitded_detail=pl.col("id_xitded"))
     if effective_year == 1999:
         df = df.with_columns(id_xitded=pl.when(forced_standard()).then(0.0).otherwise(pl.col("id_xitded")))
 
+    # Taxpayers 65 or older, and dependent filers.
+    aged = aged_count()
+    sep_status = pl.col("filing_status") == "married_separate"
+    if 1988 <= effective_year <= 1992:
+        reduction = float(resolve_year(p["separate_aged_reduction"], effective_year))
+        df = df.with_columns(id_stded=pl.when(sep_status).then(pl.col("id_stded") - reduction * aged).otherwise(pl.col("id_stded")))
+    if effective_year == 1987:
+        t = p["aged_standard_deduction_1987"]
+        aged_std = pl.lit(None, dtype=pl.Float64)
+        for status, (first, step) in t.items():
+            aged_std = pl.when(pl.col("filing_status") == status).then(float(first) + float(step) * (aged - 1)).otherwise(aged_std)
+        df = df.with_columns(id_stded=pl.when(aged >= 1).then(aged_std).otherwise(pl.col("id_stded")))
+    elif effective_year >= 1993:
+        single_like = pl.col("filing_status").is_in(["single", "head_of_household"])
+        aged_p = FEDERAL_INCOME_TAX_PARAMS["aged_standard_deduction"]
+        amount = pl.when(single_like).then(float(resolve_year(aged_p["single"], effective_year))).otherwise(
+            float(resolve_year(aged_p["married_joint"], effective_year))
+        )
+        df = df.with_columns(id_stded=pl.col("id_stded") + amount * aged)
+    if effective_year >= 1987:
+        minimum = float(resolve_year(p["dependent_standard_deduction_minimum"], effective_year))
+        limit = pl.max_horizontal(pl.lit(minimum), pl.col("earned_income") + p["dependent_standard_deduction_earned_addition"])
+        df = df.with_columns(
+            id_stded=pl.when(is_dependent_filer()).then(pl.min_horizontal(pl.col("id_stded"), limit)).otherwise(pl.col("id_stded"))
+        )
     df = df.with_columns(id_deduc=pl.max_horizontal(pl.col("id_xitded"), pl.col("id_stded")))
 
     # --- Exemption --- (see module docstring point 1)
-    df = df.with_columns(id_exemp=_federal_personal_exemption(df, effective_year))
+    # The federal exemption amount (`comnew(83)`).
+    df = df.with_columns(id_exemp=pl.col("pre1987_amex") if effective_year <= 1986 else pl.col("personal_exemptions"))
 
     df = df.with_columns(id_taxinc=(pl.col("id_agi") - pl.col("id_deduc") - pl.col("id_exemp")).clip(0, None))
+    if effective_year >= 2018:
+        df = df.with_columns(id_taxinc=(pl.col("id_taxinc") - pl.col("qbi_deduction")).clip(0, None))
     # 2018+ QBI deduction: genuine scope gap (federal.py never implements
     # it), treated as $0 - see module/YAML scope note.
 
@@ -298,9 +299,15 @@ def compute_id_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
                 else float(p["grocery_credit_low_income_bonus_2014"][1960])
             )
             grcred = grcred + pl.when(pl.col("id_taxinc") <= 1000.0).then(low_income_bonus * depx_plus_texp).otherwise(0.0)
+        grcred = grcred + float(resolve_year(p["grocery_credit_aged"], effective_year)) * aged_count()
         if 2012 <= effective_year <= 2016:
-            grcred = pl.when(pl.col("filing_status") == "married_separate").then(0.0).otherwise(grcred)
+            grcred = pl.when((pl.col("filing_status") == "married_separate") & (aged_count() < 1)).then(0.0).otherwise(grcred)
         df = df.with_columns(id_grcred=grcred)
+    if effective_year <= 2007:
+        df = df.with_columns(
+            id_grcred=pl.col("id_grcred") + float(resolve_year(p["grocery_credit_aged"], effective_year)) * aged_count()
+        )
+    df = df.with_columns(id_grcred=pl.when(is_dependent_filer()).then(0.0).otherwise(pl.col("id_grcred")))
 
     df = df.with_columns(id_credit=pl.col("id_ctcred") + pl.col("id_grcred"))
     df = df.with_columns(id_statax=pl.col("id_statax") - pl.col("id_credit"))
@@ -320,7 +327,8 @@ def compute_id_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         .when(pl.col("filing_status") == "married_joint").then(lim_married)
         .otherwise(lim_sep)
     )
-    df = df.with_columns(id_hy=pl.col("wages") + pl.col("dividends"))
+    lim = lim + pl.when(pl.col("filing_status") != "married_separate").then(p["building_fund_limit_aged"] * aged_count()).otherwise(0.0)
+    df = df.with_columns(id_hy=pl.col("id_household_income"))
     if effective_year >= 1978:
         building_fund_tax = float(p["building_fund_tax_amount"][1960])
         df = df.with_columns(
@@ -328,4 +336,13 @@ def compute_id_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         )
 
     df = df.with_columns(siitax=pl.col("id_statax") * flate)
-    return df
+    return with_state_detail(
+        df,
+        agi=pl.col("id_agi"),
+        exemptions=pl.col("id_exemp"),
+        standard_deduction=pl.col("id_stded"),
+        itemized_deductions=pl.col("id_xitded_detail"),
+        taxable_income=pl.col("id_taxinc"),
+        credits=pl.col("id_credit"),
+        rate=bracket_rate(tinc / aif, brackets),
+    )

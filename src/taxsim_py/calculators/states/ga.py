@@ -2,9 +2,10 @@
 
 import polars as pl
 
-from taxsim_py.engine.brackets import bracket_tax
+from taxsim_py.engine.brackets import bracket_rate, bracket_tax
+from taxsim_py.engine.inputs import aged_count, is_dependent_filer, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, load_yaml, resolve_year
-from taxsim_py.engine.state import with_defaults, with_default as _with_default, forced_standard
+from taxsim_py.engine.state import with_defaults, with_default as _with_default, forced_standard, with_state_detail
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
 GA_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "ga" / "income_tax.yaml")
@@ -14,20 +15,21 @@ _PRE1987_STATUSES = ["single", "married_joint", "married_separate", "head_of_hou
 def compute_ga_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     effective_year, flate = resolve_state_year(year)
     p = GA_PARAMS
-    df = with_defaults(df, ("proptax", "otheritem", "mortgage", "depx", "dividends", "intrec", "childcare", "ui", "pui", "sui"))
+    df = with_defaults(df, ("federal_chcr", "proptax", "otheritem", "mortgage", "depx", "dividends", "intrec", "childcare", "ui", "pui", "sui"))
     df = _with_default(df, "state_sales_or_income_tax_ded")
     df = _with_default(df, "ccc")
     df = _with_default(df, "itemizes", False)
     df = _with_default(df, "itemized_deduction")
     df = _with_default(df, "tax_before_credits")
     df = _with_default(df, "taxable_unemployment")
+    df = with_defaults(df, ("taxable_social_security", "earned_income", "pre1987_deduc"))
 
     df = df.with_columns(
         ga_sep=pl.when(pl.col("filing_status") == "married_separate").then(2.0).otherwise(1.0),
         # `data(7)` - self/spouse exemption unit count (1, or 2 ONLY for
         # married_joint - matching every other state's own established
         # convention).
-        ga_texp=pl.when(pl.col("filing_status") == "married_joint").then(2.0).otherwise(1.0),
+        ga_texp=taxpayer_count(),
     )
 
     # Year>LASTAT (2021): deflate every dollar-valued raw/federal-computed
@@ -39,9 +41,11 @@ def compute_ga_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         df,
         flate,
         [
+            "federal_chcr",
             "pwages", "swages", "wages", "proptax", "otheritem", "mortgage", "dividends", "intrec",
             "stcg", "ltcg", "ui", "pui", "sui", "agi", "salt_capped", "state_sales_or_income_tax_ded",
-            "itemized_deduction", "ccc", "tax_before_credits",
+            "itemized_deduction", "ccc", "tax_before_credits", "taxable_social_security", "pensions",
+            "otherprop", "scorp", "earned_income", "psemp", "ssemp", "pre1987_deduc",
         ],
     )
 
@@ -64,13 +68,8 @@ def compute_ga_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     # `charity_cash` input this project's schema ever populates - the
     # same gap already documented at the federal level).
 
-    # 1982-1986: "Georgia used 1981 federal law" - the IRA/stock-loss
-    # adjustment (`stira`/`stkeo`) is confirmed inert EXCEPT `comnew(14)`
-    # (see module docstring, a narrow, untraced gap treated as $0), and
-    # the two-earner deduction (`comnew(32)`) is real - reused from the
-    # SAME local reconstruction Colorado/DC already established. The
-    # `data(9).gt.0` retirement sub-block is confirmed permanently inert
-    # (elderly count always $0 for this schema).
+    # 1982-1986: "Georgia used 1981 federal law" - the IRA adjustment
+    # (`stira`) and the two-earner deduction (`comnew(32)`) are added back.
     if 1982 <= effective_year <= 1986:
         two_earner_rate = float(resolve_year(PRE1987_PARAMS["two_earner_deduction_rate"], effective_year))
         two_earner_cap = float(resolve_year(PRE1987_PARAMS["two_earner_deduction_cap"], effective_year))
@@ -78,6 +77,13 @@ def compute_ga_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
             two_earner_rate * pl.min_horizontal(pl.col("pwages"), pl.col("swages")).clip(0, None)
         ).clip(0, two_earner_cap)
         df = df.with_columns(ga_agi=pl.col("ga_agi") + twoded)
+        # `stira`: $500 less the federal IRA limit (earnings up to $2,000,
+        # $4,000 joint), added back when positive - so a return with little
+        # earned income adds up to $500 (IRA contributions are not an input).
+        earnings = pl.col("wages") + (pl.col("psemp") + pl.col("ssemp") + pl.col("otherprop").clip(0, None)).clip(0, None)
+        iramax = pl.when(pl.col("filing_status") == "married_joint").then(4000.0).otherwise(2000.0)
+        iralim = pl.min_horizontal(earnings, iramax)
+        df = df.with_columns(ga_agi=pl.col("ga_agi") + (500.0 - iralim).clip(0, 500.0))
         # Georgia's own state-vs-federal unemployment-compensation
         # threshold adjustment (`stutx`/`fdutx`) - a real, GA-specific
         # mechanic distinct from the 2020 UI provision above, using the
@@ -101,14 +107,48 @@ def compute_ga_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         fdutx = pl.min_horizontal(0.5 * (ui_total + pl.col("ga_agi") - femp).clip(0, None), ui_total)
         df = df.with_columns(ga_agi=pl.col("ga_agi") + (stutx - fdutx))
 
-    # Social Security in AGI, 1988+ (comnew(79)) confirmed permanently $0
-    # for this schema (no social-security input).
+    # Retirement income exclusion for taxpayers 65 or older.
+    aged = aged_count()
+    rtmax = float(resolve_year(p["retirement_exclusion_max"], effective_year))
+    rtexc = pl.min_horizontal(pl.col("agi"), rtmax * aged).clip(0, None)
+    if 1986 <= effective_year <= 1988:
+        rtexc = pl.when(
+            pl.col("earned_income") > p["retirement_exclusion_earned_limit_1986"] * pl.col("ga_texp")
+        ).then(0.0).otherwise(rtexc)
+    if effective_year >= 1989:
+        cap = float(p["retirement_exclusion_earnings_cap"])
+        sep = pl.col("ga_sep")
+        capgn = pl.max_horizontal(pl.col("stcg") + pl.col("ltcg"), -3000.0 / sep)
+        schedule_e = pl.col("otherprop") + pl.col("scorp")
+        investment = pl.col("intrec") + pl.col("dividends") + 0.001 + schedule_e
+        rhy = (investment + pl.col("pensions")).clip(0, None) + pl.when(capgn >= 0).then(capgn / sep).otherwise(0.5 * capgn / sep)
+        single = pl.min_horizontal(pl.lit(rtmax), pl.min_horizontal(pl.col("earned_income"), cap) + rhy)
+        se_half = 0.5 * (pl.col("psemp") + pl.col("ssemp")).clip(0, None)
+        hearn = pl.max_horizontal(pl.col("pwages"), pl.col("swages")) + se_half
+        wearn = pl.min_horizontal(pl.col("pwages"), pl.col("swages")) + se_half
+        if effective_year >= 2018:
+            hearn = hearn + pl.col("pbusinc") + pl.col("sbusinc")
+            wearn = wearn + pl.col("pprofinc") + pl.col("sprofinc")
+        rterw = pl.min_horizontal(wearn, cap)
+        rterh = pl.min_horizontal(hearn, cap)
+        rhyw = 0.5 * investment + pl.col("pensions") + pl.when(capgn >= 0).then(0.5 * capgn / sep).otherwise(0.25 * capgn / sep)
+        couple_one = pl.min_horizontal(pl.lit(rtmax), rterw + rhyw) + rterh
+        couple_two = pl.min_horizontal(pl.lit(rtmax), rterw + 0.5 * rhy) + pl.min_horizontal(pl.lit(rtmax), rterh + 0.5 * rhy)
+        rtexc = (
+            pl.when(pl.col("ga_texp") == 1).then(single)
+            .when(pl.col("ga_texp") > 1).then(pl.when(aged < 2).then(couple_one).otherwise(couple_two))
+            .otherwise(rtexc)
+        )
+    df = df.with_columns(ga_agi=pl.col("ga_agi") - pl.when(aged > 0).then(rtexc).otherwise(0.0))
+    # Social Security benefits are exempt from 1988.
+    if effective_year >= 1988:
+        df = df.with_columns(ga_agi=pl.col("ga_agi") - pl.col("taxable_social_security"))
 
     # --- Exemptions --- (`old`=elderly+blind confirmed permanently $0)
     if effective_year <= 1986:
         pe = float(p["personal_exemption_flat_pre1994"][1960])
         dep_xmp = float(resolve_year(p["personal_exemption_amount_xmp"], effective_year))
-        ga_exemp = pl.col("ga_texp") * pe + pl.col("depx") * dep_xmp
+        ga_exemp = pl.col("ga_texp") * pe + (pl.col("depx") + aged_count()) * dep_xmp
         hoh_bonus = float(p["hoh_dependent_bonus_pre1987"][1960])
         ga_exemp = ga_exemp + pl.when(
             (pl.col("filing_status") == "head_of_household") & (pl.col("depx") > 0)
@@ -162,25 +202,20 @@ def compute_ga_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         is_married = pl.col("filing_status").is_in(["married_joint", "married_separate"])
         flat_s = float(resolve_year(p["standard_deduction_flat_1987plus_single_or_hoh"], effective_year))
         flat_m = float(resolve_year(p["standard_deduction_flat_1987plus_married"], effective_year))
+        aged_std = float(resolve_year(p["aged_standard_deduction"], effective_year))
         df = df.with_columns(
-            ga_stded=pl.when(is_married).then(flat_m / pl.col("ga_sep")).otherwise(flat_s)
+            ga_stded=pl.when(is_married).then(flat_m / pl.col("ga_sep")).otherwise(flat_s) + aged_std * aged_count()
         )
 
     # --- Itemized deduction --- (see module docstring point 1)
     if effective_year <= 1986:
-        df = df.with_columns(ga_raw_itemized=pl.col("proptax") + pl.col("otheritem") + pl.col("mortgage"))
-        # Reconstruct federal's OWN itemize-vs-standard decision (not
-        # exposed as a column for years<=1986) the same way DC does -
-        # compare the self-referential raw total (INCLUDING the state-
-        # tax feedback, which is what federal itself would see) against
-        # federal's own pre-1987 zero-bracket amount.
-        raw_itemized_with_state_tax = pl.col("ga_raw_itemized") + pl.col("state_sales_or_income_tax_ded")
-        fed_zbr_expr = pl.lit(None, dtype=pl.Float64)
-        for status in _PRE1987_STATUSES:
-            fed_zbr = float(resolve_year(PRE1987_PARAMS["standard_deduction"][status], effective_year))
-            fed_zbr_expr = pl.when(pl.col("filing_status") == status).then(pl.lit(fed_zbr)).otherwise(fed_zbr_expr)
-        itemizes_indicator = (raw_itemized_with_state_tax > fed_zbr_expr).cast(pl.Float64)
-        df = df.with_columns(ga_xitded=pl.col("ga_raw_itemized") * itemizes_indicator)
+        # Federal itemized deductions (zero when not itemizing) less the
+        # state income or sales tax deduction.
+        df = _with_default(df, "pre1987_deduc")
+        itemizes_indicator = pl.col("pre1987_itemizes").cast(pl.Float64)
+        df = df.with_columns(
+            ga_xitded=(pl.col("pre1987_deduc") - pl.col("state_sales_or_income_tax_ded")) * itemizes_indicator
+        )
     else:
         itemizes_indicator = pl.col("itemizes").cast(pl.Float64)
         df = df.with_columns(
@@ -212,6 +247,9 @@ def compute_ga_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     stat_married = bracket_tax(taxy, brackets_married) / pl.col("ga_sep")
     stat_single = bracket_tax(pl.col("ga_taxinc"), brackets_single)
     df = df.with_columns(ga_statax=pl.when(is_married).then(stat_married).otherwise(stat_single))
+    rate_expr = pl.when(is_married).then(
+        bracket_rate(taxy, brackets_married)
+    ).otherwise(bracket_rate(pl.col("ga_taxinc"), brackets_single))
 
     # --- Credits ---
     # Child/Dependent Care Credit: real 1978-1986, NOT allowable
@@ -226,7 +264,7 @@ def compute_ga_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         df = df.with_columns(ga_chcr=chexp * rate)
     elif effective_year >= 2006:
         rate = float(resolve_year(p["child_care_credit_rate_2006plus"], effective_year))
-        chcare = pl.min_horizontal(pl.col("ccc").clip(0, None), pl.col("tax_before_credits").clip(0, None))
+        chcare = pl.min_horizontal(pl.col("federal_chcr").clip(0, None), pl.col("tax_before_credits").clip(0, None))
         df = df.with_columns(ga_chcr=rate * chcare)
     else:
         df = df.with_columns(ga_chcr=pl.lit(0.0))
@@ -264,11 +302,10 @@ def compute_ga_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
                 w = (pl.col("agi") - t_lo) / (t_hi - t_lo)
                 below = (w * v_lo + (1 - w) * v_hi) if v_hi > v_lo else (w * v_hi + (1 - w) * v_lo)
             expr = pl.when(pl.col("agi") < t_hi).then(below).otherwise(expr)
-        df = df.with_columns(ga_ycred=expr * (pl.col("ga_texp") + pl.col("depx")))
+        df = df.with_columns(ga_ycred=expr * (pl.col("ga_texp") + pl.col("depx") + aged_count()))
     else:
         df = df.with_columns(ga_ycred=pl.lit(0.0))
-    # `data(105)` (dependent-of-another-return) confirmed permanently
-    # $0 for this schema - no code needed for that zeroing.
+    df = df.with_columns(ga_ycred=pl.when(is_dependent_filer()).then(0.0).otherwise(pl.col("ga_ycred")))
 
     # Solar-energy credit confirmed permanently $0 (see module docstring).
     df = df.with_columns(ga_solar=pl.lit(0.0))
@@ -291,4 +328,14 @@ def compute_ga_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         )
 
     df = df.with_columns(siitax=pl.col("ga_statax") * flate)
-    return df
+    return with_state_detail(
+        df,
+        agi=pl.col("ga_agi"),
+        exemptions=pl.col("ga_exemp"),
+        standard_deduction=pl.col("ga_stded"),
+        itemized_deductions=pl.col("ga_xitded"),
+        taxable_income=pl.col("ga_taxinc"),
+        child_care_credit=pl.col("ga_chcr"),
+        credits=pl.col("ga_chcr") + pl.col("ga_solar") + pl.col("ga_ycred"),
+        rate=rate_expr,
+    )

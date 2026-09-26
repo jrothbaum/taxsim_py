@@ -1,0 +1,9 @@
+# Child age limits TAXSIM uses to turn `age1`-`age3` into dependent counts
+# (taxsim_2024_09_21.f:21095-21097, 21233-21243): a child counts when younger
+# than the limit. `cccage` child care credit (dep13), `eicage` EITC (dep18),
+# `ctcage` child tax credit (dep17; none before 1998). Children under 6 are
+# counted in `dep6`.
+child_care_age: {1960: 12, 1964: 13, 1972: 15, 1989: 13}
+eitc_age: {1960: 100, 1975: 19}
+child_tax_credit_age: {1960: 0, 1998: 17}
+young_child_age: 6

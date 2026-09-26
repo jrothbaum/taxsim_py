@@ -16,14 +16,9 @@
 # HoH uses the SAME table as single/joint, just its own `txp` exemption
 # count).
 #
-# Confirmed inert given this project's schema (not silent gaps): the
-# refundable property-tax credit and the renters' credit (both gated on
-# `data(9)>0`, the elderly count, or `data(160)`, rentpaid - neither ever
-# populated by this project's input reader given the schema doesn't
-# include ages or rent paid); medical/health itemized components (data
-# 47-49, unpopulated); the solar energy credit (data 38, unpopulated);
-# `data(22)` (a generic override field several states share, never
-# assigned - same finding as Alabama/Illinois).
+# Not TAXSIM inputs, so always zero: medical/health itemized components
+# (`data(47)`-`data(49)`), the solar energy credit (`data(38)`) and
+# `data(22)`.
 #
 # 2019+ is a genuinely simpler regime than everything before it: AZ
 # repealed BOTH the personal exemption AND the per-dependent exemption
@@ -297,3 +292,24 @@ bracket_inflation_2019plus:
   2019: 1.0
   2020: 1.029132
   2021: 1.04935849
+
+# Exemption per taxpayer 65 or older from 1990 (before 1990 it equals the
+# personal exemption).
+aged_exemption: {1990: 1500, 1992: 1750, 1993: 2100}
+
+# Refundable property tax credit for taxpayers 65 or older with pension or
+# Social Security income, by household income (TAXSIM `proptb` through
+# 1989, scaled by `pre1990_inflation`; `pr90tb` from 1990). Thresholds rise
+# by `property_tax_credit_family_addition` for all but single filers without
+# dependents. The 1980s table's fourth amount (250) is as TAXSIM has it.
+property_tax_credit_thresholds: [1750, 1850, 1950, 2050, 2150, 2250, 2350, 2450, 2550, 2650, 2750, 2850, 2950, 3050, 3150, 3250, 3350, 3450, 3550, 3650, 3750]
+property_tax_credit_pre1990: [225, 215, 206, 250, 185, 175, 165, 155, 145, 135, 125, 115, 105, 95, 86, 75, 65, 55, 45, 35, 25]
+property_tax_credit_1990: [502, 479, 457, 435, 412, 390, 368, 345, 323, 301, 279, 256, 234, 212, 189, 167, 145, 123, 100, 78, 56]
+property_tax_credit_family_addition: 750
+
+# Renter credit (through 1991): a share of rent paid up to a cap; 1990-1991
+# only at AGI of $25,000 or less and at most $55.
+renter_credit_rate: {1977: 0.10, 1984: 0.05}
+renter_credit_cap: {1977: 50, 1978: 83, 1979: 92, 1980: 107, 1981: 120, 1982: 130, 1983: 132, 1984: 100, 1988: 85, 1989: 70}
+renter_credit_agi_limit_1990: 25000
+renter_credit_max_1990: 55

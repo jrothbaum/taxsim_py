@@ -6,13 +6,9 @@
 # only change points are listed. Years past 2021 are unreachable (the
 # global `lastat=2021` extrapolation cap applies to every state).
 #
-# Confirmed inert given this project's input schema: elderly/blind
-# (`data(9)`/`data(10)`) - the blind/age exemptions and the entire 2001+
-# senior Circuit Breaker Credit; medical expenses (`comnew(20)`, the
-# `edxmp` exemption); rent paid (`data(160)`, the 50% rent deduction);
-# pensions/other Part B income (`data(19)`/`data(20)`/`data(23)`/
-# `data(24)`/`data(72)`); Schedule E (`comnew(8)`); capital-loss
-# carryovers (`data(67)`/`data(69)`); energy credit (`data(38)`).
+# Not TAXSIM inputs, so always zero: blindness (`data(10)`), medical
+# expenses (`comnew(20)`, the `edxmp` exemption), capital-loss carryovers
+# (`data(67)`/`data(69)`) and the energy credit (`data(38)`).
 
 # Part B (wage/"basic") income rate (`tab89`).
 part_b_rate:
@@ -187,3 +183,104 @@ ui_exclusion_poverty_level:
   2021: 12880
 ui_exclusion_cap_per_person:
   2020: 10200
+
+# Exemption per taxpayer 65 or older (`xmpo`).
+aged_exemption:
+  1977: 600
+  1978: 700
+
+# Part B rent deduction: half of rent paid, capped from 1982 (1997-2000:
+# $1,250 for married filing separately; from 2001 the cap is divided
+# between separate filers).
+rent_deduction_share: 0.5
+rent_deduction_cap:
+  1982: 2500
+  2001: 3000
+rent_deduction_cap_separate_1997_2000: 1250
+
+# Senior circuit breaker credit (2001+, refundable): property tax (rent
+# counts at this share) over 10% of household income, up to a maximum,
+# for household income up to a limit by filing status.
+circuit_breaker_rent_share: 0.25
+circuit_breaker_income_share: 0.1
+circuit_breaker_max:
+  2001: 385
+  2002: 790
+  2003: 810
+  2004: 820
+  2005: 850
+  2006: 870
+  2007: 900
+  2008: 930
+  2009: 960
+  2010: 970
+  2011: 980
+  2012: 1000
+  2013: 1030
+  2014: 1050
+  2015: 1070
+  2017: 1080
+  2018: 1100
+  2019: 1130
+  2020: 1150
+  2021: 1170
+circuit_breaker_income_limit:
+  single:
+    2001: 41000
+    2002: 42000
+    2003: 43000
+    2004: 44000
+    2005: 45000
+    2006: 46000
+    2007: 48000
+    2008: 49000
+    2009: 51000
+    2011: 52000
+    2012: 53000
+    2013: 55000
+    2014: 56000
+    2015: 57000
+    2018: 58000
+    2019: 60000
+    2020: 61000
+    2021: 62000
+  head_of_household:
+    2001: 51000
+    2002: 53000
+    2003: 54000
+    2004: 55000
+    2005: 56000
+    2006: 58000
+    2007: 60000
+    2008: 62000
+    2009: 64000
+    2011: 65000
+    2012: 67000
+    2013: 69000
+    2014: 70000
+    2015: 71000
+    2017: 72000
+    2018: 73000
+    2019: 75000
+    2020: 76000
+    2021: 78000
+  married_joint:
+    2001: 61000
+    2002: 63000
+    2003: 64000
+    2004: 66000
+    2005: 68000
+    2006: 70000
+    2007: 72000
+    2008: 74000
+    2009: 77000
+    2011: 78000
+    2012: 80000
+    2013: 82000
+    2014: 84000
+    2015: 85000
+    2016: 86000
+    2018: 88000
+    2019: 90000
+    2020: 92000
+    2021: 93000

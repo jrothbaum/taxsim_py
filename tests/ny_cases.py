@@ -34,15 +34,26 @@ _DEFAULTS: dict[str, Any] = {
 }
 
 
+_INCOME_COLUMNS = (
+    "pwages", "swages", "psemp", "ssemp", "dividends", "intrec", "stcg", "ltcg", "pensions", "otherprop",
+    "nonprop", "scorp", "pbusinc", "pprofinc", "sbusinc", "sprofinc",
+)
+
+
+def shared_case_divergent(row: dict[str, Any]) -> bool:
+    """From 2021 the port uses New York's real tax computation worksheets
+    (new 9.65%/10.3%/10.9% tiers, rounded phase-in ratios), which TAXSIM's
+    worksheets lack, so returns above the worksheet threshold differ."""
+    income = sum(row.get(k, 0) for k in _INCOME_COLUMNS)
+    return row["year"] >= 2021 and income > 107650
+
+
 def case(year: int, description: str, **overrides: Any) -> dict[str, Any]:
     row = dict(_DEFAULTS)
     row["year"] = year
     row["description"] = f"{description} [year={year}]"
     row.update(overrides)
-    # From 2021 the port uses New York's real tax computation worksheets
-    # (new 9.65%/10.3%/10.9% tiers), which TAXSIM's worksheets lack.
-    income = sum(row[k] for k in ("pwages", "swages", "psemp", "ssemp", "dividends", "intrec", "stcg", "ltcg"))
-    row["oracle_divergent"] = year >= 2021 and income > 107650
+    row["oracle_divergent"] = shared_case_divergent(row)
     return row
 
 

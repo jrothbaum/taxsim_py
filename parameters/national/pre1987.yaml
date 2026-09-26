@@ -224,6 +224,9 @@ minimum_tax_tier3_rate: {1979: 0.05}  # not used for 1982 in code (2-tier only t
 # adds capital gains' excluded share directly to AGI (not taxable income)
 # minus itemized deductions when itemizing - taxsim_2022_10_21.f:24042-24065.
 minimum_tax_flat_rate: {1983: 0.20}
+# 1982: itemized deductions above this share of AGI are a minimum tax
+# preference (`exded`).
+excess_itemized_agi_share_1982: 0.6
 minimum_tax_offset_single_hoh: {1983: 30000}
 minimum_tax_offset_joint_sep: {1983: 40000}  # divided by sepret for separate
 

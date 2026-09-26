@@ -2,9 +2,10 @@
 
 import polars as pl
 
-from taxsim_py.engine.brackets import bracket_tax
+from taxsim_py.engine.brackets import bracket_rate, bracket_tax
+from taxsim_py.engine.inputs import aged_count, is_dependent_filer, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, load_yaml, resolve_year
-from taxsim_py.engine.state import with_defaults, interpolate_table as _tablki, with_default as _with_default, forced_standard
+from taxsim_py.engine.state import with_defaults, interpolate_table as _tablki, with_default as _with_default, forced_standard, with_state_detail
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
 HI_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "hi" / "income_tax.yaml")
@@ -23,7 +24,7 @@ def compute_hi_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
 
     df = df.with_columns(
         hi_sep=pl.when(pl.col("filing_status") == "married_separate").then(2.0).otherwise(1.0),
-        hi_texp=pl.when(pl.col("filing_status") == "married_joint").then(2.0).otherwise(1.0),
+        hi_texp=taxpayer_count(),
     )
 
     # Year>LASTAT (2021): deflate every dollar-valued raw/federal-computed
@@ -31,18 +32,21 @@ def compute_hi_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     # 2021 by `resolve_state_year`) on the deflated figures, then reinflate
     # the final tax below (see engine/state_extrapolation.py). A no-op for
     # year<=2021 (`flate==1`).
+    df = with_defaults(df, ("taxable_social_security",))
     df = deflate_for_extrapolation(
         df,
         flate,
         [
+            "taxable_social_security", "rentpaid",
             "pwages", "swages", "proptax", "otheritem", "mortgage", "dividends", "intrec",
             "stcg", "ltcg", "ui", "pui", "sui", "agi", "salt_capped", "state_sales_or_income_tax_ded",
-            "itemized_deduction", "eitc", "childcare",
+            "itemized_deduction", "eitc", "childcare", "taxable_unemployment",
         ],
     )
 
     # --- AGI ---
-    df = df.with_columns(hi_agi=pl.col("agi"))
+    # Social Security benefits are exempt.
+    df = df.with_columns(hi_agi=pl.col("agi") - pl.col("taxable_social_security"))
     # 2020/2021: full unemployment compensation IS taxable in HI (unlike
     # federal's own CARES/ARPA exclusion) - add back whatever federal
     # excluded.
@@ -51,12 +55,12 @@ def compute_hi_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         df = df.with_columns(
             hi_agi=pl.col("hi_agi") + ui_total - pl.col("taxable_unemployment")
         )
-    # Pensions confirmed permanently $0 for this schema (no pension
-    # input) - the `agi = agi - data(72)` subtraction is a no-op.
+    # TAXSIM's pension subtraction reads `data(72)`, a slot the input reader
+    # never sets (pensions are `data(20)`), so pensions are not excluded.
 
     # --- Exemptions ---
     xmp = float(resolve_year(p["personal_exemption_amount"], effective_year))
-    df = df.with_columns(hi_exemp=(pl.col("hi_texp") + pl.col("depx")) * xmp)
+    df = df.with_columns(hi_exemp=(pl.col("hi_texp") + pl.col("depx") + aged_count()) * xmp)
     df = df.with_columns(hi_exema=pl.col("hi_exemp"))
     if 2009 <= effective_year <= 2015:
         base = float(p["personal_exemption_phaseout_base"][2009])
@@ -69,9 +73,9 @@ def compute_hi_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         ln6 = (1.0 + (pl.col("hi_agi") - phex) / (step / pl.col("hi_sep"))).floor()
         phased = pl.col("hi_exema") - pl.col("hi_exema") * 0.02 * ln6
         df = df.with_columns(hi_exemp=pl.when(pl.col("hi_agi") > phex).then(phased).otherwise(pl.col("hi_exemp")))
-    # Disability exemption (`n10.gt.0`) and "dependent of another return"
-    # (`data(105)`) both confirmed permanently inert for this schema (no
-    # elderly/blind/dependent-return inputs this project drives).
+    # Dependent filers claim no exemptions (the disability exemption needs
+    # an input TAXSIM does not take).
+    df = df.with_columns(hi_exemp=pl.when(is_dependent_filer()).then(0.0).otherwise(pl.col("hi_exemp")))
 
     # --- Standard deduction ---
     stded_single = float(resolve_year(p["standard_deduction_single"], effective_year))
@@ -206,7 +210,16 @@ def compute_hi_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         stat_hoh = bracket_tax(pl.col(taxinc_col), brackets_hoh)
         return pl.when(is_hoh).then(stat_hoh).otherwise(stat_single)
 
+    def _bracket_rate(taxinc_col: str) -> pl.Expr:
+        brackets_single = p[f"brackets_single_{key}"]
+        brackets_hoh = p[f"brackets_hoh_{key}"]
+        taxy = pl.when(is_joint).then(pl.col(taxinc_col) / 2).otherwise(pl.col(taxinc_col))
+        return pl.when(is_hoh).then(
+            bracket_rate(pl.col(taxinc_col), brackets_hoh)
+        ).otherwise(bracket_rate(taxy, brackets_single))
+
     df = df.with_columns(hi_statax=_bracket_stat("hi_taxinc"))
+    rate_expr = _bracket_rate("hi_taxinc")
 
     # --- Capital gains alternative tax --- (see module docstring point 2).
     # `comnew(6)` is federal's own net-capital-gain-INCLUDED-IN-AGI figure,
@@ -234,6 +247,7 @@ def compute_hi_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     df = df.with_columns(
         hi_statax=pl.when(has_gain).then(pl.min_horizontal(pl.col("hi_statax"), statng + statcg)).otherwise(pl.col("hi_statax"))
     )
+    rate_expr = pl.when(has_gain).then(_bracket_rate("hi_taxyng")).otherwise(rate_expr)
 
     # --- Credits ---
     # Child/Dependent Care Credit.
@@ -267,17 +281,22 @@ def compute_hi_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     else:
         df = df.with_columns(hi_gencr=pl.lit(0.0))
 
-    # Renter's Credit confirmed permanently inert (see module docstring).
-    df = df.with_columns(hi_rcred=pl.lit(0.0))
+    # Renter's Credit.
+    aged_factor = aged_count().clip(1, None)
+    rent_limit = float(resolve_year(p["renter_credit_agi_limit"], effective_year))
+    rcred = pl.when((pl.col("rentpaid") >= p["renter_credit_min_rent"]) & (pl.col("hi_agi") < rent_limit)).then(
+        float(resolve_year(p["renter_credit_per_exemption"], effective_year)) * (pl.col("hi_texp") + pl.col("depx") + aged_count())
+    ).otherwise(0.0)
+    df = df.with_columns(hi_rcred=rcred * aged_factor)
 
     # Excise Tax Credit (repealed after 1994) / Refundable Food-Excise
     # Tax Credit (2008+, replaces it) - both real, `tablki`-based.
     if effective_year <= 1979:
-        df = df.with_columns(hi_exc=_tablki(pl.col("hi_agi"), p["excise_credit_table_1977_1979"]) * pl.col("hi_texp"))
+        df = df.with_columns(hi_exc=_tablki(pl.col("hi_agi"), p["excise_credit_table_1977_1979"]) * pl.col("hi_texp") * aged_factor)
     elif effective_year <= 1987:
-        df = df.with_columns(hi_exc=_tablki(pl.col("hi_agi"), p["excise_credit_table_1980_1987"]) * pl.col("hi_texp"))
+        df = df.with_columns(hi_exc=_tablki(pl.col("hi_agi"), p["excise_credit_table_1980_1987"]) * pl.col("hi_texp") * aged_factor)
     elif effective_year <= 1994:
-        df = df.with_columns(hi_exc=_tablki(pl.col("hi_agi"), p["excise_credit_table_1988_1994"]) * pl.col("hi_texp"))
+        df = df.with_columns(hi_exc=_tablki(pl.col("hi_agi"), p["excise_credit_table_1988_1994"]) * pl.col("hi_texp") * aged_factor)
     elif 2008 <= effective_year <= 2015:
         fedagi = pl.col("agi").clip(0, None)
         df = df.with_columns(
@@ -315,9 +334,11 @@ def compute_hi_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         )
     else:
         df = df.with_columns(hi_lowcr=pl.lit(0.0))
-    # "dependent of another return" zeroing (`data(105)`) confirmed
-    # permanently inert - no such input this schema drives.
-
+    # Dependent filers get no excise or food credit.
+    df = df.with_columns(
+        hi_exc=pl.when(is_dependent_filer()).then(0.0).otherwise(pl.col("hi_exc")),
+        hi_foodcr=pl.when(is_dependent_filer()).then(0.0).otherwise(pl.col("hi_foodcr")),
+    )
     df = df.with_columns(
         hi_credit=pl.col("hi_gencr") + pl.col("hi_rcred") + pl.col("hi_exc") + pl.col("hi_foodcr")
         + pl.col("hi_chcr") + pl.col("hi_lowcr")
@@ -334,4 +355,15 @@ def compute_hi_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     df = df.with_columns(hi_statax=pl.col("hi_statax") - pl.col("hi_earncr"))
 
     df = df.with_columns(siitax=pl.col("hi_statax") * flate)
-    return df
+    return with_state_detail(
+        df,
+        agi=pl.col("hi_agi"),
+        exemptions=pl.col("hi_exemp"),
+        standard_deduction=pl.col("hi_stded"),
+        itemized_deductions=pl.col("hi_xitded"),
+        taxable_income=pl.col("hi_taxinc"),
+        child_care_credit=pl.col("hi_chcr"),
+        eic=pl.col("hi_earncr"),
+        credits=pl.col("hi_credit") + pl.col("hi_earncr"),
+        rate=rate_expr,
+    )

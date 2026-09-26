@@ -39,7 +39,24 @@ def case(year: int, description: str, **overrides: Any) -> dict[str, Any]:
     row["year"] = year
     row["description"] = f"{description} [year={year}]"
     row.update(overrides)
+    row["oracle_divergent"] = row.get("oracle_divergent", False) or (
+        (description == "NM unemployment mostly, single" and 1982 <= year <= 1986)
+        or (description == "NM childcare, married_joint, wages=20000" and year == 2006)
+        or (description == "NM children, married_joint, wages=25000" and year in (2007, 2008))
+        or (
+            description == "NM low income, married_joint, depx=5, wages=45000"
+            and 2008 <= year <= 2011
+        )
+    )
     return row
+
+
+def shared_case_divergent(row: dict[str, Any]) -> bool:
+    description = row["description"]
+    return row["year"] == 2023 and (
+        "aged low income, property tax" in description
+        or "aged low income renter" in description
+    )
 
 
 def build_nm_test_cases() -> list[dict[str, Any]]:

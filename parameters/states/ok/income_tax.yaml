@@ -1,0 +1,112 @@
+# Oklahoma individual income tax (TAXSIM `oktax`, taxsim_2024_09_21.f:16621-17091).
+# Brackets are [start, rate] rows converted from TAXSIM's `look2` upper-bound
+# tables (the last rate continues beyond the table). "single" tables also
+# serve married filing separately; "married" tables serve joint returns and
+# heads of household, except the 1977-1978 head-of-household table.
+
+# Through 2005 the tax is the lesser of two schedules: one on income after
+# deductions and exemptions (`taxya`), one on that income also less federal
+# tax paid (`taxyb`).
+brackets:
+  s77: [[0, 0.005], [1000, 0.01], [2500, 0.02], [3750, 0.03], [5000, 0.04], [6250, 0.05], [7500, 0.06]]
+  h77: [[0, 0.005], [1500, 0.01], [3750, 0.02], [5625, 0.03], [7500, 0.04], [9375, 0.05], [11250, 0.06]]
+  m77: [[0, 0.005], [2000, 0.01], [5000, 0.02], [7500, 0.03], [10000, 0.04], [12500, 0.05], [15000, 0.06]]
+  s79: [[0, 0.005], [1000, 0.01], [2500, 0.02], [3750, 0.03], [5000, 0.04], [6250, 0.05], [7500, 0.06], [9250, 0.07], [11250, 0.08], [13250, 0.09], [15250, 0.10], [17500, 0.11], [21000, 0.12], [27000, 0.13], [33000, 0.14], [39000, 0.15], [43000, 0.16], [49000, 0.17]]
+  m79: [[0, 0.005], [2000, 0.01], [5000, 0.02], [7500, 0.03], [9000, 0.04], [10500, 0.05], [12000, 0.06], [13500, 0.07], [15000, 0.08], [17000, 0.09], [23000, 0.10], [29000, 0.11], [38000, 0.12], [48000, 0.13], [58000, 0.14], [69000, 0.15], [81000, 0.16], [94000, 0.17]]
+  s88: [[0, 0.005], [1000, 0.01], [2500, 0.02], [3750, 0.03], [5000, 0.04], [6250, 0.05], [7500, 0.06], [9250, 0.07], [11250, 0.08], [13250, 0.09], [15250, 0.10]]
+  m88: [[0, 0.005], [2000, 0.01], [5000, 0.02], [7500, 0.03], [9000, 0.04], [10500, 0.05], [12000, 0.06], [13500, 0.07], [15000, 0.08], [17000, 0.09], [23000, 0.10]]
+  s90_federal: [[0, 0.005], [1000, 0.01], [2500, 0.02], [3750, 0.03], [4900, 0.04], [6100, 0.05], [7500, 0.06], [9000, 0.07], [10500, 0.08], [12500, 0.09], [16000, 0.10]]
+  m90_federal: [[0, 0.005], [2000, 0.01], [5000, 0.02], [7500, 0.03], [8900, 0.04], [10400, 0.05], [12000, 0.06], [13250, 0.07], [15000, 0.08], [18000, 0.09], [24000, 0.10]]
+  s90: [[0, 0.005], [1000, 0.01], [2500, 0.02], [3750, 0.03], [4900, 0.04], [6200, 0.05], [7700, 0.06], [10000, 0.07]]
+  s99: [[0, 0.005], [1000, 0.01], [2500, 0.02], [3750, 0.03], [4900, 0.04], [6200, 0.05], [7700, 0.06], [10000, 0.0675]]
+  s04: [[0, 0.005], [1000, 0.01], [2500, 0.02], [3750, 0.03], [4900, 0.04], [6200, 0.05], [7700, 0.06], [10000, 0.07]]
+  s56: [[0, 0.005], [1000, 0.01], [2500, 0.02], [3750, 0.03], [4900, 0.04], [6200, 0.05], [7700, 0.06], [10000, 0.0665]]
+  m90: [[0, 0.005], [2000, 0.01], [5000, 0.02], [7500, 0.03], [9800, 0.04], [12200, 0.05], [15000, 0.06], [21000, 0.07]]
+  m99: [[0, 0.005], [2000, 0.01], [5000, 0.02], [7500, 0.03], [9800, 0.04], [12200, 0.05], [15000, 0.06], [21000, 0.0675]]
+  m04: [[0, 0.005], [2000, 0.01], [5000, 0.02], [7500, 0.03], [9800, 0.04], [12200, 0.05], [15000, 0.06], [21000, 0.07]]
+  m56: [[0, 0.005], [2000, 0.01], [5000, 0.02], [7500, 0.03], [9800, 0.04], [12200, 0.05], [15000, 0.06], [21000, 0.0665]]
+  s07: [[0, 0.005], [1000, 0.01], [2500, 0.02], [3750, 0.03], [4900, 0.04], [7200, 0.05], [8700, 0.0625]]
+  s08: [[0, 0.005], [1000, 0.01], [2500, 0.02], [3750, 0.03], [4900, 0.04], [7200, 0.05], [8700, 0.0565]]
+  s09: [[0, 0.005], [1000, 0.01], [2500, 0.02], [3750, 0.03], [4900, 0.04], [7200, 0.05], [8700, 0.055]]
+  s12: [[0, 0.005], [1000, 0.01], [2500, 0.02], [3750, 0.03], [4900, 0.04], [7200, 0.05], [8700, 0.0525]]
+  s16: [[0, 0.005], [1000, 0.01], [2500, 0.02], [3750, 0.03], [4900, 0.04], [7200, 0.05]]
+  m07: [[0, 0.005], [2000, 0.01], [5000, 0.02], [7500, 0.03], [9800, 0.04], [12200, 0.05], [15000, 0.0625]]
+  m08: [[0, 0.005], [2000, 0.01], [5000, 0.02], [7500, 0.03], [9800, 0.04], [12200, 0.05], [15000, 0.0565]]
+  m09: [[0, 0.005], [2000, 0.01], [5000, 0.02], [7500, 0.03], [9800, 0.04], [12200, 0.05], [15000, 0.055]]
+  m12: [[0, 0.005], [2000, 0.01], [5000, 0.02], [7500, 0.03], [9800, 0.04], [12200, 0.05], [15000, 0.0525]]
+  m16: [[0, 0.005], [2000, 0.01], [5000, 0.02], [7500, 0.03], [9800, 0.04], [12200, 0.05]]
+# Schedule on income before federal tax (`taxya`), by year; through 1978 it is
+# the only schedule, applied to income after federal tax.
+long_form_tables: {1977: "77", 1990: "90", 1999: "99", 2003: "56", 2004: "04", 2005: "56", 2007: "07", 2008: "08", 2009: "09", 2012: "12", 2016: "16"}
+# Schedule on income after federal tax (`taxyb`), 1979-2005.
+short_form_tables: {1979: "79", 1988: "88", 1990: "90_federal"}
+
+# Exemption per taxpayer and dependent.
+exemption_amount: {1977: 750.0, 1982: 1000.0}
+
+# Federal tax deduction through 1978: $500 plus 5% of tax above $500, capped;
+# or federal tax before credits when tax is at most $500.
+federal_tax_deduction_1977_1978: {threshold: 500.0, rate: 0.05, cap: 1700.0}
+
+# Standard deduction: through 2005 15% of AGI between $1,000 and $2,000
+# (halved for married filing separately); 2006 flat; 2007 on by year
+# (head of household, and per taxpayer otherwise).
+standard_deduction_rate_2005: 0.15
+standard_deduction_limits_2005: [1000.0, 2000.0]
+standard_deduction_2006: {single: 2000.0, married: 3000.0}
+standard_deduction_head_of_household: {2007: 4125.0, 2008: 4875.0, 2009: 6325.0, 2010: 8400.0, 2011: 8500.0, 2012: 8700.0, 2013: 8950.0, 2014: 9100.0, 2015: 9250.0, 2016: 9300.0, 2017: 9350.0}
+standard_deduction_per_taxpayer: {2007: 2750.0, 2008: 3250.0, 2009: 4250.0, 2010: 5700.0, 2011: 5800.0, 2012: 5950.0, 2013: 6100.0, 2014: 6200.0, 2015: 6300.0, 2017: 6350.0}
+
+# 2018 on: itemized deductions other than medical and charity are capped.
+itemized_cap_2018: 17000.0
+salt_cap_2018: 10000.0
+
+# Credits.
+child_care_credit_rate: 0.2
+child_tax_credit_rate: 0.05
+child_credit_agi_limit_2008: 100000.0
+eitc_rate: 0.05
+# Sales tax credit per person below a household income limit.
+sales_tax_credit: 40.0
+sales_tax_credit_income_limit_1990: 12000.0
+# 1999 on (except 2003): limit for households without and with dependents.
+sales_tax_credit_income_limit:
+  alone: {1999: 15000.0, 2000: 30000.0, 2001: 20000.0, 2002: 15000.0, 2003: 12000.0, 2004: 15000.0, 2005: 20000.0}
+  with_dependents: {1999: 20000.0, 2000: 50000.0, 2002: 30000.0, 2003: 12000.0, 2004: 30000.0, 2005: 50000.0}
+
+# Retirement income exclusion (pensions): through 2006 for AGI up to
+# $25,000 per taxpayer 65 or older, this amount per such taxpayer; 2007-2009
+# $10,000 per taxpayer 65 or older with AGI up to the limit per taxpayer
+# count; from 2010 $10,000 per taxpayer.
+pension_exclusion_per_aged_taxpayer:
+  1977: 2200
+  1999: 3300
+  2000: 4400
+  2001: 5500
+  2005: 7500
+  2006: 10000
+pension_exclusion_agi_limit_per_aged_taxpayer: 25000
+pension_exclusion_agi_limit_2007_2009:
+  2007: {one: 50000, two: 100000}
+  2008: {one: 62500, two: 125000}
+  2009: {one: 100000, two: 200000}
+pension_exclusion_per_taxpayer_2010: 10000
+
+# Exemption per taxpayer 65 or older: through 1986 always; from 1987 only
+# with federal AGI up to the limit by filing status.
+aged_exemption_agi_limit_1987:
+  single: 15000
+  married_joint: 25000
+  married_separate: 12500
+  head_of_household: 19000
+
+# Property tax credit for taxpayers 65 or older: property tax over 1% of
+# household income (with the federal EITC), up to $200, below the limit.
+property_credit_income_limit:
+  1977: 6600
+  1980: 7200
+  1984: 8500
+  1989: 10000
+  1997: 12000
+property_credit_income_share: 0.01
+property_credit_max: 200

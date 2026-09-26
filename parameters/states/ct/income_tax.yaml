@@ -329,3 +329,17 @@ eitc_rate_by_year:
 property_credit_phaseout_step_width: 10000.0
 property_credit_phaseout_steps: [0.0, 0.15, 0.30, 0.45, 0.60, 0.75, 0.90]
 property_credit_phaseout_final: [1.0e+20, 1.0]
+
+# Social Security benefits exempt below an AGI limit (single and separate;
+# joint and head of household); above it only part is exempt: through 1999
+# the benefits over half the excess of household income (less half of
+# benefits and federal adjustments) over the federal base amount, from 2000
+# a quarter of benefits up to the base amount.
+social_security_agi_limit:
+  single: {1985: 50000, 2019: 75000}
+  joint: {1985: 60000, 2019: 100000}
+social_security_base_amount: {single: 25000, joint: 32000, married_separate: 0}
+# 2019+ pension deduction: this share of pensions, phased out as AGI rises
+# from the limit to twice the limit.
+pension_deduction_share: {2019: 0.14, 2020: 0.28, 2021: 0.42, 2022: 0.56, 2023: 0.70, 2024: 0.84, 2025: 1.0}
+pension_deduction_agi_limit: {single: 75000, joint: 100000}

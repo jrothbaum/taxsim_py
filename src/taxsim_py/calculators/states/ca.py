@@ -1,12 +1,17 @@
 """California individual income tax calculator."""
 
+import math
+
 import polars as pl
 
-from taxsim_py.engine.brackets import bracket_tax
+from taxsim_py.calculators.payroll import payroll_parts
+from taxsim_py.engine.brackets import bracket_rate, bracket_tax
+from taxsim_py.engine.inputs import aged_count, is_dependent_filer, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, load_yaml, resolve_year
-from taxsim_py.engine.state import with_defaults, by_filing_status as _by_status, with_default as _with_default, forced_standard
+from taxsim_py.engine.state import by_filing_status as _by_status, forced_standard, household_income, with_default as _with_default, with_defaults, with_state_detail
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
+STATE_ADJUSTMENT_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "state_adjustments.yaml")
 CA_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "ca" / "income_tax.yaml")
 PRE1987_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "pre1987.yaml")
 FEDERAL_AMT_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "amt.yaml")
@@ -38,9 +43,8 @@ def compute_ca_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     df = with_defaults(df, (
         "proptax", "otheritem", "mortgage", "dividends", "ltcg", "stcg", "intrec",
         "depx", "dep18", "dep6", "childcare", "psemp", "ssemp",
+        "state_sales_or_income_tax_ded", "earned_income",
     ))
-    df = _with_default(df, "state_sales_or_income_tax_ded")
-    df = _with_default(df, "earned_income")
 
     # Year>LASTAT (2021): deflate every dollar-valued raw/federal-computed
     # input by `flate`, run 2021's REAL law (`effective_year`, forced to
@@ -51,10 +55,21 @@ def compute_ca_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     # columns, same situation as AR's `wages`/AZ's `salt_capped` - deflated
     # directly here rather than relying on their raw inputs being deflated
     # after the fact (which wouldn't reach an already-materialized column).
+    # Self-employment tax (`comnew(175)`, real-year and undeflated) and
+    # household income (`data(159)`).
+    df = _with_default(df, "taxable_social_security")
+    df = df.with_columns(
+        ca_setax=payroll_parts(year)["setax"],
+        ca_household_income=household_income(
+            float(resolve_year(STATE_ADJUSTMENT_PARAMS["household_income_dividend_adjustment"], effective_year)),
+            float(resolve_year(STATE_ADJUSTMENT_PARAMS["household_income_record_adjustment"], effective_year)),
+        ),
+    )
     df = deflate_for_extrapolation(
         df,
         flate,
         [
+            "pensions", "otherprop", "nonprop", "taxable_social_security", "rentpaid", "ca_household_income",
             "agi", "salt_capped", "state_sales_or_income_tax_ded", "earned_income",
             "mortgage", "proptax", "otheritem", "dividends", "ltcg", "stcg", "intrec",
             "psemp", "ssemp", "pwages", "swages", "wages", "childcare", "ccc",
@@ -68,12 +83,12 @@ def compute_ca_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         # local `txp` - bumped to 2 for head_of_household (`if(mst.eq.4.
         # or.mst.eq.5.or.mst.eq.7)txp=2.`) - used by the pre-1987 std
         # deduction/exemption-credit formulas and the 1987+ std deduction.
-        ca_txp=pl.when(pl.col("filing_status").is_in(["married_joint", "head_of_household"])).then(2.0).otherwise(1.0),
+        ca_txp=pl.when(pl.col("filing_status") == "head_of_household").then(2.0).otherwise(taxpayer_count()),
         # `data(7)` itself, UNBUMPED - the 1987+ exemption-credit formulas
         # read this directly, not the local `txp` (confirmed via a live
         # oracle probe: HoH, depx=1, 1990 real excrd=$116=50*1.16*(1+1),
         # not $174=50*1.16*(2+1)).
-        ca_txp_raw=pl.when(pl.col("filing_status") == "married_joint").then(2.0).otherwise(1.0),
+        ca_txp_raw=taxpayer_count(),
     )
 
     # --- AGI ---
@@ -90,31 +105,30 @@ def compute_ca_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         # `totinc`/`einc`, NOT the dead "Other Property income" field
         # this project mistakenly assumed it was while building Arkansas
         # (that assumption happened to not matter there; it does here).
-        df = df.with_columns(
-            ca_gross_se=pl.col("psemp").clip(0, None) + pl.col("ssemp").clip(0, None)
-        )
+        df = df.with_columns(ca_gross_se=pl.col("psemp") + pl.col("ssemp"))
         df = df.with_columns(
             ca_totinc=pl.col("wages") + pl.col("intrec") + (pl.col("dividends") + 0.001) + pl.col("ca_cg")
-            + pl.col("ca_gross_se")
+            + pl.col("ca_gross_se") + pl.col("pensions") + pl.col("otherprop") + pl.col("nonprop")
         )
+        if effective_year >= 1985:
+            # 1985-1986: an exclusion for taxpayers 65 or older.
+            aged = aged_count()
+            limit = p["aged_exclusion_income_limit_1985"] * aged / pl.col("ca_sep")
+            oldex = (p["aged_exclusion_1985"] * aged - 0.5 * (pl.col("ca_totinc") - limit).clip(0, None)).clip(0, None)
+            df = df.with_columns(ca_totinc=pl.col("ca_totinc") - oldex)
         df = df.with_columns(ca_agi=pl.col("ca_totinc").clip(0, None))
     else:
         # California conforms to federal AGI directly (`agi=comnew(2)`) -
         # the commented-out cg/cacg/adjcg block in the source confirms
         # `addit` is a real, permanent no-op for 1987+.
-        df = df.with_columns(ca_subtra=pl.lit(0.0))
+        # Social Security benefits are exempt.
+        df = df.with_columns(ca_subtra=pl.col("taxable_social_security"))
         if effective_year in (2011, 2012):
             # 2011-2012 payroll-tax-holiday FICA adjustment (same
             # hardcoded-rate `setax` quantity found building AL/AZ) - CA
             # doesn't conform to the federal SE-tax-deduction quirk for
             # those two years, so it backs the differential out of AGI.
-            df = _with_default(df, "wages")
-            rate_in = 0.124
-            wage_base = {2011: 106800.0, 2012: 110100.0}[effective_year]
-            gross_se = (pl.col("psemp").clip(0, None) + pl.col("ssemp").clip(0, None))
-            se_net = 0.9235 * gross_se
-            oasdi_room = (wage_base - pl.col("wages")).clip(0, None)
-            setax = rate_in * pl.min_horizontal(oasdi_room, se_net) + 0.029 * se_net
+            setax = pl.col("ca_setax")
             df = df.with_columns(
                 # `subtra` STARTS at 0 (SS-benefit terms are all inert
                 # here) and this block SUBTRACTS the correction from it,
@@ -124,7 +138,7 @@ def compute_ca_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
                 # adds back the differential). `ca_subtra` here keeps the
                 # "positive = amount subtracted from AGI" convention, so
                 # this branch is negated relative to the raw source sign.
-                ca_subtra=-pl.when(setax <= 14204).then((0.5751 - 0.5) * setax).otherwise(1067.0)
+                ca_subtra=pl.col("ca_subtra") - pl.when(setax <= 14204).then((0.5751 - 0.5) * setax).otherwise(1067.0)
             )
         df = df.with_columns(ca_agi=pl.col("agi") - pl.col("ca_subtra"))
 
@@ -136,12 +150,15 @@ def compute_ca_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
 
     # --- Itemized deduction ---
     if effective_year <= 1986:
-        # `xitded=comnew(24)-data(50)*comnew(24)/comnew(30)` reduces, for
-        # this project's schema (no medical/casualty/misc-2% inputs, and
-        # no federal-side Pease pre-1987), to the raw proptax+otheritem+
-        # mortgage total directly - same simplification already used for
-        # AL/IL/AZ<=1990.
-        df = df.with_columns(ca_xitded=pl.col("proptax") + pl.col("otheritem") + pl.col("mortgage"))
+        # `xitded=comnew(24)-data(50)*comnew(24)/comnew(30)`: the federal
+        # itemized deductions (zero when not itemizing federally) less the
+        # state income or sales tax deduction.
+        df = _with_default(df, "pre1987_deduc")
+        df = _with_default(df, "state_sales_or_income_tax_ded")
+        itemizing = pl.col("pre1987_itemizes").cast(pl.Float64)
+        df = df.with_columns(
+            ca_xitded=itemizing * (pl.col("pre1987_deduc") - pl.col("state_sales_or_income_tax_ded"))
+        )
     else:
         # `xitded=max(0,comnew(30)-data(50)+data(27))` - `comnew(30)`
         # [deducp] includes the state/sales-tax feedback term
@@ -206,13 +223,17 @@ def compute_ca_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
 
     if effective_year <= 1981:
         aiftab = float(resolve_year(p["bracket_aiftab_pre1987"], effective_year))
-        raw_s = [[round(lo * aiftab / 10.0) * 10.0, rate] for lo, rate in p["brackets_pre1982_single"]]
-        raw_h = [[round(lo * aiftab / 10.0) * 10.0, rate] for lo, rate in p["brackets_pre1982_hoh"]]
+        # `nint` rounds halves away from zero.
+        raw_s = [[math.floor(lo * aiftab / 10.0 + 0.5) * 10.0, rate] for lo, rate in p["brackets_pre1982_single"]]
+        raw_h = [[math.floor(lo * aiftab / 10.0 + 0.5) * 10.0, rate] for lo, rate in p["brackets_pre1982_hoh"]]
         brackets_s = _raw_to_start_rate(raw_s)
         brackets_h = _raw_to_start_rate(raw_h)
         stat_single = bracket_tax(pl.col("ca_taxinc") / pl.col("ca_ajnt"), brackets_s) * pl.col("ca_ajnt")
         stat_hoh = bracket_tax(pl.col("ca_taxinc"), brackets_h)
         df = df.with_columns(ca_regtax=pl.when(pl.col("ca_hoh")).then(stat_hoh).otherwise(stat_single))
+        rate_expr = pl.when(pl.col("ca_hoh")).then(bracket_rate(pl.col("ca_taxinc"), brackets_h)).otherwise(
+            bracket_rate(pl.col("ca_taxinc") / pl.col("ca_ajnt"), brackets_s)
+        )
     elif effective_year <= 1986:
         aiftab = float(resolve_year(p["bracket_aiftab_pre1987"], effective_year))
         brackets_s = _raw_to_start_rate(p["brackets_1982_1986_single"], aiftab)
@@ -220,6 +241,9 @@ def compute_ca_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         stat_single = bracket_tax(pl.col("ca_taxinc") / pl.col("ca_ajnt"), brackets_s) * pl.col("ca_ajnt")
         stat_hoh = bracket_tax(pl.col("ca_taxinc"), brackets_h)
         df = df.with_columns(ca_regtax=pl.when(pl.col("ca_hoh")).then(stat_hoh).otherwise(stat_single))
+        rate_expr = pl.when(pl.col("ca_hoh")).then(bracket_rate(pl.col("ca_taxinc"), brackets_h)).otherwise(
+            bracket_rate(pl.col("ca_taxinc") / pl.col("ca_ajnt"), brackets_s)
+        )
     else:
         if effective_year <= 1990:
             aiftab = float(resolve_year(p["bracket_aiftab_1987_2012"], effective_year))
@@ -256,6 +280,9 @@ def compute_ca_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         stat_single = bracket_tax(pl.col("ca_taxinc") / pl.col("ca_ajnt"), brackets_s) * pl.col("ca_ajnt")
         stat_hoh = bracket_tax(pl.col("ca_taxinc"), brackets_h)
         df = df.with_columns(ca_regtax=pl.when(pl.col("ca_hoh")).then(stat_hoh).otherwise(stat_single))
+        rate_expr = pl.when(pl.col("ca_hoh")).then(bracket_rate(pl.col("ca_taxinc"), brackets_h)).otherwise(
+            bracket_rate(pl.col("ca_taxinc") / pl.col("ca_ajnt"), brackets_s)
+        )
 
     df = df.with_columns(ca_statax=pl.col("ca_regtax"))
 
@@ -269,17 +296,17 @@ def compute_ca_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     if effective_year <= 1986:
         aif_pre87 = aif
         df = df.with_columns(
-            ca_excrd=(pl.lit(round(25.0 * aif_pre87)) * pl.col("ca_txp") + pl.lit(round(8.0 * aif_pre87)) * dep_reduced)
+            ca_excrd=(pl.lit(math.floor(25.0 * aif_pre87 + 0.5)) * pl.col("ca_txp") + pl.lit(math.floor(8.0 * aif_pre87 + 0.5)) * dep_reduced)
         )
         if effective_year == 1978:
             df = df.with_columns(ca_excrd=100.0 * pl.col("ca_txp") + 8.0 * dep_reduced)
     elif effective_year <= 1997:
         xmpaif = float(resolve_year(p["exemption_credit_xmpaif"], effective_year))
-        df = df.with_columns(ca_excrd=50.0 * xmpaif * (pl.col("ca_txp_raw") + dep_reduced))
+        df = df.with_columns(ca_excrd=50.0 * xmpaif * (pl.col("ca_txp_raw") + aged_count() + dep_reduced))
     else:
         xmpaif = float(resolve_year(p["exemption_credit_xmpaif"], effective_year))
         xmpdep = float(resolve_year(p["exemption_credit_per_dependent_1998plus"], effective_year))
-        df = df.with_columns(ca_excrd=50.0 * xmpaif * pl.col("ca_txp_raw") + dep_reduced * xmpdep)
+        df = df.with_columns(ca_excrd=50.0 * xmpaif * (pl.col("ca_txp_raw") + aged_count()) + dep_reduced * xmpdep)
 
     if effective_year >= 1991:
         base = float(p["exemption_credit_phaseout_base_1991plus"])
@@ -292,13 +319,13 @@ def compute_ca_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         aif2 = float(resolve_year(p["exemption_credit_aif2_pre1998"], effective_year)) if effective_year <= 1998 else None
         if effective_year < 1998:
             excess_over = (pl.col("agi") - pl.col("ca_phaded2")).clip(0, None)
-            reduction_full = (dep_reduced + pl.col("ca_txp")) * 6.0 * (pl.col("agi") - pl.col("ca_phaded2")) / (2500.0 * aif2 / pl.col("ca_sep"))
+            reduction_full = (dep_reduced + pl.col("ca_txp") + aged_count()) * 6.0 * (pl.col("agi") - pl.col("ca_phaded2")) / 2500.0 / pl.col("ca_sep")
             excrd_over_agi = pl.when(excess_over > 25000.0 * aif2 / pl.col("ca_sep")).then(0.0).otherwise(
                 (pl.col("ca_excrd") - reduction_full).clip(0, None)
             )
         else:
             num = 1.0 + ((pl.col("agi") - pl.col("ca_phaded2")) / (2500.0 / pl.col("ca_sep"))).floor()
-            excrd_over_agi = (pl.col("ca_excrd") - (dep_reduced + pl.col("ca_txp")) * 6.0 * num).clip(0, None)
+            excrd_over_agi = (pl.col("ca_excrd") - (dep_reduced + pl.col("ca_txp") + aged_count()) * 6.0 * num).clip(0, None)
 
         df = df.with_columns(
             ca_excrd=pl.when(pl.col("agi") > pl.col("ca_phaded2")).then(excrd_over_agi).otherwise(pl.col("ca_excrd"))
@@ -324,17 +351,21 @@ def compute_ca_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
                     ca_excrd=pl.when(gate).then(pl.min_horizontal(capped, pl.col("ca_excrd"))).otherwise(pl.col("ca_excrd"))
                 )
 
+    # Dependent filers get no exemption credit.
+    df = df.with_columns(ca_excrd=pl.when(is_dependent_filer()).then(0.0).otherwise(pl.col("ca_excrd")))
     df = df.with_columns(ca_noncr=pl.col("ca_excrd"))
 
     # --- Low Income Credit (expired after 1991) ---
     if effective_year <= 1983:
         threshold = float(p["low_income_credit_threshold_multiplier_pre1984"])
-        base_amt = round(40.0 * (aif if effective_year >= 1979 else 1.0))
+        # `40*xif(law.ge.1979, aif)`: the base is $0 before 1979, so the
+        # credit is only half of how far income falls short of $5,000.
+        base_amt = 40.0 * aif if effective_year >= 1979 else 0.0
         df = _with_default(df, "childcare")
-        hy = pl.col("wages") + pl.col("intrec") + (pl.col("dividends") + 0.001) + pl.col("ca_cg") if effective_year <= 1986 else pl.col("agi")
+        hy = pl.col("ca_household_income")
         df = df.with_columns(
             ca_lowcr=pl.when(hy <= threshold * pl.col("ca_txp"))
-            .then((base_amt - (pl.col("ca_agi") - 5000.0) * 0.5).clip(0, None).round())
+            .then((base_amt - (pl.col("ca_agi") - 5000.0) * 0.5).clip(0, None).round(mode="half_away_from_zero"))
             .otherwise(0.0)
         )
     elif 1985 <= effective_year <= 1991:
@@ -366,10 +397,12 @@ def compute_ca_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         df = df.with_columns(ca_lowcr=pl.col("ca_statax") * expr)
     else:
         df = df.with_columns(ca_lowcr=pl.lit(0.0))
+    df = df.with_columns(ca_lowcr=pl.when(is_dependent_filer()).then(0.0).otherwise(pl.col("ca_lowcr")))
     df = df.with_columns(ca_noncr=pl.col("ca_noncr") + pl.col("ca_lowcr"))
 
     # --- Child/Dependent Care Credit ---
-    child_fed = pl.col("ccc").clip(0, None) if "ccc" in df.collect_schema().names() else pl.lit(0.0)
+    # Federal credit as TAXSIM reports it to states (`comnew(53)`).
+    child_fed = pl.col("federal_chcr") if "federal_chcr" in df.collect_schema().names() else pl.lit(0.0)
     if effective_year <= 1984:
         cap_per = float(p["child_care_credit_cap_per_child_pre1985"])
         cap_tot = float(p["child_care_credit_cap_total_pre1985"])
@@ -397,9 +430,11 @@ def compute_ca_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         expr = pl.lit(0.0)
         for upper, rate in reversed(rows):
             expr = pl.when(pl.col("agi") <= upper).then(pl.lit(rate)).otherwise(expr)
-        df = df.with_columns(ca_chcr=expr * child_fed)
+        # Federal credit before its liability limit (`comnew(176)`), read undeflated.
+        chcrbc = pl.col("ccc_uncapped") if "ccc_uncapped" in df.collect_schema().names() else pl.lit(0.0)
+        df = df.with_columns(ca_chcr=expr * chcrbc)
 
-    # --- Credit for the Elderly (inert - data(32)/data(9) never populated) ---
+    # --- Credit for the Elderly: limited by `data(32)`, which TAXSIM never sets ---
     df = df.with_columns(ca_eld=pl.lit(0.0))
 
     df = df.with_columns(ca_noncr=pl.col("ca_noncr") + pl.col("ca_eld"))
@@ -446,7 +481,43 @@ def compute_ca_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
 
     df = df.with_columns(ca_statax=pl.col("ca_statax") + pl.col("ca_amt"))
 
-    # --- Renter's Credit: confirmed permanently inert (see module docstring) ---
+    # --- Renter's credit, for renters paying no property tax ---
+    renter = (pl.col("proptax") < 1) & (pl.col("rentpaid") > 0)
+    single = pl.col("filing_status") == "single"
+    sep = pl.col("filing_status") == "married_separate"
+    if effective_year <= 1992:
+        single_amount = float(resolve_year(p["renter_credit_single"], effective_year))
+        other_amount = float(resolve_year(p["renter_credit_other"], effective_year))
+    if effective_year <= 1978:
+        rcred = pl.lit(single_amount)
+    elif effective_year <= 1990:
+        rcred = pl.when(single).then(single_amount).otherwise(other_amount / pl.col("ca_sep"))
+    elif effective_year <= 1992:
+        index = float(resolve_year(p["renter_credit_1991_inflation"], effective_year))
+        use_single = single | sep
+        limit = pl.when(use_single).then(p["renter_credit_1991_agi_limit"]["single"]).otherwise(
+            p["renter_credit_1991_agi_limit"]["other"]
+        ) * index
+        band = pl.when(use_single).then(p["renter_credit_1991_half_band"]["single"]).otherwise(
+            p["renter_credit_1991_half_band"]["other"]
+        ) * index
+        amount = pl.when(use_single).then(single_amount).otherwise(other_amount)
+        rcred = (
+            pl.when(pl.col("ca_agi") <= limit).then(amount)
+            .when(pl.col("ca_agi") <= limit + band).then(0.5 * amount)
+            .otherwise(0.0)
+        )
+    elif effective_year >= 1998:
+        index = float(resolve_year(p["renter_credit_1998_inflation"], effective_year))
+        units = pl.when(single | sep).then(1.0).otherwise(2.0)
+        rcred = pl.when(pl.col("ca_agi") <= p["renter_credit_1998_agi_limit"] * units * index).then(
+            p["renter_credit_1998_amount"] * units
+        ).otherwise(0.0)
+    else:
+        rcred = pl.lit(0.0)
+    rcred = pl.when(renter).then(rcred).otherwise(0.0)
+    df = df.with_columns(ca_rcred=rcred)
+    df = df.with_columns(ca_statax=(pl.col("ca_statax") - rcred).clip(0, None))
 
     # --- Child care credit subtraction (2011+ clamped at 0) ---
     if effective_year <= 2010:
@@ -492,11 +563,12 @@ def compute_ca_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
             base2 = (amax17_c - pl.max_horizontal(posagi, earned)).clip(0, None)
             earncr2 = pl.when(earned > 0).then(base2 * tgbeta).otherwise(pl.lit(0.0))
             earncr = pl.when((earned > ym1) | (posagi > ym1)).then(earncr2).otherwise(earncr)
-        disqy = pl.col("ca_capgn_disqy") if "ca_capgn_disqy" in df.collect_schema().names() else (
-            pl.col("stcg").clip(0, None) + pl.col("ltcg").clip(0, None) + pl.col("intrec")
+        disqy = (
+            (pl.col("stcg") + pl.col("ltcg")).clip(0, None) + pl.col("dividends") + 0.001 + pl.col("intrec")
+            + pl.col("otherprop").clip(0, None)
         )
         earncr = pl.when(disqy >= dylim).then(0.0).otherwise(earncr)
-        earncr = pl.when(pl.col("ca_sep") == 2).then(0.0).otherwise(earncr)
+        earncr = pl.when((pl.col("ca_sep") == 2) | is_dependent_filer()).then(0.0).otherwise(earncr)
         df = df.with_columns(ca_earncr=earncr)
         # Young Child Tax Credit, 2019+ (taxsim_2024_09_21.f:2911-2919):
         # `if(earncr.gt.0.and.data(203).gt.0)` - data(203) is NOT literally
@@ -530,4 +602,14 @@ def compute_ca_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         df = df.with_columns(ca_young=pl.lit(0.0))
 
     df = df.with_columns(siitax=(pl.col("ca_statax") - pl.col("ca_earncr") - pl.col("ca_young")) * flate)
-    return df
+    return with_state_detail(
+        df,
+        agi=pl.col("ca_agi"),
+        standard_deduction=pl.col("ca_stded"),
+        itemized_deductions=pl.col("ca_xitded"),
+        taxable_income=pl.col("ca_taxinc"),
+        child_care_credit=pl.col("ca_chcr"),
+        eic=pl.col("ca_earncr"),
+        credits=pl.col("ca_noncr") + pl.col("ca_rcred") + pl.col("ca_chcr") + pl.col("ca_earncr") + pl.col("ca_young"),
+        rate=rate_expr,
+    )

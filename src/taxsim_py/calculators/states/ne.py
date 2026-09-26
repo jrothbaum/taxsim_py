@@ -3,8 +3,9 @@
 import polars as pl
 
 from taxsim_py.engine.brackets import bracket_rate, bracket_tax
+from taxsim_py.engine.inputs import aged_count, federal_exemption_count, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, load_yaml, resolve_year
-from taxsim_py.engine.state import with_defaults, by_filing_status, checkpoint, with_default
+from taxsim_py.engine.state import with_defaults, by_filing_status, checkpoint, with_default, with_state_detail
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
 NE_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "ne" / "income_tax.yaml")
@@ -13,6 +14,10 @@ FEDERAL_INCOME_TAX_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "income_tax
 
 def _p(name: str, year: int) -> float:
     return float(resolve_year(NE_PARAMS[name], year))
+
+
+def _p_in(table: dict, year: int) -> float:
+    return float(resolve_year(table, year))
 
 
 def _status_values(section: dict, year: int) -> dict[str, float]:
@@ -40,14 +45,15 @@ def compute_ne_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     df = with_defaults(df, (
         "proptax", "depx", "state_sales_or_income_tax_ded", "itemized_deduction", "standard_deduction",
         "regular_tax", "ccc", "ccc_uncapped", "amt", "eitc", "pre1987_taxbc", "pre1987_chcr",
-        "pre1987_almtax", "pre1987_pretax",
+        "pre1987_almtax", "pre1987_pretax", "taxable_social_security", "federal_elder",
+        "federal_chcr",
     ))
     df = with_default(df, "itemizes", False)
     df = deflate_for_extrapolation(
         df, flate,
         [
-            "proptax", "state_sales_or_income_tax_ded", "agi", "itemized_deduction", "standard_deduction",
-            "regular_tax", "ccc", "ccc_uncapped", "amt", "eitc",
+            "federal_chcr", "proptax", "state_sales_or_income_tax_ded", "agi", "itemized_deduction", "standard_deduction",
+            "regular_tax", "ccc", "ccc_uncapped", "amt", "eitc", "taxable_social_security", "federal_elder",
         ],
     )
 
@@ -57,9 +63,18 @@ def compute_ne_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     is_sep = status == "married_separate"
     is_hoh = status == "head_of_household"
     sep = pl.when(is_sep).then(2.0).otherwise(1.0)
-    txp = pl.when(is_joint).then(2.0).otherwise(1.0)
+    txp = taxpayer_count()
     exemps = txp + pl.col("depx")
     fed_agi = pl.col("agi")
+    ne_agi = fed_agi
+    if y >= 2015:
+        # Taxable Social Security is subtracted in full up to an AGI limit.
+        limits = p["social_security_exclusion_agi_limit"]
+        limit = pl.when(is_joint).then(_p_in(limits["married_joint"], y)).otherwise(_p_in(limits["single"], y))
+        above = _p("social_security_exclusion_share_above_limit", y)
+        ne_agi = ne_agi - pl.when(fed_agi <= limit).then(pl.col("taxable_social_security")).otherwise(
+            above * pl.col("taxable_social_security")
+        )
     salt_ded = pl.col("state_sales_or_income_tax_ded")
     itemizes = pl.col("itemizes")
 
@@ -79,11 +94,17 @@ def compute_ne_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         statax = _p("federal_tax_share", y) * pl.col("pre1987_pretax").clip(0, None)
         taxbc = pl.col("pre1987_taxbc")
         almtax = pl.col("pre1987_almtax")
-        fed_ccc = pl.col("pre1987_chcr")
+        fed_ccc = pl.col("federal_chcr")
+        ne_agi = pl.lit(0.0)
+        xitded = pl.lit(0.0)
+        stded = pl.lit(0.0)
+        exemp = pl.lit(0.0)
+        taxinc = pl.lit(0.0)
+        rt = _p("federal_tax_share", y) * pl.col("federal_source_rate") / 100.0
     else:
         taxbc = pl.col("regular_tax")
         almtax = pl.col("amt")
-        fed_ccc = pl.col("ccc") if y >= 1998 else pl.min_horizontal(pl.col("ccc_uncapped"), taxbc)
+        fed_ccc = pl.col("federal_chcr")
 
         # --- Deductions ---
         fed_itemized = pl.when(itemizes).then(pl.col("itemized_deduction")).otherwise(0.0)
@@ -95,12 +116,18 @@ def compute_ne_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
             stit = pl.min_horizontal(_p("salt_cap", y) / sep, salt_ded)
             xitded = (fed_itemized - stit).abs() * itemizes.cast(pl.Float64)
             std = p["standard_deduction_2018plus"]
+            aged_add = p["standard_deduction_aged_addition_2018plus"]
             stded = by_filing_status({
                 "single": resolve_year(std["single"], y),
                 "married_joint": resolve_year(std["married"], y),
                 "married_separate": resolve_year(std["married"], y),
                 "head_of_household": resolve_year(std["head_of_household"], y),
-            }) / sep
+            }) / sep + by_filing_status({
+                "single": resolve_year(aged_add["single"], y),
+                "married_joint": resolve_year(aged_add["married"], y),
+                "married_separate": resolve_year(aged_add["married"], y),
+                "head_of_household": resolve_year(aged_add["head_of_household"], y),
+            }) * aged_count()
         if 1993 <= y <= 2017:
             reduction = _p("standard_deduction_phaseout_rate", y) * (fed_agi - phas92).clip(0, None)
             stded = (fed_std - reduction).clip(0, None)
@@ -119,8 +146,8 @@ def compute_ne_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
             deduc = (fed_itemized - salt_ded - stded).clip(0, None)
         else:
             deduc = pl.max_horizontal(xitded, stded)
-        exemp = exemps * _p("exemption", y) if y <= 1992 else pl.lit(0.0)
-        df, (taxinc,) = checkpoint(df, ne_taxinc=(fed_agi - exemp - deduc).clip(0, None))
+        exemp = federal_exemption_count(y) * _p("exemption", y) if y <= 1992 else pl.lit(0.0)
+        df, (taxinc,) = checkpoint(df, ne_taxinc=(ne_agi - exemp - deduc).clip(0, None))
 
         # --- Tax ---
         if y <= 1992:
@@ -131,6 +158,9 @@ def compute_ne_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
             statax = pl.lit(0.0)
             for status_name, brackets in tables.items():
                 statax = pl.when(status == status_name).then(bracket_tax(income, brackets)).otherwise(statax)
+            rt = pl.lit(0.0)
+            for status_name, brackets in tables.items():
+                rt = pl.when(status == status_name).then(bracket_rate(income, brackets)).otherwise(rt)
         else:
             factor = _p("bracket_inflation", y) if y >= 2014 else 1.0
             tables = {
@@ -185,8 +215,10 @@ def compute_ne_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         ).clip(0, None)
         # The federal exemption count is deflated with the other federal
         # values when a later year is projected.
-        stxcr = xcred * exemps / flate
+        stxcr = xcred * federal_exemption_count(y) / flate
     credit = stxcr
+    if y >= 1987:
+        credit = credit + _p("elderly_credit_share", y) * pl.col("federal_elder")
     chcr = _p("child_care_credit_share", y) * fed_ccc
     chcref = pl.lit(0.0)
     refundable_zone = pl.lit(False)
@@ -201,6 +233,20 @@ def compute_ne_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     statax = statax + _p("minimum_tax_share", y) * almtax
     statax = (statax - credit).clip(0, None)
     statax = pl.min_horizontal(taxbc + almtax, statax)
-    statax = statax - chcref - _p("eitc_match_rate", y) * pl.col("eitc")
+    earncr = _p("eitc_match_rate", y) * pl.col("eitc")
+    statax = statax - chcref - earncr
+    final_chcr = pl.when(chcref > 0).then(chcref).otherwise(chcr)
+    final_credit = credit + chcref + earncr
 
-    return df.with_columns(siitax=statax * flate)
+    return with_state_detail(
+        df.with_columns(siitax=statax * flate),
+        agi=ne_agi,
+        exemptions=exemp,
+        standard_deduction=stded,
+        itemized_deductions=xitded,
+        taxable_income=taxinc,
+        child_care_credit=final_chcr,
+        eic=earncr,
+        credits=final_credit,
+        rate=rt,
+    )

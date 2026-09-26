@@ -2,9 +2,10 @@
 
 import polars as pl
 
-from taxsim_py.engine.brackets import bracket_tax
+from taxsim_py.engine.brackets import bracket_rate, bracket_tax
+from taxsim_py.engine.inputs import aged_count, is_dependent_filer, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, load_yaml, resolve_year
-from taxsim_py.engine.state import with_defaults, with_default as _with_default, forced_standard
+from taxsim_py.engine.state import with_defaults, with_default as _with_default, forced_standard, with_state_detail
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
 DE_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "de" / "income_tax.yaml")
@@ -13,7 +14,7 @@ DE_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "de" / "income_tax.yaml")
 def compute_de_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     effective_year, flate = resolve_state_year(year)
     p = DE_PARAMS
-    df = with_defaults(df, ("proptax", "otheritem", "mortgage", "depx", "ui", "pui", "sui"))
+    df = with_defaults(df, ("federal_chcr", "proptax", "otheritem", "mortgage", "depx", "ui", "pui", "sui"))
     df = _with_default(df, "state_sales_or_income_tax_ded")
     # `ccc`/`eitc` aren't exposed by federal_pre1987.py (years<=1986) -
     # both DE mechanisms that read them (Child Care Credit, EITC) only
@@ -22,6 +23,7 @@ def compute_de_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     df = _with_default(df, "ccc")
     df = _with_default(df, "eitc")
 
+    df = with_defaults(df, ("taxable_social_security", "earned_income", "intrec", "dividends", "stcg", "ltcg"))
     df = df.with_columns(
         de_sep=pl.when(pl.col("filing_status") == "married_separate").then(2.0).otherwise(1.0),
         # `data(7)` - self/spouse exemption unit count (1, or 2 ONLY for
@@ -29,12 +31,14 @@ def compute_de_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         # own $3,000/$3,000-style personal-exemption dollar amount
         # elsewhere - same "raw data(7), not the local txp" distinction
         # already found for AZ/CA).
-        de_texp=pl.when(pl.col("filing_status") == "married_joint").then(2.0).otherwise(1.0),
+        de_texp=taxpayer_count(),
         # `comnew(68)` (exemps count: self + spouse-if-joint + dependents) -
         # a pure count, divided by flate for extrapolated years like IL's
         # own `exemps` (see module docstring point 2).
         de_exemps_raw=(
-            1.0 + pl.col("depx") + pl.when(pl.col("filing_status") == "married_joint").then(1.0).otherwise(0.0)
+            taxpayer_count() + pl.col("depx") + aged_count()
+            if effective_year <= 1986
+            else pl.when(is_dependent_filer()).then(0.0).otherwise(taxpayer_count() + pl.col("depx"))
         ),
     )
 
@@ -47,25 +51,22 @@ def compute_de_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         df,
         flate,
         [
+            "federal_chcr",
             "pwages", "swages", "wages", "proptax", "otheritem", "mortgage", "ui", "pui", "sui",
             "agi", "salt_capped", "state_sales_or_income_tax_ded", "eitc", "ccc",
-            "de_exemps_raw",
+            "de_exemps_raw", "pensions", "taxable_social_security", "earned_income", "intrec", "dividends",
+            "stcg", "ltcg",
         ],
     )
     df = df.with_columns(de_num=pl.col("de_exemps_raw").floor())
+    if effective_year == 1989:
+        df = df.with_columns(de_num=pl.col("de_num") + aged_count())
 
-    # --- AGI --- federal AGI directly; Social Security benefits (comnew
-    # 79) and the state-tax-refund term (data 22) are both confirmed
-    # permanently $0 for this schema (no social-security input, no prior-
-    # year refund tracking) - and the whole pension-income exclusion
-    # mechanism (data 9/20/72) is likewise inert (no pension/elderly
-    # inputs this project's schema populates), so none of that needs
-    # implementing. `law.eq.2021` - which, per `resolve_state_year`,
-    # is ALSO true for every extrapolated 2022/2023 year (forced to
-    # 2021) - fully excludes unemployment compensation from AGI, a real,
-    # one-time DE COVID-era provision (distinct from, and layered on top
-    # of, whatever federal's own UI exclusion already did).
-    df = df.with_columns(de_agi=pl.col("agi"))
+    # --- AGI --- federal AGI less taxable Social Security. `law.eq.2021`
+    # (also every projected 2022/2023 year, run under 2021 law) fully
+    # excludes unemployment compensation, a one-time DE COVID-era provision
+    # layered on top of the federal exclusion.
+    df = df.with_columns(de_agi=pl.col("agi") - pl.col("taxable_social_security"))
     if effective_year == 2021:
         # `data(82)` is the SAME total-UI quantity federal.py's own
         # `ui_total = max(ui, pui+sui)` computes (confirmed via oracle
@@ -76,6 +77,27 @@ def compute_de_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         # additional income on top of it.
         ui_total = pl.max_horizontal(pl.col("ui"), pl.col("pui") + pl.col("sui"))
         df = df.with_columns(de_agi=pl.col("de_agi") - ui_total)
+
+    # Pension exclusion.
+    aged = aged_count()
+    pensions = pl.col("pensions")
+    investment = pl.col("intrec") + pl.col("dividends") + 0.001 + (pl.col("stcg") + pl.col("ltcg")).clip(0, None)
+    aged_cap = float(resolve_year(p["pension_exclusion_aged"], effective_year))
+    penexc = (
+        pl.when(aged < 1).then(pl.min_horizontal(p["pension_exclusion_young_per_taxpayer"] * pl.col("de_texp"), pensions))
+        .when(aged == 1).then(pl.min_horizontal(pl.lit(aged_cap), pensions + 0.5 * investment))
+        .otherwise(pl.min_horizontal(pl.lit(2 * aged_cap), pensions + investment))
+    ).clip(0, None)
+    df = df.with_columns(de_agi=pl.col("de_agi") - penexc)
+    if effective_year >= 1984:
+        low_income = (
+            (aged > 0)
+            & (pl.col("earned_income") < p["aged_low_income_earned_limit"] * aged)
+            & (pl.col("de_agi") <= p["aged_low_income_agi_limit"] * aged)
+        )
+        df = df.with_columns(
+            de_agi=pl.when(low_income).then(pl.col("de_agi") - p["aged_low_income_exclusion"] * aged).otherwise(pl.col("de_agi"))
+        )
 
     # --- Standard deduction ---
     if effective_year <= 1987:
@@ -104,6 +126,9 @@ def compute_de_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     else:
         per_exemption = float(resolve_year(p["standard_deduction_per_exemption_2000plus"], effective_year))
         df = df.with_columns(de_stded=per_exemption * pl.col("de_texp"))
+    if effective_year >= 1987:
+        aged_std = float(resolve_year(p["aged_standard_deduction"], effective_year))
+        df = df.with_columns(de_stded=pl.col("de_stded") + aged_std * aged)
 
     # --- Itemized deduction --- (see module docstring point 1). <=1986
     # uses the raw proptax+otheritem+mortgage total directly, same
@@ -250,18 +275,17 @@ def compute_de_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
 
     # --- Child/Dependent Care Credit ---
     ccc_rate = float(resolve_year(p["child_care_credit_rate"], effective_year))
-    df = df.with_columns(de_chcr=pl.col("ccc").clip(0, None) * ccc_rate)
+    df = df.with_columns(de_chcr=pl.col("federal_chcr").clip(0, None) * ccc_rate)
     if effective_year >= 1999:
         cap = float(resolve_year(p["child_care_credit_cap_1999plus"], effective_year))
         df = df.with_columns(de_chcr=pl.min_horizontal(pl.col("de_chcr"), cap))
 
-    # --- Personal Exemption Credit (1996+) --- the $5-per-exemption
-    # energy credit (`data(38)`) is confirmed permanently $0 (same field
-    # AZ/CA/CT already found unpopulated), so `credit` here is just chcr
-    # + the personal-exemption credit.
+    # --- Personal Exemption Credit (1996+) --- the energy credit
+    # (`data(38)`) is not a TAXSIM input, so `credit` is the child care
+    # credit plus the personal-exemption credit.
     if effective_year >= 1996:
         per_unit = float(resolve_year(p["personal_exemption_credit_per_unit"], effective_year))
-        df = df.with_columns(de_pecred=pl.col("de_num") * per_unit)
+        df = df.with_columns(de_pecred=(pl.col("de_num") + aged_count()) * per_unit)
     else:
         df = df.with_columns(de_pecred=pl.lit(0.0))
 
@@ -289,4 +313,15 @@ def compute_de_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         df = df.with_columns(de_earncr=pl.lit(0.0))
 
     df = df.with_columns(siitax=pl.col("de_statax") * flate)
-    return df
+    return with_state_detail(
+        df,
+        agi=pl.col("de_agi"),
+        exemptions=pl.col("de_exemp"),
+        standard_deduction=pl.col("de_stded"),
+        itemized_deductions=pl.col("de_xitded"),
+        taxable_income=pl.col("de_taxinc"),
+        child_care_credit=pl.col("de_chcr"),
+        eic=pl.col("de_earncr"),
+        credits=pl.col("de_credit") + pl.col("de_earncr"),
+        rate=pl.when(is_joint_relief).then(bracket_rate(pl.col("de_taxinw"), brackets)).otherwise(bracket_rate(pl.col("de_taxinc"), brackets)),
+    )

@@ -1,9 +1,8 @@
 # New York personal income tax (`nytax`, taxsim_2024_09_21.f:13954-15181,
 # state id 33).
 #
-# Inputs this schema never supplies make these provisions inactive: pension
-# exclusion, elderly real property tax deduction and credit amounts,
-# renters, energy credit, college tuition credit, minimum tax preferences.
+# Not TAXSIM inputs, so always zero: the energy credit, college tuition
+# credit and minimum tax preferences.
 
 # --- Rate schedules (start, rate) ---
 # 1977-1985 one schedule for all filers; the top three rates vary by year.
@@ -303,6 +302,10 @@ no_tax_1987:
   married_joint: 4000
   head_of_household: 4000
 no_tax_1988plus: 4000
+# Dependent filers: 1987 single dependents, and from 1988 all dependents.
+no_tax_dependent: {1987: 2800, 1996: 2900, 1997: 3000}
+# 1987+ standard deduction for dependent filers (`stdd`).
+standard_deduction_dependent: {1987: 2800, 1996: 2900, 1997: 3000, 2013: 3050, 2014: 3100}
 
 # --- Household credit (nonrefundable), by federal AGI (`tablki`) ---
 household_credit_1978_1985: [[5000, 65], [6000, 50], [7000, 40], [25000, 35], [1.0e+20, 0]]
@@ -344,24 +347,39 @@ child_care_share:
 child_care_share_2000:
   pieces: [[0, 1.1, 0.0], [25000, 1.1, 0.0000066], [40000, 1.0, 0.0], [50000, 1.0, 0.000053], [65000, 0.2, 0.0]]
 
-# --- Real property tax credit (refundable) for homeowners under 65, by
-# household income ---
+# --- Real property tax credit (refundable), by household income. Rent
+# counts at `property_credit_rent_share`; no credit when that share of rent
+# exceeds `property_credit_rent_limit`. Taxpayers 65 or older use the
+# `aged` tables. From 1985 homeowners get a quarter of the excess and
+# renters half, each up to the maximum. ---
+property_credit_rent_share: 0.25
+property_credit_rent_limit: 350
 property_tax_share: {1977: 0.5, 1981: 1.0}
 property_credit_1978_1980:
   income_limit: 12000
   maximum: [[5400, 20], [7200, 15], [12000, 10], [1.0e+20, 0]]
   threshold: [[5400, 0.05], [10000, 0.06], [12000, 0.07], [1.0e+20, 0]]
+  aged_maximum: [[7200, 200], [10000, 40], [12000, 15], [1.0e+20, 0]]
+  aged_threshold: [[3600, 0.04], [5400, 0.05], [7200, 0.06], [1.0e+20, 0]]
 property_credit_1981:
   income_limit: 13500
   maximum: 45
   threshold: [[5400, 0.05], [10000, 0.06], [13500, 0.07], [1.0e+20, 0]]
+  aged_maximum: [[7200, 250], [13500, 100], [1.0e+20, 0]]
+  aged_threshold: [[3600, 0.04], [5400, 0.05], [7200, 0.06], [13500, 0.07], [1.0e+20, 0]]
 property_credit_1982_1984:
   income_limit: 16000
   maximum: 45
   threshold: [[3600, 0.04], [5400, 0.045], [10000, 0.055], [16000, 0.065], [1.0e+20, 0]]
+  # 65 or older: this maximum up to the income step, the lower one above it.
+  aged_maximum_step: 7200
+  aged_maximum_low_income: 250
+  aged_maximum_high_income: 100
 property_credit_1985plus:
   income_limit: 18000
   homeowner_share: 0.25
+  renter_share: 0.5
+  aged_maximum: [[1001, 375], [2001, 358], [3001, 341], [4001, 324], [5001, 307], [6001, 290], [7001, 273], [8001, 256], [9001, 239], [10001, 222], [11001, 205], [12001, 188], [13001, 171], [14001, 154], [15001, 137], [16001, 120], [17001, 103], [18001, 86]]
   maximum: [[1001, 75], [2001, 73], [3001, 71], [4001, 69], [5001, 67], [6001, 65], [7001, 63], [8001, 61], [9001, 59], [10001, 57], [11001, 55], [12001, 53], [13001, 51], [14001, 49], [15001, 47], [16001, 45], [17001, 43], [18001, 41]]
   threshold: [[3000, 0.035], [5000, 0.04], [7000, 0.045], [9000, 0.05], [11000, 0.055], [14000, 0.06], [18000, 0.065], [1.0e+20, 0]]
 
@@ -444,3 +462,20 @@ recapture_real_2021:
       - [5000000, 0.0965, 2143, 1616450]
       - [1.0e+20, 0.103, 47403, 5000000]
     top_additions: [[269300, 742], [1616450, 2143], [5000000, 47403], [1.0e+20, 79903]]
+
+# Pension exclusion per taxpayer 65 or older.
+pension_exclusion_per_aged_taxpayer: 20000
+
+# 1979 real property tax deduction for taxpayers 65 or older (instead of the
+# credit): by household income, when property tax (homes taxed at most the
+# cap) or a quarter of rent (at most the rent cap) exceeds a share of
+# income. [income from, income to, share of income, deduction].
+real_property_deduction_1979:
+  rent_share: 0.25
+  rent_cap: 3600
+  property_tax_cap: 2000
+  tiers: [[5400, 7200, 0.06, 450], [7200, 10000, 0.06, 300], [10000, 12000, 0.07, 250]]
+
+# 1978-1986 maximum tax: personal service income counts pensions and this
+# share of other property income.
+maximum_tax_property_income_share: 0.3

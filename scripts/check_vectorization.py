@@ -37,6 +37,7 @@ def _largest_expressions() -> list[tuple[int, str, int]]:
     import polars as pl
     import validate_states
     from taxsim_py.engine.federal_state import resolve_federal_and_state
+    from taxsim_py.engine.inputs import with_input_defaults
 
     largest = [0]
 
@@ -54,7 +55,10 @@ def _largest_expressions() -> list[tuple[int, str, int]]:
     results = []
     try:
         for name, (build_cases, calculator, years) in validate_states.STATES.items():
-            cases = pl.DataFrame(build_cases())
+            # Inputs defaulted as the public API does.
+            cases = with_input_defaults(
+                pl.DataFrame(build_cases(), infer_schema_length=None), pl.col("year").cast(pl.Int64)
+            )
             for year in SAMPLE_YEARS:
                 if year not in years:
                     continue

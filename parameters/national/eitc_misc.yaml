@@ -55,3 +55,15 @@ dylim:
   # wrong, use the real parameters that are known"), this project uses
   # the real $11,000 - a deliberate departure from the oracle, not a bug.
   2023: 11000
+
+# Filers without qualifying children (from 1994): the youngest age at which
+# at least one taxpayer qualifies. TAXSIM keeps 2021's 19 for 2022 on; the
+# published law returns to 25.
+childless_minimum_age: {1994: 25, 2021: 19, 2022: 25}
+# Above this age a childless taxpayer does not qualify (not in 2021);
+# TAXSIM tests "65 or older" for everyone on the return, and "over 65"
+# together with a spouse under the minimum age.
+childless_aged_age: 65
+# 1997-2002: business losses are added back to the phaseout income at this
+# share (1997: 50%, 1998-2002: 75%), as are capital and Schedule E losses.
+loss_addback_share: {1997: 0.5, 1998: 0.75, 2003: 0.0}

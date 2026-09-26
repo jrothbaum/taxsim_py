@@ -64,3 +64,7 @@ marriage_credit_taxable_income_min: {2007: 53254.0, 2008: 54454.0, 2009: 56812.0
 marriage_credit_deduction: {2007: 8750.0, 2008: 8950.0, 2009: 9350.0, 2011: 9500.0, 2012: 9750.0, 2013: 10000.0, 2014: 10150.0, 2015: 10300.0, 2016: 10350.0, 2017: 10400.0, 2018: 12000.0, 2019: 12200.0, 2020: 12400.0, 2021: 12550.0}
 # Tax relief credit 2021-2022, per taxpayer.
 relief_credit: {2021: 350.0}
+
+# 2019-2020: taxable Social Security is subtracted when federal AGI is at
+# most this amount per taxpayer; from 2021 always.
+social_security_subtraction_agi_limit_per_taxpayer: {2019: 50000}

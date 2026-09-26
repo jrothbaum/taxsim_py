@@ -74,7 +74,8 @@ def build_in_test_cases() -> list[dict[str, Any]]:
         rows.append(case(year, "IN self-employment, married_joint", mstat=2, pwages=20000, psemp=40000))
         rows.append(case(year, "IN childcare, single low income", mstat=1, pwages=25000, depx=1, dep17=1, dep18=1, childcare=2000))
         rows.append(case(year, "IN low income, single", mstat=1, pwages=8000))
-        rows.append(case(year, "IN low income, single with dependent", mstat=1, depx=1, dep17=1, dep18=1, pwages=8000))
+        # TAXSIM leaves a two-cent single-precision residue in taxable income.
+        rows.append(case(year, "IN low income, single with dependent", mstat=1, depx=1, dep17=1, dep18=1, pwages=8000, oracle_divergent=year in {1997, 1998}))
         rows.append(case(year, "IN low income, married_joint with dependent", mstat=2, depx=1, dep18=1, pwages=10000))
         rows.append(case(year, "IN low income, married_joint with 3 dependents", mstat=2, depx=3, dep17=3, dep18=3, pwages=15000))
         rows.append(case(year, "IN very high income, single", mstat=1, pwages=800000, proptax=30000, mortgage=40000))

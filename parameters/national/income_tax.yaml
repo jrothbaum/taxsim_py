@@ -364,3 +364,44 @@ bubble_surtax_cap:
   married_joint: {1988: 3867.50, 1989: 4026.0675, 1990: 4219.4425}
   head_of_household: {1988: 3107.00, 1989: 3234.3870, 1990: 3389.7370}
   married_separate: {1988: 3867.50, 1989: 4026.0675, 1990: 4219.4425}
+
+# Additional standard deduction per taxpayer 65 or older (TAXSIM `bbrack`,
+# indexed by its filing class: married separate uses the joint amount).
+# 2023 uses the published amounts ($1,850/$1,500); TAXSIM repeats 2022's.
+aged_standard_deduction:
+  single: {1987: 750, 1990: 800, 1991: 850, 1992: 900, 1994: 950, 1996: 1000, 1998: 1050, 2000: 1100, 2002: 1150, 2004: 1200, 2005: 1250, 2007: 1300, 2008: 1350, 2009: 1400, 2011: 1450, 2013: 1500, 2014: 1550, 2018: 1600, 2019: 1650, 2021: 1700, 2022: 1750, 2023: 1850}
+  married_joint: {1987: 600, 1990: 650, 1992: 700, 1994: 750, 1996: 800, 1998: 850, 2001: 900, 2003: 950, 2005: 1000, 2007: 1050, 2009: 1100, 2011: 1150, 2013: 1200, 2015: 1250, 2018: 1300, 2021: 1350, 2022: 1400, 2023: 1500}
+  head_of_household: {1987: 750, 1990: 800, 1991: 850, 1992: 900, 1994: 950, 1996: 1000, 1998: 1050, 2000: 1100, 2002: 1150, 2004: 1200, 2005: 1250, 2007: 1300, 2008: 1350, 2009: 1400, 2011: 1450, 2013: 1500, 2014: 1550, 2018: 1600, 2019: 1650, 2021: 1700, 2022: 1750, 2023: 1850}
+  married_separate: {1987: 600, 1990: 650, 1992: 700, 1994: 750, 1996: 800, 1998: 850, 2001: 900, 2003: 950, 2005: 1000, 2007: 1050, 2009: 1100, 2011: 1150, 2013: 1200, 2015: 1250, 2018: 1300, 2021: 1350, 2022: 1400, 2023: 1500}
+
+# Standard deduction of a return claimed as someone else's dependent: the
+# greater of `minimum` and earned income plus `earned_income_addition`, up to
+# the regular amount. TAXSIM applies this twice with two copies of the
+# minimum (`zbrmin`, `dstded`) that disagree in 1995-1996 and 2008-2009 and
+# are stale from 2022; the published amounts are used for both.
+dependent_standard_deduction:
+  minimum: {1987: 500, 1991: 550, 1992: 600, 1995: 650, 1998: 700, 2001: 750, 2004: 800, 2006: 850, 2008: 900, 2009: 950, 2013: 1000, 2015: 1050, 2019: 1100, 2022: 1150, 2023: 1250}
+  earned_income_addition: {1987: 0, 1998: 250, 2006: 300, 2013: 350, 2022: 400}
+
+# Qualified business income deduction (2018+): rate, and the taxable income
+# range over which professional-service income loses it (TAXSIM `phin`,
+# `phout`; married separate in 2019 uses its own range).
+qbi_deduction:
+  rate: 0.2
+  phase_in_start:
+    unmarried: {2018: 157500, 2019: 160700, 2020: 163300, 2021: 164900, 2022: 170050, 2023: 182100}
+    married_joint: {2018: 315000, 2019: 321400, 2020: 326600, 2021: 329800, 2022: 340100, 2023: 364200}
+    married_separate_2019: 160725
+  phase_in_end:
+    unmarried: {2018: 207500, 2019: 210700, 2020: 213300, 2021: 214900, 2022: 220500, 2023: 232100}
+    married_joint: {2018: 415000, 2019: 421400, 2020: 426600, 2021: 429800, 2022: 440100, 2023: 464200}
+    married_separate_2019: 210725
+
+# Credit for the elderly: 15% of the base amount less nontaxable Social
+# Security and half of AGI above the threshold. TAXSIM gives a married
+# couple with one person 65 or older the single threshold ($7,500).
+elderly_credit:
+  rate: 0.15
+  agi_share: 0.5
+  base: {one_aged: 5000, two_aged: 7500}
+  agi_threshold: {one_aged: 7500, two_aged: 10000}

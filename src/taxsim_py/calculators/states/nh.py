@@ -2,8 +2,9 @@
 
 import polars as pl
 
+from taxsim_py.engine.inputs import aged_count, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, load_yaml, resolve_year
-from taxsim_py.engine.state import with_defaults
+from taxsim_py.engine.state import with_defaults, with_state_detail
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
 NH_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "nh" / "income_tax.yaml")
@@ -25,6 +26,13 @@ def compute_nh_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     df = df.with_columns(nh_income=pl.col("dividends") + dividend_adjustment + pl.col("intrec"))
     df = deflate_for_extrapolation(df, flate, ["nh_income"])
 
-    taxpayers = pl.when(pl.col("filing_status") == "married_joint").then(2.0).otherwise(1.0)
-    taxinc = (pl.col("nh_income") - taxpayers * _p("exemption_per_taxpayer", y)).clip(0, None)
-    return df.with_columns(siitax=_p("rate", y) * taxinc * flate)
+    exemption = taxpayer_count() * _p("exemption_per_taxpayer", y) + aged_count() * _p("exemption_per_aged_taxpayer", y)
+    taxinc = (pl.col("nh_income") - exemption).clip(0, None)
+    rate = _p("rate", y)
+    return with_state_detail(
+        df.with_columns(siitax=rate * taxinc * flate),
+        agi=pl.col("nh_income"),
+        exemptions=exemption,
+        taxable_income=taxinc,
+        rate=rate,
+    )

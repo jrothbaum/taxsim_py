@@ -1,0 +1,67 @@
+# Constants of TAXSIM's analytic federal marginal rate (`comnew(72)`, the
+# `rate` variable of law79/law87), which state calculators read for their
+# own reported rates. Only 1977-2000 is modeled: no state reads the rate for
+# a later year. Rates are fractions unless noted.
+
+# Social Security: share of the bracket rate added while benefits phase in.
+social_security_first_tier_share: 0.5
+social_security_second_tier_share: 0.85
+
+# Unemployment compensation partly taxable (law79).
+partial_unemployment_share: 0.5
+
+# 1988-1990 15% bracket recapture ("bubble") and 1988-1996 exemption
+# surtax: added rate while the surtax phases in.
+surtax_rate: 0.05
+# The exemption surtax stops at this share of the reduced exemptions.
+exemption_surtax_cap_share: 0.28
+
+# Personal exemption phase-out (1991 on): slope per bracket step and the
+# income range above the threshold over which TAXSIM counts it.
+exemption_phaseout_rate: 0.02
+exemption_phaseout_step: 2500.0
+exemption_phaseout_range: 122500.0
+
+# 1987-1996 maximum rate on long-term gains, which TAXSIM's tax routines
+# report as the bracket rate when it applies.
+gains_maximum_rate: 0.28
+
+# Itemized deduction limitation (1991 on).
+itemized_limitation_rate: 0.03
+
+# Child care credit rate slope (law87, through 2002): the rate falls from
+# 30% to 20% between these AGI levels, one point per `step`.
+child_care_rate_agi_start: 10000.0
+child_care_rate_agi_end: 30000.0
+child_care_rate_step: 2000.0
+
+# Credit for the elderly: TAXSIM's added rate is `share` times the
+# derivative times (`points` minus the Social Security rate).
+elderly_credit_share: 0.15
+elderly_credit_points: 50.0
+
+# Child tax credit (1998 on): TAXSIM adds this many percentage points
+# while the credit fits under tax.
+child_tax_credit_points: 0.05
+
+# Alternative minimum tax: rate on the exemption phase-out, and rates by
+# year (1997 on: the lower rate applies up to `breakpoint` of AMT income
+# net of gains).
+amt_exemption_phaseout_coefficient: 1.25
+amt_rate: {1987: 0.21, 1991: 0.24, 1993: 0.26}
+amt_high_rate: {1993: 0.28}
+amt_breakpoint: 175000.0
+# 1997 on, when gains exceed AMT income by more than `margin`, the rate on
+# gains taxed above the 15% bracket, else on gains within it.
+amt_gains_margin: 100.0
+amt_gains_rate: 0.20
+amt_gains_low_rate: 0.10
+
+# law79 (1977-1986) child care credit: the credit rate's range, the slope
+# while it phases down, and minus the rate (points) while expenses are
+# limited by earnings.
+law79_child_care_rate_floor: 0.2
+law79_child_care_rate_top: 0.3
+law79_child_care_slope_divisor: 2000.0
+law79_child_care_low_rate_points: 20.0
+law79_child_care_high_rate_points: 30.0

@@ -1,0 +1,76 @@
+# South Carolina individual income tax (TAXSIM `sctax`, taxsim_2024_09_21.f:18232-18542).
+# Brackets are [start, rate] rows converted from TAXSIM's `look2` upper-bound
+# tables (the last rate continues beyond the table).
+
+# Bracket and deduction index (through 2000) and bracket index (2002 on).
+index: {1977: 1.0, 1984: 1.009, 1985: 1.0, 1991: 1.111, 1996: 1.125, 1997: 1.14, 1998: 1.155}
+index_2002: {2002: 0.9625, 2003: 1.0, 2005: 1.025, 2006: 1.054, 2007: 1.0708, 2008: 1.0958, 2009: 1.1125, 2010: 1.1417, 2011: 1.15, 2012: 1.167, 2013: 1.1875, 2014: 1.2, 2016: 1.21666, 2017: 1.22083, 2018: 1.2375, 2019: 1.279167}
+
+# --- Through 1984: own AGI and deductions ---
+# Long-term gains counted at this share in place of the federal gain.
+long_term_gain_share_1984: 0.5
+interest_dividend_exclusion_1982: 200.0
+standard_deduction_rate_1984: 0.1
+standard_deduction_cap_1984: 500.0
+# Federal income tax deducted, up to this per taxpayer.
+federal_tax_deduction_cap: 500.0
+# Gasoline tax deduction per taxpayer through 1981.
+gasoline_deduction: {1977: 78.0, 1980: 91.0, 1981: 101.0}
+charity_limit_share: {1977: 0.3, 1983: 0.2, 1984: 0.1}
+# Child care deduction: expenses up to $1,200 plus $1,200 per dependent (at
+# most three), less half of AGI above $18,000.
+child_care_deduction_base: 1200.0
+child_care_deduction_per_dependent: 1200.0
+child_care_deduction_max_dependents: 3.0
+child_care_deduction_phaseout_agi: 18000.0
+child_care_deduction_phaseout_rate: 0.5
+exemption_1984: 800.0
+food_credit_1984: 12.5
+
+# --- 1985 on: federal taxable income ---
+# Federal high-income limit on the state tax addback (1991-2017).
+itemized_limit_threshold: 100000.0
+itemized_limit_index: {1991: 1.0, 1992: 1.0525, 1993: 1.0845, 1994: 1.118, 1995: 1.147, 1996: 1.1795, 1997: 1.2120, 1998: 1.2450, 1999: 1.2660, 2000: 1.2895, 2001: 1.3295, 2002: 1.3730, 2003: 1.3950, 2004: 1.4270, 2005: 1.4595, 2006: 1.505, 2007: 1.564, 2008: 1.5995, 2009: 1.6680, 2010: 1.6955, 2012: 1.7365}
+itemized_limit_threshold_2013: 250000.0
+itemized_limit_index_2013: {2013: 1.0, 2014: 1.0168, 2015: 1.033, 2016: 1.0376, 2017: 1.046}
+itemized_limit_status_factor_2013: {single: 1.0, married_joint: 1.2, head_of_household: 1.1, married_separate: 0.6}
+salt_cap_2018: 10000.0
+# Long-term capital gain deduction share.
+capital_gain_deduction: {1990: 0.14, 1991: 0.29, 1995: 0.44}
+# 2003: married standard deduction above this is added back.
+married_standard_deduction_2003: 7950.0
+charity_nonitemizer_2020: 300.0
+# 1985-1986 exemption subtracted before the tax table.
+exemption_1985: {1985: {single: 2400.0, married: 3550.0}, 1986: {single: 2550.0, married: 3700.0}}
+# 2018 on: exemption per dependent and per child under six.
+dependent_exemption: {2018: 4110.0, 2019: 4190.0, 2020: 4260.0, 2021: 4300.0}
+
+brackets:
+  1977: [[0, 0.02], [2000, 0.03], [4000, 0.04], [6000, 0.05], [8000, 0.06], [10000, 0.07]]
+  1985_single: [[0, 0.02], [1600, 0.025], [2600, 0.03], [3600, 0.036], [4600, 0.04], [5600, 0.046], [6600, 0.05], [7600, 0.055], [8600, 0.06], [9600, 0.064], [10600, 0.07]]
+  1985_married: [[0, 0.02], [2000, 0.03], [4000, 0.04], [6000, 0.05], [8000, 0.06], [10000, 0.066], [12000, 0.07]]
+  1987: [[0, 0.03], [4000, 0.04], [6000, 0.05], [8000, 0.06], [10000, 0.07]]
+  1990: [[0, 0.0275], [2030, 0.03], [4060, 0.04], [6090, 0.05], [8120, 0.06], [10150, 0.07]]
+  1991: [[0, 0.025], [2000, 0.03], [4000, 0.04], [6000, 0.05], [8000, 0.06], [10000, 0.07]]
+  2001: [[0, 0.025], [2000, 0.028], [3000, 0.03], [4000, 0.032], [5000, 0.04], [6000, 0.041], [7000, 0.048], [9000, 0.057], [11000, 0.0655], [13000, 0.07]]
+  2002: [[0, 0.025], [2400, 0.03], [4800, 0.04], [7200, 0.05], [9600, 0.06], [12000, 0.07]]
+  2009: [[0, 0.0], [2400, 0.03], [4800, 0.04], [7200, 0.05], [9600, 0.06], [12000, 0.07]]
+
+# --- Credits ---
+child_care_rate: 0.07
+child_care_expense_per_child: {1977: 2000.0, 1987: 2400.0, 2002: 3000.0}
+child_care_cap_per_child: {2002: 168.0, 2003: 210.0}
+two_earner_credit_rate: 0.007
+two_earner_earnings_max: {1987: 30000.0, 2018: 33333.0, 2019: 36667.0, 2020: 40000.0, 2021: 43333.0}
+eitc_rate: {2018: 0.2083, 2019: 0.4167, 2020: 0.625, 2021: 0.833}
+
+# Retirement income deduction (1983+): pensions up to this per taxpayer;
+# from 1993 taxpayers 65 or older get the higher amount (a joint return with
+# one such taxpayer gets one of each). From 1999 returns with a taxpayer 65
+# or older deduct $15,000 per such taxpayer whatever their income (TAXSIM).
+retirement_deduction_per_taxpayer: {1977: 0, 1983: 1200, 1985: 2100, 1986: 3000}
+retirement_deduction_aged_per_taxpayer: 10000
+aged_deduction_per_taxpayer_1999: 15000
+# Through 1983: no tax for a return with a taxpayer 65 or older and income
+# up to the limit (higher with dependents).
+aged_no_tax_limit_1983: {alone: 2800, with_dependents: 4000}

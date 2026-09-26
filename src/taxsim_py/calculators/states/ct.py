@@ -2,16 +2,20 @@
 
 import polars as pl
 
-from taxsim_py.engine.brackets import bracket_tax
+from taxsim_py.engine.brackets import bracket_rate, bracket_tax
+from taxsim_py.engine.inputs import aged_count, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, load_yaml, resolve_year
 from taxsim_py.engine.state import (
     by_filing_status as _by_status,
     checkpoint,
-    with_defaults,
+    household_income,
     interpolate_table as _table_lookup_interp,
+    with_defaults,
+    with_state_detail,
 )
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
+STATE_ADJUSTMENT_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "state_adjustments.yaml")
 CT_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "ct" / "income_tax.yaml")
 PRE1987_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "pre1987.yaml")
 FEDERAL_AMT_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "amt.yaml")
@@ -97,10 +101,18 @@ def compute_ct_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     # generic-deflate range (comnew 70/2/29/59 respectively - see al.py's
     # own docstring for how that range was discovered), so they scale
     # normally too.
+    df = with_defaults(df, ("taxable_social_security", "se_adjustment"))
+    df = df.with_columns(
+        ct_household_income=household_income(
+            float(resolve_year(STATE_ADJUSTMENT_PARAMS["household_income_dividend_adjustment"], effective_year)),
+            float(resolve_year(STATE_ADJUSTMENT_PARAMS["household_income_record_adjustment"], effective_year)),
+        )
+    )
     df = deflate_for_extrapolation(
         df,
         flate,
         [
+            "pensions", "gssi", "nonprop", "taxable_social_security", "se_adjustment", "ct_household_income",
             "dividends", "intrec", "stcg", "ltcg", "proptax", "psemp", "ssemp",
             "agi", "amt", "mortgage", "taxable_income", "eitc", "ltg",
         ],
@@ -111,14 +123,45 @@ def compute_ct_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         ct_rich=pl.col("filing_status").is_in(_RICH_STATUSES),
     )
 
-    # --- AGI: federal AGI directly (see module docstring - `subrac`,
-    # the SS-benefit exclusion, and the 2019+ retirement exclusion are
-    # all confirmed permanently inert for this schema). ---
-    df = df.with_columns(ct_agi=pl.col("agi"))
+    # --- AGI: federal AGI less the pension deduction (2019+) and exempt
+    # Social Security benefits (1985+). ---
+    agi = pl.col("agi")
+    if effective_year >= 2019:
+        joint = pl.col("filing_status") == "married_joint"
+        limit_p = p["pension_deduction_agi_limit"]
+        limit = pl.when(joint).then(float(limit_p["joint"])).otherwise(float(limit_p["single"]))
+        share = float(resolve_year(p["pension_deduction_share"], effective_year))
+        agi = agi - (1 - (agi - limit) / limit).clip(0, 1) * share * pl.col("pensions")
+    if effective_year >= 1985:
+        couple = pl.col("filing_status").is_in(["married_joint", "head_of_household"])
+        lim = p["social_security_agi_limit"]
+        ssbmax = pl.when(couple).then(float(resolve_year(lim["joint"], effective_year))).otherwise(
+            float(resolve_year(lim["single"], effective_year))
+        )
+        base_p = p["social_security_base_amount"]
+        excl = (
+            pl.when(pl.col("filing_status") == "married_joint").then(float(base_p["joint"]))
+            .when(pl.col("filing_status") == "married_separate").then(float(base_p["married_separate"]))
+            .otherwise(float(base_p["single"]))
+        )
+        taxable_ss = pl.col("taxable_social_security")
+        benefits = pl.col("gssi")
+        if effective_year <= 1999:
+            adjustments = pl.col("se_adjustment") - pl.col("nonprop")
+            kept = 0.5 * pl.min_horizontal(
+                0.5 * (pl.col("ct_household_income") - 0.5 * benefits - adjustments - excl).clip(0, None), 0.5 * benefits
+            )
+            partial = (taxable_ss - kept).clip(0, None)
+        else:
+            partial = pl.when(excl > 0).then(taxable_ss - 0.25 * pl.min_horizontal(benefits, excl)).otherwise(0.0)
+        agi = pl.when(taxable_ss > 0).then(
+            agi - pl.when(agi < ssbmax).then(taxable_ss).otherwise(partial)
+        ).otherwise(agi)
+    df = df.with_columns(ct_agi=agi)
 
     # --- Exemption ---
     if effective_year <= 1990:
-        df = df.with_columns(ct_exemp=100.0 * (pl.col("ct_sep") * 0 + 1.0))  # txp=1 for our schema always here
+        df = df.with_columns(ct_exemp=100.0 * (taxpayer_count() + aged_count()))
     else:
         single = p["exemption_single_pre2000"]
         hoh = p["exemption_hoh_1991plus"]
@@ -192,6 +235,14 @@ def compute_ct_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         else:
             divtax = _flat_rate_step(pl.col("ct_agi"), p["divint_rate_table_1989_1990"]) * divint
         df = df.with_columns(ct_statax=cgtax + divtax, ct_taxinc=gain + divint, ct_cgtax=cgtax, ct_divtax=divtax)
+        table = (
+            "divint_rate_table_pre1983" if effective_year <= 1983
+            else "divint_rate_table_1984" if effective_year == 1984
+            else "divint_rate_table_1985" if effective_year == 1985
+            else "divint_rate_table_1986_1988" if effective_year <= 1988
+            else "divint_rate_table_1989_1990"
+        )
+        rate_expr = _flat_rate_step(pl.col("ct_agi"), p[table])
     else:
         df = df.with_columns(ct_taxinc=(pl.col("ct_agi") - pl.col("ct_exemp")).clip(0, None))
         status_brackets = {
@@ -207,14 +258,16 @@ def compute_ct_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
             # data(7) is the filer-count exemption unit (1, or 2 for
             # married_joint) - NOT depx; data(9)/(10) (elderly/blind) are
             # confirmed inert for this schema.
-            exemp_units = pl.when(pl.col("filing_status") == "married_joint").then(2.0).otherwise(1.0)
+            exemp_units = taxpayer_count() + aged_count()
             cgtax_1991 = pl.max_horizontal(
                 pl.min_horizontal(0.034 * pl.col("ct_agi"), (gain - 100.0 * exemp_units) * 0.0475), 0.0
             )
             df = df.with_columns(ct_cgtax=cgtax_1991)
+            rate_expr = pl.lit(rate)
         elif effective_year <= 1995:
             rate = float(p["flat_rate_1991_1995"])
             df = df.with_columns(ct_xtax=pl.col("ct_taxinc") * rate, ct_divtax=pl.lit(0.0), ct_cgtax=pl.lit(0.0))
+            rate_expr = pl.lit(rate)
         else:
             year_table_map = {
                 1996: "brackets_1996", 1997: "brackets_1997", 1998: "brackets_1998",
@@ -239,6 +292,11 @@ def compute_ct_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
             ).when(pl.col("filing_status") == "married_joint").then(
                 bracket_tax(pl.col("ct_taxinc"), brackets_joint)
             ).otherwise(bracket_tax(pl.col("ct_taxinc"), brackets_single))
+            rate_expr = pl.when(pl.col("filing_status") == "head_of_household").then(
+                bracket_rate(pl.col("ct_taxinc"), brackets_hoh)
+            ).when(pl.col("filing_status") == "married_joint").then(
+                bracket_rate(pl.col("ct_taxinc"), brackets_joint)
+            ).otherwise(bracket_rate(pl.col("ct_taxinc"), brackets_single))
 
             if effective_year >= 2011:
                 is_hoh = pl.col("filing_status") == "head_of_household"
@@ -431,7 +489,7 @@ def compute_ct_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
             pct = _table_lookup_interp(agix - phse, rows)
             pcred = pcred - pct * pcred
         if effective_year >= 2017:
-            no_dep_or_elderly = (pl.col("depx") < 1)
+            no_dep_or_elderly = (pl.col("depx") < 1) & (aged_count() < 1)
             pcred = pl.when(no_dep_or_elderly).then(0.0).otherwise(pcred)
         df = df.with_columns(ct_pcred=pcred.clip(0, None))
     else:
@@ -447,4 +505,13 @@ def compute_ct_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         df = df.with_columns(ct_earncr=pl.lit(0.0))
 
     df = df.with_columns(siitax=(pl.col("ct_statax") - pl.col("ct_earncr")) * flate)
-    return df
+    return with_state_detail(
+        df,
+        agi=pl.col("ct_agi"),
+        exemptions=pl.col("ct_exemp"),
+        taxable_income=pl.col("ct_taxinc"),
+        property_credit=pl.col("ct_pcred"),
+        eic=pl.col("ct_earncr"),
+        credits=pl.col("ct_pcred") + pl.col("ct_amcred") + pl.col("ct_earncr"),
+        rate=rate_expr,
+    )

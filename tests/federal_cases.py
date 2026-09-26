@@ -849,6 +849,19 @@ def _law60_cases(year: int, law60_params: dict) -> list[dict[str, Any]]:
     for wages in (5000, 30000, 80000):
         rows.append(case(year, f"law60 HoH wages={wages}", mstat=3, depx=1, dep18=1, pwages=wages))
         rows.append(case(year, f"law60 married_separate wages={wages}", mstat=6, pwages=wages))
+    # Top brackets, wages only (no capital gains to route tax through the
+    # alternative computation).
+    for wages in (350000, 450000, 600000):
+        rows.append(case(year, f"law60 top brackets, married_joint wages={wages}", mstat=2, pwages=wages))
+        # TAXSIM's single-precision table rate (.7) and 1970 surtax (1.025)
+        # put this one 1.5 cents below the exact $299,018.125.
+        rounding = year == 1970 and wages == 450000
+        rows.append(
+            case(
+                year, f"law60 top brackets, HoH wages={wages}", mstat=3, depx=1, dep18=1, pwages=wages,
+                oracle_divergent=rounding,
+            )
+        )
 
     for mstat, status in _STATUS_BY_MSTAT.items():
         brackets = resolve_year(p["brackets"][status], year)
@@ -955,6 +968,89 @@ def _law60_cases(year: int, law60_params: dict) -> list[dict[str, Any]]:
     return rows
 
 
+def _new_input_cases(year: int) -> list[dict[str, Any]]:
+    """Inputs beyond the original schema: benefits, other income, business
+    income, ages and dependent filers."""
+    rows = []
+    # Social Security benefits, with other income around the base amounts.
+    for mstat in (1, 2, 6):
+        for pensions in (0, 15000, 40000):
+            rows.append(case(year, f"social security, mstat={mstat}, pensions={pensions}", mstat=mstat, gssi=18000, pensions=pensions, pwages=20000))
+    rows.append(case(year, "social security with transfers", mstat=1, gssi=20000, pensions=20000, transfers=10000))
+    rows.append(case(year, "social security only, joint", mstat=2, gssi=40000))
+    # Other income types.
+    rows.append(case(year, "pensions only, single", mstat=1, pensions=30000))
+    rows.append(case(year, "other property income, single", mstat=1, pwages=30000, otherprop=20000))
+    rows.append(case(year, "other property income, high income joint", mstat=2, pwages=300000, otherprop=100000))
+    rows.append(case(year, "non-property income, single", mstat=1, pwages=40000, nonprop=10000))
+    rows.append(case(year, "negative non-property income, single", mstat=1, pwages=40000, nonprop=-5000))
+    rows.append(case(year, "transfers only, single", mstat=1, pwages=20000, transfers=8000))
+    # Business income (self-employment tax and the 2018+ QBI deduction).
+    rows.append(case(year, "business income, single", mstat=1, pbusinc=50000))
+    rows.append(case(year, "professional income, single", mstat=1, pprofinc=50000))
+    rows.append(case(year, "professional income, high income single", mstat=1, pprofinc=250000))
+    rows.append(case(year, "S corporation income, single", mstat=1, pwages=40000, scorp=60000))
+    rows.append(case(year, "spouse business income, joint", mstat=2, pwages=60000, sbusinc=40000))
+    rows.append(case(year, "spouse professional income, joint", mstat=2, swages=60000, sprofinc=40000))
+    rows.append(case(year, "business income above wage base, single", mstat=1, pwages=120000, pbusinc=60000))
+    rows.append(case(year, "mixed business income, joint", mstat=2, pwages=90000, swages=20000, pbusinc=30000, pprofinc=30000, sbusinc=20000, sprofinc=20000, scorp=10000))
+    rows.append(case(year, "business loss with wages, single", mstat=1, pwages=50000, pbusinc=-10000))
+    # Ages: additional standard deduction and credit for the elderly.
+    rows.append(case(year, "aged single, wages", mstat=1, page=70, pwages=20000))
+    rows.append(case(year, "aged couple, pensions and benefits", mstat=2, page=70, sage=68, pensions=20000, gssi=15000))
+    rows.append(case(year, "aged single, elderly credit", mstat=1, page=67, pensions=6000))
+    rows.append(case(year, "couple one aged, elderly credit", mstat=2, page=70, sage=60, pensions=8000, gssi=3000))
+    rows.append(case(year, "aged separate, pensions", mstat=6, page=70, pensions=9000))
+    rows.append(case(year, "aged couple, high income", mstat=2, page=70, sage=70, pwages=80000))
+    # Returns claimed as someone else's dependent.
+    # TAXSIM's dependent minimum standard deduction is stale in these years.
+    stale_minimum = year in (1995, 1996, 2008, 2009, 2022)
+    for pwages, intrec in ((500, 0), (3000, 0), (10000, 0), (0, 3000), (500, 2500)):
+        rows.append(
+            case(
+                year, f"dependent filer, wages={pwages}, interest={intrec}", mstat=8, pwages=pwages, intrec=intrec,
+                oracle_divergent=stale_minimum and pwages < 1000,
+            )
+        )
+    rows.append(case(year, "dependent filer with child", mstat=8, depx=1, dep13=1, dep17=1, dep18=1, pwages=12000))
+    # Earned income credit age limits for filers without children. The
+    # oracle never applies the minimum age (its source and the law do).
+    minimum_age = 19 if year == 2021 else 25
+    under_age = lambda *ages: year >= 1994 and all(0 < a < minimum_age or a > 65 for a in ages) and any(0 < a < minimum_age for a in ages)  # noqa: E731
+    for page in (19, 22, 30, 66):
+        rows.append(case(year, f"EITC childless, age {page}", mstat=1, page=page, pwages=8000, oracle_divergent=under_age(page)))
+    rows.append(case(year, "EITC childless couple, ages 23", mstat=2, page=23, sage=23, pwages=10000, oracle_divergent=under_age(23, 23)))
+    rows.append(case(year, "EITC childless couple, ages 70 and 23", mstat=2, page=70, sage=23, pwages=10000, oracle_divergent=under_age(70, 23)))
+    # Child ages in place of dependent counts.
+    rows.append(case(year, "child ages 4 and 12, joint", mstat=2, depx=2, age1=4, age2=12, pwages=30000, childcare=3000))
+    rows.append(case(year, "child ages 16 and 18, single", mstat=1, depx=2, age1=16, age2=18, pwages=25000))
+    rows.append(case(year, "child ages 20 and 3, single", mstat=1, depx=2, age1=20, age2=3, pwages=18000))
+    # Minimum-tax exemption limited for young filers with a reported age.
+    # The oracle ignores reported ages below 65 (its source and the law cap it).
+    rows.append(case(year, "young filer age 12, dividends", mstat=1, page=12, dividends=60000, oracle_divergent=year >= 1990))
+    rows.append(case(year, "young filer age 20, long-term gains", mstat=1, page=20, ltcg=300000, pwages=40000))
+    # Losses in the earned income credit's phaseout income (1997-2002).
+    rows.append(case(year, "EITC with business loss", mstat=1, depx=1, dep13=1, dep17=1, dep18=1, pwages=14000, pbusinc=-3000))
+    rows.append(case(year, "EITC with capital loss", mstat=1, depx=1, dep13=1, dep17=1, dep18=1, pwages=14000, stcg=-2000))
+    rows.append(case(year, "EITC with other property loss", mstat=1, depx=1, dep13=1, dep17=1, dep18=1, pwages=14000, otherprop=-2000))
+    # Self-employment and business losses without wages.
+    rows.append(case(year, "self-employment loss only, single", mstat=1, psemp=-5000))
+    rows.append(case(year, "business loss only, single", mstat=1, pbusinc=-8000, intrec=10000))
+    rows.append(case(year, "spouse self-employment loss, joint", mstat=2, swages=30000, ssemp=-4000))
+    # Interactions with Social Security benefits.
+    rows.append(case(year, "social security with unemployment", mstat=1, gssi=20000, ui=15000, pensions=10000))
+    rows.append(case(year, "social security with low earnings", mstat=1, gssi=5000, pwages=10000))
+    rows.append(case(year, "social security, head of household", mstat=1, depx=1, dep13=1, dep17=1, dep18=1, gssi=20000, pensions=20000))
+    # Filing status codes and married separate business income.
+    rows.append(case(year, "mstat 33 with a dependent", mstat=33, depx=1, dep13=1, dep17=1, dep18=1, pwages=30000))
+    rows.append(case(year, "professional income, married separate", mstat=6, pprofinc=200000))
+    if year < 1977:
+        # TAXSIM has no state calculations before 1977.
+        for row in rows:
+            row["state"] = 0
+    return rows
+
+
 def _cases_for_year(
     year: int,
     eitc_params: pl.DataFrame,
@@ -969,9 +1065,9 @@ def _cases_for_year(
     law60_params: dict,
 ) -> list[dict[str, Any]]:
     if year <= 1976:
-        return _law60_cases(year, law60_params) + _capital_loss_cases(year)
+        return _law60_cases(year, law60_params) + _capital_loss_cases(year) + _new_input_cases(year)
     if year <= 1986:
-        return _pre1987_cases(year, pre1987_params) + _capital_loss_cases(year)
+        return _pre1987_cases(year, pre1987_params) + _capital_loss_cases(year) + _new_input_cases(year)
     return (
         _capital_loss_cases(year)
         + _bracket_edge_cases(year, income_tax_params)
@@ -990,6 +1086,7 @@ def _cases_for_year(
         + _recovery_rebate_cases(year)
         + _ctc_ccc_refundability_cases(year)
         + _making_work_pay_cases(year)
+        + _new_input_cases(year)
     )
 
 
@@ -1029,6 +1126,6 @@ def build_federal_test_cases() -> pl.DataFrame:
             pre1987_params,
             law60_params,
         )
-    df = pl.DataFrame(rows)
+    df = pl.DataFrame(rows, infer_schema_length=None)
     df = df.with_row_index("taxsimid", offset=1)
     return df

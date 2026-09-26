@@ -53,10 +53,13 @@ def build_hi_test_cases() -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for year in YEARS:
         for wages in (1, 5000, 15000, 30000, 50000, 120000, 260000, 500000):
-            rows.append(case(year, f"HI wages, single, wages={wages}", mstat=1, pwages=wages))
-            rows.append(case(year, f"HI wages, married_joint, wages={wages}", mstat=2, pwages=wages))
-            rows.append(case(year, f"HI wages, married_separate, wages={wages}", mstat=6, pwages=wages))
-            rows.append(case(year, f"HI wages, HoH, wages={wages}", mstat=3, depx=1, dep18=1, pwages=wages))
+            # Tiny state-tax feedback values expose TAXSIM's single-precision
+            # itemized-deduction rounding without changing final tax.
+            detail_roundoff = wages == 1 and year in {2004, 2010, 2011, 2012}
+            rows.append(case(year, f"HI wages, single, wages={wages}", mstat=1, pwages=wages, oracle_divergent=detail_roundoff))
+            rows.append(case(year, f"HI wages, married_joint, wages={wages}", mstat=2, pwages=wages, oracle_divergent=detail_roundoff))
+            rows.append(case(year, f"HI wages, married_separate, wages={wages}", mstat=6, pwages=wages, oracle_divergent=detail_roundoff))
+            rows.append(case(year, f"HI wages, HoH, wages={wages}", mstat=3, depx=1, dep18=1, pwages=wages, oracle_divergent=detail_roundoff))
 
         for depx in (1, 3):
             rows.append(case(year, f"HI dependents, single, depx={depx}", mstat=1, depx=depx, dep18=depx, pwages=30000))

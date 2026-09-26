@@ -2,13 +2,13 @@
 
 import polars as pl
 
-from taxsim_py.engine.payroll_tax import capped_se_tax, hi_tax, oasdi_tax
+from taxsim_py.calculators.payroll import payroll_parts
+from taxsim_py.engine.inputs import aged_count, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, load_yaml, resolve_year
-from taxsim_py.engine.state import with_defaults, with_default as _with_default
+from taxsim_py.engine.state import with_defaults, with_state_detail
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
 MA_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "ma" / "income_tax.yaml")
-PAYROLL_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "payroll_tax.yaml")
 
 def _p(name: str, year: int) -> float:
     return float(resolve_year(MA_PARAMS[name], year))
@@ -18,18 +18,29 @@ def compute_ma_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     effective_year, flate = resolve_state_year(year)
     y = effective_year
     df = with_defaults(df, ("dividends", "intrec", "stcg", "ltcg", "ui", "pui", "sui", "childcare", "psemp", "ssemp",
-                "depx", "dep13", "dep18"))
-    df = _with_default(df, "eitc")
-    df = _with_default(df, "earned_income")
-    df = _with_default(df, "ltg")
-    df = _with_default(df, "taxable_unemployment")
+                "depx", "dep13", "dep18", "eitc", "earned_income", "ltg", "taxable_unemployment", "pensions",
+                "gssi", "taxable_social_security", "transfers", "rentpaid", "proptax", "otherprop", "nonprop",
+                "scorp", "pbusinc", "pprofinc", "sbusinc", "sprofinc"))
 
     df = df.with_columns(ma_untax=pl.col("taxable_unemployment"))
+    # Payroll figures come from the federal run: the real year's wages and
+    # rates, never deflated (TAXSIM's `sstax` call here writes the shared
+    # federal block, not the state's deflated copy).
+    payroll = payroll_parts(year)
+    # `comnew(183)`: the primary earner's payroll tax as TAXSIM credits the
+    # taxpayer.
+    df = df.with_columns(ma_c183=payroll["own_fica_primary"], ma_setax=payroll["setax"])
+    # Federal Schedule E income (`comnew(8)`): other property income, plus S
+    # corporation income from 1987.
+    schede = pl.col("otherprop") + (pl.col("scorp") if y >= 1987 else 0.0)
+    df = df.with_columns(ma_schede=schede)
+
     df = deflate_for_extrapolation(
         df,
         flate,
         ["pwages", "swages", "psemp", "ssemp", "dividends", "intrec", "stcg", "ltcg", "ui", "pui", "sui",
-         "childcare", "agi", "earned_income", "eitc", "ltg", "ma_untax"],
+         "childcare", "agi", "earned_income", "eitc", "ltg", "ma_untax", "pensions", "gssi",
+         "taxable_social_security", "transfers", "rentpaid", "proptax", "nonprop", "ma_schede"],
     )
 
     is_joint = pl.col("filing_status") == "married_joint"
@@ -37,14 +48,18 @@ def compute_ma_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     is_sep = pl.col("filing_status") == "married_separate"
     is_single = pl.col("filing_status") == "single"
     not_sep = ~is_sep
-    n_tp = pl.when(is_joint).then(2.0).otherwise(1.0)  # `data(7)`
+    n_tp = taxpayer_count()
     x_flag = pl.lit(1.0) if y >= 1985 else pl.when(is_joint).then(1.0).otherwise(0.0)
 
     # Negative wages fold into `data(17)` rather than `data(85)/(86)`.
     w1 = pl.col("pwages").clip(0, None)
     w2 = pl.col("swages").clip(0, None)
     wages = w1 + w2  # `data(11)`
-    d17 = pl.col("psemp") + pl.col("ssemp") + pl.col("pwages").clip(None, 0) + pl.col("swages").clip(None, 0)
+    semp = pl.col("psemp") + pl.col("ssemp") + pl.col("pwages").clip(None, 0) + pl.col("swages").clip(None, 0)
+    # Business income is not deflated in projected years.
+    business_h = pl.col("pbusinc") + pl.col("pprofinc")
+    business_w = pl.col("sbusinc") + pl.col("sprofinc")
+    d17 = semp + business_h + business_w
     ui_total = pl.max_horizontal(pl.col("ui"), pl.col("pui") + pl.col("sui"))  # `data(82)`
 
     # --- Exemptions ---
@@ -58,24 +73,27 @@ def compute_ma_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     txp = pl.when(is_joint).then(txp_joint).otherwise(xmps)
     if y >= 1994:
         txp = pl.when(is_hoh).then(_p("hoh_exemption_1994plus", y)).otherwise(txp)
-    exemp = pl.col("depx") * _p("dependent_exemption", y) + txp  # medical/age/blind confirmed inert
+    ageex = aged_count() * _p("aged_exemption", y)
+    depex = pl.col("depx") * _p("dependent_exemption", y)
+    exemp = depex + ageex + txp
 
     # --- Part B income ---
     b1inc = wages + d17
-    b2inc = pl.lit(0.0)
+    b2inc = pl.col("pensions")
     untax = pl.col("ma_untax")
     if 1982 <= y <= 1989:
         b2inc = b2inc + untax
     if y <= 1989:
+        b1inc = b1inc + pl.col("ma_schede")
         binc = b1inc + b2inc
     else:
-        binc = b1inc + b2inc + untax
+        binc = b1inc + b2inc + pl.col("ma_schede") + untax
         if y == 2009:
             binc = binc - untax + ui_total
         if y >= 2020:
             nsize = pl.when(is_joint).then(2.0).otherwise(1.0) + pl.col("depx").floor()
             ulevel = 2.0 * _p("ui_exclusion_poverty_level", y) * nsize
-            hyun = pl.col("agi") + ui_total - untax
+            hyun = pl.col("agi") + pl.col("gssi") - pl.col("taxable_social_security") + ui_total - untax
             cap = _p("ui_exclusion_cap_per_person", y)
             unded = pl.when(hyun <= ulevel).then(
                 pl.min_horizontal(ui_total - pl.col("sui"), pl.lit(cap)) + pl.min_horizontal(pl.col("sui"), pl.lit(cap))
@@ -85,21 +103,9 @@ def compute_ma_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
             binc = binc + (pl.col("intrec") - 100.0 * n_tp).clip(0, None)
 
     # --- Part B deductions ---
-    wage_base = _p_payroll("oasdi_wage_base", y)
-    oasdi_rate = _p_payroll("oasdi_rate_combined", y)
-    hi_wage_base = _p_payroll("hi_wage_base", y)
-    se_oasdi_rate = _p_payroll("se_oasdi_rate", y)
-    se_hi_rate = _p_payroll("se_hi_rate", y)
-    nef = _p_payroll("se_net_earnings_factor", y)
-    oasb1 = capped_se_tax(w1, pl.col("psemp"), wage_base, se_oasdi_rate, nef)
-    oasb2 = capped_se_tax(w2, pl.col("ssemp"), wage_base, se_oasdi_rate, nef)
-    hib1 = capped_se_tax(w1, pl.col("psemp"), hi_wage_base, se_hi_rate, nef, rate_includes_netting=True)
-    hib2 = capped_se_tax(w2, pl.col("ssemp"), hi_wage_base, se_hi_rate, nef, rate_includes_netting=True)
-    # `comnew(183)`: both halves of the primary's wage FICA + 0.9235 (`g`)
-    # times their own SE tax. `comnew(84)` (`ssa`) is $0 - see docstring.
-    c183 = oasdi_tax(w1, wage_base, oasdi_rate) + hi_tax(w1, se_hi_rate, hi_wage_base) + 0.9235 * (oasb1 + hib1)
-    fica = pl.min_horizontal(c183, pl.lit(2000.0))
-    setax = oasb1 + oasb2 + hib1 + hib2  # `comnew(175)`
+    # Payroll tax and Social Security benefits (`comnew(84)`), each up to $2,000.
+    fica = pl.min_horizontal(pl.col("ma_c183"), pl.lit(2000.0)) + pl.min_horizontal(pl.col("gssi").clip(0, None), pl.lit(2000.0))
+    setax = pl.col("ma_setax")
 
     ndep13 = pl.col("dep13").clip(None, 2.0).floor()
     d209 = pl.col("depx") - pl.col("dep18")
@@ -126,9 +132,17 @@ def compute_ma_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     elif y >= 2021:
         chcred = pl.min_horizontal(pl.col("childcare"), 240.0 * ndep13)
     earned = pl.col("earned_income")
-    earnww = pl.when(d17 > 0).then((d17 - 0.5 * setax).clip(0, None)).otherwise((earned - w1 - w2).clip(0, None))
-    earnh = w1 + earnww / 2
-    earnw = w2 + earnww / 2
+    # A joint return splits earnings by spouse, with self-employment tax
+    # shared by business income.
+    setaxh = setax * business_h / d17
+    setaxw = setax * business_w / d17
+    earnww_se = (semp - 0.5 * (setax - setaxh - setaxw)).clip(0, None)
+    earnh = pl.when(d17 > 0).then(
+        (w1 + business_h - 0.5 * setaxh).clip(0, None) + earnww_se / 2
+    ).otherwise(w1 + (earned - w1 - w2).clip(0, None) / 2)
+    earnw = pl.when(d17 > 0).then(
+        (w2 + business_w - 0.5 * setaxw).clip(0, None) + earnww_se / 2
+    ).otherwise(w2 + (earned - w1 - w2).clip(0, None) / 2)
     ch1 = pl.when(is_joint).then(pl.min_horizontal(ch1, earnh, earnw)).otherwise(pl.min_horizontal(ch1, earned)).clip(0, None)
     chcred = pl.when(is_joint).then(pl.min_horizontal(chcred, earnh, earnw)).otherwise(pl.min_horizontal(chcred, earned)).clip(0, None)
     ch = pl.max_horizontal(ch, ch1)
@@ -136,7 +150,20 @@ def compute_ma_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     ch = pl.when(has_dep).then(ch).otherwise(0.0)
     chcred = pl.when(has_dep).then(chcred).otherwise(0.0)
 
-    bded = fica + ch  # rent/business/other Part B deductions confirmed inert
+    # Half of rent paid, from 1981.
+    rnt = pl.lit(0.0)
+    if y >= 1981:
+        rnt = float(MA_PARAMS["rent_deduction_share"]) * pl.col("rentpaid")
+        if y >= 2001:
+            rnt = pl.min_horizontal(rnt, _p("rent_deduction_cap", y) / pl.when(is_sep).then(2.0).otherwise(1.0))
+        elif y >= 1982:
+            rnt = pl.min_horizontal(rnt, _p("rent_deduction_cap", y))
+            if y >= 1997:
+                rnt = pl.when(is_sep).then(
+                    pl.min_horizontal(rnt, float(MA_PARAMS["rent_deduction_cap_separate_1997_2000"]))
+                ).otherwise(rnt)
+    # Non-property income enters as a negative deduction (`data(30)`).
+    bded = fica + ch + rnt - pl.col("nonprop")
     df = df.with_columns(
         _ma_binc=binc,
         _ma_bded=bded,
@@ -329,7 +356,37 @@ def compute_ma_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     if y >= 2021:
         statax = statax - pl.max_horizontal(chcred, ndep * 180.0)
 
-    return df.with_columns(siitax=statax * flate).drop(
+    # Senior circuit breaker credit (2001+, refundable).
+    cbcred = pl.lit(0.0)
+    if y >= 2001:
+        limits = MA_PARAMS["circuit_breaker_income_limit"]
+        hymax = (
+            pl.when(is_joint).then(float(resolve_year(limits["married_joint"], y)))
+            .when(is_hoh).then(float(resolve_year(limits["head_of_household"], y)))
+            .when(is_single).then(float(resolve_year(limits["single"], y)))
+            .otherwise(0.0)
+        )
+        ptax = pl.max_horizontal(pl.col("proptax"), float(MA_PARAMS["circuit_breaker_rent_share"]) * pl.col("rentpaid"))
+        hycb = (ma_agi + pl.col("gssi") + pl.col("transfers") - ageex - depex).clip(0, None)
+        cbcred = pl.when(hycb <= hymax).then((ptax - float(MA_PARAMS["circuit_breaker_income_share"]) * hycb).clip(0, None)).otherwise(0.0)
+        cbcred = pl.min_horizontal(cbcred, _p("circuit_breaker_max", y))
+        cbcred = pl.when(not_sep & (aged_count() > 0)).then(cbcred).otherwise(0.0)
+        statax = statax - cbcred
+
+    earncr = _p("eitc_rate", y) * pl.col("eitc") if y >= 1997 else pl.lit(0.0)
+    dependent_credit = pl.max_horizontal(chcred, ndep * 180.0) if y >= 2021 else pl.lit(0.0)
+    state_chcr = pl.when(chcred > ndep * 180.0).then(chcred).otherwise(0.0) if y >= 2021 else pl.lit(0.0)
+    result = with_state_detail(
+        df.with_columns(siitax=statax * flate),
+        agi=ma_agi,
+        exemptions=exemp,
+        taxable_income=taxbin + ainc + cinc - fica,
+        child_care_credit=state_chcr,
+        eic=earncr,
+        credits=ntscr + txcr + scred + earncr + dependent_credit + cbcred,
+        rate=rate_b,
+    )
+    return result.drop(
         "_ma_binc",
         "_ma_bded",
         "_ma_exemp",
@@ -346,7 +403,3 @@ def compute_ma_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         "_ma_pretax",
         "_ma_agi",
     )
-
-
-def _p_payroll(name: str, year: int) -> float:
-    return float(resolve_year(PAYROLL_PARAMS[name], year))

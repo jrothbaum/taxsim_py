@@ -1,25 +1,11 @@
 # Idaho individual income tax (`idtax`, taxsim_2024_09_21.f:5508-5782,
 # state id 13). See calculators/states/id.py for the full mechanism.
 #
-# Confirmed inert given this project's input schema (not silent gaps):
-# elderly/blind (`data(9)`/`data(10)`, same unpopulated-by-the-reader
-# fields already confirmed for AL/AZ/CT/DC/DE/GA/HI) - makes `nblage`
-# (age/blind exemption count) always $0, so the ENTIRE age/blind
-# additional-standard-deduction mechanism and the married_separate-only
-# 1988-1992 standard-deduction REDUCTION (both gated on `nblage>=1`) are
-# both permanently inert; the "dependent of another return" flag
-# (`data(105)`, same field already confirmed inert elsewhere) makes the
-# grocery-credit zeroing and the dependent-return standard-deduction cap
-# both no-ops; the alt-energy-cost AGI subtraction (`data(38)`, same
-# solar/energy field AZ/CA/CT/DC/GA/HI already confirmed inert); the
-# political-contribution credit (`data(65)`, same field ID's own formula
-# multiplies by 0.5 of - confirmed inert elsewhere too); the Wages-from-
-# Jobs credit (`xjobs()`, 1979-1986 only - depends on `data(37)`, never
-# assigned by the input reader for any field this schema drives); the
-# Investment Tax Credit (`data(33)`, never assigned either); `comnew(23)`
-# (the <=1986 state-tax-phaseout addback - confirmed $0 via a live oracle
-# probe while building DC, the same quantity DC's own itemized formula
-# reads).
+# Not TAXSIM inputs, so always zero: blindness, the alt-energy-cost
+# subtraction (`data(38)`), the political-contribution credit (`data(65)`),
+# the Wages-from-Jobs credit (`xjobs()`, `data(37)`), the investment tax
+# credit (`data(33)`) and `comnew(23)` (the <=1986 state-tax-phaseout
+# addback, $0 in the oracle).
 #
 # `comnew(83)`=federal's own computed personal-exemption total and
 # `comnew(3)`=federal's own zero-bracket-amount/standard-deduction total
@@ -343,3 +329,21 @@ building_fund_limit_separate_base:
   1960: 750
 building_fund_limit_separate_addon_1981plus:
   1960: 250
+
+# 1987+: a dependent filer's standard deduction is at most the greater of
+# this and earned income plus $350 (TAXSIM `dstded`).
+dependent_standard_deduction_minimum: {1987: 500, 1991: 550, 1992: 600, 1995: 650, 1998: 700, 2001: 750, 2004: 800, 2006: 850, 2009: 900, 2010: 950, 2013: 1000, 2015: 1050, 2019: 1100}
+dependent_standard_deduction_earned_addition: 350
+# 1987: standard deduction with aged or blind taxpayers, by filing status:
+# the first amount plus the step for each further aged taxpayer.
+aged_standard_deduction_1987:
+  single: [3750, 750]
+  married_joint: [5600, 600]
+  married_separate: [3100, 600]
+  head_of_household: [5100, 800]
+# Married separate filers lose this per aged taxpayer 1988-1992.
+separate_aged_reduction: {1988: 150, 1991: 200}
+# Grocery credit per taxpayer 65 or older.
+grocery_credit_aged: {1977: 5, 1978: 15, 2008: 20}
+# Permanent building fund tax income limit rises per aged taxpayer.
+building_fund_limit_aged: 1000

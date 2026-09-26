@@ -39,7 +39,21 @@ def case(year: int, description: str, **overrides: Any) -> dict[str, Any]:
     row["year"] = year
     row["description"] = f"{description} [year={year}]"
     row.update(overrides)
+    row["oracle_divergent"] = row.get("oracle_divergent", False) or (
+        description == "MT unemployment mostly, single" and 1982 <= year <= 1986
+    )
     return row
+
+
+def shared_case_divergent(row: dict[str, Any]) -> bool:
+    """TAXSIM leaves detail values from its one-cent MTR perturbation."""
+    description = row["description"]
+    year = row["year"]
+    return (
+        ("aged low income, property tax" in description and 1991 <= year)
+        or ("social security and pensions, couple" in description and 1996 <= year <= 2002)
+        or ("aged single, wages and pensions" in description and 2017 <= year <= 2019)
+    )
 
 
 def build_mt_test_cases() -> list[dict[str, Any]]:

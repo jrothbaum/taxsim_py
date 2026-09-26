@@ -1,25 +1,13 @@
 # Iowa individual income tax (`iatax`, taxsim_2024_09_21.f:6085-6503,
 # state id 16). See calculators/states/ia.py for the full mechanism.
 #
-# Confirmed inert given this project's input schema (not silent gaps):
-# elderly/blind (`data(9)`/`data(10)`, unpopulated page/sage - same as
-# every other state), Social Security benefits (`data(91)`=gssi,
-# `data(20)`=pensions, `data(72)` - none of "gssi"/"pensions" are in this
-# project's own INPUT_COLUMNS, so the ENTIRE Social-Security-taxation
-# worksheet, the pension/retirement-income exclusion, and the 2014+
-# Reportable-SS-Benefits alt-tax addback are all permanently no-ops, not
-# because the Fortran itself never computes them but because this
-# project's own schema never drives their inputs); "dependent of another
-# return" exemption-credit addback (`data(34)` in the personal-exemption-
-# credit section - a DIFFERENT `data(34)` reference from the AMT section's
-# own `comnew(34)`, never assigned); casualty losses/medical expenses/
-# misc-itemized/investment-interest-expense/political-contribution/
-# charitable-cash-and-asset-contributions (`data(47)/(48)/(49)/(53)/(57)/
-# (58)/(59)/(60)/(61)/(63)/(65)/(66)/(81)/(168)`, none ever assigned by
-# the input reader) - collapses the entire 2018-2019 itemized-deduction
-# worksheet down to just proptax+otheritem+mortgage, real and populated.
-# `comnew(20)` (an itemized-deduction-phaseout adjustment term) and
-# `comnew(97)` are both live-probe-confirmed $0.
+# Not TAXSIM inputs, so always zero: blindness, `data(34)` in the
+# personal-exemption-credit section, and casualty, medical, misc-itemized,
+# investment-interest, political and charitable amounts (`data(47)`-`(49)`,
+# `(53)`, `(57)`-`(61)`, `(63)`, `(65)`, `(66)`, `(81)`, `(168)`), which
+# leaves the 2018-2019 itemized worksheet as property tax, other itemized
+# deductions and mortgage interest. `comnew(20)` and `comnew(97)` are $0 in
+# the oracle.
 #
 # `comnew(34)` in the AMT section (`addprf`) is a genuine, ACKNOWLEDGED
 # GAP, not confirmed inert - a live probe showed it real and nonzero
@@ -372,3 +360,17 @@ eitc_2010_married_joint_eligibility_cap_1kid:
   1960: 16590
 eitc_2010_married_joint_eligibility_cap_2kids:
   1960: 38665
+
+# Through 2013 Iowa taxes half of benefits above a base ($25,000; $32,000
+# joint; none for married separate), less a phase-out share 2007-2013,
+# in place of the federal amount.
+social_security_base: {single: 25000, joint: 32000, married_separate: 0}
+social_security_phaseout_share: {2007: 0.68, 2009: 0.57, 2010: 0.55, 2011: 0.67, 2012: 0.77, 2013: 0.89}
+# 1995+: pension exclusion per taxpayer when a taxpayer is 65 or older.
+pension_exclusion: {1995: 3000, 1998: 5000, 2001: 6000}
+# Alternate tax income floor for returns with an aged taxpayer.
+alternate_tax_aged_floor: {2007: 24000, 2009: 32000}
+# Minimum tax exempt below these incomes for returns with an aged taxpayer.
+amt_aged_exempt_income: {single: 24000, other: 32000}
+# 2019+: share of the federal QBI deduction allowed.
+qbi_deduction_share: {2019: 0.25, 2021: 0.5}

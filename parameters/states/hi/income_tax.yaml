@@ -5,21 +5,11 @@
 # and half a dozen credits each with their own era-specific formula or
 # interpolation table).
 #
-# Confirmed inert given this project's input schema (not silent gaps):
-# elderly/blind (`data(9)`/`data(10)`, same unpopulated-by-the-reader
-# fields already confirmed for AL/AZ/CT/DC/DE/GA) - makes the disability
-# exemption (`n10.gt.0`) and every `max(data(9),1.0)` multiplier a no-op;
-# the "dependent of another return" flag (`data(105)`, same field already
-# confirmed inert elsewhere); the 2017+ medical-expense itemized
-# adjustment (`comnew(20)`, `data(47)/(48)/(49)` - same medical-expense
-# fields AL/GA already confirmed inert, and `comnew(20)` itself is never
-# assigned by the input reader either); the pre-1980 `data(35)` general-
-# credit addback and the 1981-1986 `data(38)` addback (same solar/energy
-# field AZ/CA/CT/DC/GA already confirmed inert); `data(52)` (a second,
-# unmodeled SALT component in the 2011+ phaseout - this project's schema
-# doesn't drive a HI-specific sales-tax-deduction election the way TX's
-# own dedicated mechanism does, so this term is $0); `data(34)` (never
-# assigned by the input reader at all, confirmed while building Delaware).
+# Not TAXSIM inputs, so always zero: blindness (the disability exemption),
+# medical expenses (`comnew(20)`, `data(47)`-`data(49)`, the 2017+ itemized
+# adjustment), the pre-1980 `data(35)` general-credit addback, the
+# 1981-1986 solar/energy addback (`data(38)`), `data(52)` (a second SALT
+# component in the 2011+ phaseout) and `data(34)`.
 #
 # Bracket tables are transcribed directly from the source's own (upper_
 # bound, rate%) DATA statements, converted to this project's (start,
@@ -348,12 +338,6 @@ general_credit_amount_by_year_pre1996:  # `gencrd(law)`, per (data7+depx)
 general_credit_flat_2001_2009:  # $1/exemption, 2001-2006 & 2008-2009
   2001: 1
 
-# Renter's Credit - confirmed permanently inert for this project's schema
-# (gated on `data(160)`=rentpaid>=$1,000, the SAME field California's own
-# Renter's Credit already confirmed is never populated - no `rentpaid`
-# input this schema drives). Not implemented; `rtab`/the two AGI ceilings
-# are left undocumented in code, this note is the record of the finding.
-
 # Excise Tax Credit - repealed after 1994, real interpolation tables
 # (`tablki`) for three sub-eras, each a real per-exemption dollar amount
 # (multiplied by depx+texp). The trailing (huge, $0) row in each table is
@@ -450,3 +434,12 @@ food_excise_credit_table_2016plus_single:
 # State EITC (2018-2022 only, nonrefundable, 20% of federal EITC).
 eitc_rate_2018_2022:
   2018: 0.20
+
+# Renter credit per exemption (taxpayers, dependents and taxpayers 65 or
+# older) for rent of at least $1,000 and AGI under the limit, multiplied by
+# the number of aged taxpayers (at least one), as TAXSIM has it.
+# Renter's Credit: per exemption for rent of at least the minimum and AGI
+# below the limit.
+renter_credit_per_exemption: {1977: 20, 1981: 50}
+renter_credit_min_rent: 1000
+renter_credit_agi_limit: {1977: 20000, 1989: 30000}

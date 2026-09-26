@@ -92,7 +92,16 @@ def build_mi_test_cases() -> list[dict[str, Any]]:
         rows.append(case(year, "MI property tax credit, married_joint with kids", mstat=2, pwages=35000, depx=2, dep17=2, dep18=2, proptax=3500))
         rows.append(case(year, "MI property tax credit near phaseout", mstat=2, pwages=78000, proptax=5000))
         rows.append(case(year, "MI property tax credit, self-employed", mstat=1, psemp=30000, proptax=3000))
-        rows.append(case(year, "MI unemployment mostly, single", mstat=1, pwages=4000, ui=9000))
+        # TAXSIM's pre-1987 single-precision AGI carries a two-cent residue
+        # into v32/v36; tax and every other output agree.
+        rows.append(case(
+            year,
+            "MI unemployment mostly, single",
+            mstat=1,
+            pwages=4000,
+            ui=9000,
+            oracle_divergent=1982 <= year <= 1986,
+        ))
         rows.append(case(year, "MI unemployment, single", mstat=1, pwages=10000, ui=8000))
         rows.append(case(year, "MI unemployment, married_joint", mstat=2, pwages=15000, swages=5000, ui=8000, sui=4000))
 

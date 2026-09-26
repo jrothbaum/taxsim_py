@@ -70,11 +70,24 @@ def build_dc_test_cases() -> list[dict[str, Any]]:
         rows.append(case(year, "DC self-employment, single", mstat=1, psemp=50000))
         rows.append(case(year, "DC self-employment, married_joint", mstat=2, pwages=20000, psemp=40000))
         rows.append(case(year, "DC childcare, single low income", mstat=1, pwages=25000, depx=1, dep17=1, dep18=1, childcare=2000))
+        rows.append(case(year, "DC childcare above federal tax, single two kids", mstat=1, pwages=16000, depx=2, dep13=2, dep17=2, dep18=2, childcare=5000))
         rows.append(case(year, "DC low income, single", mstat=1, pwages=8000))
         rows.append(case(year, "DC low income, single with dependent", mstat=1, depx=1, dep18=1, pwages=6000))
         rows.append(case(year, "DC very high income, single", mstat=1, pwages=800000, proptax=30000, otheritem=15000, mortgage=40000))
         rows.append(case(year, "DC very high income, married_joint", mstat=2, pwages=500000, swages=400000, proptax=30000, otheritem=15000, mortgage=40000))
-        rows.append(case(year, "DC unemployment, single", mstat=1, pwages=10000, ui=8000))
+        # TAXSIM's single-precision pre-1987 federal intermediate leaves
+        # DC taxable income at 3250.02 instead of the exact 3250.00.  State
+        # tax and every other output agree, so retain the exact arithmetic.
+        rows.append(
+            case(
+                year,
+                "DC unemployment, single",
+                mstat=1,
+                pwages=10000,
+                ui=8000,
+                oracle_divergent=1982 <= year <= 1986,
+            )
+        )
         rows.append(case(year, "DC unemployment, married_joint", mstat=2, pwages=15000, swages=5000, ui=8000, sui=4000))
         rows.append(case(year, "DC property tax credit, single low income", mstat=1, pwages=15000, proptax=1500))
         rows.append(case(year, "DC property tax credit, single mid income", mstat=1, pwages=40000, proptax=2500))

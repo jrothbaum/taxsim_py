@@ -1,26 +1,11 @@
 # Georgia individual income tax (`gatax`, taxsim_2024_09_21.f:4712-4955,
 # state id 11). See calculators/states/ga.py for the full mechanism.
 #
-# Confirmed inert given this project's input schema (not silent gaps):
-# elderly/blind (`data(9)`/`data(10)`, same unpopulated-by-the-reader
-# fields already confirmed for AL/AZ/CT/DC/DE) - this makes the ENTIRE
-# Retirement Income Exclusion block (`old.gt.0`, taxsim_2024_09_21.f:
-# 4789-4836) permanently inert, not just partially; the solar-energy
-# credit (`data(38)`, same field AZ/CA/CT/DC already confirmed $0); the
-# 2021-only $300-cash-contribution AGI addback (`data(58)`, the SAME
-# unimplementable "charity_cash" gap already documented at the federal
-# level - no input column ever drives it); and the entire 1982-1986
-# "Georgia used 1981 federal law" IRA/stock-loss-carryover adjustment
-# (`data(29)`/`data(28)`/`data(13)`/`comnew(11)` - grepped the full
-# source, none of these are ever assigned by the input reader for any
-# field this project's schema drives, so they're always exactly $0,
-# collapsing `stira`/`stkeo` to $0 and the 1982-only `data(13)` term to a
-# no-op). The <=1986 itemized-deduction medical/casualty addback
-# (`gxit`, using `data(47)`/`(48)`/`(49)`/`comnew(20)`) is likewise
-# confirmed inert - same medical/casualty fields AL's own scope note
-# already covers - and always evaluates to exactly $0 for this schema
-# (the formula's own negative-then-clipped-at-0 shape holds regardless).
-# `data(55)` (itemized addback, <=1986) is never assigned either.
+# Not TAXSIM inputs, so always zero: blindness, the solar-energy credit
+# (`data(38)`), the 2021 cash-contribution addback (`data(58)`), the
+# 1982-1986 stock-loss-carryover terms (`data(28)`, `data(13)`), the
+# <=1986 medical/casualty addback (`data(47)`-`(49)`, `comnew(20)`) and
+# `data(55)`.
 #
 # `nfile=filing(mst,1,2,3,2)` - single=1, married_joint=2, head_of_
 # household=3, married_separate=2 (SAME as joint) - matches DC's own
@@ -141,3 +126,14 @@ low_income_credit_table_1992plus:  # (agi_threshold, rate_per_exemption) -
   - [15000, 8]
   - [20000, 5]
   - [100000000, 0]
+
+# Retirement income exclusion per taxpayer 65 or older (TAXSIM `rtmax`).
+# Before 1989 it is the lesser of federal AGI and this amount per aged
+# taxpayer (none in 1986-1988 when earned income exceeds $1,200 per
+# taxpayer); from 1989 it covers up to $4,000 of earnings plus retirement
+# and investment income, with TAXSIM's own split for couples.
+retirement_exclusion_max: {1977: 0, 1982: 2000, 1986: 4000, 1989: 8000, 1993: 10000, 1994: 11000, 1995: 12000, 1999: 13000, 2000: 13500, 2001: 14000, 2002: 14500, 2003: 15000, 2006: 25000, 2007: 30000, 2008: 35000, 2012: 65000}
+retirement_exclusion_earned_limit_1986: 1200
+retirement_exclusion_earnings_cap: 4000
+# Additional standard deduction per taxpayer 65 or older (1987+).
+aged_standard_deduction: {1987: 700, 1998: 1300}

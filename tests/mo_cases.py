@@ -85,7 +85,16 @@ def build_mo_test_cases() -> list[dict[str, Any]]:
         rows.append(case(year, "MO self-employment, low", mstat=1, psemp=15000))
         rows.append(case(year, "MO self-employment, married_joint", mstat=2, pwages=20000, psemp=40000))
         rows.append(case(year, "MO self-employment, high", mstat=1, psemp=250000))
-        rows.append(case(year, "MO unemployment mostly, single", mstat=1, pwages=4000, ui=9000))
+        # TAXSIM carries a two-cent pre-1987 single-precision residue in
+        # the state AGI detail only; liability agrees.
+        rows.append(case(
+            year,
+            "MO unemployment mostly, single",
+            mstat=1,
+            pwages=4000,
+            ui=9000,
+            oracle_divergent=1982 <= year <= 1986,
+        ))
         rows.append(case(year, "MO unemployment, single", mstat=1, pwages=20000, ui=8000))
         rows.append(case(year, "MO unemployment, married_joint", mstat=2, pwages=15000, swages=5000, ui=8000, sui=4000))
 

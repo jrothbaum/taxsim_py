@@ -1,12 +1,7 @@
 # Louisiana individual income tax (`latax`, taxsim_2024_09_21.f:7224-7431,
 # state id 19). See calculators/states/la.py for the full mechanism.
 #
-# Confirmed inert given this project's input schema (not silent gaps):
-# elderly/blind (`data(9)`/`data(10)`, unpopulated page/sage); pension/
-# retirement income (`data(20)`/`data(72)`, unpopulated "pensions" input,
-# the same schema-level gap already documented for Iowa/Kansas/Kentucky -
-# makes the ENTIRE retirement-income exemption a permanent no-op);
-# `data(34)` (never assigned).
+# Not TAXSIM inputs, so always zero: blindness and `data(34)`.
 #
 # `comnew(52)` is live-probe-confirmed to be federal's own `regular_tax`
 # (NOT `tax_before_credits`, which already bakes AMT in - `comnew(70)` is
@@ -101,11 +96,6 @@ excess_itemized_pct_2008:
 excess_itemized_2008_proptax_addback_cap_per_filer:
   1960: 500
 
-# Retiree/Social-Security income exclusion - real formula, but permanently
-# inert here (`data(20)`/`data(72)`/`comnew(79)` all confirmed inert).
-retirement_exclusion_cap:
-  1960: 6000
-
 # Credits.
 education_credit_per_dependent_1979_1985_1996_1999:
   1960: 25
@@ -127,3 +117,14 @@ eitc_rate_2008_2018:
   1960: 0.035
 eitc_rate_2019plus:
   1960: 0.05
+
+# Retirement income exemption per taxpayer 65 or older (1981+).
+aged_pension_exemption: 6000
+# Federal tax attributable to exempt income (pensions and Social Security):
+# 25% of exempt income over $15,000, or $8,750 plus 40% over $50,000, up to
+# federal tax times exempt income's share of federal AGI.
+exempt_income_tax_floor: 15000
+exempt_income_tax_rate_low: 0.25
+exempt_income_tax_break: 50000
+exempt_income_tax_base_high: 8750
+exempt_income_tax_rate_high: 0.4

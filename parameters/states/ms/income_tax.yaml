@@ -1,9 +1,8 @@
 # Mississippi individual income tax (`mstax`, taxsim_2024_09_21.f:11085-11267,
 # state id 25).
 #
-# Inputs this schema never supplies make these provisions inactive:
-# retirement/pension exclusion, Social Security, IRA/Keogh, elderly/blind
-# exemptions, charitable/medical detail before 1979.
+# Not TAXSIM inputs, so always zero: IRA/Keogh, blindness, and charitable
+# and medical detail before 1979.
 
 # --- Rate schedules (start, rate) ---
 brackets:
@@ -122,3 +121,13 @@ itemized_limit_status_multiplier:  # 2013 on; earlier years divide by `sep`
 # Married couples may be taxed as two separate returns: the higher earner
 # takes their own wages plus this share of the couple's other income.
 joint_split_other_income_share: {1977: 0.5}
+
+# Retirement income exclusion per taxpayer through 1993; all retirement
+# income is excluded from 1994.
+retirement_exclusion_per_taxpayer:
+  1977: 5000
+  1990: 6000
+# Exemption per taxpayer 65 or older (`old`).
+aged_exemption:
+  1977: 750
+  1979: 1500

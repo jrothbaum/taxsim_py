@@ -3,6 +3,14 @@
 import polars as pl
 
 
+def separate_return_amt_income(
+    amt_income: pl.Expr, sepret: pl.Expr | float, cap: float, threshold: float
+) -> pl.Expr:
+    """AMT income with the married-filing-separately addback (1990 on)."""
+    addback = pl.min_horizontal(float(cap), 0.25 * (amt_income - float(threshold)).clip(0, None))
+    return pl.when(sepret == 2.0).then(amt_income + addback).otherwise(amt_income)
+
+
 def alternative_minimum_tax(
     amt_income: pl.Expr,
     regular_tax: pl.Expr,
@@ -21,6 +29,7 @@ def alternative_minimum_tax(
     cg_rate_0: float = 0.0,
     separate_return_addback_cap: float | None = None,
     separate_return_addback_threshold: float | None = None,
+    exemption_cap: pl.Expr | None = None,
 ) -> pl.Expr:
     # Married-filing-separately-only AMTI addback (1990+ -
     # taxsim_2022_10_21.f:25214-25217): `alminy = alminy +
@@ -31,15 +40,15 @@ def alternative_minimum_tax(
     # AMT (which reads federal's alminy directly) mismatching for a
     # married_separate, $260k-wages, no-preference-items case.
     if separate_return_addback_cap is not None:
-        addback = pl.min_horizontal(
-            float(separate_return_addback_cap),
-            0.25 * (amt_income - float(separate_return_addback_threshold)).clip(0, None),
+        amt_income = separate_return_amt_income(
+            amt_income, sepret, separate_return_addback_cap, separate_return_addback_threshold
         )
-        amt_income = pl.when(sepret == 2.0).then(amt_income + addback).otherwise(amt_income)
 
     exemption_after_phaseout = (
         exemption - exemption_phaseout_rate * (amt_income - exemption_phaseout_threshold).clip(0, None)
     ).clip(0, None)
+    if exemption_cap is not None:
+        exemption_after_phaseout = pl.min_horizontal(exemption_after_phaseout, exemption_cap.clip(0, None))
     amt_base = (amt_income - exemption_after_phaseout).clip(0, None)
 
     breakpoint_per_return = rate_breakpoint / sepret

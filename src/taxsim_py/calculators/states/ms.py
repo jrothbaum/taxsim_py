@@ -2,9 +2,9 @@
 
 import polars as pl
 
-from taxsim_py.calculators.federal_pre1987 import PRE1987_PARAMS
-from taxsim_py.engine.brackets import bracket_tax
-from taxsim_py.engine.payroll_tax import household_self_employment_tax
+from taxsim_py.calculators.payroll import payroll_parts
+from taxsim_py.engine.brackets import bracket_rate, bracket_tax
+from taxsim_py.engine.inputs import aged_count, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, load_yaml, resolve_year
 from taxsim_py.engine.state import (
     with_defaults,
@@ -12,22 +12,20 @@ from taxsim_py.engine.state import (
     by_filing_status,
     checkpoint,
     dividend_exclusion_addback,
+    pre1987_federal_itemizing,
     unemployment_total,
     with_default,
+    with_state_detail,
 )
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
 MS_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "ms" / "income_tax.yaml")
-PAYROLL_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "payroll_tax.yaml")
 STATE_ADJUSTMENT_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "state_adjustments.yaml")
 
 
 def _p(name: str, year: int) -> float:
     return float(resolve_year(MS_PARAMS[name], year))
 
-
-def _pp(name: str, year: int) -> float:
-    return float(resolve_year(PAYROLL_PARAMS[name], year))
 
 
 def _by_status_year(name: str, year: int) -> pl.Expr:
@@ -41,15 +39,11 @@ def compute_ms_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     df = with_defaults(df, (
         "proptax", "otheritem", "mortgage", "dividends", "intrec", "stcg", "ltcg", "ui", "pui", "sui",
         "psemp", "ssemp", "depx", "charity_cash", "state_sales_or_income_tax_ded",
-        "taxable_unemployment", "itemized_deduction",
+        "taxable_unemployment", "itemized_deduction", "pensions", "gssi", "taxable_social_security", "nonprop",
     ))
     df = with_default(df, "itemizes", False)
 
-    setax = household_self_employment_tax(
-        pl.col("psemp"), pl.col("ssemp"), pl.col("pwages"), pl.col("swages"),
-        _pp("se_net_earnings_factor", year), _pp("oasdi_wage_base", year), _pp("se_oasdi_rate", year),
-        _pp("se_hi_rate", year), _pp("hi_wage_base", year),
-    )
+    setax = payroll_parts(year)["setax"]  # `comnew(175)`, real-year and undeflated
     dividend_adjustment = float(
         resolve_year(STATE_ADJUSTMENT_PARAMS["household_income_dividend_adjustment"], y)
     )
@@ -59,7 +53,8 @@ def compute_ms_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         [
             "pwages", "swages", "dividends", "intrec", "stcg", "ltcg", "ui", "pui", "sui", "psemp", "ssemp",
             "proptax", "otheritem", "mortgage", "charity_cash", "state_sales_or_income_tax_ded",
-            "agi", "taxable_unemployment", "itemized_deduction", "ms_divexc",
+            "agi", "taxable_unemployment", "itemized_deduction", "ms_divexc", "pensions", "gssi",
+            "taxable_social_security", "nonprop",
         ],
     )
 
@@ -67,7 +62,7 @@ def compute_ms_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     is_joint = status == "married_joint"
     is_sep = status == "married_separate"
     sep = pl.when(is_sep).then(2.0).otherwise(1.0)
-    txp = pl.when(is_joint).then(2.0).otherwise(1.0)
+    txp = taxpayer_count()
     salt_ded = pl.col("state_sales_or_income_tax_ded")
     setax = pl.col("ms_setax")
     fed_itemizes = pl.col("itemizes")
@@ -94,12 +89,21 @@ def compute_ms_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     else:
         halfse = _p("self_employment_tax_addback_rate", y) * setax
     agi = fed_agi + pl.col("ms_divexc") + halfse - _p("self_employment_tax_deduction_rate", y) * setax
+    # Retirement income is exempt, up to a cap per taxpayer through 1993.
+    if y <= 1993:
+        agi = agi - pl.min_horizontal(pl.col("pensions"), _p("retirement_exclusion_per_taxpayer", y) * txp)
+    else:
+        agi = agi - pl.col("pensions")
+    # Through 1979 other non-property income is excluded.
+    if y <= 1979:
+        agi = agi - pl.col("nonprop")
     if 1982 <= y <= 1986:
-        rate2 = float(resolve_year(PRE1987_PARAMS["two_earner_deduction_rate"], y))
-        cap2 = float(resolve_year(PRE1987_PARAMS["two_earner_deduction_cap"], y))
-        agi = agi + pl.when(is_joint).then(
-            (rate2 * pl.min_horizontal(pl.col("pwages"), pl.col("swages")).clip(0, None)).clip(0, cap2)
-        ).otherwise(0.0)
+        agi = agi + pl.col("pre1987_twoded")
+    # Social Security is exempt from 1984; before, all benefits are income.
+    if y >= 1984:
+        agi = agi - pl.col("taxable_social_security")
+    else:
+        agi = agi + pl.col("gssi") - pl.col("taxable_social_security")
     if y == 2020:
         agi = agi + unemployment_total() - pl.col("taxable_unemployment") + pl.when(fed_itemizes).then(0.0).otherwise(
             pl.min_horizontal(_p("charity_nonitemizer_addback", y), pl.col("charity_cash"))
@@ -108,7 +112,10 @@ def compute_ms_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     df, (agi,) = checkpoint(df, ms_agi=agi)
 
     # --- Exemptions ---
-    exemp = (_by_status_year("exemption", y) + pl.col("depx") * _p("dependent_exemption", y)) / sep
+    exemp = (
+        _by_status_year("exemption", y) + pl.col("depx") * _p("dependent_exemption", y)
+        + aged_count() * _p("aged_exemption", y)
+    ) / sep
 
     # --- Standard deduction ---
     if y <= 1979:
@@ -121,7 +128,7 @@ def compute_ms_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
 
     # --- Itemized deductions (federal total before the high-income limit) ---
     if y <= 1986:
-        deducp = pl.col("proptax") + pl.col("otheritem") + pl.col("mortgage") + salt_ded
+        deducp, _, _ = pre1987_federal_itemizing(y)
     elif y <= 2017:
         deducp = (pl.col("proptax") + pl.col("otheritem") + salt_ded).clip(0, None) + pl.col("mortgage") + fed_char
     else:
@@ -150,7 +157,13 @@ def compute_ms_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     if y == 1999:
         xitded = pl.when(forced_standard()).then(0.0).otherwise(xitded)
 
-    df, (deduc, exemp) = checkpoint(df, ms_deduc=pl.max_horizontal(stded, xitded), ms_exemp=exemp)
+    df, (stded, xitded, deduc, exemp) = checkpoint(
+        df,
+        ms_stded=stded,
+        ms_xitded=xitded,
+        ms_deduc=pl.max_horizontal(stded, xitded),
+        ms_exemp=exemp,
+    )
     df, (taxinc,) = checkpoint(df, ms_taxinc=(agi - deduc - exemp).clip(0, None))
     brackets = resolve_year(MS_PARAMS["brackets"], y)
     df, (statax,) = checkpoint(df, ms_table_tax=bracket_tax(taxinc, brackets))
@@ -168,6 +181,17 @@ def compute_ms_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     split_tax = bracket_tax((taxyh1 - deduch).clip(0, None), brackets) + bracket_tax(
         (taxyw1 - deducw).clip(0, None), brackets
     )
+    rate_expr = pl.when(is_joint & (agi > 0)).then(
+        bracket_rate((taxyw1 - deducw).clip(0, None), brackets)
+    ).otherwise(bracket_rate(taxinc, brackets))
     statax = pl.when(is_joint & (agi > 0)).then(pl.min_horizontal(statax, split_tax)).otherwise(statax)
 
-    return df.with_columns(siitax=statax * flate)
+    return with_state_detail(
+        df.with_columns(siitax=statax * flate),
+        agi=agi,
+        exemptions=exemp,
+        standard_deduction=stded,
+        itemized_deductions=xitded,
+        taxable_income=taxinc,
+        rate=rate_expr,
+    )

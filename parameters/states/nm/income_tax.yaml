@@ -1,9 +1,8 @@
 # New Mexico personal income tax (`nmtax`, taxsim_2024_09_21.f:13267-13950,
 # state id 32).
 #
-# Inputs this schema never supplies make these provisions inactive: the
-# deduction for age 65 or blind, medical care expense deduction, elderly
-# property tax rebate, dependent-of-another restrictions.
+# Not TAXSIM inputs, so always zero: blindness and the medical care
+# expense deduction.
 
 # --- Through 1986: 1977 schedules with rates times `rate_factor_pre1987`
 # (rounded to 0.1 percentage point); from 1983 bracket 14 is 5.6%. The
@@ -262,3 +261,24 @@ eitc_match_rate:
   2008: 0.1
   2019: 0.17
   2021: 0.2
+
+# Deduction for taxpayers 65 or older: $6,000 each 1981-1984; from 1985 an
+# amount by federal AGI (per taxpayer 65 or older; from 1987 at most one per
+# taxpayer), by filing class.
+aged_deduction_1981_1984: 6000
+aged_deduction_1985_1986:
+  single: [[18000, 6000], [19500, 5000], [21000, 4000], [22500, 3000], [24000, 2000], [25500, 1000], [1.0e+20, 0]]
+  married_separate: [[15000, 6000], [16500, 5000], [18000, 4000], [19500, 3000], [21000, 2000], [22500, 1000], [1.0e+20, 0]]
+  married: [[30000, 6000], [33000, 5000], [36000, 4000], [39000, 3000], [42000, 2000], [45000, 1000], [1.0e+20, 0]]
+aged_deduction_1987plus:
+  single: [[18000, 8000], [19500, 7000], [21000, 6000], [22500, 5000], [24000, 4000], [25500, 3000], [27000, 2000], [28500, 1000], [1.0e+20, 0]]
+  married_separate: [[15000, 8000], [16500, 7000], [18000, 6000], [19500, 5000], [21000, 4000], [22500, 3000], [24000, 2000], [25500, 1000], [1.0e+20, 0]]
+  married: [[30000, 8000], [33000, 7000], [36000, 6000], [39000, 5000], [42000, 4000], [45000, 3000], [48000, 2000], [51000, 1000], [1.0e+20, 0]]
+
+# Property tax rebate for taxpayers 65 or older with modified AGI up to the
+# limit: property tax (rent at this share) over an amount by income, up
+# to a maximum (halved for separate filers).
+property_rebate_income_limit: 16000
+property_rebate_rent_share: 0.06
+property_rebate_max: 250
+property_rebate_threshold: [[1000, 20], [2000, 25], [3000, 30], [4000, 35], [5000, 40], [6000, 45], [7000, 50], [8000, 55], [9000, 60], [10000, 75], [11000, 90], [12000, 105], [13000, 120], [14000, 135], [15000, 150], [16000, 180], [1.0e+20, 0]]

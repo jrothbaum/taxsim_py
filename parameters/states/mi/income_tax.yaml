@@ -3,12 +3,9 @@
 # tables are the source's DATA statements with repeat counts expanded and
 # checked against each array's declared dimension, forward-filled here.
 #
-# Confirmed inert given this project's input schema: elderly/blind
-# (`data(9)`/`data(10)`) - the pension exclusion, senior interest/dividend
-# deduction, 2013+ senior standard deduction, the elderly/blind
-# exemptions and the senior/blind/veteran property tax credit branches;
-# pensions (`data(20)`/`data(72)`); rent paid (`data(160)`); solar credit
-# (`data(38)`); `data(65)`; dependent-of-another-return (`data(105)`).
+# Not TAXSIM inputs, so always zero: blindness (`data(10)`, the blind and
+# veteran property tax credit), the solar credit (`data(38)`) and
+# `data(65)`.
 
 # Flat income tax rate (`rate`).
 rate:
@@ -228,3 +225,116 @@ eitc_rate:
   2008: 0.10
   2009: 0.20
   2012: 0.06
+
+# Retirement subtraction for taxpayers 65 or older. Through 1993: pensions
+# up to a cap (joint returns; separate filers get half their pensions);
+# from 1994 a cap per taxpayer (`pended`, the source's table has no 2021
+# entry, which the 2013+ senior deduction makes moot).
+pension_exclusion_single_1977_1993:
+  1977: 7500
+pension_exclusion_joint_1977_1993:
+  1977: 10000
+pension_exclusion_joint_1994:
+  1994: 22500
+pension_exclusion_per_taxpayer:
+  1994: 13125
+  1995: 30945
+  1996: 31920
+  1997: 32880
+  1998: 33630
+  1999: 34170
+  2000: 34920
+  2001: 36090
+  2002: 37110
+  2003: 37710
+  2004: 38550
+  2005: 39570
+  2006: 40920
+  2007: 42240
+  2008: 43440
+  2009: 45120
+  2011: 45842
+  2012: 47309
+  2013: 48302
+  2014: 49027
+  2015: 49811
+  2016: 49861
+  2017: 50509
+  2018: 51570
+  2019: 52808
+  2020: 53759
+  2021: 54404
+# 1994+: interest, dividends (and from 1997 capital gains) up to this per
+# taxpayer (`oldded`), when larger than the pension subtraction.
+senior_investment_deduction_per_taxpayer:
+  1994: 250
+  1995: 1032
+  1996: 1064
+  1997: 3500
+  1998: 7500
+  1999: 7620
+  2000: 7785
+  2001: 8048
+  2002: 8273
+  2003: 8408
+  2004: 8595
+  2005: 8828
+  2006: 9128
+  2007: 9420
+  2008: 9690
+  2009: 10058
+  2011: 10218
+  2012: 10545
+  2013: 10767
+  2014: 10929
+  2015: 11104
+  2016: 11115
+  2017: 11259
+  2018: 11495
+  2019: 11771
+  2020: 11983
+  2021: 12127
+# 2013+: a flat deduction per taxpayer 65 or older replaces both.
+senior_standard_deduction:
+  2013: 20000
+
+# A dependent filer's exemption; no tax when AGI is below it.
+dependent_filer_exemption:
+  1977: 1500
+
+# Homestead property tax credit: rent counts at this share.
+property_credit_rent_share:
+  1977: 0.17
+  1994: 0.2
+  2018: 0.23
+# Taxpayers 65 or older: property tax over this share of household income
+# (`proptb`, `prtb18`, interpolated).
+property_credit_senior_income_share:
+  1980:
+    - [3000, 0.0]
+    - [4000, 0.01]
+    - [5000, 0.02]
+    - [6000, 0.03]
+    - [1.0e+20, 0.035]
+  2018:
+    - [3000, 0.0]
+    - [4000, 0.01]
+    - [5000, 0.02]
+    - [6000, 0.03]
+    - [1.0e+20, 0.032]
+# 2012+: the senior credit is scaled by this percentage (`pcra`).
+property_credit_senior_percentage:
+  - [21001, 1.0]
+  - [22001, 0.96]
+  - [23001, 0.92]
+  - [24001, 0.88]
+  - [25001, 0.84]
+  - [26001, 0.80]
+  - [27001, 0.76]
+  - [28001, 0.72]
+  - [29001, 0.68]
+  - [30001, 0.64]
+  - [50001, 0.60]
+# Senior renters may instead claim rent over this share of income.
+property_credit_senior_rent_income_share:
+  1980: 0.4

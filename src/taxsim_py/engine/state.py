@@ -8,6 +8,7 @@ import polars as pl
 from taxsim_py.engine.schema import PARAMETERS_ROOT, load_yaml, resolve_year
 
 _PRE1987_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "pre1987.yaml")
+_SOCSEC_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "state_socsec.yaml")
 
 
 def with_default(
@@ -107,16 +108,24 @@ def unemployment_total() -> pl.Expr:
 def household_income(dividend_adjustment: float, record_adjustment: float) -> pl.Expr:
     """TAXSIM's household-income total (`data(159)`) from raw inputs.
 
-    Sums positive wages, dividends, unemployment compensation, interest and
-    positive net capital gains, plus the two TAXSIM input adjustments.
+    Sums positive wages, dividends, pensions, unemployment compensation,
+    Social Security benefits, transfers, interest, business and S
+    corporation income, other property income and positive net capital
+    gains, plus the two TAXSIM input adjustments. Self-employment and other
+    non-property income are not included.
     """
     return (
         pl.col("pwages").clip(0, None)
         + pl.col("swages").clip(0, None)
         + pl.col("dividends")
         + dividend_adjustment
+        + pl.col("pensions")
         + unemployment_total()
+        + pl.col("gssi")
+        + pl.col("transfers")
         + pl.col("intrec")
+        + pl.col("pbusinc") + pl.col("pprofinc") + pl.col("sbusinc") + pl.col("sprofinc") + pl.col("scorp")
+        + pl.col("otherprop")
         + (pl.col("stcg") + pl.col("ltcg")).clip(0, None)
         + record_adjustment
     )
@@ -182,3 +191,72 @@ def forced_itemized() -> pl.Expr:
 def forced_standard() -> pl.Expr:
     """True where the standard deduction is forced."""
     return _forced().not_().fill_null(False)
+
+
+def pre1987_federal_itemizing(year: int) -> tuple[pl.Expr, pl.Expr, pl.Expr]:
+    """Federal itemizing through 1986 (`comnew(30)`, `comnew(26)`, `comnew(3)`).
+
+    Returns the gross itemized total, whether the federal return itemizes, and
+    the zero bracket amount, the latter two as the pre-1987 federal
+    calculator reports them.
+    """
+    gross = (
+        pl.col("state_sales_or_income_tax_ded") + pl.col("proptax") + pl.col("otheritem")
+        + pl.col("mortgage") + pl.col("charity_cash")
+    )
+    return gross, pl.col("pre1987_itemizes"), pl.col("pre1987_zbr")
+
+
+def taxsim_socsec(year: int, setax: pl.Expr, addmed: pl.Expr | None = None) -> pl.Expr:
+    """Payroll tax as TAXSIM's `socsec` reports it to states.
+
+    Employee FICA on each spouse's wages (joint returns) or on total wages,
+    plus self-employment tax and, from 2013, the additional Medicare tax.
+    `year` is the state law year; wages are the (deflated) input columns.
+    """
+    rate = float(resolve_year(_SOCSEC_PARAMS["rate"], year))
+    ceiling = float(resolve_year(_SOCSEC_PARAMS["wage_ceiling"], year))
+    above = float(_SOCSEC_PARAMS["rate_above_ceiling"])
+
+    def fica(wages: pl.Expr) -> pl.Expr:
+        return pl.min_horizontal(wages, pl.lit(ceiling)) * rate + (wages - ceiling).clip(0, None) * above
+
+    pw = pl.col("pwages").clip(0, None)
+    sw = pl.col("swages").clip(0, None)
+    total = pl.when(pl.col("filing_status") == "married_joint").then(fica(pw) + fica(sw)).otherwise(fica(pw + sw))
+    total = total + setax
+    if year >= 2013 and addmed is not None:
+        total = total + addmed
+    return total
+
+
+_DETAIL_NAMES = {
+    "agi": "state_agi",
+    "exemptions": "state_exemptions",
+    "standard_deduction": "state_standard_deduction",
+    "itemized_deductions": "state_itemized_deductions",
+    "taxable_income": "state_taxable_income",
+    "property_credit": "state_property_credit",
+    "child_care_credit": "state_child_care_credit",
+    "eic": "state_eic",
+    "credits": "state_credits",
+    "rate": "state_rate",
+}
+
+
+def with_state_detail(df: pl.DataFrame | pl.LazyFrame, **values: pl.Expr | float) -> pl.DataFrame | pl.LazyFrame:
+    """Set the state's detail outputs (TAXSIM's `/calc/` block, `idtl=2`).
+
+    Keywords are `agi`, `exemptions`, `standard_deduction`,
+    `itemized_deductions`, `taxable_income`, `property_credit`,
+    `child_care_credit`, `eic`, `credits` and `rate` (the bracket rate as a
+    fraction), each the final value the TAXSIM routine leaves in that
+    variable, in the law year's dollars. Outputs not given are 0.
+    """
+    unknown = set(values) - set(_DETAIL_NAMES)
+    if unknown:
+        raise ValueError(f"Unknown state detail outputs: {sorted(unknown)}")
+    return df.with_columns(
+        (value if isinstance(value, pl.Expr) else pl.lit(float(value))).cast(pl.Float64).alias(_DETAIL_NAMES[name])
+        for name, value in values.items()
+    )

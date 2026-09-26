@@ -2,9 +2,10 @@
 
 import polars as pl
 
-from taxsim_py.engine.brackets import bracket_tax
+from taxsim_py.engine.brackets import bracket_rate, bracket_tax
+from taxsim_py.engine.inputs import aged_count, federal_exemption_count, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, load_yaml, resolve_year
-from taxsim_py.engine.state import with_defaults, checkpoint, interpolate_table
+from taxsim_py.engine.state import by_filing_status, checkpoint, household_income, interpolate_table, with_defaults, with_state_detail
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
 NJ_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "nj" / "income_tax.yaml")
@@ -27,23 +28,83 @@ def _schedule_tax(income: pl.Expr, uses_married: pl.Expr, y: int) -> pl.Expr:
     )
 
 
+def _schedule_rate(income: pl.Expr, uses_married: pl.Expr, y: int) -> pl.Expr:
+    if y <= 1990:
+        return bracket_rate(income, resolve_year(NJ_PARAMS["brackets_through_1990"], y))
+    tables = NJ_PARAMS["brackets"]
+    return (
+        pl.when(uses_married)
+        .then(bracket_rate(income, resolve_year(tables["married"], y)))
+        .otherwise(bracket_rate(income, resolve_year(tables["single"], y)))
+    )
+
+
+def _homestead_rebate(
+    agi: pl.Expr, ptax: pl.Expr, proptax: pl.Expr, rentpaid: pl.Expr, aged: pl.Expr, married: pl.Expr,
+    sep: pl.Expr, y: int,
+) -> pl.Expr:
+    """Homestead property tax rebate (1990-2008), refundable."""
+    a = NJ_PARAMS["homestead_rebate_aged"]
+    low, middle, top = (float(v) for v in a["tier_limits"])
+    reb = (ptax - float(a["income_share"]) * agi).clip(0, None)
+    maximum = float(resolve_year(a["maximum"], y))
+
+    def between(minimum: float) -> pl.Expr:
+        return pl.max_horizontal(pl.lit(minimum), pl.min_horizontal(pl.lit(maximum), reb))
+
+    owner_min = float(resolve_year(a["owner_minimum"], y))
+    owner = (
+        pl.when(agi <= low).then(between(owner_min))
+        .when(agi <= middle).then(pl.when(married).then(between(owner_min)).otherwise(float(resolve_year(a["owner_middle_other"], y))))
+        .when(agi <= top).then(float(resolve_year(a["owner_top"], y)))
+        .otherwise(0.0)
+    )
+    renter_min = float(resolve_year(a["renter_minimum"], y))
+    renter_middle_married = float(a["renter_middle_flat"][2001]) if y >= 2001 else between(renter_min)
+    renter = (
+        pl.when(agi <= low).then(between(renter_min))
+        .when(agi <= middle).then(pl.when(married).then(renter_middle_married).otherwise(float(resolve_year(a["renter_middle_other"], y))))
+        .when(agi <= top).then(float(resolve_year(a["renter_top"], y)))
+        .otherwise(0.0)
+    )
+    aged_rebate = pl.when(proptax > 0).then(owner).when(rentpaid > 0).then(renter).otherwise(0.0)
+
+    under65 = pl.when((proptax > 0) & (agi < _p("homestead_rebate_income_limit", y))).then(
+        _p("homestead_rebate", y)
+    ).otherwise(0.0)
+    under65 = pl.when((rentpaid > 0) & (agi < _p("homestead_rebate_renter_income_limit", y))).then(
+        _p("homestead_rebate_renter", y)
+    ).otherwise(under65)
+    return pl.when(aged > 0).then(aged_rebate).otherwise(under65) / sep
+
+
 def compute_nj_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     """Calculate New Jersey gross income tax for each row."""
     effective_year, flate = resolve_state_year(year)
     y = effective_year
     df = with_defaults(df, (
         "dividends", "intrec", "psemp", "ssemp", "stcg", "ltcg", "proptax", "depx",
-        "taxable_unemployment", "eitc", "pre1987_capgn",
+        "taxable_unemployment", "eitc", "pre1987_capgn", "pensions", "taxable_social_security", "rentpaid",
+        "otherprop", "scorp", "pbusinc", "pprofinc", "sbusinc", "sprofinc",
     ))
     dividend_adjustment = float(
         resolve_year(STATE_ADJUSTMENT_PARAMS["household_income_dividend_adjustment"], y)
     )
-    df = df.with_columns(nj_dividends=pl.col("dividends") + dividend_adjustment)
+    record_adjustment = float(resolve_year(STATE_ADJUSTMENT_PARAMS["household_income_record_adjustment"], y))
+    df = df.with_columns(
+        nj_dividends=pl.col("dividends") + dividend_adjustment,
+        # Household income (`hy`) is read before TAXSIM's projected-year deflation.
+        nj_hy=household_income(dividend_adjustment, record_adjustment),
+        # Federal Schedule E income (`comnew(8)`): other property income, plus
+        # S corporation income from 1987.
+        nj_schede=pl.col("otherprop") + (pl.col("scorp") if year >= 1987 else 0.0),
+    )
     df = deflate_for_extrapolation(
         df, flate,
         [
             "pwages", "swages", "nj_dividends", "intrec", "psemp", "ssemp", "stcg", "ltcg", "proptax",
-            "taxable_unemployment", "eitc", "pre1987_capgn",
+            "taxable_unemployment", "eitc", "pre1987_capgn", "pensions", "taxable_social_security", "rentpaid",
+            "nj_schede",
         ],
     )
 
@@ -54,7 +115,8 @@ def compute_nj_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     is_hoh = status == "head_of_household"
     uses_married = is_joint | is_hoh
     sep = pl.when(is_sep).then(2.0).otherwise(1.0)
-    txp = pl.when(is_joint).then(2.0).otherwise(1.0)
+    txp = taxpayer_count()
+    aged = aged_count()
     depx = pl.col("depx")
     proptax = pl.col("proptax")
 
@@ -67,10 +129,30 @@ def compute_nj_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
 
     # --- Gross income ---
     wages = pl.col("pwages").clip(0, None) + pl.col("swages").clip(0, None)
-    business = pl.col("psemp") + pl.col("ssemp") + pl.col("pwages").clip(None, 0) + pl.col("swages").clip(None, 0)
-    agi = wages + pl.col("nj_dividends") + pl.col("intrec") + business.clip(0, None) + capgn.clip(0, None)
+    semp = pl.col("psemp") + pl.col("ssemp") + pl.col("pwages").clip(None, 0) + pl.col("swages").clip(None, 0)
+    # Business income is not deflated in projected years.
+    business = semp + pl.col("pbusinc") + pl.col("pprofinc") + pl.col("sbusinc") + pl.col("sprofinc")
+    agi = (
+        wages + pl.col("nj_dividends") + pl.col("intrec") + business.clip(0, None) + capgn.clip(0, None)
+        + pl.col("nj_schede").clip(0, None) + pl.col("pensions")
+    )
     if y < 1992:
-        agi = agi + pl.col("taxable_unemployment")
+        agi = agi + pl.col("taxable_unemployment") + pl.col("taxable_social_security")
+    # Pension exclusion for taxpayers 65 or older; unused exclusion covers
+    # other income when earnings are small.
+    deduct = by_filing_status(
+        {status: resolve_year(amounts, y) for status, amounts in NJ_PARAMS["pension_exclusion"].items()}
+    )
+    if y >= 2005:
+        deduct = pl.when(pl.col("nj_hy") <= _p("pension_exclusion_household_income_limit", y)).then(deduct).otherwise(0.0)
+    pensions = pl.col("pensions")
+    excluded = agi - pensions.clip(0, deduct)
+    unused = (deduct - pensions).clip(0, None)
+    earnings = wages + pl.col("psemp") + pl.col("ssemp")
+    excluded = pl.when(earnings <= float(NJ_PARAMS["other_retirement_exclusion_earnings_limit"])).then(
+        excluded - pl.min_horizontal(unused, excluded.clip(0, None))
+    ).otherwise(excluded)
+    agi = pl.when(aged > 0).then(excluded).otherwise(agi)
     df, (agi, capgn) = checkpoint(df, nj_agi=agi - capgn + fullcg, nj_capgn=capgn)
 
     # --- No-tax status ---
@@ -85,18 +167,30 @@ def compute_nj_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         no_tax = agi <= _p("no_tax_threshold_per_taxpayer", y) * nts
 
     # --- Taxable income and tax ---
-    exemp = txp * _p("exemption_per_taxpayer", y) + depx * _p("exemption_per_dependent", y)
+    exemp = (
+        (txp + aged) * _p("exemption_per_taxpayer", y) + depx * _p("exemption_per_dependent", y)
+    )
     df, (taxinc,) = checkpoint(df, nj_taxinc=(agi - exemp).clip(0, None))
+    rentpaid = pl.col("rentpaid")
     rescr = pl.lit(0.0)
     if 1985 <= y <= 1989:
         floor = interpolate_table(taxinc, NJ_PARAMS["property_tax_floor_1985_1989"]) / sep
         pded = pl.when(proptax > 0).then(pl.max_horizontal(floor, proptax)).otherwise(0.0)
+        # Renters without property tax deduct part of their rent.
+        rded = pl.when((proptax < 1) & (rentpaid > 0)).then(
+            pl.max_horizontal(
+                float(NJ_PARAMS["rent_deduction_floor_share_1985_1989"]) * floor,
+                float(NJ_PARAMS["rent_deduction_share_1985_1989"]) * rentpaid,
+            )
+        ).otherwise(0.0)
         applies = agi > _p("no_tax_threshold", y) / sep
         rescr = pl.when(applies).then(
-            NJ_PARAMS["property_tax_excess_credit_rate"] * (pded - taxinc).clip(0, None)
+            NJ_PARAMS["property_tax_excess_credit_rate"] * (pded + rded - taxinc).clip(0, None)
         ).otherwise(0.0)
-        taxinc = pl.when(applies).then((taxinc - pded).clip(0, None)).otherwise(taxinc)
+        taxinc = pl.when(applies).then((taxinc - pded - rded).clip(0, None)).otherwise(taxinc)
     statax = _schedule_tax(taxinc, uses_married, y)
+    rate = pl.when(no_tax).then(0.0).otherwise(_schedule_rate(taxinc, uses_married, y))
+    reported_exemp = pl.when(no_tax).then(0.0).otherwise(exemp)
     df, (statax, taxinc) = checkpoint(
         df,
         nj_tax=pl.when(no_tax).then(0.0).otherwise(statax),
@@ -104,28 +198,46 @@ def compute_nj_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     )
 
     # --- Property tax credits and rebates ---
+    # Property tax counts rent (`comnew(68) > 0`: any federal exemption).
+    ptax = proptax.clip(0, None) + pl.when((rentpaid > 0) & (federal_exemption_count(y) > 0)).then(
+        float(NJ_PARAMS["property_tax_rent_share"]) * rentpaid
+    ).otherwise(0.0)
     pcred = pl.lit(0.0)
-    if 1985 <= y <= 1989:
-        pcred = pl.when((agi <= _p("no_tax_threshold", y) / sep) & (proptax > 0)).then(
-            float(NJ_PARAMS["low_income_homeowner_credit_1985_1989"])
+    if y <= 1984:
+        pcred = pl.when(rentpaid > 0).then(
+            float(NJ_PARAMS["renter_credit_through_1984"])
+            + pl.when(aged > 0).then(float(NJ_PARAMS["renter_credit_aged_addition_through_1984"])).otherwise(0.0)
         ).otherwise(0.0)
+    elif y <= 1989:
+        low = agi <= _p("no_tax_threshold", y) / sep
+        pcred = (
+            pl.when(low & (proptax > 0)).then(float(NJ_PARAMS["low_income_homeowner_credit_1985_1989"]))
+            .when(low & (rentpaid > 0)).then(float(NJ_PARAMS["low_income_renter_credit_1985_1989"]))
+            .otherwise(0.0)
+        )
     rebate = pl.lit(0.0)
-    if 1990 <= y <= 2003:
-        rebate = pl.when((proptax > 0) & (agi < _p("homestead_rebate_income_limit", y))).then(
-            _p("homestead_rebate", y) / sep
-        ).otherwise(0.0)
+    if 1990 <= y <= 2008:
+        rebate = _homestead_rebate(agi, ptax, proptax, rentpaid, aged, uses_married, sep, y)
+        if y >= 2004:
+            rebate = pl.when(rentpaid > 0).then(rebate).otherwise(0.0)
     if y >= 1996:
-        exemp_pr = txp * _p("exemption_per_taxpayer", y) + depx * _p("exemption_per_dependent", y)
+        exemp_pr = exemp
         pded = pl.min_horizontal(
-            _p("property_tax_deduction_cap", y) / sep, _p("property_tax_deduction_share", y) * proptax
+            _p("property_tax_deduction_cap", y) / sep, _p("property_tax_deduction_share", y) * ptax
         )
         df, (income_pr,) = checkpoint(df, nj_taxinc_property=(agi - exemp_pr - pded).clip(0, None))
         statpr = _schedule_tax(income_pr, uses_married, y)
+        rate_pr = _schedule_rate(income_pr, uses_married, y)
         credit_amount = _p("property_tax_credit", y) / sep
-        eligible = proptax > 2
+        eligible = ptax > 2
         take_deduction = eligible & (statax - statpr >= credit_amount)
-        pcred = pl.when(eligible & ~take_deduction & (proptax > 0) & (taxinc > 0)).then(credit_amount).otherwise(pcred)
+        pcred = pl.when(eligible & ~take_deduction & (proptax + rentpaid > 0) & (taxinc > 0)).then(
+            credit_amount
+        ).otherwise(pcred)
         statax = pl.when(take_deduction).then(statpr).otherwise(statax)
+        taxinc = pl.when(take_deduction).then(income_pr).otherwise(taxinc)
+        rate = pl.when(eligible).then(rate_pr).otherwise(rate)
+        reported_exemp = pl.when(eligible).then(exemp_pr).otherwise(reported_exemp)
 
     statax = (statax - rescr - pcred).clip(0, None) - rebate
 
@@ -137,4 +249,13 @@ def compute_nj_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         ).then(earncr).otherwise(0.0)
     statax = statax - earncr
 
-    return df.with_columns(siitax=statax * flate)
+    return with_state_detail(
+        df.with_columns(siitax=statax * flate),
+        agi=agi,
+        exemptions=reported_exemp,
+        taxable_income=taxinc,
+        property_credit=pcred,
+        eic=earncr,
+        credits=rescr + pcred + earncr + rebate,
+        rate=rate,
+    )

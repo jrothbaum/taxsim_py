@@ -29,15 +29,8 @@
 # real 2000+ only (didn't exist before); non-refundable 2000-2002
 # (`min(eirt*fed_eitc, statax-pcred)`), refundable from 2003 on.
 #
-# Scope note, matching this project's established input-schema discipline:
-# `iltax` also reads several fields this project's schema never populates
-# (data(20)/(72) - pension income, always $0; data(22) - a generic "federal
-# itemized deductions" override field used across many state subroutines,
-# never assigned by the standard input reader; data(105) - "dependent of
-# another" flag; data(9)/(10) - elderly/blind counts, gated on unpopulated
-# age inputs; data(34) - a foreign-tax-credit-style catch-all, unpopulated;
-# data(143)/(144) - education expense inputs, not in this project's
-# schema) - all correctly inert/zero here, not silent gaps. The federal
+# Not TAXSIM inputs, so always zero: data(22) (state income tax refunds),
+# blindness, data(34), and data(143)/(144) (education expenses). The federal
 # dividend-exclusion addback (`divexc` function) and the capital-gains-
 # exclusion addback (`comnew(7)=capded`) are both real, and non-negligible
 # for 1977-1986 specifically - state tax years start at 1977 (`statax`
@@ -84,3 +77,6 @@ property_tax_credit_rate:
   1991: 0.05
 property_tax_credit_income_cap:
   2017: 250000
+
+# 1990+: additional exemption per taxpayer 65 or older.
+aged_exemption_1990: 1000

@@ -2,7 +2,7 @@
 name = "taxsim-py"
 version = "0.1.0"
 description = "A dataframe-oriented Python implementation of NBER TAXSIM"
-requires-python = ">=3.13"
+requires-python = ">=3.10"
 dependencies = [
     "polars>=1.44.2",
     "pyyaml>=6.0.3",

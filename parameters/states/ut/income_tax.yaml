@@ -1,0 +1,60 @@
+# Utah individual income tax (TAXSIM `uttax`, taxsim_2024_09_21.f:18602-18869).
+# Brackets are [start, rate] rows converted from TAXSIM's `look2` upper-bound
+# tables (the last rate continues beyond the table). "single" schedules serve
+# single and married-separate filers; "married" ones joint and head of household.
+
+# --- Through 2007 ---
+# Exemption: per federal exemption through 1986, a share of the federal
+# exemption amount 1988-2017 (none is set in 1987, logged).
+exemption_per_person_1986: 750.0
+federal_exemption_share: 0.75
+standard_deduction_1986: {rate: 0.15, low: 1300.0, high: 2000.0}
+# Share of federal tax (with the minimum tax, less nonrefundable credits) deducted.
+federal_tax_share: {1977: 1.0, 1987: 0.0, 1988: 0.33, 1989: 0.5}
+# State income tax deduction reduced 1993-2007 by the federal-style limit.
+itemized_limit_threshold: 100000.0
+itemized_limit_index: {1991: 1.0, 1992: 1.0525, 1993: 1.0845, 1994: 1.118, 1995: 1.147, 1996: 1.1795, 1997: 1.212, 1998: 1.245, 1999: 1.266, 2000: 1.2895, 2001: 1.3295, 2002: 1.373, 2003: 1.395, 2004: 1.427, 2005: 1.4595, 2006: 1.505, 2007: 1.564}
+itemized_limit_share: 0.8
+itemized_limit_rate: 0.03
+brackets:
+  1977: {single: [[0, 0.0225], [750, 0.0325], [1500, 0.0425], [2250, 0.0525], [3000, 0.0625], [3750, 0.0725], [4500, 0.0775]], married: [[0, 0.0275], [1500, 0.0375], [3000, 0.0475], [4500, 0.0575], [6000, 0.0675], [7500, 0.0775]]}
+  1982: {single: [[0, 0.0275], [750, 0.0375], [1500, 0.0475], [2250, 0.0575], [3000, 0.0675], [3750, 0.0775]], married: [[0, 0.0275], [1500, 0.0375], [3000, 0.0475], [4500, 0.0575], [6000, 0.0675], [7500, 0.0775]]}
+  1988: {single: [[0, 0.0255], [750, 0.035], [1500, 0.044], [2250, 0.0535], [3000, 0.0625], [3750, 0.072]], married: [[0, 0.0255], [1500, 0.035], [3000, 0.044], [4500, 0.0535], [6000, 0.0625], [7500, 0.072]]}
+  1996: {single: [[0, 0.0255], [750, 0.035], [1500, 0.044], [2250, 0.0535], [3000, 0.06], [3750, 0.07]], married: [[0, 0.0255], [1500, 0.035], [3000, 0.044], [4500, 0.0535], [6000, 0.06], [7500, 0.07]]}
+  1997: {single: [[0, 0.023], [750, 0.033], [1500, 0.042], [2250, 0.052], [3000, 0.06], [3750, 0.07]], married: [[0, 0.023], [1500, 0.033], [3000, 0.042], [4500, 0.052], [6000, 0.06], [7500, 0.07]]}
+  2001: {single: [[0, 0.023], [863, 0.033], [1726, 0.042], [2588, 0.052], [3450, 0.06], [4313, 0.07]], married: [[0, 0.023], [1726, 0.033], [3450, 0.042], [5176, 0.052], [6900, 0.06], [8626, 0.07]]}
+  2006: {single: [[0, 0.023], [1000, 0.033], [2000, 0.042], [3000, 0.052], [4000, 0.06], [5500, 0.0698]], married: [[0, 0.023], [2000, 0.033], [4000, 0.042], [6000, 0.052], [8000, 0.06], [11000, 0.0698]]}
+# 2007 alternative single-rate tax on AGI.
+single_rate_2007: 0.0535
+# 1988 credit for small tax.
+small_tax_credit_1988: {tax_limit: 80.0, rate: 0.125, cap: 10.0}
+
+# --- 2008 on: flat tax with a taxpayer credit ---
+flat_rate: {2008: 0.05, 2018: 0.0495}
+# 2018 on: exemption per dependent.
+dependent_exemption: {2018: 565.0, 2019: 579.0, 2020: 590.0, 2021: 1750.0}
+taxpayer_credit_rate: 0.06
+taxpayer_credit_phaseout_rate: 0.013
+# Phaseout threshold: head of household, or per taxpayer otherwise, times the index.
+taxpayer_credit_threshold: {head_of_household: 18000.0, per_taxpayer: 12000.0}
+taxpayer_credit_index: {2008: 1.0, 2009: 1.0426, 2010: 1.0446, 2011: 1.06, 2012: 1.0857, 2013: 1.114, 2014: 1.1325, 2015: 1.1504, 2016: 1.1556111, 2017: 1.164833, 2018: 1.188, 2019: 1.21675, 2020: 1.2399, 2021: 1.258}
+salt_cap_2018: 10000.0
+
+# Retirement income deduction (through 2007). Retirement income is pensions
+# and taxable Social Security, plus interest and dividends when a taxpayer
+# is 65 or older. Through 1987: up to the under-65 amount per taxpayer, or
+# the 65-or-older amount for each such taxpayer. From 1988: the under-65
+# amount per taxpayer (limited to retirement income) or the 65-or-older
+# amount per such taxpayer, less half of federal AGI over the phaseout start.
+retirement_deduction_under65: {1977: 4800, 1987: 2500, 1988: 4800}
+retirement_deduction_aged: {1977: 6000, 1987: 3600, 1988: 6000, 1989: 7500}
+retirement_deduction_phaseout_start: {single: 25000, other: 32000}
+retirement_deduction_phaseout_rate: 0.5
+# 2008+ retirement credit: per taxpayer 65 or older, less 2.5% of AGI over
+# the phaseout start (single returns; others the married amount halved for
+# separate filers); plus 6% of taxable Social Security up to an amount per
+# taxpayer under 65.
+retirement_credit_per_aged_taxpayer: 450
+retirement_credit_phaseout_rate: 0.025
+social_security_credit_rate: 0.06
+social_security_credit_per_taxpayer: 288

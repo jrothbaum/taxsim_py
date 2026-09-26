@@ -2,43 +2,21 @@
 
 import polars as pl
 
+from taxsim_py.calculators.payroll import payroll_parts
 from taxsim_py.calculators.federal_pre1987 import PRE1987_PARAMS
-from taxsim_py.engine.brackets import bracket_tax
-from taxsim_py.engine.credits import child_care_credit_rate_pre2021
-from taxsim_py.engine.payroll_tax import household_self_employment_tax
+from taxsim_py.engine.brackets import bracket_rate, bracket_tax
+from taxsim_py.engine.inputs import aged_count, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, load_yaml, resolve_year
 from taxsim_py.engine.state import (
     with_defaults,
     forced_standard,
     interpolate_table as _tablki,
     with_default as _with_default,
+    with_state_detail,
 )
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
 KY_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "ky" / "income_tax.yaml")
-FEDERAL_CREDITS_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "credits.yaml")
-PAYROLL_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "payroll_tax.yaml")
-
-def _raw_ccc(df: pl.DataFrame, year: int) -> pl.Expr:
-    """Reconstruct the uncapped federal child care credit."""
-    ccc_p = FEDERAL_CREDITS_PARAMS["child_care_credit"]
-    max_qualifying_persons = float(resolve_year(ccc_p["max_qualifying_persons"], year))
-    max_expense_per_person = float(resolve_year(ccc_p["max_expense_per_person_pre2021"], year))
-    ccc_rate = child_care_credit_rate_pre2021(
-        pl.col("agi"),
-        phase_start=float(resolve_year(ccc_p["pre2021_phase_start"], year)),
-        top_rate=float(resolve_year(ccc_p["pre2021_rate_top"], year)),
-        floor_rate=float(resolve_year(ccc_p["pre2021_rate_floor"], year)),
-        step_amount=float(resolve_year(ccc_p["pre2021_step_amount"], year)),
-    )
-    num_qualifying_persons = pl.col("dep13").clip(0, max_qualifying_persons)
-    qualifying_expense = pl.col("childcare").clip(0, num_qualifying_persons * max_expense_per_person)
-    ccc_earned_income_cap = pl.when(pl.col("filing_status") == "married_joint").then(
-        pl.min_horizontal(pl.col("pwages"), pl.col("swages"))
-    ).otherwise(pl.col("wages"))
-    ccc_expense = pl.min_horizontal(qualifying_expense, ccc_earned_income_cap).clip(0, None)
-    return ccc_rate * ccc_expense
-
 
 def compute_ky_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     effective_year, flate = resolve_state_year(year)
@@ -46,6 +24,9 @@ def compute_ky_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     df = with_defaults(df, ("proptax", "otheritem", "mortgage", "dividends", "intrec", "depx", "dep13", "childcare"))
     df = _with_default(df, "eitc")
     df = _with_default(df, "ccc")
+    df = _with_default(df, "ccc_uncapped")
+    df = _with_default(df, "taxable_social_security")
+    df = _with_default(df, "federal_chcr")
     df = _with_default(df, "itemized_deduction")
     df = _with_default(df, "salt_capped")
     df = _with_default(df, "state_sales_or_income_tax_ded")
@@ -56,7 +37,7 @@ def compute_ky_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
 
     df = df.with_columns(
         ky_sep=pl.when(pl.col("filing_status") == "married_separate").then(2.0).otherwise(1.0),
-        ky_txp=pl.when(pl.col("filing_status") == "married_joint").then(2.0).otherwise(1.0),
+        ky_txp=taxpayer_count(),
     )
     is_joint = pl.col("filing_status") == "married_joint"
 
@@ -64,16 +45,10 @@ def compute_ky_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     # (undeflated) wages, same technique Alabama/Iowa/Kansas already
     # established.
     df = with_defaults(df, ("psemp", "ssemp"))
-    wage_base = float(resolve_year(PAYROLL_PARAMS["oasdi_wage_base"], year))
-    hi_wage_base = float(resolve_year(PAYROLL_PARAMS["hi_wage_base"], year))
-    net_earnings_factor = float(resolve_year(PAYROLL_PARAMS["se_net_earnings_factor"], year))
-    se_oasdi_rate = float(resolve_year(PAYROLL_PARAMS["se_oasdi_rate"], year))
-    se_hi_rate = float(resolve_year(PAYROLL_PARAMS["se_hi_rate"], year))
-    setax = household_self_employment_tax(
-        pl.col("psemp"), pl.col("ssemp"), pl.col("pwages"), pl.col("swages"),
-        net_earnings_factor, wage_base, se_oasdi_rate, se_hi_rate, hi_wage_base,
-    )
-    df = df.with_columns(ky_setax=setax)
+    setax = payroll_parts(year)["setax"]  # `comnew(175)`, real-year and undeflated
+    # The federal child care credit before the liability limit (`comnew(176)`)
+    # is likewise read undeflated.
+    df = df.with_columns(ky_setax=setax, ky_ccc=pl.col("ccc_uncapped"))
 
     df = deflate_for_extrapolation(
         df,
@@ -82,6 +57,7 @@ def compute_ky_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
             "pwages", "swages", "proptax", "otheritem", "mortgage", "dividends", "intrec",
             "stcg", "ltcg", "ui", "pui", "sui", "agi", "earned_income", "eitc", "ccc",
             "itemized_deduction", "salt_capped", "state_sales_or_income_tax_ded", "fiitax", "amt", "wages",
+            "taxable_social_security", "pensions",
         ],
     )
 
@@ -123,7 +99,8 @@ def compute_ky_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     if effective_year == 2020:
         # `data(58)` (charity_cash) confirmed inert - no-op.
         agi = pl.when(~pl.col("itemizes")).then(agi + pl.min_horizontal(300.0, 0.0)).otherwise(agi)
-    # `comnew(79)` (SS-in-AGI, law>=1984) confirmed inert.
+    if effective_year >= 1984:
+        agi = agi - pl.col("taxable_social_security")
     # `agi=agi-divexc(...)` for 1987-1989 (source comment: "ky keeps
     # after 86 through 1989" the old pre-TRA86 federal dividend
     # exclusion) turned out to be REDUNDANT with, not additional to, the
@@ -141,8 +118,10 @@ def compute_ky_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         lesser_wage = pl.min_horizontal(pl.col("pwages"), pl.col("swages")).clip(0, None)
         twoded = pl.when(is_joint).then((rate_2e * lesser_wage).clip(0, cap_2e)).otherwise(0.0)
         agi = agi + twoded
-    # `data(29)` (IRA) confirmed inert. Retirement-income exclusion
-    # (`data(20)`/`data(72)`) confirmed inert.
+    if effective_year >= 1995:
+        share = float(resolve_year(p["retirement_exclusion_share"], effective_year))
+        cap = float(resolve_year(p["retirement_exclusion_cap"], effective_year))
+        agi = agi - pl.min_horizontal(share * pl.col("pensions"), pl.lit(cap))
     if 1987 <= effective_year <= 1989:
         # 60% LTCG exclusion, gated on a positive net capital gain in AGI.
         capgn = pl.col("stcg") + pl.col("ltcg")
@@ -186,7 +165,7 @@ def compute_ky_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
             cap3 = float(p["low_income_child_deduction_cap_3plus_deps"][1960])
             ceiling = float(p["low_income_child_deduction_income_ceiling"][1960])
             phaseout_start = float(p["low_income_child_deduction_phaseout_start"][1960])
-            raw_ccc = _raw_ccc(df, effective_year) if effective_year >= 1987 else pl.col("ccc")
+            raw_ccc = pl.col("federal_chcr")  # `comnew(53)`
             child = (
                 pl.when((pl.col("depx") > 0) & (pl.col("depx") < 2)).then(pl.min_horizontal(cap1, raw_ccc))
                 .when((pl.col("depx") > 1) & (pl.col("depx") < 3)).then(pl.min_horizontal(cap2, raw_ccc))
@@ -227,36 +206,56 @@ def compute_ky_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         stath = bracket_tax(pl.col("ky_taxinh"), table)
         statw = bracket_tax(pl.col("ky_taxinw"), table)
         statax = pl.when(is_mfc).then(pl.min_horizontal(statax, stath + statw)).otherwise(statax)
+        rate_expr = pl.when(is_mfc).then(bracket_rate(pl.col("ky_taxinw"), table)).otherwise(
+            bracket_rate(pl.col("ky_taxinc"), table)
+        )
     elif effective_year <= 2017:
         table = p["brackets_2005_2017"]
         statax = bracket_tax(pl.col("ky_taxinc"), table)
         stath = bracket_tax(pl.col("ky_taxinh"), table)
         statw = bracket_tax(pl.col("ky_taxinw"), table)
         statax = pl.when(is_mfc).then(pl.min_horizontal(statax, stath + statw)).otherwise(statax)
+        rate_expr = pl.when(is_mfc).then(bracket_rate(pl.col("ky_taxinw"), table)).otherwise(
+            bracket_rate(pl.col("ky_taxinc"), table)
+        )
     else:
         flat_rate = float(p["flat_rate_2018plus"][1960])
         statax = flat_rate * pl.col("ky_taxinc")
+        # The flat formula does not call TAXSIM's bracket lookup, so its
+        # shared reported-rate variable remains zero.
+        rate_expr = pl.lit(0.0)
     df = df.with_columns(ky_statax=statax)
 
     # --- Credits ---
+    df = df.with_columns(
+        ky_gcred=pl.lit(0.0),
+        ky_chcr=pl.lit(0.0),
+        ky_lowcrd=pl.lit(0.0),
+        ky_famcr=pl.lit(0.0),
+        ky_gapcr=pl.lit(0.0),
+    )
     if effective_year <= 1989:
         # 1984-1986 solar credit (`data(38)`) confirmed inert.
         df = df.with_columns(ky_statax=pl.col("ky_statax").clip(0, None))
     else:
         if effective_year < 2004:
             amt = float(p["personal_credit_amount_pre2004"][1960])
-            count = pl.col("ky_txp") + pl.col("depx")  # elderly/blind terms confirmed inert.
+            count = pl.col("ky_txp") + pl.col("depx") + 2.0 * aged_count()
             gcred = amt * count
         elif 2014 <= effective_year <= 2017:
             amt = float(p["personal_credit_amount_2014_2017"][1960])
-            gcred = amt * (pl.col("ky_txp") + pl.col("depx"))
+            gcred = amt * (pl.col("ky_txp") + pl.col("depx")) + p["aged_personal_credit_2014"] * aged_count()
+        elif effective_year >= 2018:
+            gcred = p["aged_personal_credit_2014"] * aged_count()
         else:
-            gcred = pl.lit(0.0)  # 2018+ elderly/blind-only credit confirmed inert.
-        df = df.with_columns(ky_statax=(pl.col("ky_statax") - gcred).clip(0, None))
+            gcred = pl.lit(0.0)
+        df = df.with_columns(ky_gcred=gcred)
+        df = df.with_columns(ky_statax=(pl.col("ky_statax") - pl.col("ky_gcred")).clip(0, None))
 
-        raw_ccc_now = _raw_ccc(df, effective_year) if effective_year <= 1997 else pl.col("ccc")
+        raw_ccc_now = pl.col("ky_ccc")
         chcr_rate = float(p["low_income_care_credit_rate"][1960])
         chcr = raw_ccc_now * chcr_rate
+        df = df.with_columns(ky_chcr=chcr)
 
         if 1990 <= effective_year <= 2004:
             # Brackets checked narrowest-first (a real elif chain, not a
@@ -267,10 +266,12 @@ def compute_ky_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
             for ceiling, rate in reversed(p["low_income_credit_brackets"]):
                 rate_lc = pl.when(pl.col("ky_agi") <= ceiling).then(pl.lit(float(rate))).otherwise(rate_lc)
             lowcrd = pl.col("ky_statax") * rate_lc
-            credit = chcr + lowcrd
-            df = df.with_columns(ky_statax=(pl.col("ky_statax") - credit).clip(0, None))
+            df = df.with_columns(ky_lowcrd=lowcrd)
+            df = df.with_columns(
+                ky_statax=(pl.col("ky_statax") - pl.col("ky_chcr") - pl.col("ky_lowcrd")).clip(0, None)
+            )
         elif effective_year >= 2005:
-            num = pl.min_horizontal(pl.col("ky_txp") + pl.col("depx"), 4.0)  # elderly term confirmed inert.
+            num = pl.min_horizontal(pl.col("ky_txp") + pl.col("depx") + aged_count(), 4.0)
             modagi = pl.max_horizontal(pl.col("ky_agi"), pl.col("agi"))
             aif1 = float(resolve_year(p["family_size_credit_aif_1person"], effective_year))
             aif2 = float(resolve_year(p["family_size_credit_aif_2person"], effective_year))
@@ -284,9 +285,34 @@ def compute_ky_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
                 .otherwise(0.0)
             )
             famcr = pl.col("ky_statax") * perc
-            # The 2019-2020 Income Gap Tax Credit is real but genuinely
-            # vestigial for `siitax` - see module docstring.
-            df = df.with_columns(ky_statax=(pl.col("ky_statax") - famcr - chcr).clip(0, None))
+            df = df.with_columns(ky_famcr=famcr)
+            if effective_year in (2019, 2020):
+                gapcr = (
+                    pl.when((num == 1) & (pl.col("ky_famcr") > 0)).then(
+                        _tablki(modagi / aif1, p["income_gap_credit_table_1person"])
+                    )
+                    .when((num == 2) & (pl.col("ky_famcr") > 0)).then(
+                        _tablki(modagi / aif2, p["income_gap_credit_table_2person"])
+                    )
+                    .when((num == 3) & (pl.col("ky_famcr") > 0)).then(
+                        _tablki(modagi / aif3, p["income_gap_credit_table_3person"])
+                    )
+                    .otherwise(0.0)
+                )
+                df = df.with_columns(ky_gapcr=gapcr)
+            # `ky_gapcr` is reported but is deliberately not subtracted.
+            df = df.with_columns(
+                ky_statax=(pl.col("ky_statax") - pl.col("ky_famcr") - pl.col("ky_chcr")).clip(0, None)
+            )
 
     df = df.with_columns(siitax=pl.col("ky_statax") * flate)
-    return df
+    return with_state_detail(
+        df,
+        agi=pl.col("ky_agi"),
+        standard_deduction=pl.col("ky_stded"),
+        itemized_deductions=pl.col("ky_xitded"),
+        taxable_income=pl.col("ky_taxinc"),
+        child_care_credit=pl.col("ky_chcr"),
+        credits=pl.col("ky_gcred") + pl.col("ky_chcr") + pl.col("ky_lowcrd") + pl.col("ky_famcr") + pl.col("ky_gapcr"),
+        rate=rate_expr,
+    )

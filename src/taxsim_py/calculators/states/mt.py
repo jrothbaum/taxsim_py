@@ -2,18 +2,24 @@
 
 import polars as pl
 
-from taxsim_py.engine.brackets import bracket_tax
+from taxsim_py.engine.brackets import bracket_rate, bracket_tax
+from taxsim_py.calculators.payroll import payroll_parts
+from taxsim_py.engine.inputs import aged_count, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, load_yaml, resolve_year
 from taxsim_py.engine.state import (
     with_defaults,
     by_filing_status,
     checkpoint,
+    household_income,
+    interpolate_table,
     unemployment_total,
     forced_standard,
+    with_state_detail,
 )
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
 MT_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "mt" / "income_tax.yaml")
+STATE_ADJUSTMENT_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "state_adjustments.yaml")
 CAPITAL_GAINS_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "capital_gains.yaml")
 
 
@@ -40,16 +46,26 @@ def compute_mt_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     df = with_defaults(df, (
         "proptax", "otheritem", "mortgage", "depx", "childcare", "charity_cash", "stcg", "ltcg",
         "ui", "pui", "sui", "state_sales_or_income_tax_ded", "taxable_unemployment", "itemized_deduction",
-        "fiitax", "eitc",
+        "fiitax", "eitc", "intrec", "pensions", "gssi", "taxable_social_security", "transfers", "rentpaid",
     ))
 
-    df = df.with_columns(mt_ui=unemployment_total())
+    adjustments = [
+        float(resolve_year(STATE_ADJUSTMENT_PARAMS[name], y))
+        for name in ("household_income_dividend_adjustment", "household_income_record_adjustment")
+    ]
+    # Household income (`hy`) is read before TAXSIM's projected-year deflation.
+    df = df.with_columns(
+        mt_ui=unemployment_total(),
+        mt_hy=household_income(*adjustments),
+        mt_half_setax=0.5 * payroll_parts(year)["setax"],
+    )
     df = deflate_for_extrapolation(
         df, flate,
         [
             "pwages", "swages", "proptax", "otheritem", "mortgage", "childcare", "charity_cash", "stcg", "ltcg",
             "mt_ui", "state_sales_or_income_tax_ded", "taxable_unemployment", "itemized_deduction", "agi",
-            "fiitax", "eitc",
+            "fiitax", "eitc", "intrec", "pensions", "gssi", "taxable_social_security", "transfers", "rentpaid",
+            "mt_half_setax",
         ],
     )
 
@@ -58,7 +74,8 @@ def compute_mt_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     is_sep = status == "married_separate"
     is_hoh = status == "head_of_household"
     sep = pl.when(is_sep).then(2.0).otherwise(1.0)
-    ntp = pl.when(is_joint).then(2.0).otherwise(1.0)
+    ntp = taxpayer_count()
+    aged = aged_count()
     depx = pl.col("depx")
     salt_ded = pl.col("state_sales_or_income_tax_ded")
     fed_agi = pl.col("agi")
@@ -70,15 +87,64 @@ def compute_mt_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         capgn = fullcg
 
     # --- Montana AGI ---
+    # `subtr` collects Montana's subtractions for the Social Security worksheet.
     agi = fed_agi
     if y == 2020:
         agi = agi + pl.col("mt_ui") - pl.col("taxable_unemployment")
-    agi = agi - _p("capital_gains_exclusion_rate", y) * capgn.clip(0, None)
+    cg_exclusion = _p("capital_gains_exclusion_rate", y) * capgn.clip(0, None)
+    agi = agi - cg_exclusion
+    subtr = cg_exclusion + pl.col("mt_ui")
+    if y >= 1981:
+        excint = pl.min_horizontal(pl.col("intrec"), _p("aged_interest_exclusion", y) * aged)
+        agi = agi - excint
+        subtr = subtr + excint
+    if y >= 1991:
+        # Retirement income exclusion for taxpayers 65 or older.
+        index = _p("retirement_exclusion_inflation", y)
+        pensions = pl.col("pensions")
+        retmax = pl.min_horizontal(
+            _p("retirement_exclusion_max", y) * (aged * index if y >= 2010 else 1.0), pensions
+        )
+        delta = _p("retirement_exclusion_per_taxpayer", y) * ntp * index
+        agiret = _p("retirement_exclusion_income_start", y) * index
+        rate = _p("retirement_exclusion_phaseout_rate", y)
+        agi_each = fed_agi / aged
+        retexc = aged * (pl.min_horizontal(delta, pensions / aged) - rate * (agi_each - agiret).clip(0, None)).clip(0, None)
+        retexc = (
+            pl.when(agi_each < agiret).then(retmax)
+            .when(agi_each < agiret + delta).then((retmax - rate * (fed_agi - agiret)).clip(0, None))
+            .otherwise(retexc)
+        )
+        retexc = pl.when(aged > 0).then(retexc).otherwise(0.0)
+        agi = (agi - retexc).clip(0, None)
+        subtr = subtr + retexc
     if y >= 1984:
         agi = agi - pl.col("mt_ui")
         agi = agi + pl.when(is_sep & (fullcg < 0)).then(
             pl.max_horizontal(pl.lit(_p("separate_capital_loss_floor", y)), fullcg)
         ).otherwise(0.0)
+    # Social Security on Montana's worksheet in place of the federal amount.
+    ssagi = pl.lit(0.0)
+    if y >= 1984:
+        gssi = pl.col("gssi")
+        provisional = 0.5 * gssi + fed_agi - pl.col("taxable_social_security") + pl.col("transfers")
+        xl8 = subtr + pl.col("mt_half_setax")
+        single_class = pl.col("filing_status").is_in(["single", "head_of_household"])
+        base_1 = pl.when(single_class).then(float(MT_PARAMS["social_security_base"]["single"])).otherwise(
+            float(MT_PARAMS["social_security_base"]["married"]) / sep
+        )
+        base_2 = pl.when(single_class).then(float(MT_PARAMS["social_security_second_base"]["single"])).otherwise(
+            float(MT_PARAMS["social_security_second_base"]["married"]) / sep
+        )
+        xl11 = provisional - xl8 - base_1
+        rate_1, rate_2 = float(MT_PARAMS["social_security_rate_1"]), float(MT_PARAMS["social_security_rate_2"])
+        worksheet = pl.min_horizontal(
+            pl.min_horizontal(rate_1 * gssi, rate_1 * pl.min_horizontal(xl11, base_2))
+            + rate_2 * (xl11 - base_2).clip(0, None),
+            rate_2 * gssi,
+        )
+        ssagi = pl.when((gssi > 0) & (xl8 <= provisional)).then(worksheet).otherwise(0.0)
+    agi = agi - pl.col("taxable_social_security") + ssagi
 
     df, (agi, capgn) = checkpoint(df, mt_agi=agi, mt_capgn=capgn)
 
@@ -109,9 +175,10 @@ def compute_mt_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     if y == 2008:
         rebate = MT_PARAMS["federal_tax_rebate_2008"]
         fed_tax = fed_tax - rebate["per_taxpayer"] * ntp - rebate["per_dependent"] * depx
-    xitded = (deducp - salt_ded).clip(0, None) + pl.min_horizontal(
-        _p("federal_tax_deduction_cap_per_taxpayer", y) * ntp, fed_tax.clip(0, None)
-    )
+    fed_tax = fed_tax.clip(0, None)
+    if y >= 2005:
+        fed_tax = pl.min_horizontal(_p("federal_tax_deduction_cap_per_taxpayer", y) * ntp, fed_tax)
+    xitded = (deducp - salt_ded).clip(0, None) + fed_tax
     if 1991 <= y <= 2017:
         if y >= 2013:
             threshold = (
@@ -141,7 +208,7 @@ def compute_mt_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
 
     # --- Exemptions and tax ---
     xmp = _p("exemption", y)
-    exemp = (ntp + depx) * xmp
+    exemp = (ntp + depx + aged) * xmp
     df, (taxinc,) = checkpoint(df, mt_taxinc=(agi - deduc - exemp).clip(0, None))
     brackets = _brackets(y)
     df, (statax,) = checkpoint(df, mt_table_tax=bracket_tax(taxinc, brackets))
@@ -160,19 +227,60 @@ def compute_mt_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     use_itemized = xitded > split_stded
     dedh = pl.when(use_itemized).then(xitd_each).otherwise(stdh)
     dedw = pl.when(use_itemized).then(xitd_each).otherwise(stdw)
-    exempw = pl.lit(xmp)
+    exempw = pl.when(aged > 0).then(2.0 * xmp).otherwise(xmp)
     exemph = exemp - exempw
     split_tax = bracket_tax((agih - dedh - exemph).clip(0, None), brackets) + bracket_tax(
         (agiw - dedw - exempw).clip(0, None), brackets
     )
+    rate = pl.when(is_joint).then(
+        bracket_rate((agiw - dedw - exempw).clip(0, None), brackets)
+    ).otherwise(bracket_rate(taxinc, brackets))
     statax = pl.when(is_joint).then(pl.min_horizontal(statax, split_tax)).otherwise(statax)
     df, (statax,) = checkpoint(df, mt_tax=statax * _p("surtax", y))
 
     # --- Credits ---
     cgcred = _p("capital_gains_credit_rate", y) * capgn.clip(0, None)
     statax = (statax - cgcred).clip(0, None)
-    if y == 2007:
-        statax = statax - pl.when(pl.col("proptax") > 0).then(float(MT_PARAMS["homeowner_credit_2007"])).otherwise(0.0)
-    statax = statax - _p("eitc_match_rate", y) * pl.col("eitc")
 
-    return df.with_columns(siitax=statax * flate)
+    # Elderly homeowner/renter credit (refundable).
+    pcred = pl.lit(0.0)
+    if y >= 1981:
+        hy = pl.col("mt_hy")
+        rent_share = float(MT_PARAMS["elderly_credit_rent_share"]) * pl.col("rentpaid")
+        if y == 1981:
+            ptax = pl.max_horizontal(pl.col("proptax"), rent_share)
+        else:
+            ptax = pl.col("proptax") + rent_share
+        multiplier = interpolate_table(hy, MT_PARAMS["elderly_credit_multiplier"])
+        if y <= 1982:
+            pcred = (ptax - hy * multiplier).clip(0, float(MT_PARAMS["elderly_credit_max_1981_1982"]))
+        else:
+            hy1 = (hy - _p("elderly_credit_income_exclusion", y)).clip(0, None)
+            hynet = interpolate_table(hy1, MT_PARAMS["elderly_credit_income_share"]) * hy1
+            pcred = (ptax - hynet).clip(0, _p("elderly_credit_max", y))
+            if y == 1998:
+                pcred = pl.when(hy >= float(MT_PARAMS["elderly_credit_income_limit_1998"])).then(0.0).otherwise(pcred)
+            if y >= 1999:
+                pcred = multiplier * pcred
+        pcred = pl.when(aged > 0).then(pcred).otherwise(0.0)
+        statax = statax - pcred
+    howcrd = pl.lit(0.0)
+    if y == 2007:
+        howcrd = pl.when(pl.col("proptax") > 0).then(float(MT_PARAMS["homeowner_credit_2007"])).otherwise(0.0)
+        statax = statax - howcrd
+    earncr = _p("eitc_match_rate", y) * pl.col("eitc")
+    statax = statax - earncr
+
+    reported_stded = pl.when(is_joint & (pl.lit(y) >= 1981)).then(split_stded).otherwise(stded)
+    return with_state_detail(
+        df.with_columns(siitax=statax * flate),
+        agi=agi,
+        exemptions=exemp,
+        standard_deduction=reported_stded,
+        itemized_deductions=xitded,
+        taxable_income=taxinc,
+        property_credit=pcred,
+        eic=earncr,
+        credits=cgcred + pcred + howcrd + earncr,
+        rate=rate,
+    )

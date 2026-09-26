@@ -19,7 +19,13 @@ Import these from `taxsim_py.engine.state`.
 | `household_income(dividend_adjustment, record_adjustment)` | TAXSIM's household-income total (`data(159)`) from raw inputs; pass the two adjustments from `state_adjustments.yaml`. |
 | `dividend_exclusion_addback(year, dividend_adjustment)` | The federal dividend exclusion states add back to federal AGI (TAXSIM `divexc`); zero from 1987. |
 | `checkpoint(df, **expressions)` | Storing intermediate results as columns and getting references back, so a result used several times is computed once (see Architecture: expression size). |
+| `pre1987_federal_itemizing(year)` | Through 1986: the federal gross itemized total (`comnew(30)`), whether the federal return itemizes (`comnew(26)`, following the resolver's forced choice from 1982) and the zero bracket (`comnew(3)`). |
 | `itemize_choice(natural)`, `forced_itemized()`, `forced_standard()` | Reading the resolver's `force_itemize` column: the forced choice where set, else the natural comparison; or tests for a forced choice. |
+| `with_state_detail(df, **values)` | Ending a state calculator: stores the worksheet TAXSIM prints at `idtl=2` (`agi`, `exemptions`, `standard_deduction`, `itemized_deductions`, `taxable_income`, `property_credit`, `child_care_credit`, `eic`, `credits`, `rate` as a fraction) as `state_*` columns; omitted values report 0. |
+
+`engine.inputs` holds the TAXSIM input counts states read: `filing_status()`,
+`taxpayer_count()` (`data(7)`), `is_dependent_filer()` (`data(105)`),
+`aged_count()` (`data(9)`) and `federal_exemption_count(year)` (`comnew(68)`).
 
 Typical imports:
 

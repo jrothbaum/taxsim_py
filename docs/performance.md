@@ -12,6 +12,77 @@ uv run scripts/benchmark_execution.py MA ME MI \
 The script verifies that every run produces the same `siitax` and reports state,
 federal, and nested-federal call counts.
 
+Use `scripts/benchmark_multistate.py` to compare mixed-state, mixed-year API
+scaling with the compiled Fortran executable:
+
+```bash
+uv run scripts/benchmark_multistate.py \
+  --rows 100 1000 10000 100000 250000 --repeats 3
+```
+
+It reports the Python dataframe API, raw Fortran execution with pre-serialized
+input, and Fortran end-to-end time including dataframe serialization and output
+parsing. Each timing is the median after a warmup.
+
+### Mixed API versus Fortran (September 2026)
+
+Eight states (AL, CA, CT, MA, MI, MN, NY, OH), four years (1990, 2000,
+2010, 2020), 32 state-year partitions, and three repeats per measurement:
+
+| Rows | Python API | Fortran execution | Fortran dataframe | Python rows/s | Fortran execution rows/s |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 100 | 0.313 s | 0.003 s | 0.004 s | 319 | 33,894 |
+| 1,000 | 0.316 s | 0.020 s | 0.023 s | 3,160 | 50,576 |
+| 10,000 | 0.347 s | 0.176 s | 0.200 s | 28,781 | 56,974 |
+| 25,000 | 0.399 s | 0.455 s | 0.500 s | 62,683 | 54,901 |
+| 50,000 | 0.440 s | 0.888 s | 0.989 s | 113,608 | 56,333 |
+| 100,000 | 0.618 s | 1.814 s | 1.942 s | 161,708 | 55,128 |
+| 250,000 | 1.312 s | 4.365 s | 5.041 s | 190,607 | 57,269 |
+
+The Python path has about 0.3 seconds of fixed plan construction and feedback
+cost for these 32 partitions when four independent years run concurrently.
+Raw Fortran is faster below roughly 22,000 rows; the dataframe-to-dataframe
+crossover, including Fortran text serialization and parsing, is roughly 19,000
+rows. Above the crossover the Polars pipeline has higher throughput on this
+workload.
+
+After every state gained the remaining TAXSIM inputs (ages, pensions,
+Social Security, rent, business income, dependent filers), the same benchmark
+takes 0.60 s at 100 rows, 0.66 s at 10,000 rows and 1.81 s at 250,000 rows
+(137,905 rows/s). The added fixed cost is Polars optimizing the larger
+federal and state plans (each federal feedback pass collect takes about
+0.05 s at 100 rows), not Python expression building.
+
+With the state detail outputs and TAXSIM's analytic federal rate for
+1987-2000 (September 2026) it takes 0.74 s at 100 rows, 0.78 s at 10,000 rows
+and 1.99 s at 250,000 rows (125,440 rows/s). Measured directly, the analytic
+rate adds about 0.03 s per call and the state detail expressions about 0.01 s;
+the rest of the difference from the figures above came with other calculator
+changes in between.
+
+Before year-level concurrency, the same Python measurements were 0.818 seconds
+at 100 rows, 0.898 seconds at 10,000 rows, and 1.389 seconds at 100,000 rows.
+Running the four years concurrently improved those calls by 2.1-2.6x. An
+eight-year test improved by 3.1-3.8x with eight workers.
+
+A fused alternative built every year's federal plans sequentially, collected
+them together, then collected all state-year plans together. It produced
+identical results but took 0.73, 0.78, and 1.12 seconds at 100, 10,000, and
+100,000 rows respectively, versus 0.32, 0.36, and 0.63 seconds for threaded
+year resolvers. Parallel expression construction is more valuable than a
+single cross-year `collect_all` for the current calculators.
+
+Projecting the final state plans to `siitax` for the normal API path avoids
+materializing state worksheet columns and cut the 100,000-row call by about
+12%. Batching repeated federal and state default-column checks reduces lazy
+schema resolution overhead, primarily benefiting small batches.
+
+For marginal-rate calls, stacking base and upward-perturbed records into one
+resolver call reduced 100, 10,000, and 100,000-row measurements from 0.61,
+0.84, and 1.35 seconds to 0.32, 0.53, and 1.19 seconds respectively. Large
+batches gain less because they still perform the arithmetic for twice as many
+rows.
+
 ## Current Execution Model
 
 Federal, payroll and state calculators accept `DataFrame` or `LazyFrame`. For
@@ -29,9 +100,26 @@ state calculations. Given a mapping of state code to calculator, one federal
 pass serves records from several states. Splitting a batch repeats the fixed
 cost for every chunk.
 
-The state validation harness runs one job per year, holding every selected
-state's records, in parallel worker processes (8 workers, 2 Polars threads
-each). Parameter YAML is parsed with the C loader.
+`taxsim_py.calculate_taxes` is the public dispatcher. It collects a lazy input
+once, partitions mixed-year inputs by year, and lazy-loads only the state
+calculator modules needed by the batch. Within each year it uses the shared
+federal pass and state partitioning described above. Independent year
+partitions run in a thread pool capped by the number of years. Its default
+maximum is Polars' thread pool size, so `POLARS_MAX_THREADS` caps both Polars
+and the year workers; pass `max_year_workers` to override it. Scalar-year
+calls do not create a pool. Across all 135,435 validation cases (47 years, 34
+states) threaded and single-worker runs give identical results; threading took
+6.1 seconds against 19.9 seconds.
+
+The state validation harness puts every selected state's cases in one batch
+with unique ids and makes one `calculate_taxes` call, so each year's federal
+pass is shared across states and years run concurrently; the oracle runs on
+the same batch in a background thread, with Oregon's 2019 records last (the
+oracle carries Oregon's 2019 surplus credit into later records). A 2023 case
+counts as an expected difference when our federal income tax, payroll tax or
+standard deduction differs from the oracle's (known real-parameter choices). All 45 income-tax states (265,925 cases, run
+with `idtl=2`) take about 25 seconds, one state 2-3 seconds. `POLARS_MAX_THREADS` limits
+its threads like any other caller. Parameter YAML is parsed with the C loader.
 
 Fixed cost per call is dominated by expression size, not rows (see
 [Architecture: Expression Size](architecture.md#expression-size)). Bracket and
