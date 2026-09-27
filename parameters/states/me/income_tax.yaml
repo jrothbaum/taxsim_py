@@ -481,3 +481,26 @@ property_tax_credit_1988:
 ptfc_rent_share:
   2013: 0.2125
   2014: 0.1275
+
+# Bracket income divisor (`texp`) by filing status.
+bracket_income_divisor:
+  married_joint: 2
+  head_of_household: 1.5
+  other: 1
+
+# Minimum tax: through 1985 and 1991-2011 a share of federal AMT above
+# regular tax; 1986-1990 a share of federal AMT income less Maine tax.
+minimum_tax_share_of_federal_amt:
+  1977: 0.15
+  1991: 0.27
+minimum_tax_rate_1986_1990: 0.03
+
+# Property Tax Fairness Credit: 2013 benefit share of property tax above a
+# share of income; 2014-2017 benefit share and income share (2018+ the
+# full excess over the income share).
+ptfc_2013: {income_share: 0.1, benefit_share: 0.4}
+ptfc_2014_2017_benefit_share: 0.5
+ptfc_income_share_2014plus: 0.06
+
+# Sales Tax Fairness Credit falls by $1 per this much income above the threshold.
+stfc_phaseout_step: 50

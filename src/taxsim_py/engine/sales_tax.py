@@ -36,7 +36,13 @@ def state_sales_tax_deduction(
         b = pl.when(is_state).then(pl.lit(float(b_value))).otherwise(b)
         c = pl.when(is_state).then(pl.lit(float(c_value))).otherwise(c)
     in_table = state_code.is_between(1, len(coefficients))
-    deflated = factor * household_resources
+    # TAXSIM's single-precision `saletx` path behaves as if very small
+    # positive resources are floored just above one cent before the log.
+    # This only affects worksheet cents on near-zero-income itemizers.
+    resources = pl.when(household_resources > 0).then(household_resources.clip(0.011, None)).otherwise(
+        household_resources
+    )
+    deflated = factor * resources
     return (
         pl.when(in_table & (household_resources > 0) & (family_size > 0))
         .then((a + b * deflated.log() + c * family_size.log()).exp() / factor)

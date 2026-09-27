@@ -3,22 +3,19 @@
 import polars as pl
 
 from taxsim_py.engine.brackets import bracket_rate, bracket_tax
-from taxsim_py.engine.inputs import aged_count, is_dependent_filer, taxpayer_count
-from taxsim_py.engine.schema import PARAMETERS_ROOT, load_yaml, resolve_year
-from taxsim_py.engine.state import checkpoint, interpolate_table, tier_values, with_defaults, with_state_detail
+from taxsim_py.engine.inputs import aged_count, files_joint, files_separate, is_dependent_filer, taxpayer_count
+from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml, resolve_year
+from taxsim_py.engine.state import checkpoint, interpolate_table, tier_values, with_state_detail
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
 OH_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "oh" / "income_tax.yaml")
 
 
-def _p(name: str, year: int) -> float:
-    return float(resolve_year(OH_PARAMS[name], year))
-
-
 def _brackets(y: int) -> list[list[float]]:
+    p = YearParams(OH_PARAMS, y)
     brackets = resolve_year(OH_PARAMS["brackets"], y)
     if 2008 <= y <= 2012:
-        factor = _p("bracket_inflation", y)
+        factor = p.num("bracket_inflation")
         return [[float(start) * factor, float(rate)] for start, rate in brackets]
     return brackets
 
@@ -43,22 +40,11 @@ def compute_oh_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     """Calculate Ohio income tax for each row."""
     effective_year, flate = resolve_state_year(year)
     y = effective_year
-    p = OH_PARAMS
-    df = with_defaults(df, (
-        "psemp", "ssemp", "depx", "taxable_unemployment", "earned_income", "ccc_uncapped", "eitc",
-        "se_adjustment", "pre1987_twoded", "pensions", "taxable_social_security", "nonprop",
-    ))
-    df = deflate_for_extrapolation(
-        df, flate,
-        [
-            "pwages", "swages", "psemp", "ssemp", "agi", "taxable_unemployment", "earned_income", "eitc",
-            "se_adjustment", "pensions", "taxable_social_security", "nonprop",
-        ],
-    )
+    p = YearParams(OH_PARAMS, effective_year)
+    df = deflate_for_extrapolation(df, flate)
 
-    status = pl.col("filing_status")
-    is_joint = status == "married_joint"
-    sep = pl.when(status == "married_separate").then(2.0).otherwise(1.0)
+    is_joint = files_joint()
+    sep = pl.when(files_separate()).then(2.0).otherwise(1.0)
     taxpayers = taxpayer_count()
     aged = aged_count()
     depx = pl.col("depx")
@@ -77,7 +63,7 @@ def compute_oh_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     business_rate = pl.lit(0.0)
     if y >= 2015:
         business = (pl.col("psemp") + pl.col("ssemp")).clip(0, None)
-        busded = pl.min_horizontal(_p("business_deduction_share", y) * business, _p("business_deduction_cap", y) / sep)
+        busded = pl.min_horizontal(p.num("business_deduction_share") * business, p.num("business_deduction_cap") / sep)
         agi = agi - busded
         businc = (business - busded).clip(0, None)
         statb = bracket_tax(businc, p["business_brackets"])
@@ -85,14 +71,14 @@ def compute_oh_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     df, (agi, businc) = checkpoint(df, oh_agi=agi, oh_businc=businc)
 
     # --- Exemptions ---
-    amount = _p("exemption", y)
+    amount = p.num("exemption")
     if 1996 <= y <= 1998:
-        exemp = amount * taxpayers + _p("dependent_exemption_1996_1998", y) * depx
+        exemp = amount * taxpayers + p.num("dependent_exemption_1996_1998") * depx
     else:
         if y >= 2014:
             amount = (
-                pl.when(agi <= p["exemption_low_income_agi"]).then(_p("exemption_low_income", y))
-                .when(agi <= p["exemption_middle_income_agi"]).then(_p("exemption_middle_income", y))
+                pl.when(agi <= p["exemption_low_income_agi"]).then(p.num("exemption_low_income"))
+                .when(agi <= p["exemption_middle_income_agi"]).then(p.num("exemption_middle_income"))
                 .otherwise(amount)
             )
         exemp = amount * exemptions
@@ -171,13 +157,13 @@ def compute_oh_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         statax = bracket_tax(taxinc, brackets)
         rate = bracket_rate(taxinc, brackets)
         if y >= 2017:
-            statax = pl.when(taxinc <= _p("zero_bracket", y)).then(0.0).otherwise(statax)
+            statax = pl.when(taxinc <= p.num("zero_bracket")).then(0.0).otherwise(statax)
         statax = statax + statb
         statax = (statax - regcr).clip(0, None)
         statax = (statax - excred).clip(0, None)
         df, (statax,) = checkpoint(df, oh_statax=statax)
         if y >= 2013:
-            earncr = _p("eitc_rate", y) * pl.col("eitc")
+            earncr = p.num("eitc_rate") * pl.col("eitc")
             if y <= 2018:
                 earncr = pl.when(taxinc + businc > p["eitc_income_limit"]).then(
                     pl.min_horizontal(earncr, p["eitc_tax_share_limit"] * statax)

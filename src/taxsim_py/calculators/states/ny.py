@@ -5,10 +5,10 @@ import polars as pl
 from taxsim_py.calculators.federal_pre1987 import PRE1987_PARAMS
 from taxsim_py.engine.brackets import bracket_rate, bracket_tax
 from taxsim_py.engine.eitc import eitc_age_eligible, eitc_filer_eligible, federal_eitc
-from taxsim_py.engine.inputs import aged_count, federal_exemption_count, is_dependent_filer, taxpayer_count
-from taxsim_py.engine.schema import PARAMETERS_ROOT, load_yaml, resolve_year
+from taxsim_py.engine.inputs import aged_count, federal_exemption_count, files_head_of_household, files_joint, files_separate, files_single, is_dependent_filer, taxpayer_count
+from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml, resolve_year
 from taxsim_py.engine.state import (
-    with_defaults,
+    dividend_input_adjustment,
     itemize_choice,
     by_filing_status,
     checkpoint,
@@ -16,13 +16,11 @@ from taxsim_py.engine.state import (
     interpolate_table,
     tier_values,
     unemployment_total,
-    with_default,
     with_state_detail,
 )
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
 NY_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "ny" / "income_tax.yaml")
-STATE_ADJUSTMENT_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "state_adjustments.yaml")
 CAPITAL_GAINS_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "capital_gains.yaml")
 FEDERAL_EITC_PARAMS = pl.read_csv(PARAMETERS_ROOT / "national" / "eitc.csv")
 FEDERAL_EITC_MISC = load_yaml(PARAMETERS_ROOT / "national" / "eitc_misc.yaml")
@@ -30,14 +28,6 @@ _STATUSES = ["single", "married_joint", "married_separate", "head_of_household"]
 # Rate-schedule class by filing status.
 _CLASS = {"single": "single", "married_separate": "single", "head_of_household": "head_of_household",
           "married_joint": "married"}
-
-
-def _p(name: str, year: int) -> float:
-    return float(resolve_year(NY_PARAMS[name], year))
-
-
-def _adj(name: str, year: int) -> float:
-    return float(resolve_year(STATE_ADJUSTMENT_PARAMS[name], year))
 
 
 def _scaled(brackets: list[list[float]], factor: float) -> list[list[float]]:
@@ -50,13 +40,14 @@ def _by_class(values: dict) -> pl.Expr:
 
 def _schedule(status: pl.Expr, taxinc: pl.Expr, y: int) -> tuple[pl.Expr, pl.Expr]:
     """Rate-schedule tax and marginal rate."""
+    p = YearParams(NY_PARAMS, y)
     if y <= 1985:
         brackets = resolve_year(NY_PARAMS["brackets_1977_1985"], y)
         return bracket_tax(taxinc, brackets), bracket_rate(taxinc, brackets)
     if y == 1986:
         brackets = NY_PARAMS["brackets_1986"]
         return bracket_tax(taxinc, brackets), bracket_rate(taxinc, brackets)
-    factor = _p("bracket_inflation", y) if 2012 <= y <= 2017 else 1.0
+    factor = p.num("bracket_inflation") if 2012 <= y <= 2017 else 1.0
     tax = pl.lit(0.0)
     rate = pl.lit(0.0)
     for status_name, cls in _CLASS.items():
@@ -73,7 +64,7 @@ def _blend(statax: pl.Expr, target: pl.Expr, ratio: pl.Expr, addition: float = 0
 
 def _recapture(statax: pl.Expr, taxinc: pl.Expr, agi: pl.Expr, rt: pl.Expr, status: pl.Expr, y: int) -> pl.Expr:
     """High-income recapture of the benefit of lower brackets."""
-    p = NY_PARAMS
+    p = YearParams(NY_PARAMS, y)
     start = float(p["recapture_start"])
     span = float(p["recapture_range"])
     is_single_class = status.is_in(["single", "married_separate"])
@@ -146,9 +137,9 @@ def _recapture(statax: pl.Expr, taxinc: pl.Expr, agi: pl.Expr, rt: pl.Expr, stat
     if y >= 2021:
         return _recapture_real_2021(statax, taxinc, agi, status)
     if y >= 2012:
-        a = _p("bracket_inflation", y)
-        r = [float(v) for v in resolve_year(p["recapture_2012_rates"], y)]
-        add = [float(v) for v in resolve_year(p["recapture_2012_additions"], y)]
+        a = p.num("bracket_inflation")
+        r = [float(v) for v in p.value("recapture_2012_rates")]
+        add = [float(v) for v in p.value("recapture_2012_additions")]
         b = p["recapture_2012_bounds"]
         base = b["base_agi"] * a
         phase = float(b["phase"])
@@ -254,40 +245,23 @@ def compute_ny_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     """Calculate New York income tax for each row."""
     effective_year, flate = resolve_state_year(year)
     y = effective_year
-    p = NY_PARAMS
-    df = with_defaults(df, (
-        "dividends", "intrec", "psemp", "ssemp", "stcg", "ltcg", "ui", "pui", "sui", "proptax", "otheritem",
-        "mortgage", "depx", "dep17", "dep18", "childcare", "charity_cash", "state_sales_or_income_tax_ded",
-        "itemized_deduction", "standard_deduction", "taxable_unemployment", "earned_income", "eitc", "regular_tax",
-        "amt", "ccc", "ccc_uncapped", "odc", "actc", "pre1987_capgn", "pre1987_pref", "pensions",
-        "taxable_social_security", "rentpaid", "otherprop",
-    ))
-    df = with_default(df, "itemizes", False)
-    dividend_adjustment = _adj("household_income_dividend_adjustment", y)
+    p = YearParams(NY_PARAMS, effective_year)
+    dividend_adjustment = dividend_input_adjustment()
     df = df.with_columns(
-        ny_hy=household_income(dividend_adjustment, _adj("household_income_record_adjustment", y)),
+        ny_household_income_undeflated=household_income(),
         ny_ui=unemployment_total(),
         ny_dividends=pl.col("dividends") + dividend_adjustment,
         # Federal tax before credits (`comnew(137)`) is not deflated when a
         # later year is projected.
         ny_taxbca=pl.col("regular_tax") + pl.col("amt"),
     )
-    df = deflate_for_extrapolation(
-        df, flate,
-        [
-            "pwages", "swages", "ny_dividends", "intrec", "psemp", "ssemp", "stcg", "ltcg", "ny_ui", "proptax",
-            "otheritem", "mortgage", "childcare", "charity_cash", "state_sales_or_income_tax_ded", "agi",
-            "itemized_deduction", "standard_deduction", "taxable_unemployment", "earned_income", "eitc",
-            "regular_tax", "amt", "ccc", "odc", "actc", "pre1987_capgn", "pre1987_pref", "pensions",
-            "taxable_social_security", "rentpaid", "otherprop",
-        ],
-    )
+    df = deflate_for_extrapolation(df, flate, extra=("ny_dividends", "ny_ui"))
 
     status = pl.col("filing_status")
-    is_single = status == "single"
-    is_joint = status == "married_joint"
-    is_sep = status == "married_separate"
-    is_hoh = status == "head_of_household"
+    is_single = files_single()
+    is_joint = files_joint()
+    is_sep = files_separate()
+    is_hoh = files_head_of_household()
     sep = pl.when(is_sep).then(2.0).otherwise(1.0)
     txp = taxpayer_count()
     aged = aged_count()
@@ -340,7 +314,7 @@ def compute_ny_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     # Pensions of taxpayers 65 or older are exempt up to a cap each; Social
     # Security is exempt from 1984.
     agi = agi - pl.min_horizontal(pl.col("pensions"), float(p["pension_exclusion_per_aged_taxpayer"]) * aged)
-    agi = agi + _p("capital_gains_addback", y) * fullcg.clip(0, None)
+    agi = agi + p.num("capital_gains_addback") * fullcg.clip(0, None)
     if y >= 1984:
         agi = agi - pl.col("taxable_social_security")
     # Intermediate results are stored as columns so later formulas refer to
@@ -353,13 +327,13 @@ def compute_ny_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     stdm = float(resolve_year(p["standard_deduction"]["married"], y))
     stdh = float(resolve_year(p["standard_deduction"]["head_of_household"], y))
     if y <= 1984:
-        share = _p("standard_deduction_share", y)
-        cap = _p("standard_deduction_cap", y)
+        share = p.num("standard_deduction_share")
+        cap = p.num("standard_deduction_cap")
         stded = pl.when(is_single).then((share * agi).clip(stds, cap)).otherwise((share * agi).clip(stdm, cap) / sep)
     else:
         stded = pl.when(is_single | is_sep).then(pl.lit(stds)).when(is_hoh).then(pl.lit(stdh)).otherwise(pl.lit(stdm))
     if y >= 1987:
-        stded = pl.when(dependent_filer).then(_p("standard_deduction_dependent", y)).otherwise(stded)
+        stded = pl.when(dependent_filer).then(p.num("standard_deduction_dependent")).otherwise(stded)
 
     # --- Itemized deductions ---
     agix = agi.clip(0, None)
@@ -370,7 +344,7 @@ def compute_ny_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
             ((deducp - salt_ded) * fed_deduc / deducp).clip(0, None)
         ).otherwise(0.0)
     else:
-        sttax = pl.min_horizontal(_p("salt_cap", y) / sep, pl.col("proptax") + salt_ded + pl.col("otheritem"))
+        sttax = pl.min_horizontal(p.num("salt_cap") / sep, pl.col("proptax") + salt_ded + pl.col("otheritem"))
         xitded = deducp + pl.col("proptax") + pl.col("otheritem") - sttax
         limits = p["itemized_limit_threshold"]
         phase = (
@@ -379,7 +353,7 @@ def compute_ny_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
             .otherwise(float(resolve_year(limits["married"], y)) / sep)
         )
         dedphs = pl.min_horizontal(
-            _p("itemized_limit_max_share", y) * xitded, _p("itemized_limit_rate", y) * (fed_agi - phase)
+            p.num("itemized_limit_max_share") * xitded, p.num("itemized_limit_rate") * (fed_agi - phase)
         )
         xitded = xitded - pl.when(fed_agi > phase).then(dedphs).otherwise(0.0)
     if 1988 <= y <= 1990:
@@ -396,7 +370,7 @@ def compute_ny_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
             .then(pl.lit(float(p["itemized_reduction_top_factor"])))
             .otherwise(0.0)
         )
-        xitded = (xitded - xitded * xover * _p("itemized_reduction_share", y)).clip(0, None)
+        xitded = (xitded - xitded * xover * p.num("itemized_reduction_share")).clip(0, None)
     rng = float(p["itemized_reduction_range"])
     upper_start = float(p["itemized_reduction_upper_start"])
     upper_end = float(p["itemized_reduction_upper_end"])
@@ -417,7 +391,7 @@ def compute_ny_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     deduc = pl.col("ny_deduc")
 
     # --- Exemptions and taxable income ---
-    xmp = _p("exemption_per_person", y)
+    xmp = p.num("exemption_per_person")
     exemp = (exemps if y <= 1987 else depx) * xmp
     taxinc = (agi - deduc - exemp).clip(0, None)
     taxy = taxinc
@@ -444,7 +418,7 @@ def compute_ny_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         renttx = pl.when(rentpaid <= r["rent_cap"]).then(r["rent_share"] * rentpaid).otherwise(0.0)
         home = pl.when(pl.col("proptax") <= r["property_tax_cap"]).then(pl.col("proptax")).otherwise(0.0)
         ptax79 = pl.max_horizontal(renttx, home)
-        hh79 = pl.col("ny_hy")
+        hh79 = pl.col("ny_household_income_undeflated")
         for lower, upper, share, amount in r["tiers"]:
             reald = pl.when((hh79 >= lower) & (hh79 < upper) & (ptax79 > share * hh79)).then(float(amount)).otherwise(reald)
         reald = pl.when(aged > 0).then(reald).otherwise(0.0)
@@ -468,7 +442,7 @@ def compute_ny_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         ).clip(0, None)
         percen = pl.when(agi > 0).then(pl.min_horizontal(pl.lit(1.0), psinc / agi)).otherwise(0.0)
         pstinc = (percen * taxy - pl.col("pre1987_pref").clip(0, None)).clip(0, None)
-        statax = statax - bracket_tax(pstinc, resolve_year(p["maximum_tax_savings"], y))
+        statax = statax - bracket_tax(pstinc, p.value("maximum_tax_savings"))
 
     # --- Filing thresholds ---
     if y <= 1985:
@@ -477,9 +451,9 @@ def compute_ny_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         limits = p["no_tax_1986"]
         no_tax = (pl.when(is_single).then(agi <= limits["single"]).otherwise(agi <= limits["other"])) | (agi <= exemp)
     elif y == 1987:
-        no_tax = agi <= pl.when(dependent_filer).then(_p("no_tax_dependent", y)).otherwise(by_filing_status(p["no_tax_1987"]))
+        no_tax = agi <= pl.when(dependent_filer).then(p.num("no_tax_dependent")).otherwise(by_filing_status(p["no_tax_1987"]))
     else:
-        no_tax = agi <= pl.when(dependent_filer).then(_p("no_tax_dependent", y)).otherwise(float(p["no_tax_1988plus"]))
+        no_tax = agi <= pl.when(dependent_filer).then(p.num("no_tax_dependent")).otherwise(float(p["no_tax_1988plus"]))
     df = df.with_columns(ny_taxbc=pl.when(no_tax).then(0.0).otherwise(statax))
     statax = taxbc = pl.col("ny_taxbc")
 
@@ -529,9 +503,9 @@ def compute_ny_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     statax = pl.col("ny_after_child_care")
 
     # Real property tax credit (refundable).
-    hy = pl.col("ny_hy")
+    hy = pl.col("ny_household_income_undeflated")
     rentpaid = pl.col("rentpaid")
-    ptax = _p("property_tax_share", y) * pl.col("proptax") + float(p["property_credit_rent_share"]) * rentpaid
+    ptax = p.num("property_tax_share") * pl.col("proptax") + float(p["property_credit_rent_share"]) * rentpaid
     is_aged = aged > 0
     pcred = pl.lit(0.0)
     if 1978 <= y <= 1981:
@@ -563,9 +537,9 @@ def compute_ny_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     # Earned income credit.
     earncr = pl.lit(0.0)
     if 1994 <= y <= 1995:
-        earncr = _p("eitc_match_rate", y) * pl.col("eitc")
+        earncr = p.num("eitc_match_rate") * pl.col("eitc")
     elif 1996 <= y <= 2019:
-        earncr = (_p("eitc_match_rate", y) * pl.col("eitc") - pl.min_horizontal(hcred, taxbc)).clip(0, None)
+        earncr = (p.num("eitc_match_rate") * pl.col("eitc") - pl.min_horizontal(hcred, taxbc)).clip(0, None)
     elif y >= 2020:
         nkids = pl.col("dep18").clip(0, 3)
         disqy = capgn.clip(0, None) + pl.col("ny_dividends") + pl.col("intrec") + pl.col("otherprop").clip(0, None)
@@ -585,7 +559,7 @@ def compute_ny_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
                 p["eitc_2021_childless_credit_factor"]
                 * eitc_for(2020, agieic * p["eitc_2021_childless_agi_factor"])
             ).otherwise(eitc)
-        earncr = (_p("eitc_match_rate", y) * eitc - pl.min_horizontal(hcred, taxbc)).clip(0, None)
+        earncr = (p.num("eitc_match_rate") * eitc - pl.min_horizontal(hcred, taxbc)).clip(0, None)
 
     # Empire State child credit.
     eschcr = pl.lit(0.0)
@@ -606,11 +580,11 @@ def compute_ny_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
             ny_precrd=(e["per_child"] * pl.col("dep18") - e["phaseout_rate"] * (fagi - cphase).clip(0, None)).clip(0, None),
         )
         taxbca = pl.col("ny_taxbca")
-        df, (ctcred,) = checkpoint(df, ny_ctcred=pl.min_horizontal(precrd, (taxbca - pl.col("ccc")).clip(0, None)))
+        df, (ctcred,) = checkpoint(df, ny_ctcred=pl.min_horizontal(precrd, (taxbca - pl.col("ccc") - pl.col("federal_elder")).clip(0, None)))
         earned = pl.col("earned_income")
         fift = e["refundable_rate"] * (earned - e["earned_income_floor"]).clip(0, None)
         remaining = precrd - ctcred
-        ssmtax = e["payroll_rate"] * pl.min_horizontal(pl.lit(_p("payroll_wage_base", y)), earned.clip(0, None))
+        ssmtax = e["payroll_rate"] * pl.min_horizontal(pl.lit(p.num("payroll_wage_base")), earned.clip(0, None))
         chcr1 = pl.min_horizontal(remaining, fift)
         df, (chcr1,) = checkpoint(df, ny_chcr1=pl.when((depx > e["many_children"] - 1) & (fift < remaining)).then(
             pl.min_horizontal(remaining, pl.max_horizontal(fift, (ssmtax - pl.col("eitc")).clip(0, None)))
@@ -636,7 +610,7 @@ def compute_ny_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     # specific deduction and the tax after credits.
     df, (statax,) = checkpoint(df, ny_after_credits=statax)
     preference_base = (-(float(p["minimum_tax_deduction"]) / sep) - statax).clip(0, None)
-    statax = statax + _p("minimum_tax_rate", y) * preference_base
+    statax = statax + p.num("minimum_tax_rate") * preference_base
 
     df = df.with_columns(siitax=statax * flate)
     return with_state_detail(

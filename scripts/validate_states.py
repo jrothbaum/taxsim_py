@@ -20,7 +20,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from taxsim_py import calculate_taxes  # noqa: E402
 from taxsim_py.calculators.states import get_state_calculator  # noqa: E402
-from taxsim_py.engine.detail import STATE_DETAIL_COLUMNS  # noqa: E402
+from taxsim_py.engine.detail import TAXSIM_STATE_DETAIL_COLUMNS as STATE_DETAIL_COLUMNS  # noqa: E402
 from taxsim_py.engine import federal_state  # noqa: E402
 from oracle import TAXSIM_EXE, knife_edge_ids, run_oracle  # noqa: E402
 from state_new_inputs import build_new_input_cases  # noqa: E402
@@ -134,7 +134,9 @@ def main() -> None:
     oracle_order = batch.sort(_oracle_last(), maintain_order=True)
     with ThreadPoolExecutor(max_workers=1) as oracle:
         expected_future = oracle.submit(run_taxsim_exe, oracle_order)
-        results = calculate_taxes(batch, mtr=85, idtl=2).select("taxsimid", "description", *COMPARED_COLUMNS, *FEDERAL_COLUMNS)
+        results = calculate_taxes(batch, mtr=85, idtl=2, taxsim_names=True).select(
+            "taxsimid", "description", *COMPARED_COLUMNS, *FEDERAL_COLUMNS
+        )
         expected = expected_future.result()
 
     # Rate-only mismatches that vanish a dollar away are TAXSIM round-off.
@@ -144,7 +146,7 @@ def main() -> None:
     )
     knife_edges = knife_edge_ids(
         batch.join(rate_only.select("taxsimid"), on="taxsimid").sort(_oracle_last(), maintain_order=True),
-        lambda frame: calculate_taxes(frame, mtr=85, idtl=2),
+        lambda frame: calculate_taxes(frame, mtr=85, idtl=2, taxsim_names=True),
         RATE_COLUMNS,
     )
     total_knife_edges = 0
@@ -162,7 +164,9 @@ def main() -> None:
         tie_tolerance = federal_state._TIE_TOLERANCE
         federal_state._TIE_TOLERANCE = -tie_tolerance
         try:
-            itemized = calculate_taxes(tie_frame, mtr=85, idtl=2).select("taxsimid", *COMPARED_COLUMNS)
+            itemized = calculate_taxes(tie_frame, mtr=85, idtl=2, taxsim_names=True).select(
+                "taxsimid", *COMPARED_COLUMNS
+            )
         finally:
             federal_state._TIE_TOLERANCE = tie_tolerance
         itemize_ties = set(
@@ -180,9 +184,16 @@ def main() -> None:
     if not tax_mismatch.is_empty():
         edge_frame = batch.join(tax_mismatch.select("taxsimid"), on="taxsimid").sort(_oracle_last(), maintain_order=True)
         columns = list(dict.fromkeys(COMPARED_COLUMNS))
-        above = knife_edge_ids(edge_frame, lambda frame: calculate_taxes(frame, mtr=85, idtl=2), columns)
+        above = knife_edge_ids(
+            edge_frame,
+            lambda frame: calculate_taxes(frame, mtr=85, idtl=2, taxsim_names=True),
+            columns,
+        )
         below = knife_edge_ids(
-            edge_frame, lambda frame: calculate_taxes(frame, mtr=85, idtl=2), columns, shift=-1.0
+            edge_frame,
+            lambda frame: calculate_taxes(frame, mtr=85, idtl=2, taxsim_names=True),
+            columns,
+            shift=-1.0,
         )
         knife_edges |= above & below
     # The remaining worksheet-only mismatches: TAXSIM prints the worksheet of
@@ -195,7 +206,7 @@ def main() -> None:
         )
         knife_edges |= knife_edge_ids(
             edge_frame.sort(_oracle_last(), maintain_order=True),
-            lambda frame: calculate_taxes(frame, mtr=85, idtl=2),
+            lambda frame: calculate_taxes(frame, mtr=85, idtl=2, taxsim_names=True),
             list(dict.fromkeys([*RATE_COLUMNS, *STATE_DETAIL_COLUMNS])),
         )
 

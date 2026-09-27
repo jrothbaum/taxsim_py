@@ -393,3 +393,7 @@ social_security_exclusion_share_above_limit:
 elderly_credit_share:
   1981: 0.5
   1989: 1.0
+
+# Additional tax: below the minimum taxable income, the bracket rate applies
+# when taxable income is under this share of AGI above the threshold.
+additional_tax_agi_share: 0.1

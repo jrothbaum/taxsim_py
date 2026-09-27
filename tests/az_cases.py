@@ -71,6 +71,12 @@ def build_az_test_cases() -> list[dict[str, Any]]:
         rows.append(case(year, "AZ high income, single", mstat=1, pwages=500000))
         rows.append(case(year, "AZ low income, single", mstat=1, pwages=5000))
         rows.append(case(year, "AZ low income, married_joint", mstat=2, pwages=3000, swages=2000))
+        # Family income credit limits for heads of household, just above
+        # the one- and two-dependent limits.
+        rows.append(case(year, "AZ family credit, head of household one child", mstat=1, pwages=20050, depx=1, dep17=1, dep18=1))
+        rows.append(case(year, "AZ family credit, head of household two children", mstat=1, pwages=20500, depx=2, dep17=2, dep18=2))
+        # Excise credit tests federal AGI, which includes taxable Social Security.
+        rows.append(case(year, "AZ excise credit, retiree with Social Security", mstat=1, page=77, pensions=11900, gssi=34000))
 
         if 1982 <= year <= 1986:
             rows.append(case(year, "AZ two-earner deduction, married_joint", mstat=2, pwages=25000, swages=20000))

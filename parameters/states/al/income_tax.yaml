@@ -89,3 +89,16 @@ dependent_exemption_2007_breakpoint2:
 
 # Solar energy credit (1981-1986 only) - confirmed inert (data(38)
 # unpopulated) but the year range is noted for completeness.
+
+# 2011-2012 federal self-employment tax deduction during the payroll tax
+# holiday, as the source rounds it: a rate on the tax up to the threshold,
+# then half the tax plus a flat amount.
+se_deduction_holiday:
+  threshold: 14204
+  rate: 0.5751
+  flat: 1067
+
+# Personal exemption: joint and head of household, and other returns.
+personal_exemption:
+  joint_or_hoh: 3000
+  other: 1500

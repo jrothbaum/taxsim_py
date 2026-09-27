@@ -2,78 +2,43 @@
 
 import polars as pl
 
-from taxsim_py.engine.brackets import bracket_rate, bracket_tax
+from taxsim_py.engine.brackets import bracket_rate, bracket_tax, scale_brackets
 from taxsim_py.calculators.payroll import payroll_parts
-from taxsim_py.engine.inputs import aged_count, federal_exemption_count, is_dependent_filer
-from taxsim_py.engine.schema import PARAMETERS_ROOT, load_yaml, resolve_year
+from taxsim_py.engine.inputs import aged_count, federal_exemption_count, files_head_of_household, files_joint, files_separate, files_single, is_dependent_filer
+from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml
 from taxsim_py.engine.state import (
     checkpoint,
     household_income,
     interpolate_table,
     taxsim_socsec,
     unemployment_total,
-    with_default,
-    with_defaults,
     with_state_detail,
 )
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
 VT_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "vt" / "income_tax.yaml")
-STATE_ADJUSTMENT_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "state_adjustments.yaml")
-
-
-def _p(name: str, year: int) -> float:
-    return float(resolve_year(VT_PARAMS[name], year))
-
-
-def _adj(name: str, year: int) -> float:
-    return float(resolve_year(STATE_ADJUSTMENT_PARAMS[name], year))
-
-
-def _scaled(brackets: list[list[float]], factor: float) -> list[list[float]]:
-    return [[float(start) * factor, float(rate)] for start, rate in brackets]
 
 
 def compute_vt_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     """Calculate Vermont income tax for each row."""
     effective_year, flate = resolve_state_year(year)
     y = effective_year
-    p = VT_PARAMS
-    df = with_defaults(df, (
-        "dividends", "intrec", "stcg", "ltcg", "depx", "charity_cash", "state_sales_or_income_tax_ded",
-        "taxable_income", "standard_deduction", "itemized_deduction", "regular_tax", "schedule_tax", "amt",
-        "ccc", "ccc_uncapped", "eitc", "pre1987_almtax", "pre1987_chcr", "federal_elder", "taxable_social_security",
-        "gssi", "pensions", "rentpaid", "proptax", "psemp", "ssemp", "ui", "pui", "sui", "otherprop", "scorp",
-        "addmed",
-        "federal_chcr", "federal_source_rate",
-    ))
-    df = with_default(df, "itemizes", False)
+    p = YearParams(VT_PARAMS, effective_year)
     payroll = payroll_parts(year)
     df = df.with_columns(
-        vt_hh=household_income(
-            _adj("household_income_dividend_adjustment", y), _adj("household_income_record_adjustment", y)
-        ),
+        vt_household_income=household_income(),
         vt_ui=unemployment_total(),
         # Federal Schedule E income (`comnew(8)`).
         vt_schede=pl.col("otherprop") + (pl.col("scorp") if year >= 1987 else 0.0),
         # Self-employment and additional Medicare tax are not deflated.
         vt_setax=payroll["setax"],
     )
-    df = deflate_for_extrapolation(
-        df, flate,
-        [
-            "federal_chcr", "stcg", "ltcg", "charity_cash", "state_sales_or_income_tax_ded", "agi", "taxable_income",
-            "standard_deduction", "itemized_deduction", "regular_tax", "schedule_tax", "amt", "ccc", "eitc", "vt_hh",
-            "federal_elder", "taxable_social_security", "gssi", "pensions", "rentpaid", "proptax", "psemp", "ssemp",
-            "vt_ui", "vt_schede", "pwages", "swages", "dividends", "intrec",
-        ],
-    )
+    df = deflate_for_extrapolation(df, flate, extra=("vt_household_income", "vt_ui", "vt_schede"))
 
-    status = pl.col("filing_status")
-    is_single = status == "single"
-    is_joint = status == "married_joint"
-    is_hoh = status == "head_of_household"
-    sep = pl.when(status == "married_separate").then(2.0).otherwise(1.0)
+    is_single = files_single()
+    is_joint = files_joint()
+    is_hoh = files_head_of_household()
+    sep = pl.when(files_separate()).then(2.0).otherwise(1.0)
     fed_agi = pl.col("agi")
     fti = pl.col("taxable_income")
     fed_itemizes = pl.col("itemizes")
@@ -107,8 +72,8 @@ def compute_vt_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
             statax = bracket_tax(taxinc, p["federal_tax_brackets_1991"])
             rate = bracket_rate(taxinc, p["federal_tax_brackets_1991"])
         else:
-            statax = _p("federal_tax_share", y) * taxinc
-            rate = _p("federal_tax_share", y) * pl.col("federal_source_rate") / 100.0
+            statax = p.num("federal_tax_share") * taxinc
+            rate = p.num("federal_tax_share") * pl.col("federal_source_rate") / 100.0
     else:
         if y <= 2017:
             taxinc = fti
@@ -146,26 +111,26 @@ def compute_vt_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
             # The federal exemption count is deflated in projected years.
             exemps = federal_exemption_count(y) / flate
             factors = p["standard_deduction_factor"]
-            stded = _p("standard_deduction_2018", y) * (
+            stded = p.num("standard_deduction_2018") * (
                 pl.when(is_hoh).then(factors["head_of_household"]).when(is_joint).then(factors["married_joint"]).otherwise(1.0)
             )
-            stded = stded + _p("standard_deduction_aged_addition_2018", y) * aged
-            taxinc = (agi - exemps * _p("exemption_2018", y) - stded).clip(0, None)
+            stded = stded + p.num("standard_deduction_aged_addition_2018") * aged
+            taxinc = (agi - exemps * p.num("exemption_2018") - stded).clip(0, None)
             detail_agi = agi
-            detail_exemp = exemps * _p("exemption_2018", y)
+            detail_exemp = exemps * p.num("exemption_2018")
             detail_stded = stded
         df, (taxinc,) = checkpoint(df, vt_taxinc=taxinc)
-        tables = resolve_year(p["brackets"], y)
-        index = _p("bracket_index", y)
+        tables = p.value("brackets")
+        index = p.num("bracket_index")
         statax = (
-            pl.when(is_single).then(bracket_tax(taxinc, _scaled(tables["single"], index)))
-            .when(is_hoh).then(bracket_tax(taxinc, _scaled(tables["head_of_household"], index)))
-            .otherwise(bracket_tax(taxinc * sep, _scaled(tables["married"], index)) / sep)
+            pl.when(is_single).then(bracket_tax(taxinc, scale_brackets(tables["single"], index)))
+            .when(is_hoh).then(bracket_tax(taxinc, scale_brackets(tables["head_of_household"], index)))
+            .otherwise(bracket_tax(taxinc * sep, scale_brackets(tables["married"], index)) / sep)
         )
         rate = (
-            pl.when(is_single).then(bracket_rate(taxinc, _scaled(tables["single"], index)))
-            .when(is_hoh).then(bracket_rate(taxinc, _scaled(tables["head_of_household"], index)))
-            .otherwise(bracket_rate(taxinc * sep, _scaled(tables["married"], index)))
+            pl.when(is_single).then(bracket_rate(taxinc, scale_brackets(tables["single"], index)))
+            .when(is_hoh).then(bracket_rate(taxinc, scale_brackets(tables["head_of_household"], index)))
+            .otherwise(bracket_rate(taxinc * sep, scale_brackets(tables["married"], index)))
         )
         if y >= 2018:
             statax = pl.when(fed_agi > p["minimum_tax_agi"]).then(
@@ -174,7 +139,7 @@ def compute_vt_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     df, (statax,) = checkpoint(df, vt_tax_before_credits=statax)
 
     # --- Nonrefundable credits ---
-    hh = pl.col("vt_hh")
+    hh = pl.col("vt_household_income")
     lowcr = pl.lit(0.0)
     if 1978 <= y <= 1990:
         rows = p["low_income_credit_1982"] if y >= 1982 else p["low_income_credit_1978"]
@@ -201,19 +166,19 @@ def compute_vt_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     statax = (statax - lowcr - studcr - chcr - contr).clip(0, None)
 
     # --- Refundable credits ---
-    earncr = _p("eitc_rate", y) * pl.col("eitc") if y >= 1988 else pl.lit(0.0)
+    earncr = p.num("eitc_rate") * pl.col("eitc") if y >= 1988 else pl.lit(0.0)
     telcr = pl.lit(0.0)
     if y >= 1986:
-        aged_tel = pl.when(hh < _p("telephone_credit_aged_income_limit", y)).then(_p("telephone_credit", y)).otherwise(0.0)
+        aged_tel = pl.when(hh < p.num("telephone_credit_aged_income_limit")).then(p.num("telephone_credit")).otherwise(0.0)
         young_tel = pl.lit(0.0)
         if y >= 2000:
-            young_tel = pl.when(hh < _p("telephone_credit_income_limit", y)).then(_p("telephone_credit", y)).otherwise(0.0)
+            young_tel = pl.when(hh < p.num("telephone_credit_income_limit")).then(p.num("telephone_credit")).otherwise(0.0)
         telcr = pl.when(dependent_filer).then(0.0).when(aged > 0).then(aged_tel).otherwise(young_tel)
 
     # Homeowner/renter rebate (refundable).
     rentpaid, proptax = pl.col("rentpaid"), pl.col("proptax")
     if y <= 1994:
-        c = resolve_year(p["property_rebate"], y)
+        c = p.value("property_rebate")
         ptax = proptax + c["rent_share"] * rentpaid
         pcred = (ptax - interpolate_table(hh, c["table"]) * hh).clip(0, c["max"])
         if "income_limit" in c:
@@ -229,7 +194,7 @@ def compute_vt_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
             + (investment - p["renter_income_investment_threshold"]).clip(0, None)
         )
         ptax = float(p["renter_rebate_rent_share"]) * rentpaid
-        excess = ptax - interpolate_table(vthy, resolve_year(p["renter_rebate_table"], y)) * vthy
+        excess = ptax - interpolate_table(vthy, p.value("renter_rebate_table")) * vthy
         if y <= 1997:
             cap = float(p["renter_rebate_max_1995_1997"])
             full = float(p["renter_rebate_full_limit_1995_1997"])

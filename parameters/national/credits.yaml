@@ -330,3 +330,42 @@ child_care_credit:
     2007: 2000
     2008: 2000
     2009: 2000
+
+# 2020-2021 Recovery Rebate Credits (taxsim_2022_10_21.f:26055-26089).
+# Amounts per adult and per child (`dep13` in 2020, all dependents in
+# 2021); 2020 payments fall by `phaseout_rate` of AGI above the start, 2021
+# phases out linearly between start and end.
+recovery_rebate:
+  phaseout_start:
+    single: 75000
+    married_joint: 150000
+    head_of_household: 112500
+    married_separate: 75000
+  phaseout_rate_2020: 0.05
+  phaseout_end_2021:
+    single: 80000
+    married_joint: 160000
+    head_of_household: 120000
+    married_separate: 80000
+  payments_2020:
+    - {per_adult: 1200, per_child: 500}
+    - {per_adult: 600, per_child: 600}
+  payment_2021: {per_adult: 1400, per_dependent: 1400}
+
+# 2009-2010 Making Work Pay Credit, per taxpayer: a rate on earned income up
+# to the maximum, less a rate on AGI above the start, none at the ceiling,
+# less Social Security benefits up to the offset.
+making_work_pay:
+  rate: 0.062
+  max_credit: 400
+  phaseout_start: 75000
+  phaseout_rate: 0.02
+  income_ceiling: 95000
+  benefit_offset: 250
+
+# 2006 Telephone Excise Tax refund (taxsim_2022_10_21.f:26051-26054): per
+# exemption up to a maximum, plus a flat amount.
+telephone_excise_credit:
+  per_exemption: 10
+  max_exemptions: 4
+  base_exemptions: 2

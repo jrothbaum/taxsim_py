@@ -147,3 +147,30 @@ heating_credit:
   maximum: 160
   phaseout_start: {single: {1977: 3000, 1978: 3300, 1980: 5000}, other: {1977: 4300, 1978: 6700, 1980: 8700}}
   phaseout_rate: {1977: 0.04, 1978: 0.064}
+
+# Property and heating credits are limited to property tax plus a share of
+# rent (heating: a share of rent); 1977 adds a share of property tax plus
+# a smaller rent share.
+property_credit_rent_share: 0.2
+property_credit_1977_addition: {rate: 0.1, rent_share: 0.15}
+heating_credit_rent_share: 0.1
+
+# 1980-1986 interest and dividend exclusions per taxpayer.
+interest_exclusion_per_taxpayer_1980_1986: 200
+dividend_exclusion_per_taxpayer_1980_1986: 200
+
+# Through 1979 standard deduction (the federal percentage standard
+# deduction and low-income allowance), before the inflation factor.
+standard_deduction_pre1980:
+  rate: 0.1
+  cap: 1000
+  cap_separate: 500
+  allowance_separate_base: 100
+  allowance_separate_cap: 500
+  allowance_base: 200
+  allowance_per_exemption: 100
+  allowance_cap: 1000
+  allowance_bonus: 800
+  bonus_income_floor: 1000
+  bonus_income_per_exemption: 750
+  bonus_phaseout_rate: 0.5

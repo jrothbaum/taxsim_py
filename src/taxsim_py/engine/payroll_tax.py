@@ -113,8 +113,6 @@ PAYROLL_ITEMS = (
     ("pwages", "psemp", "pbusinc", "sbusinc"),
     ("swages", "ssemp", "pprofinc", "sprofinc"),
 )
-# Taxpayer's own share of each item's tax (`g` in `sstax`).
-_OWN_SHARE = (1.0, 0.9235, 0.9235, 0.9235)
 
 
 def _capped_items(
@@ -148,6 +146,7 @@ def taxsim_payroll(
     net_earnings_factor: float,
     addmed_rate: float,
     addmed_threshold: pl.Expr,
+    own_share_self_employment: float,
 ) -> dict[str, pl.Expr]:
     """Payroll and self-employment tax as TAXSIM's `sstax` computes them.
 
@@ -190,7 +189,9 @@ def taxsim_payroll(
         "addmed": addmed,
         "fica": setax + wage_tax + addmed,
         "tfica": setax + wage_tax / 2 + addmed,
-        "own_fica_primary": pl.sum_horizontal(share * tax for share, tax in zip(_OWN_SHARE, primary[0])),
+        "own_fica_primary": pl.sum_horizontal(
+            share * tax for share, tax in zip((1.0, *[own_share_self_employment] * 3), primary[0])
+        ),
         "oasdi_rate_primary": pl.when(primary[1]).then(0.0).otherwise(oasdi_rate),
         "hi_rate_primary": pl.when(primary[2]).then(0.0).otherwise(hi_rate),
     }

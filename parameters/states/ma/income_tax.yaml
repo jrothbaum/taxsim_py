@@ -284,3 +284,51 @@ circuit_breaker_income_limit:
     2019: 90000
     2020: 92000
     2021: 93000
+
+# Interest exclusion per taxpayer.
+interest_exclusion_per_taxpayer: 100
+# Capital losses offset Part A interest and dividend income up to this amount.
+capital_loss_offset_limit: 1000
+# Federal net capital loss limit (halved for separate returns) and the
+# Schedule B limit on dividends offsetting short-term losses (1999+).
+federal_capital_loss_limit: 3000
+schedule_b_offset_limit: 2000
+
+# Payroll tax and Social Security benefits deductions, each up to this amount.
+payroll_tax_deduction_cap: 2000
+
+# Dependent deduction: a flat amount per return, or per child under 13 (at
+# most two); 1982 limits it per child.
+dependent_deduction:
+  1977: {flat: 600}
+  1997: {flat: 1200}
+  2001: {per_child: 2400}
+  2002: {per_child: 3600}
+  2021: {flat: 0}
+dependent_deduction_cap_per_child_1982: 2000
+
+# Child care deduction per child under 13 (through 2010); 2021+ credit.
+child_care_deduction_per_child:
+  1977: 2400
+  2010: 4800
+child_care_credit_per_child: 240
+# 2021+ dependent credit per dependent (the larger of it and the child care credit).
+dependent_credit_per_dependent: 180
+
+# 1989 Part B rate on the income taxed at the older rate.
+part_b_rate_1989_first_part: 0.05
+# 1984 surtax applies to Part A and Part B income above this amount.
+surtax_income_threshold_1984: 60000
+
+# Limited Income Credit: tax above a share of income over the no-tax
+# threshold, up to an income limit; thresholds rise per dependent from 1995.
+limited_income_credit_rate: 0.1
+limited_income_credit_limit_single: 14000
+limited_income_credit_limit_joint_1984_1994: 21000
+no_tax_status_per_dependent: 1000
+limited_income_credit_limit_per_dependent: 1750
+
+# Credit before 1984: per taxpayer and per dependent.
+personal_credit_pre1984:
+  per_taxpayer: 8
+  per_dependent: 4

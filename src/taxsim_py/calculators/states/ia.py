@@ -5,14 +5,14 @@ import polars as pl
 from taxsim_py.calculators.payroll import payroll_parts
 from taxsim_py.calculators.federal_pre1987 import PRE1987_PARAMS
 from taxsim_py.engine.brackets import bracket_rate, bracket_tax
-from taxsim_py.engine.inputs import aged_count, taxpayer_count
-from taxsim_py.engine.schema import PARAMETERS_ROOT, load_yaml, resolve_year
+from taxsim_py.engine.inputs import aged_count, files_head_of_household, files_joint, files_separate, files_single, separate_divisor, taxpayer_count
+from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml, resolve_year
 from taxsim_py.engine.state import (
-    with_defaults,
+    by_filing_status,
     forced_standard,
-    by_filing_status as _by_status,
-    interpolate_table as _tablki,
-    with_default as _with_default,
+    higher_earner_share,
+    interpolate_table,
+    unemployment_total,
     with_state_detail,
 )
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
@@ -30,82 +30,49 @@ _RAW_INPUT_COLUMNS = [
 
 def compute_ia_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     effective_year, flate = resolve_state_year(year)
-    p = IA_PARAMS
-    df = with_defaults(df, ("proptax", "otheritem", "mortgage", "dividends", "intrec", "ui", "pui", "sui", "depx", "psemp", "ssemp"))
-    df = _with_default(df, "earned_income")
-    df = _with_default(df, "eitc")
-    df = _with_default(df, "ccc")
-    df = _with_default(df, "ccc_uncapped")
-    df = _with_default(df, "itemized_deduction")
-    df = _with_default(df, "salt_capped")
-    df = _with_default(df, "state_sales_or_income_tax_ded")
-    df = _with_default(df, "itemizes", False)
+    p = YearParams(IA_PARAMS, effective_year)
 
     df = df.with_columns(
-        ia_sep=pl.when(pl.col("filing_status") == "married_separate").then(2.0).otherwise(1.0),
-        ia_txp=taxpayer_count(),
+        ia_sep=separate_divisor(),
+        ia_taxpayers=taxpayer_count(),
     )
 
-    # `setax` (comnew(175)) - computed at the REAL `year`'s rates on REAL
-    # (undeflated) wages, NOT `effective_year`/already-deflated figures
-    # (same technique Alabama already established - `comnew(175)` sits
-    # OUTSIDE the real dispatcher's own generic deflate loop).
     setax = payroll_parts(year)["setax"]  # `comnew(175)`, real-year and undeflated
     df = df.with_columns(ia_setax=setax)
 
-    df = with_defaults(df, ("taxable_social_security", "qbi_deduction"))
-    df = deflate_for_extrapolation(
-        df,
-        flate,
-        [
-            "taxable_social_security", "gssi", "transfers", "pensions",
-            "pwages", "swages", "proptax", "otheritem", "mortgage", "dividends", "intrec",
-            "stcg", "ltcg", "ui", "pui", "sui", "agi", "earned_income", "eitc", "ccc",
-            "itemized_deduction", "salt_capped", "state_sales_or_income_tax_ded", "fiitax",
-        ],
-    )
+    df = deflate_for_extrapolation(df, flate)
 
     phas92_base = float(p["itemized_phaseout_base"][1960])
     if effective_year <= 2012:
-        aif92 = float(resolve_year(p["itemized_phaseout_aif92_1992_2012"], effective_year)) if effective_year >= 1992 else 1.0
+        aif92 = p.num("itemized_phaseout_aif92_1992_2012") if effective_year >= 1992 else 1.0
         phas92 = phas92_base * aif92 / pl.col("ia_sep")
     else:
-        aif13 = float(resolve_year(p["itemized_phaseout_aif13_2013plus"], effective_year))
-        mult = _by_status(p["itemized_phaseout_multiplier"])
-        phas92 = aif13 * 2.5 * phas92_base * mult
+        aif13 = p.num("itemized_phaseout_aif13_2013plus")
+        mult = by_filing_status(p["itemized_phaseout_multiplier"])
+        phas92 = aif13 * p["itemized_phaseout_base_multiple_2013plus"] * phas92_base * mult
 
     # --- AGI ---
     df = df.with_columns(ia_agi=pl.col("agi") + 0.5 * pl.col("ia_setax"))
-    if effective_year == 2020:
-        # `data(58)` (charity_cash) confirmed inert - no-op.
-        df = df.with_columns(
-            ia_agi=pl.when(~pl.col("itemizes")).then(pl.col("ia_agi") + pl.min_horizontal(300.0, 0.0)).otherwise(pl.col("ia_agi"))
-        )
-    # `data(22)` (state tax refund) and `comnew(79)` (SS-in-AGI, and the
-    # entire Social-Security-taxation worksheet it feeds) both confirmed
-    # inert - see module docstring.
-    if effective_year <= 1987:
-        pass  # `xjobs()` confirmed inert.
     if 1982 <= effective_year <= 1984:
         rate_2e = float(resolve_year(PRE1987_PARAMS["two_earner_deduction_rate"], effective_year))
         cap_2e = float(resolve_year(PRE1987_PARAMS["two_earner_deduction_cap"], effective_year))
         lesser_wage = pl.min_horizontal(pl.col("pwages"), pl.col("swages")).clip(0, None)
-        twoded = pl.when(pl.col("filing_status") == "married_joint").then(
+        twoded = pl.when(files_joint()).then(
             (rate_2e * lesser_wage).clip(0, cap_2e)
         ).otherwise(0.0)
         df = df.with_columns(ia_agi=pl.col("ia_agi") + twoded)
     if effective_year == 1981:
         excl_table = PRE1987_PARAMS["dividend_exclusion"]
-        fed_excl = _by_status({s: resolve_year(excl_table[s], effective_year) for s in _STATUSES})
+        fed_excl = by_filing_status({s: resolve_year(excl_table[s], effective_year) for s in _STATUSES})
         divexc = pl.min_horizontal(pl.col("dividends") + pl.col("intrec"), fed_excl)
-        own_cap = (pl.col("dividends") + pl.col("intrec")).clip(0, 100.0 * pl.col("ia_txp"))
+        own_cap = (pl.col("dividends") + pl.col("intrec")).clip(0, 100.0 * pl.col("ia_taxpayers"))
         df = df.with_columns(ia_agi=pl.col("ia_agi") + divexc - own_cap)
     # Social Security: federal taxable benefits out; through 2013 Iowa's own
     # partial taxation in.
     ss_p = p["social_security_base"]
     pha = (
-        pl.when(pl.col("filing_status") == "married_joint").then(float(ss_p["joint"]))
-        .when(pl.col("filing_status") == "married_separate").then(float(ss_p["married_separate"]))
+        pl.when(files_joint()).then(float(ss_p["joint"]))
+        .when(files_separate()).then(float(ss_p["married_separate"]))
         .otherwise(float(ss_p["single"]))
     )
     df = df.with_columns(ia_agi=pl.col("ia_agi") - pl.col("taxable_social_security"), ia_addph=pl.lit(0.0))
@@ -113,7 +80,7 @@ def compute_ia_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         half = 0.5 * pl.col("gssi")
         ssb = pl.min_horizontal(0.5 * (half + pl.col("ia_agi").clip(0, None) - pha).clip(0, None), half)
         if effective_year >= 2007:
-            ssb = ssb * (1 - float(resolve_year(p["social_security_phaseout_share"], effective_year)))
+            ssb = ssb * (1 - p.num("social_security_phaseout_share"))
         ssb = pl.when(pl.col("gssi") > 0).then(ssb).otherwise(0.0)
         df = df.with_columns(ia_agi=pl.col("ia_agi") + ssb, ia_addph=pl.col("taxable_social_security") - ssb)
     else:
@@ -124,48 +91,35 @@ def compute_ia_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         )
     # Pension exclusion (1995+), taxpayers 65 or older.
     if effective_year >= 1995:
-        cap = float(resolve_year(p["pension_exclusion"], effective_year))
-        penexc = pl.when(aged_count() > 0).then(pl.min_horizontal(pl.col("ia_txp") * cap, pl.col("pensions"))).otherwise(0.0)
+        cap = p.num("pension_exclusion")
+        penexc = pl.when(aged_count() > 0).then(pl.min_horizontal(pl.col("ia_taxpayers") * cap, pl.col("pensions"))).otherwise(0.0)
     else:
         penexc = pl.lit(0.0)
     df = df.with_columns(ia_penexc=penexc, ia_agi=pl.col("ia_agi") - penexc)
-    ui_total = pl.max_horizontal(pl.col("ui"), pl.col("pui") + pl.col("sui"))
+    ui_total = unemployment_total()
     if effective_year == 2009:
-        df = df.with_columns(ia_agi=pl.col("ia_agi") + pl.min_horizontal(ui_total, 2400.0 * pl.col("ia_txp")))
+        df = df.with_columns(ia_agi=pl.col("ia_agi") + pl.min_horizontal(ui_total, p["unemployment_addback_2009_per_taxpayer"] * pl.col("ia_taxpayers")))
 
     fedded = pl.col("fiitax").clip(0, None)
-    dedbus = float(resolve_year(p["qbi_deduction_share"], effective_year)) * pl.col("qbi_deduction") if effective_year >= 2019 else pl.lit(0.0)
+    dedbus = p.num("qbi_deduction_share") * pl.col("qbi_deduction") if effective_year >= 2019 else pl.lit(0.0)
 
     # --- Standard deduction ---
-    pct = float(resolve_year(p["standard_deduction_pct"], effective_year))
-    cap_single = float(resolve_year(p["standard_deduction_cap_single"], effective_year))
-    cap_joint = float(resolve_year(p["standard_deduction_cap_married_joint"], effective_year))
-    is_joint = pl.col("filing_status") == "married_joint"
-    # `if(mst.eq.1.or.mst.eq.3.or.mst.eq.6) stded=...stnd(law,2)[single cap]
-    # else stded=...stnd(law,3)[joint cap]` - `mst.eq.3` never fires for
-    # this schema (real HoH internal code is 4), so HoH falls into the
-    # ELSE branch and gets the JOINT cap, not single - the same "mst.eq.3
-    # is dead" trap already caught building Georgia, just biting from the
-    # opposite direction here (HoH gets the LARGER cap, not excluded from
-    # it).
+    pct = p.num("standard_deduction_pct")
+    cap_single = p.num("standard_deduction_cap_single")
+    cap_joint = p.num("standard_deduction_cap_married_joint")
+    is_joint = files_joint()
+    # `if(mst.eq.1.or.mst.eq.3.or.mst.eq.6)` gets the single cap; head of
+    # household (code 4) gets the joint cap.
     gets_single_cap = pl.col("filing_status").is_in(["single", "married_separate"])
     stded = pl.when(gets_single_cap).then(
         (pct * pl.col("ia_agi")).clip(0, cap_single)
     ).otherwise((pct * pl.col("ia_agi")).clip(0, cap_joint))
-    # 1984-1986 non-itemizer charitable-contribution addback: `data(58)/
-    # (59)/(60)` (cash/asset contributions) confirmed inert - no-op.
     df = df.with_columns(ia_stded=stded)
 
     # --- Itemized deduction ---
-    # `salt_capped` (comnew(30)'s own proptax+otheritem component) is a
-    # federal.py-ONLY column (never exposed by federal_pre1987.py) -
-    # reconstructed locally for years<=1986 from the raw proptax/
-    # otheritem inputs PLUS `state_sales_or_income_tax_ded` itself (live-
-    # probe-confirmed: comnew(30)=$16,105 for a $14,000-raw-itemized/
-    # $2,112-state-tax 1977 case, not $14,000 - matching the same
-    # "comnew(30) already bakes in the state tax, so it cancels out of
-    # `xitded=comnew(30)-data(50)` entirely" pattern DC/GA/HI/Idaho's own
-    # pre-1987 reconstructions already established, not a new discovery).
+    # Before 1987 federal gross itemized deductions (`comnew(30)`) include
+    # the state tax deduction, which `xitded=comnew(30)-data(50)` removes,
+    # leaving the itemized inputs.
     if effective_year <= 1986:
         salt_capped_plus_mortgage = pl.col("proptax") + pl.col("otheritem") + pl.col("mortgage") + pl.col("state_sales_or_income_tax_ded")
     else:
@@ -177,14 +131,10 @@ def compute_ia_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         .then((pl.col("itemized_deduction") - pl.col("state_sales_or_income_tax_ded") * pl.col("itemized_deduction") / salt_capped_plus_mortgage.clip(1e-9, None)).clip(0, None))
         .otherwise(pl.col("ia_xitded"))
     )
-    # `law<=1985` political-contribution addback (`data(65)`) confirmed inert.
     if 2018 <= effective_year <= 2019:
-        agix = pl.col("ia_agi").clip(0, None)
-        # `cash`/`asset` (data(58)/(59)/(60)) confirmed inert -> char=0
-        # always (see module docstring's itemized-worksheet simplification).
         deduc1 = pl.col("proptax") + pl.col("otheritem") + pl.col("mortgage")
-        dlim1 = 0.03 * (pl.col("ia_agi") - phas92).clip(0, None)
-        dlim2 = 0.8 * deduc1
+        dlim1 = p["itemized_phaseout_rate"] * (pl.col("ia_agi") - phas92).clip(0, None)
+        dlim2 = p["itemized_phaseout_cap_rate"] * deduc1
         dedphs = pl.min_horizontal(dlim1, dlim2)
         df = df.with_columns(ia_xitded=(deduc1 - dedphs).clip(0, None))
     if effective_year >= 2020:
@@ -194,16 +144,15 @@ def compute_ia_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
 
     df = df.with_columns(ia_deduc=pl.max_horizontal(pl.col("ia_stded"), pl.col("ia_xitded")))
 
-    # --- Taxable income --- (see module docstring point 2 for the real
-    # double-counted `setax` add-back)
+    # --- Taxable income --- Half of self-employment tax is already in
+    # AGI, and the whole amount is added again.
     df = df.with_columns(
         ia_yad=pl.col("ia_agi") + pl.col("ia_setax") - fedded - dedbus,
         ia_taxinc=(pl.col("ia_agi") + pl.col("ia_setax") - fedded - dedbus - pl.col("ia_deduc")).clip(0, None),
     )
 
-    # --- Married filing combined --- (see module docstring point 3)
-    wages = pl.col("pwages") + pl.col("swages")
-    agih = pl.max_horizontal(pl.col("pwages"), pl.col("swages")) + 0.5 * (pl.col("ia_agi") - wages)
+    # --- Joint returns may file combined: each spouse on their own share ---
+    agih = higher_earner_share(pl.col("ia_agi"))
     agiw = pl.col("ia_agi") - agih
     is_mfc = is_joint & (pl.col("ia_agi") > 0)
     stded_h_general = (pct * pl.col("ia_agi")).clip(0, cap_single)
@@ -226,10 +175,10 @@ def compute_ia_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         .then((agiw - dedw_general + 0.25 * pl.col("ia_setax") - feddw - 0.5 * dedbus).clip(0, None))
         .otherwise(pl.lit(0.0))
     )
-    df = df.with_columns(ia_taxinh=taxinh, ia_taxinw=taxinw, ia_agih=agih, ia_agiw=agiw)
+    df = df.with_columns(ia_taxinh=taxinh, ia_taxinw=taxinw, ia_agi_higher_earner=agih, ia_agi_lower_earner=agiw)
 
     # --- Bracket tax ---
-    aif = float(resolve_year(p["bracket_inflation_factor"], effective_year))
+    aif = p.num("bracket_inflation_factor")
     if effective_year <= 1986:
         table = p["brackets_pre1987"]
     elif effective_year <= 1997:
@@ -244,10 +193,10 @@ def compute_ia_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
 
     if effective_year <= 1986:
         taxinh2 = pl.when(is_mfc).then(
-            (pl.col("ia_agih") - dedh_general + pl.col("ia_setax") * pl.col("ia_agih") / pl.col("ia_agi").clip(1e-9, None) - fedded * pl.col("ia_agih") / pl.col("ia_agi").clip(1e-9, None)).clip(0, None)
+            (pl.col("ia_agi_higher_earner") - dedh_general + pl.col("ia_setax") * pl.col("ia_agi_higher_earner") / pl.col("ia_agi").clip(1e-9, None) - fedded * pl.col("ia_agi_higher_earner") / pl.col("ia_agi").clip(1e-9, None)).clip(0, None)
         ).otherwise(pl.lit(0.0))
         taxinw2 = pl.when(is_mfc).then(
-            (pl.col("ia_agiw") - dedw_general + pl.col("ia_setax") * pl.col("ia_agiw") / pl.col("ia_agi").clip(1e-9, None) - fedded * pl.col("ia_agiw") / pl.col("ia_agi").clip(1e-9, None)).clip(0, None)
+            (pl.col("ia_agi_lower_earner") - dedw_general + pl.col("ia_setax") * pl.col("ia_agi_lower_earner") / pl.col("ia_agi").clip(1e-9, None) - fedded * pl.col("ia_agi_lower_earner") / pl.col("ia_agi").clip(1e-9, None)).clip(0, None)
         ).otherwise(pl.lit(0.0))
         stath = bracket_tax(taxinh2 / aif, table) * aif
         statw = bracket_tax(taxinw2 / aif, table) * aif
@@ -267,66 +216,62 @@ def compute_ia_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     )
 
     # --- Alternate Tax --- (never single)
-    exy_other = float(resolve_year(p["exy_other"], effective_year))
+    exy_other = p.num("exy_other")
     not_single = pl.col("filing_status") != "single"
     if effective_year <= 1997:
         rate_alt = float(p["alt_tax_rate_pre1998"][1960])
     else:
-        rate_alt = float(resolve_year(p["alt_tax_rate_1998plus"], effective_year))
+        rate_alt = p.num("alt_tax_rate_1998plus")
     if effective_year >= 1987:
         if effective_year <= 1997:
             altax = (pl.col("ia_agi") - exy_other).clip(0, None) * rate_alt
         else:
             subtr = pl.lit(exy_other)
             if effective_year >= 2007:
-                subtr = pl.when(aged_count() > 0).then(float(resolve_year(p["alternate_tax_aged_floor"], effective_year))).otherwise(subtr)
+                subtr = pl.when(aged_count() > 0).then(p.num("alternate_tax_aged_floor")).otherwise(subtr)
             altax = (pl.col("ia_agi") + pl.col("ia_penexc") + pl.col("ia_addph") - subtr).clip(0, None) * rate_alt
         df = df.with_columns(
             ia_statax=pl.when(not_single).then(pl.min_horizontal(pl.col("ia_statax"), altax)).otherwise(pl.col("ia_statax"))
         )
 
     # --- Personal Exemption Credit ---
-    xmp = float(resolve_year(p["personal_exemption_credit_amount"], effective_year))
-    is_hoh = pl.col("filing_status") == "head_of_household"
+    xmp = p.num("personal_exemption_credit_amount")
+    is_hoh = files_head_of_household()
     if effective_year <= 1994:
-        gcred = (xmp + 5.0) * (pl.col("ia_txp") + aged_count()) + xmp * pl.col("depx")
-        gcred = pl.when(is_hoh).then(gcred + xmp + 5.0).otherwise(gcred)
+        extra = p["personal_credit_taxpayer_addition_pre1995"]
+        gcred = (xmp + extra) * (pl.col("ia_taxpayers") + aged_count()) + xmp * pl.col("depx")
+        gcred = pl.when(is_hoh).then(gcred + xmp + extra).otherwise(gcred)
     elif effective_year <= 1997:
-        gcred = (xmp / 2.0) * (pl.col("ia_txp") + aged_count()) + xmp * pl.col("depx")
+        gcred = (xmp / 2.0) * (pl.col("ia_taxpayers") + aged_count()) + xmp * pl.col("depx")
         gcred = pl.when(is_hoh).then(gcred + xmp / 2.0).otherwise(gcred)
     else:
-        gcred = xmp * (pl.col("depx") + pl.col("ia_txp")) + (xmp / 2.0) * aged_count()
+        gcred = xmp * (pl.col("depx") + pl.col("ia_taxpayers")) + (xmp / 2.0) * aged_count()
         gcred = pl.when(is_hoh).then(gcred + xmp).otherwise(gcred)
-    # `data(34)` (dependent-filing-own-return addback) confirmed inert.
     df = df.with_columns(ia_gcred=gcred)
     df = df.with_columns(ia_statax=(pl.col("ia_statax") - pl.col("ia_gcred")).clip(0, None))
 
     # --- AMT ---
     if effective_year >= 1982:
-        amt_federal = pl.col("amt") if "amt" in df.collect_schema().names() else pl.lit(0.0)
-        if effective_year == 1982:
-            alty = amt_federal * 0.25
-        elif effective_year in (1983, 1984):
-            alty = amt_federal * 0.7
+        amt_federal = pl.col("amt")
+        if effective_year <= 1984:
+            alty = amt_federal * float(resolve_year(p["amt_share_of_federal"], effective_year))
         else:
-            # `comnew(20)`/`comnew(97)` live-probe-confirmed $0; `data(81)`
-            # confirmed inert; `comnew(34)` an acknowledged gap (see module
-            # docstring) - treated as $0.
+            # Preferences: property tax only.
             addprf = pl.col("proptax")
             alminy = pl.col("ia_taxinc") + addprf
             if 1991 <= effective_year <= 2017:
                 alminy = pl.when(over_thr).then(
                     alminy - pl.col("state_sales_or_income_tax_ded") * pl.col("itemized_deduction") / salt_capped_plus_mortgage.clip(1e-9, None)
                 ).otherwise(alminy)
-            exclnt_base = _by_status(p["amt_exclusion_base_by_status"])
-            exclnt_thr = _by_status(p["amt_exclusion_phaseout_threshold_by_status"])
-            exclnt = pl.when(alminy > exclnt_thr).then((exclnt_base - 0.25 * (alminy - exclnt_thr)).clip(0, None)).otherwise(exclnt_base)
-            amt_rate_val = float(resolve_year(p["amt_rate"], effective_year))
+            exclnt_base = by_filing_status(p["amt_exclusion_base_by_status"])
+            exclnt_thr = by_filing_status(p["amt_exclusion_phaseout_threshold_by_status"])
+            exclnt = pl.when(alminy > exclnt_thr).then((exclnt_base - p["amt_exclusion_phaseout_rate"] * (alminy - exclnt_thr)).clip(0, None)).otherwise(exclnt_base)
+            amt_rate_val = p.num("amt_rate")
             alty = (amt_rate_val * (alminy - exclnt) - pl.col("ia_statax")).clip(0, None)
-        exy_single = float(resolve_year(p["exy_single"], effective_year))
+        exy_single = p.num("exy_single")
         aged = aged_count() > 0
         aged_limit = p["amt_aged_exempt_income"]
-        is_single = pl.col("filing_status") == "single"
+        is_single = files_single()
         low_income_amt_exempt = (
             (is_single & ~aged & (pl.col("ia_agi") <= exy_single))
             | (is_single & aged & (pl.col("ia_agi") <= aged_limit["single"]))
@@ -348,34 +293,36 @@ def compute_ia_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     elif effective_year <= 1989:
         chcr = ccc_base * float(p["child_care_credit_flat_rate_1986_1989"][1960])
     elif effective_year <= 1992:
-        chcr = ccc_base * _tablki(pl.col("agi"), p["child_care_credit_table_1990_1992"])
+        chcr = ccc_base * interpolate_table(pl.col("agi"), p["child_care_credit_table_1990_1992"])
     elif effective_year <= 2005:
-        chcr = ccc_base * _tablki(posagi, p["child_care_credit_table_1993_2005"])
+        chcr = ccc_base * interpolate_table(posagi, p["child_care_credit_table_1993_2005"])
     else:
-        chcr = ccc_base * _tablki(posagi, p["child_care_credit_table_2006plus"])
+        chcr = ccc_base * interpolate_table(posagi, p["child_care_credit_table_2006plus"])
     df = df.with_columns(ia_chcr=chcr)
 
     # --- EITC ---
     earncr = pl.lit(0.0)
     if effective_year >= 1990:
-        rate_eitc = float(resolve_year(p["eitc_rate"], effective_year))
-        cap_eitc = float(resolve_year(p["eitc_agi_cap"], effective_year))
+        rate_eitc = p.num("eitc_rate")
+        cap_eitc = p.num("eitc_agi_cap")
         earncr = pl.when(pl.col("agi") < cap_eitc).then(rate_eitc * pl.col("eitc")).otherwise(0.0)
 
         if effective_year == 2009:
             nkid = pl.col("depx")
+            e = p["eitc_2009_joint"]
+            start, maximum, rate = e["phaseout_start"], e["maximum"], e["phaseout_rate"]
             xlin2 = (
-                pl.when(nkid == 0).then(10590.0)
-                .when((nkid >= 1) & (nkid <= 2)).then(19540.0)
-                .otherwise(16420.0)
+                pl.when(nkid == 0).then(float(start["none"]))
+                .when((nkid >= 1) & (nkid <= 2)).then(float(start["one_or_two"]))
+                .otherwise(float(start["more"]))
             )
             xlin3 = (pl.col("earned_income") - xlin2).clip(0, None)
             xlin5 = (
-                pl.when(nkid == 0).then((457.0 - xlin3 * 0.0765).clip(0, None))
-                .when(nkid == 1).then((3043.0 - xlin3 * 0.1598).clip(0, None))
-                .otherwise((5028.0 - xlin3 * 0.2106).clip(0, None))
+                pl.when(nkid == 0).then((maximum["none"] - xlin3 * rate["none"]).clip(0, None))
+                .when(nkid == 1).then((maximum["one"] - xlin3 * rate["one"]).clip(0, None))
+                .otherwise((maximum["more"] - xlin3 * rate["more"]).clip(0, None))
             )
-            earncr = pl.when(is_joint & (earncr > 0)).then(0.07 * xlin5).otherwise(earncr)
+            earncr = pl.when(is_joint & (earncr > 0)).then(e["share"] * xlin5).otherwise(earncr)
 
         if effective_year == 2010:
             cap1 = float(p["eitc_2010_married_joint_eligibility_cap_1kid"][1960])
@@ -407,8 +354,8 @@ def compute_ia_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         df = df.with_columns(
             ia_statax=(pl.col("ia_statax") - pl.col("ia_earncr")).clip(0, None) - pl.col("ia_chcr")
         )
-    exy_single = float(resolve_year(p["exy_single"], effective_year))
-    is_single = pl.col("filing_status") == "single"
+    exy_single = p.num("exy_single")
+    is_single = files_single()
     df = df.with_columns(
         ia_statax=pl.when(is_single).then(
             pl.max_horizontal(pl.min_horizontal(pl.col("ia_agi") - exy_single, pl.col("ia_statax")), 0.0)
@@ -418,7 +365,7 @@ def compute_ia_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         df = df.with_columns(ia_statax=pl.col("ia_statax") - pl.col("ia_earncr") - pl.col("ia_chcr"))
 
     if effective_year >= 1992:
-        exy_other = float(resolve_year(p["exy_other"], effective_year))
+        exy_other = p.num("exy_other")
         low_income = pl.when(is_single).then(pl.col("agi") <= exy_single).otherwise(pl.col("agi") <= exy_other)
         df = df.with_columns(
             ia_statax=pl.when((pl.col("ia_statax") > 0) & low_income).then(0.0).otherwise(pl.col("ia_statax"))

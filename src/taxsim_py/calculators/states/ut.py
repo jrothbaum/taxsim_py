@@ -3,48 +3,29 @@
 import polars as pl
 
 from taxsim_py.engine.brackets import bracket_rate, bracket_tax
-from taxsim_py.engine.inputs import aged_count, federal_exemption_count, taxpayer_count
-from taxsim_py.engine.schema import PARAMETERS_ROOT, load_yaml, resolve_year
-from taxsim_py.engine.state import checkpoint, pre1987_federal_itemizing, with_default, with_defaults, with_state_detail
+from taxsim_py.engine.inputs import aged_count, federal_exemption_count, files_head_of_household, files_joint, files_separate, files_single, taxpayer_count
+from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml
+from taxsim_py.engine.state import checkpoint, pre1987_federal_itemizing, with_state_detail
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
 UT_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "ut" / "income_tax.yaml")
-
-
-def _p(name: str, year: int) -> float:
-    return float(resolve_year(UT_PARAMS[name], year))
 
 
 def compute_ut_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     """Calculate Utah income tax for each row."""
     effective_year, flate = resolve_state_year(year)
     y = effective_year
-    p = UT_PARAMS
-    df = with_defaults(df, (
-        "proptax", "otheritem", "mortgage", "depx", "charity_cash", "state_sales_or_income_tax_ded",
-        "standard_deduction", "itemized_deduction", "itemized_before_limit", "personal_exemptions",
-        "regular_tax", "amt", "ccc", "odc", "credit", "pre1987_taxbc", "pre1987_almtax", "pensions",
-        "taxable_social_security", "dividends", "intrec",
-    ))
-    df = with_default(df, "itemizes", False)
-    df = deflate_for_extrapolation(
-        df, flate,
-        [
-            "proptax", "otheritem", "mortgage", "charity_cash", "state_sales_or_income_tax_ded", "agi",
-            "standard_deduction", "itemized_deduction", "itemized_before_limit", "personal_exemptions",
-            "regular_tax", "amt", "ccc", "odc", "pensions", "taxable_social_security", "dividends", "intrec",
-        ],
-    )
+    p = YearParams(UT_PARAMS, effective_year)
+    df = deflate_for_extrapolation(df, flate)
 
-    status = pl.col("filing_status")
-    is_joint = status == "married_joint"
-    is_hoh = status == "head_of_household"
+    is_joint = files_joint()
+    is_hoh = files_head_of_household()
     married_table = is_joint | is_hoh
-    sep = pl.when(status == "married_separate").then(2.0).otherwise(1.0)
+    sep = pl.when(files_separate()).then(2.0).otherwise(1.0)
     txp = taxpayer_count()
     aged = aged_count()
     agi = pl.col("agi")
-    single_phase = status == "single"
+    single_phase = files_single()
     phases = p["retirement_deduction_phaseout_start"]
     phase = pl.when(single_phase).then(float(phases["single"])).otherwise(float(phases["other"]) / sep)
     salt = pl.col("state_sales_or_income_tax_ded")
@@ -58,7 +39,7 @@ def compute_ut_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     elif y <= 2017:
         exemp = p["federal_exemption_share"] * pl.col("personal_exemptions")
     else:
-        exemp = _p("dependent_exemption", y) * pl.col("depx")
+        exemp = p.num("dependent_exemption") * pl.col("depx")
 
     if y <= 2007:
         # --- Deductions ---
@@ -78,25 +59,24 @@ def compute_ut_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
             stded = pl.when(fed_itemizes).then(0.0).otherwise(pl.col("standard_deduction"))
             taxbc = pl.col("regular_tax")
             almtax = pl.col("amt")
-            # The federal credit total is only filled from 1998.
-            fed_credit = pl.lit(0.0) if y <= 1997 else pl.col("ccc") + pl.col("odc")
+            fed_credit = pl.col("nonrefundable_credits")
         xitded = (pl.when(fed_itemizes).then(itemized).otherwise(0.0) - salt).clip(0, None)
         deduc = pl.max_horizontal(xitded, stded)
-        fedtax = (almtax + taxbc - fed_credit).clip(0, None) * _p("federal_tax_share", y)
+        fedtax = (almtax + taxbc - fed_credit).clip(0, None) * p.num("federal_tax_share")
 
         # --- State income tax deduction lost to the federal-style limit (1993 on) ---
         tx = pl.lit(0.0)
         if y >= 1993:
             fed_agi = agi
-            phas92 = p["itemized_limit_threshold"] * _p("itemized_limit_index", y) / sep
+            phas92 = p["itemized_limit_threshold"] * p.num("itemized_limit_index") / sep
             xtot = salt + pl.col("proptax") + pl.col("mortgage") + pl.col("charity_cash")
             over = fed_agi - phas92
             xconst = pl.min_horizontal(p["itemized_limit_share"] * xtot, p["itemized_limit_rate"] * over)
             lost = xconst / xtot * salt
             tx = pl.when((xitded > stded) & (xtot > 0) & (over > 0)).then(lost).otherwise(0.0)
         # --- Retirement income deduction ---
-        under65 = _p("retirement_deduction_under65", y)
-        aged_amount = _p("retirement_deduction_aged", y)
+        under65 = p.num("retirement_deduction_under65")
+        aged_amount = p.num("retirement_deduction_aged")
         investment = pl.col("dividends") + pl.col("intrec")
         retinc = pl.col("pensions") + pl.col("taxable_social_security") + investment * aged.clip(None, 1)
         if y <= 1987:
@@ -117,7 +97,7 @@ def compute_ut_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         taxinc = (agi - retded - fedtax - exemp - deduc + tx).clip(0, None)
         df, (taxinc,) = checkpoint(df, ut_taxinc=taxinc)
 
-        schedule = resolve_year(p["brackets"], y)
+        schedule = p.value("brackets")
         statax = pl.when(married_table).then(bracket_tax(taxinc, schedule["married"])).otherwise(
             bracket_tax(taxinc, schedule["single"])
         )
@@ -134,8 +114,8 @@ def compute_ut_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         detail = {"standard_deduction": stded, "itemized_deductions": xitded}
     else:
         taxinc = agi.clip(0, None)
-        statax = _p("flat_rate", y) * taxinc
-        rate = pl.lit(_p("flat_rate", y))
+        statax = p.num("flat_rate") * taxinc
+        rate = pl.lit(p.num("flat_rate"))
         detail = {}
         fed_itemizes = pl.col("itemizes")
         if y <= 2017:
@@ -147,7 +127,7 @@ def compute_ut_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
             itemized = pl.col("itemized_before_limit") - stt
         deduc = pl.when(fed_itemizes).then(itemized).otherwise(pl.col("standard_deduction"))
         t = p["taxpayer_credit_threshold"]
-        index = _p("taxpayer_credit_index", y)
+        index = p.num("taxpayer_credit_index")
         threshold = pl.when(is_hoh).then(t["head_of_household"] * index).otherwise(t["per_taxpayer"] * index * txp)
         credit = (
             p["taxpayer_credit_rate"] * (exemp + deduc)

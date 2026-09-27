@@ -128,3 +128,15 @@ exempt_income_tax_rate_low: 0.25
 exempt_income_tax_break: 50000
 exempt_income_tax_base_high: 8750
 exempt_income_tax_rate_high: 0.4
+
+# Dependent credit as a share of the dependent exemption amount: single and
+# married returns per dependent; head of household through 2002 (first
+# dependent, then each additional), and from 2003 (first three, the fourth
+# and fifth, then each additional).
+dependent_credit_rate: 0.02
+dependent_credit_hoh_pre2003: {first: 0.02, additional: 0.04}
+dependent_credit_hoh_2003plus: {first_three: 0.02, fourth: 0.03, additional: 0.04}
+
+# Child care credit above the top income tier: this share of the federal
+# credit, up to the cap.
+child_care_credit_top_tier_rate: 0.1

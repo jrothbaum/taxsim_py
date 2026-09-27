@@ -12,6 +12,7 @@ from taxsim_py.calculators.states import (
     get_state_calculators,
 )
 from taxsim_py.engine.detail import (
+    DETAIL_NAME_TO_TAXSIM,
     FEDERAL_DETAIL_COLUMNS,
     STATE_DETAIL_COLUMNS,
     STATE_DETAIL_SOURCES,
@@ -130,6 +131,8 @@ _MARGINAL_STEP = 0.01
 # TAXSIM retries with a decrease when an increase gives a rate outside these.
 _FEDERAL_RATE_LIMIT = 100.0
 _STATE_RATE_LIMIT = 25.0
+_MIN_ROWS_PER_WORKER = 25_000
+_MAX_ROW_WORKERS = 8
 
 
 def _resolve(
@@ -140,12 +143,37 @@ def _resolve(
     max_year_workers: int | None,
     keep_intermediate: bool,
     keep_columns: tuple[str, ...] = (),
+    result_columns: tuple[str, ...] | None = None,
 ) -> pl.DataFrame:
-    """Resolve federal and state taxes, one year partition per worker."""
-    if year is not None:
+    """Resolve year partitions, splitting a lone large year into row partitions."""
+    def resolve_partition(part: pl.DataFrame, partition_year: int) -> pl.DataFrame:
         return resolve_federal_and_state(
-            rows, int(year), calculators, keep_intermediate=keep_intermediate, keep_columns=keep_columns
+            part,
+            partition_year,
+            calculators,
+            keep_intermediate=keep_intermediate,
+            keep_columns=keep_columns,
+            result_columns=result_columns,
         )
+
+    def resolve_single_year(part: pl.DataFrame, partition_year: int) -> pl.DataFrame:
+        worker_limit = _default_year_workers() if max_year_workers is None else max_year_workers
+        workers = min(
+            worker_limit,
+            _MAX_ROW_WORKERS,
+            max(1, part.height // _MIN_ROWS_PER_WORKER),
+        )
+        if workers == 1:
+            return resolve_partition(part, partition_year)
+        slice_size = (part.height + workers - 1) // workers
+        slices = list(part.iter_slices(n_rows=slice_size))
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            return pl.concat(
+                executor.map(lambda chunk: resolve_partition(chunk, partition_year), slices), how="diagonal_relaxed"
+            )
+
+    if year is not None:
+        return resolve_single_year(rows, int(year))
     year_partitions = list(rows.partition_by(year_column, as_dict=True).items())
 
     def resolve_year_partition(partition: tuple[tuple[int], pl.DataFrame]) -> pl.DataFrame:
@@ -156,10 +184,12 @@ def _resolve(
             calculators,
             keep_intermediate=keep_intermediate,
             keep_columns=keep_columns,
+            result_columns=result_columns,
         )
 
     if len(year_partitions) == 1:
-        parts = [resolve_year_partition(year_partitions[0])]
+        (partition_year,), part = year_partitions[0]
+        parts = [resolve_single_year(part, int(partition_year))]
     else:
         worker_limit = _default_year_workers() if max_year_workers is None else max_year_workers
         with ThreadPoolExecutor(max_workers=min(worker_limit, len(year_partitions))) as executor:
@@ -281,6 +311,7 @@ def calculate_taxes(
     keep_intermediate: bool = False,
     mtr: int | MarginalInput | None = None,
     idtl: int | None = None,
+    taxsim_names: bool = False,
 ) -> pl.DataFrame:
     """Calculate federal, payroll, and state taxes for a Polars dataframe.
 
@@ -291,18 +322,21 @@ def calculate_taxes(
     or null (``dep13``, ``dep17`` and ``dep18`` default to ``depx``). The returned
     eager frame is the input, unchanged and in order, plus ``OUTPUT_COLUMNS``;
     ``keep_intermediate=True`` also returns every intermediate federal and
-    state column. Mixed-year calls resolve years concurrently on up to
+    state column. Mixed-year calls resolve years concurrently; large
+    single-year calls similarly split rows across workers. Both use up to
     ``max_year_workers`` threads (default: Polars' thread pool size, which
-    ``POLARS_MAX_THREADS`` sets).
+    ``POLARS_MAX_THREADS`` sets), with single-year row workers capped at eight.
 
     ``mtr`` (or an integer ``mtr`` column, per row) requests TAXSIM's marginal
     rates ``frate`` and ``srate`` with respect to a ``MarginalInput``. Raw
     TAXSIM codes remain accepted and are converted to that enum; 0 gives no
     rates.
 
-    ``idtl=2`` (or an ``idtl`` column containing 2) adds TAXSIM's detailed
-    federal and state outputs, ``FEDERAL_DETAIL_COLUMNS`` and
-    ``STATE_DETAIL_COLUMNS``.
+    ``idtl=2`` (or an ``idtl`` column containing 2) adds meaningfully named
+    detailed federal and state outputs, ``FEDERAL_DETAIL_COLUMNS`` and
+    ``STATE_DETAIL_COLUMNS``. Set ``taxsim_names=True`` to rename only those
+    detail columns to TAXSIM's compatibility labels (``credits``, ``v10``-
+    ``v45`` and ``staxbc``) as the final output step.
     """
     frame = df.collect() if isinstance(df, pl.LazyFrame) else df
     columns = frame.columns
@@ -344,6 +378,10 @@ def calculate_taxes(
     work = with_input_defaults(work.with_columns(state_expr.alias("state")), year_expr)
 
     def resolve(rows: pl.DataFrame) -> pl.DataFrame:
+        result_columns = None
+        if not keep_intermediate and 2 not in detail_levels:
+            internal = tuple(c for c in rows.columns if c.startswith("__taxsim_py_"))
+            result_columns = (*internal, *OUTPUT_COLUMNS)
         return _resolve(
             rows,
             year,
@@ -352,6 +390,7 @@ def calculate_taxes(
             max_year_workers,
             keep_intermediate,
             tuple(STATE_DETAIL_SOURCES.values()) if 2 in detail_levels else (),
+            result_columns,
         ).sort(row_column)
 
     marginal_input = None if mtr is None else _as_marginal_input(mtr)
@@ -405,9 +444,13 @@ def calculate_taxes(
         result = result.with_columns(*state_detail(result))
         if printed is not None and printed.height:
             result = result.with_columns(
-                v30=pl.col("v30") + pl.col("__detail_hy_step").fill_null(0.0)
+                state_household_income=pl.col("state_household_income")
+                + pl.col("__detail_hy_step").fill_null(0.0)
             ).drop("__detail_hy_step")
         detail_columns = (*FEDERAL_DETAIL_COLUMNS, *STATE_DETAIL_COLUMNS)
+        if taxsim_names:
+            result = result.rename(DETAIL_NAME_TO_TAXSIM)
+            detail_columns = tuple(DETAIL_NAME_TO_TAXSIM[c] for c in detail_columns)
     # Inputs come back exactly as supplied; only new columns are added.
     if keep_intermediate:
         added = [c for c in result.columns if c not in columns and not c.startswith("__taxsim_py_")]

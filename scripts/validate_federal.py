@@ -22,7 +22,7 @@ sys.path.insert(0, str(ROOT / "tests"))
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from taxsim_py import calculate_taxes  # noqa: E402
-from taxsim_py.engine.detail import FEDERAL_DETAIL_COLUMNS  # noqa: E402
+from taxsim_py.engine.detail import TAXSIM_FEDERAL_DETAIL_COLUMNS as FEDERAL_DETAIL_COLUMNS  # noqa: E402
 from federal_cases import build_federal_test_cases  # noqa: E402
 from oracle import TAXSIM_EXE, knife_edge_ids, run_oracle  # noqa: E402
 
@@ -57,7 +57,9 @@ def main() -> None:
     expected = run_oracle(cases, mtr=85, idtl=2).select(
         "taxsimid", *[pl.col(c).alias(f"{c}_expected") for c in COMPARED_COLUMNS]
     )
-    actual = calculate_taxes(cases, mtr=85, idtl=2).select("taxsimid", "description", "year", *COMPARED_COLUMNS)
+    actual = calculate_taxes(cases, mtr=85, idtl=2, taxsim_names=True).select(
+        "taxsimid", "description", "year", *COMPARED_COLUMNS
+    )
 
     comparison = actual.join(expected, on="taxsimid")
     # A missing result counts as a mismatch.

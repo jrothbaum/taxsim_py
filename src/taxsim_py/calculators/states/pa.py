@@ -2,34 +2,24 @@
 
 import polars as pl
 
-from taxsim_py.engine.inputs import aged_count, taxpayer_count
-from taxsim_py.engine.schema import PARAMETERS_ROOT, load_yaml, resolve_year
-from taxsim_py.engine.state import with_defaults, with_state_detail
+from taxsim_py.engine.inputs import aged_count, files_joint, taxpayer_count
+from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml, resolve_year
+from taxsim_py.engine.state import with_state_detail, dividend_input_adjustment
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
 PA_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "pa" / "income_tax.yaml")
-STATE_ADJUSTMENT_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "state_adjustments.yaml")
-
-
-def _p(name: str, year: int) -> float:
-    return float(resolve_year(PA_PARAMS[name], year))
 
 
 def compute_pa_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     """Calculate Pennsylvania income tax for each row."""
     effective_year, flate = resolve_state_year(year)
     y = effective_year
-    df = with_defaults(df, (
-        "dividends", "intrec", "stcg", "ltcg", "psemp", "ssemp", "depx", "pensions", "otherprop", "scorp",
-        "pbusinc", "pprofinc", "sbusinc", "sprofinc",
-    ))
-    dividend_adjustment = float(resolve_year(STATE_ADJUSTMENT_PARAMS["household_income_dividend_adjustment"], y))
+    p = YearParams(PA_PARAMS, effective_year)
+    dividend_adjustment = dividend_input_adjustment()
     # Federal Schedule E income (`comnew(8)`): other property income, plus S
     # corporation income from 1987.
     df = df.with_columns(pa_schede=pl.col("otherprop") + (pl.col("scorp") if year >= 1987 else 0.0))
-    df = deflate_for_extrapolation(
-        df, flate, ["pwages", "swages", "dividends", "intrec", "stcg", "ltcg", "psemp", "ssemp", "pensions", "pa_schede"]
-    )
+    df = deflate_for_extrapolation(df, flate, extra=("pa_schede",))
 
     # Positive income classes only; negative wages and capital losses do not
     # offset. Business income is not deflated in projected years. Pensions
@@ -47,10 +37,10 @@ def compute_pa_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         + pl.when(aged_count() > 0).then(0.0).otherwise(pl.col("pensions"))
     )
     taxinc = income.clip(0, None)
-    statax = taxinc * _p("rate", y)
+    statax = taxinc * p.num("rate")
 
     # --- Tax forgiveness ---
-    is_joint = pl.col("filing_status") == "married_joint"
+    is_joint = files_joint()
     taxpayers = taxpayer_count()
     nkid = pl.col("depx")
     if y <= 1994:
@@ -74,11 +64,11 @@ def compute_pa_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     else:
         allow = a["first"] * dep1 + a["other"] * dep2
     remain = (taxinc - allow).clip(0, None)
-    forgiven_share = (1.0 - remain / _p("forgiveness_phaseout", y)).clip(0, None)
+    forgiven_share = (1.0 - remain / p.num("forgiveness_phaseout")).clip(0, None)
     credit = statax * forgiven_share
     statax = statax - credit
 
     df = df.with_columns(pa_taxinc=taxinc, siitax=statax * flate)
     return with_state_detail(
-        df, agi=income, taxable_income=taxinc, credits=credit, rate=pl.lit(_p("rate", y))
+        df, agi=income, taxable_income=taxinc, credits=credit, rate=pl.lit(p.num("rate"))
     )

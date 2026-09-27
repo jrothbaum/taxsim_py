@@ -3,17 +3,12 @@
 import polars as pl
 
 from taxsim_py.engine.brackets import bracket_rate, bracket_tax
-from taxsim_py.engine.inputs import aged_count, federal_exemption_count, is_dependent_filer, taxpayer_count
-from taxsim_py.engine.schema import PARAMETERS_ROOT, load_yaml, resolve_year
-from taxsim_py.engine.state import checkpoint, household_income, interpolate_table, unemployment_total, with_defaults, with_state_detail
+from taxsim_py.engine.inputs import aged_count, federal_exemption_count, files_head_of_household, files_joint, files_separate, files_single, is_dependent_filer, taxpayer_count
+from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml, resolve_year
+from taxsim_py.engine.state import checkpoint, household_income, interpolate_table, unemployment_total, with_state_detail
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
 RI_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "ri" / "income_tax.yaml")
-STATE_ADJUSTMENT_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "state_adjustments.yaml")
-
-
-def _p(name: str, year: int) -> float:
-    return float(resolve_year(RI_PARAMS[name], year))
 
 
 def _scaled(brackets: list[list[float]], factor: float) -> list[list[float]]:
@@ -31,12 +26,13 @@ def _schedule_tax(
     income: pl.Expr, y: int, is_single: pl.Expr, is_hoh: pl.Expr, sep: pl.Expr, rate: bool = False
 ) -> pl.Expr:
     """2001-2010 schedule tax (or bracket rate); married tables apply to income times `sep`, divided back."""
+    p = YearParams(RI_PARAMS, y)
     if y == 2001:
         tables = RI_PARAMS["brackets_2001"]
         factor = 1.0
     else:
         tables = RI_PARAMS["brackets_2002"]
-        factor = _p("bracket_index", y)
+        factor = p.num("bracket_index")
     if rate:
         return (
             pl.when(is_single).then(bracket_rate(income, _scaled(tables["single"], factor)))
@@ -61,44 +57,25 @@ def compute_ri_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     """Calculate Rhode Island income tax for each row."""
     effective_year, flate = resolve_state_year(year)
     y = effective_year
-    p = RI_PARAMS
-    df = with_defaults(df, (
-        "stcg", "ltcg", "ui", "pui", "sui", "depx", "taxable_unemployment", "taxable_income", "itemized_deduction",
-        "personal_exemptions", "regular_tax", "amt", "amt_income", "ccc", "ccc_uncapped", "eitc",
-        "pre1987_taxbc", "pre1987_chcr", "pre1987_earncr", "pensions", "taxable_social_security", "proptax",
-        "rentpaid", "earned_income", "federal_elder",
-        "federal_chcr", "federal_source_rate",
-    ))
-    adjustments = [
-        float(resolve_year(STATE_ADJUSTMENT_PARAMS[name], y))
-        for name in ("household_income_dividend_adjustment", "household_income_record_adjustment")
-    ]
+    p = YearParams(RI_PARAMS, effective_year)
     # Household income (`hy`) is read before TAXSIM's projected-year deflation.
-    df = df.with_columns(ri_ui=unemployment_total(), ri_hy=household_income(*adjustments))
-    df = deflate_for_extrapolation(
-        df, flate,
-        [
-            "federal_chcr", "stcg", "ltcg", "ri_ui", "agi", "taxable_unemployment", "taxable_income", "itemized_deduction",
-            "personal_exemptions", "regular_tax", "amt", "amt_income", "ccc", "eitc", "pensions",
-            "taxable_social_security", "proptax", "rentpaid", "earned_income", "federal_elder",
-        ],
-    )
+    df = df.with_columns(ri_ui=unemployment_total(), ri_household_income_undeflated=household_income())
+    df = deflate_for_extrapolation(df, flate, extra=("ri_ui",))
 
-    status = pl.col("filing_status")
-    is_single = status == "single"
-    is_hoh = status == "head_of_household"
-    is_joint = status == "married_joint"
-    sep = pl.when(status == "married_separate").then(2.0).otherwise(1.0)
+    is_single = files_single()
+    is_hoh = files_head_of_household()
+    is_joint = files_joint()
+    sep = pl.when(files_separate()).then(2.0).otherwise(1.0)
     fed_agi = pl.col("agi")
     eitc = pl.col("eitc") if y >= 1987 else pl.col("pre1987_earncr")
     aged = aged_count()
     txp = taxpayer_count()
-    married = is_joint | (status == "married_separate")
+    married = is_joint | (files_separate())
 
     # --- AGI ---
     agi = fed_agi
     if y >= 2016:
-        index = _p("social_security_index", y)
+        index = p.num("social_security_index")
         limits = p["social_security_agi_limit"]
         ss = pl.col("taxable_social_security")
         joint_sub = pl.when(fed_agi < limits["married_joint"] * index).then(
@@ -109,7 +86,7 @@ def compute_ri_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         other_sub = pl.when(fed_agi < limits["single"] * index).then(ss).otherwise(0.0)
         agi = agi - pl.when((aged > 0) & (ss > 0)).then(pl.when(is_joint).then(joint_sub).otherwise(other_sub)).otherwise(0.0)
     if y >= 2017:
-        index = _p("retirement_exclusion_index", y)
+        index = p.num("retirement_exclusion_index")
         limits = p["retirement_exclusion_agi_limit"]
         fagi = pl.when(married).then(limits["married"] * index / sep).otherwise(limits["single"] * index)
         agi = agi - pl.when(fed_agi <= fagi).then(
@@ -141,8 +118,8 @@ def compute_ri_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
             fedtax = fedtax - pl.col("federal_elder")
         if y >= 1986:
             fedtax = fedtax - eitc
-        statax = _p("federal_tax_share", y) * fedtax.clip(0, None)
-        rate = _p("federal_tax_share", y) * pl.col("federal_source_rate") / 100.0
+        statax = p.num("federal_tax_share") * fedtax.clip(0, None)
+        rate = p.num("federal_tax_share") * pl.col("federal_source_rate") / 100.0
     elif y <= 2010:
         if y <= 2002:
             taxinc = pl.col("taxable_income")
@@ -155,7 +132,7 @@ def compute_ri_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
                 float(resolve_year(aged_add["married"], y))
             )
             dependent_limit = pl.max_horizontal(
-                pl.lit(_p("dependent_standard_deduction_floor", y)),
+                pl.lit(p.num("dependent_standard_deduction_floor")),
                 pl.col("earned_income") + float(p["dependent_standard_deduction_earned_addition"]),
             )
             stded = pl.when(is_dependent_filer()).then(pl.min_horizontal(stded, dependent_limit)).otherwise(stded)
@@ -184,8 +161,8 @@ def compute_ri_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         )
         # The federal exemption count is deflated with dollar amounts in projected years.
         exemps = federal_exemption_count(y) / flate
-        exemp = exemps * _p("exemption_amount", y)
-        index = _p("bracket_index", y)
+        exemp = exemps * p.num("exemption_amount")
+        index = p.num("bracket_index")
         start = p["deduction_phaseout_start"] * index
         end = p["deduction_phaseout_end"] * index
         step = p["deduction_phaseout_step"] * index
@@ -212,8 +189,8 @@ def compute_ri_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         ).otherwise(0.0)
     elif 2003 <= y <= 2010:
         alminy_federal = pl.col("amt_income")
-        exemption = _by_class(resolve_year(p["amt_exemption"], y), is_single, is_hoh) / sep
-        start = _by_class(resolve_year(p["amt_exemption_phaseout_start"], y), is_single, is_hoh) / sep
+        exemption = _by_class(p.value("amt_exemption"), is_single, is_hoh) / sep
+        start = _by_class(p.value("amt_exemption_phaseout_start"), is_single, is_hoh) / sep
         exclnt = (exemption - p["amt_exemption_phaseout_rate"] * (alminy_federal - start).clip(0, None)).clip(0, None)
         alminy = (alminy_federal - exclnt).clip(0, None)
         # Without gains, tax is subtracted twice (logged).
@@ -221,11 +198,11 @@ def compute_ri_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         with_gains = (_amt_rate_tax((alminy - ltg).clip(0, None), sep) + tax25 + tax50 - statax).clip(0, None)
         statax = statax + pl.when(ltg < 1).then(without_gains).otherwise(with_gains)
     if 2006 <= y <= 2010:
-        statax = pl.min_horizontal(statax, _p("flat_tax_rate", y) * fed_agi.clip(0, None))
+        statax = pl.min_horizontal(statax, p.num("flat_tax_rate") * fed_agi.clip(0, None))
 
     # --- Property tax relief credit for taxpayers 65 or older ---
-    hy = pl.col("ri_hy")
-    relief = resolve_year(p["property_relief"], y)
+    hy = pl.col("ri_household_income_undeflated")
+    relief = p.value("property_relief")
     ptax = pl.col("proptax") + float(p["property_relief_rent_share"]) * pl.col("rentpaid")
 
     def frac_for(c: dict) -> pl.Expr:
@@ -237,13 +214,13 @@ def compute_ri_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         .when(txp == 1).then(frac_for(relief["single"]))
         .otherwise(0.0)
     )
-    pcred = pl.when((aged > 0) & (frac > 0)).then((ptax - frac * hy).clip(0, _p("property_relief_max", y))).otherwise(0.0)
+    pcred = pl.when((aged > 0) & (frac > 0)).then((ptax - frac * hy).clip(0, p.num("property_relief_max"))).otherwise(0.0)
 
     # --- Credits ---
     chcr = pl.lit(0.0)
     earncr = pl.lit(0.0)
     if y >= 2001:
-        share = _p("child_care_share", y)
+        share = p.num("child_care_share")
         chcr = share * pl.min_horizontal(fed_ccc, taxbc.clip(0, None))
         statax = (statax - chcr).clip(0, None)
     if y <= 2000:
@@ -253,12 +230,12 @@ def compute_ri_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
             fed = taxbc - fed_ccc
             if y >= 1987:
                 fed = fed - pl.col("federal_elder")
-            earncr = _p("federal_tax_share", y) * pl.min_horizontal(eitc, fed.clip(0, None))
+            earncr = p.num("federal_tax_share") * pl.min_horizontal(eitc, fed.clip(0, None))
     if 2001 <= y <= 2002:
-        earncr = _p("eitc_share", y) * eitc
+        earncr = p.num("eitc_share") * eitc
         statax = (statax - pcred - earncr).clip(0, None)
     elif y >= 2003:
-        refundable = _p("eitc_refundable_share", y)
+        refundable = p.num("eitc_refundable_share")
         if y <= 2014:
             nonrefundable = pl.min_horizontal(statax, p["eitc_nonrefundable_share"] * eitc)
             earncr = nonrefundable + refundable * (p["eitc_nonrefundable_share"] * eitc - nonrefundable)

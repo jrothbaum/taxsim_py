@@ -70,3 +70,24 @@ pease_cap_rate:  # applied to the itemized total itself, as an upper bound on th
   2006: 0.80
   2007: 0.80
   2008: 0.80
+
+# Cash charitable deduction for non-itemizers: 2020 per return (halved for
+# separate returns), 2021 per taxpayer.
+nonitemizer_charity_deduction:
+  2020: 300
+  2021: 300
+
+# Share of the limitation (and of the personal exemption phaseout) that
+# applies while both were being repealed (taxsim_2022_10_21.f:24805-24810).
+limitation_phasedown_share:
+  1991: 1.0
+  2006: 0.6666666666666666
+  2008: 0.3333333333333333
+  2010: 1.0
+
+# Cash charitable contributions are limited to this share of AGI; no limit
+# in 2020-2021 (a very large share).
+cash_charity_agi_limit_share:
+  1987: 0.5
+  2020: 1.0e+20
+  2022: 0.5

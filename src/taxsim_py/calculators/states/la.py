@@ -3,9 +3,9 @@
 import polars as pl
 
 from taxsim_py.engine.brackets import bracket_rate, bracket_tax
-from taxsim_py.engine.inputs import aged_count, taxpayer_count
-from taxsim_py.engine.schema import PARAMETERS_ROOT, load_yaml, resolve_year
-from taxsim_py.engine.state import with_defaults, with_default as _with_default, with_state_detail
+from taxsim_py.engine.inputs import aged_count, files_head_of_household, files_joint, files_single, separate_divisor, taxpayer_count
+from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml
+from taxsim_py.engine.state import with_state_detail
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
 LA_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "la" / "income_tax.yaml")
@@ -14,38 +14,17 @@ FEDERAL_INCOME_TAX_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "income_tax
 
 def compute_la_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     effective_year, flate = resolve_state_year(year)
-    p = LA_PARAMS
-    df = with_defaults(df, ("federal_chcr", "proptax", "depx", "childcare"))
-    df = _with_default(df, "eitc")
-    df = _with_default(df, "ccc")
-    df = _with_default(df, "odc")
-    df = _with_default(df, "itemized_deduction")
-    df = _with_default(df, "state_sales_or_income_tax_ded")
-    df = _with_default(df, "itemizes", False)
-    df = _with_default(df, "fiitax")
-    df = _with_default(df, "regular_tax")
-    df = _with_default(df, "amt")
-    df = with_defaults(df, ("pensions", "taxable_social_security", "cares"))
+    p = YearParams(LA_PARAMS, effective_year)
 
     df = df.with_columns(
-        la_sep=pl.when(pl.col("filing_status") == "married_separate").then(2.0).otherwise(1.0),
+        la_sep=separate_divisor(),
         la_txp=pl.when(pl.col("filing_status").is_in(["married_joint", "head_of_household"])).then(2.0).otherwise(1.0),
     )
     is_single_or_sep = pl.col("filing_status").is_in(["single", "married_separate"])
-    is_joint = pl.col("filing_status") == "married_joint"
-    is_hoh = pl.col("filing_status") == "head_of_household"
+    is_joint = files_joint()
+    is_hoh = files_head_of_household()
 
-    df = deflate_for_extrapolation(
-        df,
-        flate,
-        [
-            "federal_chcr",
-            "pwages", "swages", "proptax", "otheritem", "mortgage", "dividends", "intrec",
-            "stcg", "ltcg", "ui", "pui", "sui", "agi", "eitc", "ccc", "odc",
-            "itemized_deduction", "fiitax", "regular_tax", "amt", "pensions",
-            "taxable_social_security", "cares",
-        ],
-    )
+    df = deflate_for_extrapolation(df, flate)
 
     # --- AGI --- less exempt retirement income and Social Security, net of
     # the federal tax attributable to them.
@@ -66,12 +45,12 @@ def compute_la_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     deduc = pl.lit(0.0)
     if effective_year >= 1980:
         if effective_year >= 1987:
-            std_p = FEDERAL_INCOME_TAX_PARAMS["standard_deduction"]
-            married_val = float(resolve_year(std_p["married_joint"], effective_year))
-            single_val = float(resolve_year(std_p["single"], effective_year))
-            hoh_val = float(resolve_year(std_p["head_of_household"], effective_year))
+            std_p = YearParams(FEDERAL_INCOME_TAX_PARAMS["standard_deduction"], effective_year)
+            married_val = std_p.num("married_joint")
+            single_val = std_p.num("single")
+            hoh_val = std_p.num("head_of_household")
             fedbas = (
-                pl.when(pl.col("filing_status") == "single").then(single_val)
+                pl.when(files_single()).then(single_val)
                 .when(is_hoh).then(hoh_val)
                 .otherwise(married_val / pl.col("la_sep"))
             )
@@ -98,65 +77,30 @@ def compute_la_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
             pded = pl.when(pl.col("proptax") > 0).then(pl.min_horizontal(cap_pf * taxpayer_count(), pl.col("proptax"))).otherwise(0.0)
             deduc_real = float(p["excess_itemized_pct_2008"][1960]) * (pl.col("itemized_deduction") - (fedbas + pded)).clip(0, None)
         else:
-            # 2003-2006: real, deliberate gap in the source - no branch,
-            # deduc stays $0 even while itemizing (see module docstring).
+            # 2003-2006: TAXSIM has no excess itemized deduction.
             deduc_real = pl.lit(0.0)
         deduc = pl.when(itemizing).then(deduc_real).otherwise(0.0)
 
     df = df.with_columns(la_deduc=deduc)
 
     # --- Federal income tax deduction ---
-    # `comnew(28)` (<=1979) is live-probe-confirmed to be federal's own
-    # `regular_tax` (the pre-EITC/pre-credit figure), NOT `fiitax` -
-    # caught via a live-probe mismatch (1977/single/$5,000 wages: real
-    # `regular_tax`=$319.50 vs `fiitax`=$278.50, a real $41 EITC gap that
-    # LA's own deduction must NOT reflect for THIS era).
-    #
-    # `comnew(52)` (law>=1980) is a genuinely DIFFERENT quantity across
-    # the two federal vintages it spans, even though it's the same array
-    # slot: for 1980-1986 (still federal_pre1987.py's own `law79`
-    # vintage - CCC/ODC as this project models them don't exist there at
-    # all, so `ccc`/`odc` default to $0 and can't explain the gap),
-    # `comnew(52)` is live-probe-confirmed to equal `fiitax` directly
-    # (1980/single/$50,000 wages: real `fiitax`=$17,142 exactly matches,
-    # not `regular_tax`=$17,517). For 1987+ (federal.py's own `law87`
-    # vintage), `comnew(52)` is `regular_tax` instead (see module
-    # docstring point 1) - a real, era-specific distinction, not a single
-    # uniform formula across the whole `law>=1980` range the source's own
-    # `if` groups together.
+    # Through 1979 `comnew(28)`, regular tax before credits. From 1980
+    # `comnew(52)`: federal income tax through 1986, regular tax from 1987.
     if effective_year <= 1979:
         la_fedtax = pl.col("regular_tax").clip(0, None)
     elif effective_year <= 1986:
         # `comnew(52)` is after nonrefundable credits but before the EITC;
         # `fiitax` has already subtracted that refundable credit.
         la_fedtax = (pl.col("fiitax") + pl.col("pre1987_earncr")).clip(0, None)
-    elif year == 2021:
-        # ARPA made BOTH CCC and CTC/ODC fully refundable for 2021 only,
-        # with no tax-liability cap at all (both already documented as
-        # such on federal.py itself) - so NONE of `ccc`/`odc` actually
-        # reduced `regular_tax` that year, even though the columns report
-        # their full (refundable) amounts. Subtracting them here anyway
-        # was a real bug, caught via a live-probe mismatch (2021/single/
-        # $30,000 wages/$2,000 childcare: real federal-tax-deduction
-        # equals `regular_tax` exactly, not `regular_tax-ccc-odc`).
-        #
-        # Gated on the RAW requested `year`, not `effective_year` - for
-        # 2022/2023 (CPI-extrapolated), `effective_year` is forced to
-        # 2021 for the STATE formula only, but federal.py itself still
-        # computes `ccc`/`odc` at the REAL requested year's own (non-
-        # ARPA, ordinary nonrefundable) rules, so the normal subtraction
-        # is still correct there - caught via a live-probe mismatch on
-        # 2022/2023 childcare cases after the `effective_year` version
-        # of this fix wrongly applied the 2021-only carve-out to them too.
-        la_fedtax = pl.col("regular_tax").clip(0, None) + pl.col("amt").clip(0, None)
     else:
-        la_fedtax = (pl.col("regular_tax") - (pl.col("ccc") + pl.col("odc"))).clip(0, None) + pl.col("amt").clip(0, None)
+        # `max(0,comnew(52)-comnew(58))+comnew(70)`: regular tax less nonrefundable credits, plus AMT.
+        la_fedtax = (pl.col("regular_tax") - pl.col("nonrefundable_credits")).clip(0, None) + pl.col("amt").clip(0, None)
 
     df = df.with_columns(la_taxinc=(pl.col("la_agi") - pl.col("la_deduc") - la_fedtax).clip(0, None))
 
     # --- Combined standard-deduction/exemption + taxable income ---
-    stxmp1 = float(resolve_year(p["combined_stded_exemption_txp1"], effective_year))
-    stxmp2 = float(resolve_year(p["combined_stded_exemption_txp2"], effective_year))
+    stxmp1 = p.num("combined_stded_exemption_txp1")
+    stxmp2 = p.num("combined_stded_exemption_txp2")
     stxmp = pl.when(pl.col("la_txp") == 2).then(stxmp2).otherwise(stxmp1)
     df = df.with_columns(
         la_taxinc=(pl.col("la_taxinc") - stxmp).clip(0, None),
@@ -164,7 +108,7 @@ def compute_la_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     )
 
     # --- Bracket tax ---
-    xmpd = float(resolve_year(p["dependent_tax_reduction_amount"], effective_year))
+    xmpd = p.num("dependent_tax_reduction_amount")
     # Dependents and taxpayers 65 or older each count toward the reduction.
     dependents = pl.col("depx") + aged_count()
     if effective_year <= 1979:
@@ -183,20 +127,23 @@ def compute_la_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         else:
             single_table, married_table, hoh_table = p["brackets_2009plus_single"], p["brackets_2009plus_married"], p["brackets_2009plus_hoh"]
 
-        tax_single = (bracket_tax(pl.col("la_taxinc"), single_table) - 0.02 * xmpd * dependents).clip(0, None)
-        tax_married = (bracket_tax(pl.col("la_taxinc"), married_table) - 0.02 * xmpd * dependents).clip(0, None)
+        tax_single = (bracket_tax(pl.col("la_taxinc"), single_table) - p["dependent_credit_rate"] * xmpd * dependents).clip(0, None)
+        tax_married = (bracket_tax(pl.col("la_taxinc"), married_table) - p["dependent_credit_rate"] * xmpd * dependents).clip(0, None)
         if effective_year <= 2002:
             tax_hoh = (
                 bracket_tax(pl.col("la_taxinc"), hoh_table)
-                - xmpd * (0.02 * dependents.clip(0, 1) + 0.04 * (dependents - 1).clip(0, None))
+                - xmpd * (
+                    p["dependent_credit_hoh_pre2003"]["first"] * dependents.clip(0, 1)
+                    + p["dependent_credit_hoh_pre2003"]["additional"] * (dependents - 1).clip(0, None)
+                )
             ).clip(0, None)
         else:
             tax_hoh = (
                 bracket_tax(pl.col("la_taxinc"), hoh_table)
                 - xmpd * (
-                    0.02 * dependents.clip(0, 3)
-                    + 0.03 * (dependents - 4).clip(0, 1)
-                    + 0.04 * (dependents - 5).clip(0, None)
+                    p["dependent_credit_hoh_2003plus"]["first_three"] * dependents.clip(0, 3)
+                    + p["dependent_credit_hoh_2003plus"]["fourth"] * (dependents - 4).clip(0, 1)
+                    + p["dependent_credit_hoh_2003plus"]["additional"] * (dependents - 5).clip(0, None)
                 )
             ).clip(0, None)
         statax = pl.when(is_single_or_sep).then(tax_single).when(is_joint).then(tax_married).otherwise(tax_hoh)
@@ -220,15 +167,15 @@ def compute_la_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     if effective_year <= 1979:
         fedcr = pl.lit(0.0)
     else:
-        # A share of the federal child care credit (`comnew(53)`).
-        ccc_for_fedcr = pl.col("federal_chcr")
+        # A share of the federal child care and elderly credits (`comnew(53)`, `comnew(54)`).
+        ccc_for_fedcr = pl.col("federal_chcr") + pl.col("federal_elder")
         pct = float(p["federal_credit_pct"][1960])
         fedcr = pct * ccc_for_fedcr
         if effective_year >= 1986:
             cap = float(p["federal_credit_cap_1986plus"][1960])
             fedcr = fedcr.clip(0, cap)
 
-    bcr = pl.lit(0.0)  # `data(10)` (blind) confirmed inert.
+    bcr = pl.lit(0.0)  # The blind credit (`data(10)`) has no TAXSIM input.
 
     chcr = pl.lit(0.0)
     chcref = pl.lit(0.0)
@@ -243,7 +190,7 @@ def compute_la_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         chcr = (
             pl.when((base > ceiling1) & (base <= ceiling2)).then(rate2 * pl.col("ccc"))
             .when((base > ceiling2) & (base <= ceiling3)).then(rate3 * pl.col("ccc"))
-            .when(base > ceiling3).then(pl.min_horizontal(0.1 * pl.col("ccc"), cap1_over60))
+            .when(base > ceiling3).then(pl.min_horizontal(p["child_care_credit_top_tier_rate"] * pl.col("ccc"), cap1_over60))
             .otherwise(0.0)
         )
 

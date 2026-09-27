@@ -1,5 +1,6 @@
 """Parameter loading and effective-year resolution."""
 
+from collections.abc import Iterator, Mapping
 from pathlib import Path
 from typing import Any
 
@@ -27,6 +28,33 @@ def resolve_year(by_year: dict[int, Any], year: int) -> Any:
             f"(earliest coded year is {coded_years[0]})"
         )
     return by_year[max(candidates)]
+
+
+class YearParams(Mapping[str, Any]):
+    """A parameter mapping read at one law year.
+
+    Indexing returns an entry unchanged; `value` resolves a year-keyed entry
+    at `year` and `num` also converts it to float.
+    """
+
+    def __init__(self, params: Mapping[str, Any], year: int) -> None:
+        self.params = params
+        self.year = year
+
+    def __getitem__(self, key: str) -> Any:
+        return self.params[key]
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(self.params)
+
+    def __len__(self) -> int:
+        return len(self.params)
+
+    def value(self, key: str) -> Any:
+        return resolve_year(self.params[key], self.year)
+
+    def num(self, key: str) -> float:
+        return float(self.value(key))
 
 
 def validate_brackets(brackets: list[list[float]], context: str) -> None:

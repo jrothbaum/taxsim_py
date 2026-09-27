@@ -1,7 +1,7 @@
 # Performance
 
-Use `scripts/benchmark_execution.py` to compare state batch sizes without the
-compiled TAXSIM oracle:
+Use `scripts/benchmark_execution.py` to time `calculate_taxes` on one state's
+validation cases at several batch sizes, without the compiled TAXSIM oracle:
 
 ```bash
 uv run scripts/benchmark_execution.py MA ME MI \
@@ -9,8 +9,8 @@ uv run scripts/benchmark_execution.py MA ME MI \
 ```
 
 `chunk=all` runs one dataframe. Other values split the same rows into batches.
-The script verifies that every run produces the same `siitax` and reports state,
-federal, and nested-federal call counts.
+The script verifies that every run produces the same `siitax`. Benchmarks go
+through the public API, not internal functions.
 
 Use `scripts/benchmark_multistate.py` to compare mixed-state, mixed-year API
 scaling with the compiled Fortran executable:

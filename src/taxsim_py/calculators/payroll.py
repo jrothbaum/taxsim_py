@@ -3,8 +3,8 @@
 import polars as pl
 
 from taxsim_py.engine.payroll_tax import PAYROLL_ITEMS, taxsim_payroll
-from taxsim_py.engine.schema import PARAMETERS_ROOT, load_yaml, resolve_year
-from taxsim_py.engine.state import with_defaults
+from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml, resolve_year
+from taxsim_py.engine.state import by_filing_status, with_defaults
 
 PAYROLL_TAX_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "payroll_tax.yaml")
 
@@ -14,20 +14,20 @@ PAYROLL_INPUTS = tuple(name for names in PAYROLL_ITEMS for name in names)
 
 def payroll_parts(year: int) -> dict[str, pl.Expr]:
     """TAXSIM's payroll figures for `year` (see `engine.payroll_tax.taxsim_payroll`)."""
-    p = PAYROLL_TAX_PARAMS
-    threshold_expr = pl.lit(None, dtype=pl.Float64)
-    for status in FILING_STATUSES:
-        value = float(resolve_year(p["additional_medicare_threshold"][status], year))
-        threshold_expr = pl.when(pl.col("filing_status") == status).then(pl.lit(value)).otherwise(threshold_expr)
+    p = YearParams(PAYROLL_TAX_PARAMS, year)
+    threshold_expr = by_filing_status(
+        {status: resolve_year(p["additional_medicare_threshold"][status], year) for status in FILING_STATUSES}
+    )
     return taxsim_payroll(
-        wage_base=float(resolve_year(p["oasdi_wage_base"], year)),
-        hi_wage_base=float(resolve_year(p["hi_wage_base"], year)),
-        oasdi_rate=float(resolve_year(p["oasdi_rate_combined"], year)),
-        se_oasdi_rate=float(resolve_year(p["se_oasdi_rate"], year)),
-        hi_rate=float(resolve_year(p["se_hi_rate"], year)),
-        net_earnings_factor=float(resolve_year(p["se_net_earnings_factor"], year)),
-        addmed_rate=float(resolve_year(p["additional_medicare_rate"], year)),
+        wage_base=p.num("oasdi_wage_base"),
+        hi_wage_base=p.num("hi_wage_base"),
+        oasdi_rate=p.num("oasdi_rate_combined"),
+        se_oasdi_rate=p.num("se_oasdi_rate"),
+        hi_rate=p.num("se_hi_rate"),
+        net_earnings_factor=p.num("se_net_earnings_factor"),
+        addmed_rate=p.num("additional_medicare_rate"),
         addmed_threshold=threshold_expr,
+        own_share_self_employment=float(p["own_share_self_employment"]),
     )
 
 

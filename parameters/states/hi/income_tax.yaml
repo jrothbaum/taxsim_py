@@ -443,3 +443,43 @@ eitc_rate_2018_2022:
 renter_credit_per_exemption: {1977: 20, 1981: 50}
 renter_credit_min_rent: 1000
 renter_credit_agi_limit: {1977: 20000, 1989: 30000}
+
+# 2009-2015 exemption phaseout: the threshold is the base for single
+# returns times these multipliers (joint and separate halved for separate),
+# and each step removes a share of the exemptions.
+personal_exemption_phaseout_multiplier:
+  head_of_household: 1.25
+  married: 1.5
+personal_exemption_phaseout_share_per_step: 0.02
+
+# 1980 standard deduction limit as a share of AGI.
+standard_deduction_agi_share_1980: 0.1
+
+# Itemized deduction limitation (1991+): a share of AGI above the threshold,
+# at most a share of itemized deductions; phased down 2006-2009, none 2010.
+itemized_phaseout_rate: 0.03
+itemized_phaseout_cap_rate: 0.8
+itemized_phaseout_share:
+  1991: 1.0
+  2006: 0.6666666666666666
+  2008: 0.3333333333333333
+  2010: 0.0
+
+# Capital gains alternative tax: gains above the ordinary-income floor
+# (per taxpayer, or for head of household) are taxed at a flat rate.
+capital_gains_floor_per_taxpayer: 24000
+capital_gains_floor_hoh: 36000
+capital_gains_rate: 0.0725
+
+# Child care credit rate (percent): `max_pct` less one point per `step` of
+# AGI above `start`, at least `min_pct`.
+child_care_credit_rate:
+  1977: {min_pct: 10, max_pct: 15, start: 21000, step: 2000}
+  1990: {min_pct: 15, max_pct: 25, start: 22000, step: 2000}
+  2016: {min_pct: 15, max_pct: 25, start: 25000, step: 5000}
+
+# 2007 general income tax credit: `max - slope * agi / limit` below the limit.
+general_credit_2007:
+  head_of_household: {max: 140, slope: 70, limit: 60000}
+  married_joint: {max: 160, slope: 90, limit: 60000}
+  other: {max: 65, slope: 25, limit: 30000}

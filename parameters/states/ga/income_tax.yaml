@@ -137,3 +137,24 @@ retirement_exclusion_earned_limit_1986: 1200
 retirement_exclusion_earnings_cap: 4000
 # Additional standard deduction per taxpayer 65 or older (1987+).
 aged_standard_deduction: {1987: 700, 1998: 1300}
+
+# 1982-1986 IRA adjustment (`stira`): this amount less the federal IRA
+# limit (earnings up to the limit per return) is added back when positive.
+ira_addback_1982_1986:
+  amount: 500
+  limit_joint: 4000
+  limit_other: 2000
+
+# 1982-1986 unemployment compensation thresholds, Georgia's (`gmp`) and the
+# federal ones (`fmp`), by filing status.
+unemployment_threshold_1982_1986:
+  georgia: {single: 20000, married_joint: 25000, head_of_household: 20000, married_separate: 0}
+  federal: {single: 12000, married_joint: 18000, head_of_household: 20000, married_separate: 0}
+
+# Retirement exclusion: the federal net capital loss limit (halved for
+# separate returns), and the share of losses counted for a spouse.
+retirement_exclusion_capital_loss_limit: 3000
+retirement_exclusion_spouse_loss_share: 0.25
+
+# 1978-1986 child care expense cap per dependent.
+child_care_credit_expense_per_dependent_pre1987: 2000

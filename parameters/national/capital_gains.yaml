@@ -446,3 +446,12 @@ rate_20:  # inert for every year coded here - always shadowed by the
 # Net capital loss deductible against other income, divided by `sepret`
 # for married filing separately.
 net_capital_loss_limit: {1987: 3000}
+
+# 1987-1996 maximum rate on long-term gains.
+maximum_rate_1987_1996: 0.28
+# 2003 transition: dividends at the new rates, remaining gains at the old.
+rates_2003:
+  dividends_low: 0.05
+  gains_low: 0.10
+  dividends_high: 0.15
+  gains_high: 0.20

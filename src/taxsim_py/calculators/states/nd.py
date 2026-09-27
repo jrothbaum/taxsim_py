@@ -3,24 +3,18 @@
 import polars as pl
 
 from taxsim_py.engine.brackets import bracket_rate, bracket_tax
-from taxsim_py.engine.inputs import federal_exemption_count, taxpayer_count
-from taxsim_py.engine.schema import PARAMETERS_ROOT, load_yaml, resolve_year
+from taxsim_py.engine.inputs import federal_exemption_count, files_head_of_household, files_joint, files_separate, files_single, taxpayer_count
+from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml, resolve_year
 from taxsim_py.engine.state import (
+    dividend_input_adjustment,
     checkpoint,
     dividend_exclusion_addback,
     pre1987_federal_itemizing,
-    with_default,
-    with_defaults,
     with_state_detail,
 )
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
 ND_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "nd" / "income_tax.yaml")
-STATE_ADJUSTMENT_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "state_adjustments.yaml")
-
-
-def _p(name: str, year: int) -> float:
-    return float(resolve_year(ND_PARAMS[name], year))
 
 
 def _scaled(brackets: list[list[float]], factor: float) -> list[list[float]]:
@@ -35,8 +29,9 @@ def _schedule_2009(uppers: list[float], y: int) -> list[list[float]]:
 
 def _single_schedule(y: int) -> list[list[float]]:
     """Single filers' schedule for 2001 on (the marriage credit reuses it)."""
+    p = YearParams(ND_PARAMS, y)
     if y <= 2008:
-        return _scaled(ND_PARAMS["brackets_2001"]["single"], _p("bracket_inflation_2001", y))
+        return _scaled(ND_PARAMS["brackets_2001"]["single"], p.num("bracket_inflation_2001"))
     return _schedule_2009(ND_PARAMS["bracket_uppers"][y]["single"], y)
 
 
@@ -52,11 +47,11 @@ def _federal_tax_deduction(y: int) -> pl.Expr:
         # `tax = taxaft - earncr - chcr1` and `eitc = min(earncr, taxaft)`.
         regtax = pl.col("regular_tax")
         almtax = pl.col("amt")
-        # The federal routine only fills `comnew(58)` from 1998 (0 before).
-        credit = pl.lit(0.0) if y <= 1997 else pl.col("ccc") + pl.col("odc")
+        credit = pl.col("nonrefundable_credits")  # `comnew(58)`
         earncr = pl.col("eitc")
         before = regtax + almtax if y >= 2000 else regtax
-        taxaft = (before - credit).clip(0, None)
+        # Before 1998 the reported credit total does not reduce federal tax.
+        taxaft = (before - (credit if y >= 1998 else 0.0)).clip(0, None)
         # `regtax` in the maximum is the schedule tax (from 1991 ordinary
         # rates on all income, `comnew(28)`).
         pretax = pl.max_horizontal(pl.col("schedule_tax"), almtax, taxaft - earncr + pl.min_horizontal(earncr, taxaft) + credit)
@@ -67,28 +62,14 @@ def compute_nd_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     """Calculate North Dakota income tax for each row."""
     effective_year, flate = resolve_state_year(year)
     y = effective_year
-    p = ND_PARAMS
-    df = with_defaults(df, (
-        "dividends", "intrec", "stcg", "ltcg", "proptax", "otheritem", "mortgage", "depx", "charity_cash",
-        "state_sales_or_income_tax_ded", "taxable_income", "regular_tax", "schedule_tax", "amt", "ccc", "odc", "eitc", "credit",
-        "pre1987_pretax", "pre1987_earncr", "pre1987_almtax", "pre1987_taxbc", "pre1987_capgn",
-        "taxable_social_security",
-    ))
-    df = with_default(df, "itemizes", False)
-    dividend_adjustment = float(resolve_year(STATE_ADJUSTMENT_PARAMS["household_income_dividend_adjustment"], y))
-    df = deflate_for_extrapolation(
-        df, flate,
-        [
-            "pwages", "swages", "dividends", "stcg", "ltcg", "charity_cash", "state_sales_or_income_tax_ded",
-            "agi", "taxable_income", "regular_tax", "schedule_tax", "amt", "ccc", "odc", "eitc", "taxable_social_security",
-        ],
-    )
+    p = YearParams(ND_PARAMS, effective_year)
+    dividend_adjustment = dividend_input_adjustment()
+    df = deflate_for_extrapolation(df, flate)
 
-    status = pl.col("filing_status")
-    is_single = status == "single"
-    is_joint = status == "married_joint"
-    is_sep = status == "married_separate"
-    is_hoh = status == "head_of_household"
+    is_single = files_single()
+    is_joint = files_joint()
+    is_sep = files_separate()
+    is_hoh = files_head_of_household()
     sep = pl.when(is_sep).then(2.0).otherwise(1.0)
     txp = taxpayer_count()
     fed_agi = pl.col("agi")
@@ -106,13 +87,13 @@ def compute_nd_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
             capded = (pl.col("stcg") + pl.col("ltcg") - pl.col("pre1987_capgn")).clip(0, None)
             agi = agi + capded * p["capital_gains_deduction_addback_share"]
         elif y <= 1982:
-            agi = agi - pl.min_horizontal(pl.col("intrec"), _p("interest_exclusion_per_taxpayer", y) * txp)
+            agi = agi - pl.min_horizontal(pl.col("intrec"), p.num("interest_exclusion_per_taxpayer") * txp)
             if y == 1982:
-                agi = agi + dividend_exclusion_addback(y, dividend_adjustment)
+                agi = agi + dividend_exclusion_addback(y)
         else:
             if y == 1985:
                 agi = agi - pl.col("taxable_social_security")
-            agi = agi - pl.min_horizontal(pl.col("intrec"), _p("interest_exclusion_per_taxpayer", y) * txp)
+            agi = agi - pl.min_horizontal(pl.col("intrec"), p.num("interest_exclusion_per_taxpayer") * txp)
         df, (agi,) = checkpoint(df, nd_agi=agi)
 
         # --- Federal itemized deduction and zero bracket ---
@@ -128,7 +109,7 @@ def compute_nd_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         else:
             stded = zbr
         deduc = pl.when(fed_itemizes).then(xitded).otherwise(pl.max_horizontal(stded, xitded)) + fded
-        exemp = exemps * _p("exemption_amount", y) + addex
+        exemp = exemps * p.num("exemption_amount") + addex
         df, (taxinc,) = checkpoint(df, nd_taxinc=(agi - deduc - exemp).clip(0, None))
         if y == 1977:
             brackets = p["brackets_1977"]
@@ -153,20 +134,20 @@ def compute_nd_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
             .when((fullcg > 0) & (glong > 0) & (gshort < 0)).then(fullcg)
             .otherwise(0.0)
         )
-        cgexc = _p("capital_gain_exclusion", y) * cgltg.clip(0, None)
-        qdiv = _p("qualified_dividend_exclusion", y) * (pl.col("dividends") + dividend_adjustment)
+        cgexc = p.num("capital_gain_exclusion") * cgltg.clip(0, None)
+        qdiv = p.num("qualified_dividend_exclusion") * (pl.col("dividends") + dividend_adjustment)
         taxinc = (pl.col("taxable_income") - cgexc - qdiv).clip(0, None)
         # Taxable Social Security is subtracted (2019-2020 only up to an AGI limit).
         if y >= 2019:
             ss_taxable = pl.col("taxable_social_security")
             if y <= 2020:
-                ss_taxable = pl.when(fed_agi <= _p("social_security_subtraction_agi_limit_per_taxpayer", y) * txp).then(
+                ss_taxable = pl.when(fed_agi <= p.num("social_security_subtraction_agi_limit_per_taxpayer") * txp).then(
                     ss_taxable
                 ).otherwise(0.0)
             taxinc = (taxinc - ss_taxable).clip(0, None)
         df, (taxinc,) = checkpoint(df, nd_taxinc=taxinc)
         if y <= 2008:
-            factor = _p("bracket_inflation_2001", y)
+            factor = p.num("bracket_inflation_2001")
             tables = p["brackets_2001"]
             married = _scaled(tables["married"], factor)
             statax = (
@@ -201,17 +182,17 @@ def compute_nd_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     if y <= 1999:
         contcr = pl.min_horizontal(
             p["contribution_credit_rate"] * pl.col("charity_cash"), p["contribution_credit_tax_share"] * statax
-        ).clip(None, _p("contribution_credit_cap", y))
+        ).clip(None, p.num("contribution_credit_cap"))
         statax = (statax - contcr).clip(0, None)
 
     # --- Short form: a share of federal tax before credits (1981-2000) ---
     energy_credit = pl.lit(0.0)
     if 1981 <= y <= 2000:
         fedtax = pl.col("pre1987_taxbc") if y <= 1986 else pl.col("regular_tax")
-        short_tax = _p("short_form_rate", y) * fedtax
+        short_tax = p.num("short_form_rate") * fedtax
         short_selected = short_tax < statax
         rate = pl.when(short_selected).then(
-            _p("short_form_rate", y) * pl.col("federal_source_rate") / 100.0
+            p.num("short_form_rate") * pl.col("federal_source_rate") / 100.0
         ).otherwise(rate)
         statax = pl.min_horizontal(statax, short_tax)
         if y <= 1982:
@@ -226,12 +207,12 @@ def compute_nd_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         sw = pl.col("swages").clip(0, None)
         lower = pl.min_horizontal(pw, sw)
         single = _single_schedule(y)
-        taxin3 = (lower - _p("marriage_credit_deduction", y)).clip(0, None)
+        taxin3 = (lower - p.num("marriage_credit_deduction")).clip(0, None)
         taxin4 = (taxinc - taxin3).clip(0, None)
-        crdmar = (statax - bracket_tax(taxin3, single) - bracket_tax(taxin4, single)).clip(0, _p("marriage_credit_max", y))
+        crdmar = (statax - bracket_tax(taxin3, single) - bracket_tax(taxin4, single)).clip(0, p.num("marriage_credit_max"))
         eligible = (
-            is_joint & (taxinc > _p("marriage_credit_taxable_income_min", y))
-            & (lower > _p("marriage_credit_earnings_min", y))
+            is_joint & (taxinc > p.num("marriage_credit_taxable_income_min"))
+            & (lower > p.num("marriage_credit_earnings_min"))
         )
         crdmar = pl.when(eligible).then(crdmar).otherwise(0.0)
         statax = (statax - crdmar).clip(0, None)
@@ -239,7 +220,7 @@ def compute_nd_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     # --- Tax relief credit 2021 ---
     relief = pl.lit(0.0)
     if y == 2021:
-        relief = _p("relief_credit", y) * txp
+        relief = p.num("relief_credit") * txp
         statax = (statax - relief).clip(0, None)
 
     return with_state_detail(

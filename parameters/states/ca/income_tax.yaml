@@ -622,3 +622,57 @@ renter_credit_1998_inflation: {1998: 1.0, 1999: 1.026, 2000: 1.06396, 2001: 1.12
 # above $25,000 per aged taxpayer.
 aged_exclusion_1985: 1000
 aged_exclusion_income_limit_1985: 25000
+
+# Through 1986, the share of long-term gains included in income.
+capital_gains_inclusion_pre1987: 0.65
+
+# 2011-2012: the federal self-employment tax deduction's payroll-tax-holiday
+# excess over half the tax, as the source rounds it: a rate on the tax up to
+# the threshold, a flat amount above.
+se_deduction_holiday_addback:
+  threshold: 14204
+  rate: 0.5751
+  flat: 1067
+
+# Itemized deduction limitation (1991+): a share of AGI above the
+# threshold, at most a share of itemized deductions.
+itemized_phaseout_rate: 0.06
+itemized_phaseout_cap_rate: 0.8
+
+# Exemption credits through 1986 (inflated and rounded), 1978's own amounts,
+# and the 1987+ base per credit (times the inflation factor).
+exemption_credit_pre1987: {per_taxpayer: 25, per_dependent: 8}
+exemption_credit_1978: {per_taxpayer: 100, per_dependent: 8}
+exemption_credit_base_1987plus: 50
+
+# 1991+ exemption credit phaseout: a reduction per credit for each step of
+# income above the threshold (before 1998 proportional, and none above the
+# upper limit).
+exemption_credit_phaseout_per_credit: 6
+exemption_credit_phaseout_step: 2500
+exemption_credit_phaseout_upper_pre1998: 25000
+# 1994-1998 limit: income floors by filing status and the upper thresholds
+# (times the inflation factors); `min(share * agi, 0)` is always 0 in TAXSIM.
+exemption_credit_limit_1994_1998:
+  floor_single_or_hoh: 30000
+  floor_other: 20000
+  upper_hoh: 150000
+  upper_other: 100000
+  agi_share: 0.025
+
+# Low Income Credit through 1983: a base (times the inflation factor from
+# 1979) less half the amount by which AGI exceeds the floor.
+low_income_credit_pre1984:
+  base: 40
+  agi_floor: 5000
+  reduction_rate: 0.5
+
+# Minimum tax exclusion phaseout rate.
+amt_exclusion_phaseout_rate: 0.25
+
+# Young Child Tax Credit (2019+): per child under 6, reduced above the
+# earnings threshold.
+young_child_credit:
+  amount: 1000
+  earnings_threshold: 25000
+  phaseout_rate: 0.2

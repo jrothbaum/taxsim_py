@@ -3,29 +3,24 @@
 import polars as pl
 
 from taxsim_py.engine.brackets import bracket_rate, bracket_tax
-from taxsim_py.engine.inputs import aged_count, taxpayer_count
-from taxsim_py.engine.schema import PARAMETERS_ROOT, load_yaml, resolve_year
+from taxsim_py.engine.inputs import aged_count, files_head_of_household, files_joint, files_separate, files_single, taxpayer_count
+from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml
 from taxsim_py.engine.state import (
+    dividend_input_adjustment,
     by_filing_status,
     checkpoint,
     pre1987_federal_itemizing,
-    with_default,
-    with_defaults,
     with_state_detail,
 )
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
 VA_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "va" / "income_tax.yaml")
-STATE_ADJUSTMENT_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "state_adjustments.yaml")
-
-
-def _p(name: str, year: int) -> float:
-    return float(resolve_year(VA_PARAMS[name], year))
 
 
 def _brackets(y: int) -> list[list[float]]:
+    p = YearParams(VA_PARAMS, y)
     rows = [list(r) for r in VA_PARAMS["brackets_rates"]]
-    rows[3][0] = _p("brackets_top_start", y)
+    rows[3][0] = p.num("brackets_top_start")
     return rows
 
 
@@ -33,32 +28,16 @@ def compute_va_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     """Calculate Virginia income tax for each row."""
     effective_year, flate = resolve_state_year(year)
     y = effective_year
-    p = VA_PARAMS
-    df = with_defaults(df, (
-        "dividends", "intrec", "stcg", "ltcg", "psemp", "ssemp", "proptax", "otheritem", "mortgage", "depx",
-        "childcare", "charity_cash", "state_sales_or_income_tax_ded", "taxable_unemployment",
-        "itemized_deduction", "itemized_before_limit", "eitc", "setax", "pre1987_twoded", "pensions", "gssi",
-        "taxable_social_security", "otherprop", "scorp", "pbusinc", "pprofinc", "sbusinc", "sprofinc",
-    ))
+    p = YearParams(VA_PARAMS, effective_year)
     df = df.with_columns(va_schede=pl.col("otherprop") + (pl.col("scorp") if year >= 1987 else 0.0))
-    df = with_default(df, "itemizes", False)
-    dividend_adjustment = float(resolve_year(STATE_ADJUSTMENT_PARAMS["household_income_dividend_adjustment"], y))
+    dividend_adjustment = dividend_input_adjustment()
     # Self-employment tax (`comnew(175)`) is not deflated in projected years.
-    df = deflate_for_extrapolation(
-        df, flate,
-        [
-            "pwages", "swages", "dividends", "intrec", "stcg", "ltcg", "psemp", "ssemp", "proptax", "otheritem",
-            "mortgage", "childcare", "charity_cash", "state_sales_or_income_tax_ded", "agi",
-            "taxable_unemployment", "itemized_deduction", "itemized_before_limit", "eitc", "pensions", "gssi",
-            "taxable_social_security", "va_schede",
-        ],
-    )
+    df = deflate_for_extrapolation(df, flate, extra=("va_schede",))
 
-    status = pl.col("filing_status")
-    is_joint = status == "married_joint"
-    is_sep = status == "married_separate"
-    is_hoh = status == "head_of_household"
-    single_type = (status == "single") | is_hoh
+    is_joint = files_joint()
+    is_sep = files_separate()
+    is_hoh = files_head_of_household()
+    single_type = (files_single()) | is_hoh
     sep = pl.when(is_sep).then(2.0).otherwise(1.0)
     txp = taxpayer_count()
     aged = aged_count()
@@ -69,12 +48,13 @@ def compute_va_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     # --- AGI (unemployment compensation is not taxed) ---
     agi = fed_agi - pl.col("taxable_unemployment")
     if y <= 1987:
-        agi = agi - _p("aged_deduction_1977_1987", y) * aged
+        agi = agi - p.num("aged_deduction_1977_1987") * aged
     if 1982 <= y <= 1986:
         agi = agi + pl.col("pre1987_twoded")
     if y >= 1984:
         agi = agi - pl.col("taxable_social_security")
     df, (agi,) = checkpoint(df, va_agi=agi)
+    detail_agi = agi
 
     # No return below the filing minimum.
     if y <= 1978:
@@ -100,7 +80,7 @@ def compute_va_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         )
         agi = agi - pl.when(aged >= 1).then(subtraction).otherwise(0.0)
     elif y >= 1990:
-        amount = _p("age_deduction", y)
+        amount = p.num("age_deduction")
         elder = pl.min_horizontal(fed_agi, pl.lit(amount) if y == 1992 else amount * aged)
         if y >= 2004:
             limits = p["age_deduction_income_limit"]
@@ -122,7 +102,7 @@ def compute_va_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         c = p["standard_deduction_1989"]
         stded = pl.when(is_joint | is_sep).then(c["married"] / sep).otherwise(c["single"])
     else:
-        stded = _p("standard_deduction_per_taxpayer", y) * txp
+        stded = p.num("standard_deduction_per_taxpayer") * txp
 
     # --- Itemized deductions ---
     if y <= 1986:
@@ -135,10 +115,10 @@ def compute_va_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         xitded = pl.when(fed_itemizes).then(itemized - salt).otherwise(0.0)
         if y >= 1991:
             if y <= 2012:
-                phas92 = p["itemized_limit_threshold"] * _p("itemized_limit_index", y) / sep
+                phas92 = p["itemized_limit_threshold"] * p.num("itemized_limit_index") / sep
             else:
                 phas92 = (
-                    _p("itemized_limit_index_2013", y) * p["itemized_limit_threshold_2013"]
+                    p.num("itemized_limit_index_2013") * p["itemized_limit_threshold_2013"]
                     * by_filing_status(p["itemized_limit_status_factor_2013"])
                 )
             ag = fed_agi.clip(0, None)
@@ -160,16 +140,16 @@ def compute_va_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         )
         perc = pl.when(deduc1 > 0).then((dedphs / deduc1).clip(0, 1)).otherwise(0.0)
         limited = deduc1 - dedphs - pl.when(deduc1 > 0).then(sttax * (1 - perc)).otherwise(0.0)
-        over = fed_agi > threshold * _p("itemized_limit_2019_test_index", y)
+        over = fed_agi > threshold * p.num("itemized_limit_2019_test_index")
         xitded = pl.when(fed_itemizes).then(pl.when(over).then(limited).otherwise(deduc1 - salt)).otherwise(0.0)
 
-    child = depx.clip(None, 2) * _p("child_care_deduction_per_child", y) if y >= 1979 else pl.lit(0.0)
+    child = depx.clip(None, 2) * p.num("child_care_deduction_per_child") if y >= 1979 else pl.lit(0.0)
     child = pl.min_horizontal(pl.col("childcare"), child)
     deduc = pl.max_horizontal(stded, xitded) + child
     if y <= 2004:
-        exemp = (txp + depx + aged) * _p("exemption", y)
+        exemp = (txp + depx + aged) * p.num("exemption")
     else:
-        exemp = (txp + depx) * _p("exemption", y) + float(p["aged_exemption_2005"]) * aged
+        exemp = (txp + depx) * p.num("exemption") + float(p["aged_exemption_2005"]) * aged
     df, (taxinc, xitded, stded) = checkpoint(
         df, va_taxinc=(agi - deduc - exemp).clip(0, None), va_xitded=xitded, va_stded=stded
     )
@@ -199,7 +179,7 @@ def compute_va_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         z = p["zero_tax_agi_2004"]
         zero = pl.when(single_type).then(agi <= z["single"]).otherwise(agi <= z["married_per_taxpayer"] * txp)
     else:
-        zero = agi <= _p("zero_tax_agi_per_taxpayer", y) * txp
+        zero = agi <= p.num("zero_tax_agi_per_taxpayer") * txp
     statax = pl.when(zero).then(0.0).otherwise(statax)
     df, (statax,) = checkpoint(df, va_statax=statax)
 
@@ -219,7 +199,7 @@ def compute_va_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         wife = pl.min_horizontal(wife, husb)
         aged_w = (aged > 0).cast(pl.Float64)
         taxy23 = (
-            wife - aged_w * p["spouse_adjustment_age_deduction"] - 0.5 * ss - _p("exemption", y)
+            wife - aged_w * p["spouse_adjustment_age_deduction"] - 0.5 * ss - p.num("exemption")
             - p["aged_exemption_2005"] * aged_w
         ).clip(0, None)
         taxy24 = (taxinc - taxy23).clip(0, None)
@@ -234,7 +214,7 @@ def compute_va_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
 
         # --- Credit for low-income individuals ---
         people = depx + txp
-        limit = _p("low_income_limit", y) + (people - 1) * _p("low_income_limit_per_person", y)
+        limit = p.num("low_income_limit") + (people - 1) * p.num("low_income_limit_per_person")
         crlow = pl.when(agi <= limit).then(p["low_income_credit_per_person"] * people).otherwise(0.0)
         if y >= 2006:
             earncr = p["eitc_rate_2006"] * pl.col("eitc")
@@ -249,7 +229,7 @@ def compute_va_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     if y <= 1989:
         resid = (agi - p["old_age_credit_income_start"]).clip(0, None)
         ocred = p["old_age_credit_rate"] * (
-            _p("old_age_credit_base", y) * aged - pl.col("gssi") - 2.0 * resid
+            p.num("old_age_credit_base") * aged - pl.col("gssi") - 2.0 * resid
         ).clip(0, None)
         if y == 1989:
             ocred = pl.when(pensions >= p["old_age_credit_retirement_limit_1989"]).then(0.0).otherwise(ocred)
@@ -269,5 +249,7 @@ def compute_va_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         "rate": rate,
     }
     return with_state_detail(
-        df, agi=agi, **{k: pl.when(must_file).then(v).otherwise(0.0) for k, v in worksheet.items()}
+        df,
+        agi=pl.when(must_file).then(agi).otherwise(detail_agi),
+        **{k: pl.when(must_file).then(v).otherwise(0.0) for k, v in worksheet.items()},
     )

@@ -343,3 +343,41 @@ social_security_base_amount: {single: 25000, joint: 32000, married_separate: 0}
 # from the limit to twice the limit.
 pension_deduction_share: {2019: 0.14, 2020: 0.28, 2021: 0.42, 2022: 0.56, 2023: 0.70, 2024: 0.84, 2025: 1.0}
 pension_deduction_agi_limit: {single: 75000, joint: 100000}
+
+# 2000+ Social Security: the share of benefits (up to the exclusion) kept
+# taxable when income exceeds the full-exemption limit.
+social_security_partial_share: 0.25
+
+# 1991 tax: flat rate on taxable income; capital gains at `gains_rate` on
+# gains above an amount per exemption unit, at most a share of AGI.
+tax_1991:
+  rate: 0.015
+  gains_rate: 0.0475
+  gains_exemption_per_unit: 100
+  gains_agi_cap_share: 0.034
+
+# Connecticut minimum tax (1993+), modeled on the federal AMT: separate
+# returns add back part of AMT income; an exemption phased out above a
+# threshold (joint and separate amounts halved for separate returns); a
+# two-rate tentative tax; then a share of it, or of preference income.
+amt:
+  separate_addback_start: 165000
+  separate_addback_end: 255000
+  separate_addback_max: 22500
+  separate_addback_rate: 0.25
+  exemption_married: 45000
+  exemption_other: 33750
+  exemption_phaseout_married: 150000
+  exemption_phaseout_other: 112500
+  exemption_phaseout_rate: 0.25
+  rate_breakpoint: 175000
+  tax_at_breakpoint: 45500
+  breakpoint_offset_1994: 3500
+  rate_low: 0.26
+  rate_high: 0.28
+  tentative_tax_share:
+    1993: 0.23
+    1994: 0.19
+  preference_income_share:
+    1994: 0.05
+    2013: 0.055

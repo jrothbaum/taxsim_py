@@ -247,3 +247,35 @@ pension_exclusion_basis: {1983: return, 1984: taxpayer, 1990: aged}
 # Personal credit per taxpayer 65 or older before 1987 (dependents: $6).
 personal_credit_pre1987: 17.5
 dependent_credit_pre1987: 6.0
+
+# Standard deduction cap (with the percentages above).
+standard_deduction_cap:
+  1977: 4000
+  1987: 2000
+
+# Itemized deduction limitation (1991-2017): a share of AGI above the
+# threshold (1% in 2009), at most a share of itemized deductions.
+itemized_phaseout_rate:
+  1991: 0.03
+  2009: 0.01
+  2010: 0.03
+itemized_phaseout_cap_rate: 0.8
+
+# Through 1990 low-income tax schedule: from `start` to `end` the tax is
+# `multiplier` times whole `step`s above `offset`, and 0 below `start`.
+low_income_override_pre1991:
+  step: 10
+  single: {start: 3010, end: 3100, offset: 2990, multiplier: 1.0}
+  married_no_dependents: {start: 4008, end: 4100, offset: 3990, multiplier: 1.2}
+  married_or_hoh_up_to_one_dependent: {start: 4505, end: 4600, offset: 4490, multiplier: 1.7}
+  married_or_hoh_two_dependents: {start: 5004, end: 5100, offset: 4990, multiplier: 1.1}
+
+# 1991-1998 capital gains credit: a rate on gains within a band of taxable
+# income above the threshold.
+capital_gains_credit_1991_1998:
+  rate: 0.01
+  threshold: 25000
+  maximum: 15000
+
+# 1982 child care credit cap per dependent (up to two).
+child_care_credit_cap_per_dependent_1982: 40

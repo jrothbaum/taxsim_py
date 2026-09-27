@@ -618,3 +618,21 @@ addmin_rate_pre1976:
   1960: 0.10
 addmin_rate_1976to1978:
   1976: 0.15
+
+# 1970 Additional Allowance for Low Incomes: `base - per_exemption*exemps`,
+# less a share of AGI above `income_base + income_per_exemption*exemps`.
+low_income_allowance_1970:
+  base: 900
+  per_exemption: 100
+  income_base: 1100
+  income_per_exemption: 625
+  phaseout_rate: 0.5
+
+# Excess itemized deductions (preference income): deductions above a share
+# of AGI, at most a share of AGI.
+excess_itemized_preference:
+  agi_floor_share: 0.6
+  cap_share: 0.4
+
+# Preference income above this amount reduces the maximum-tax base.
+preference_exemption: 30000

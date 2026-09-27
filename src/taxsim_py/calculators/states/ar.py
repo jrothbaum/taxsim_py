@@ -2,14 +2,13 @@
 
 import polars as pl
 
-from taxsim_py.engine.inputs import aged_count, taxpayer_count
+from taxsim_py.engine.inputs import aged_count, files_head_of_household, files_joint, files_separate, files_single, separate_divisor, taxpayer_count
 from taxsim_py.engine.brackets import bracket_rate, bracket_tax
-from taxsim_py.engine.schema import PARAMETERS_ROOT, load_yaml, resolve_year
-from taxsim_py.engine.state import with_defaults, forced_itemized, forced_standard, with_state_detail
+from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml, resolve_year
+from taxsim_py.engine.state import by_filing_status, dividend_input_adjustment, federal_capital_gain_in_agi, forced_itemized, forced_standard, higher_earner_share, with_state_detail
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
 AR_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "ar" / "income_tax.yaml")
-PRE1987_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "pre1987.yaml")
 STATE_ADJUSTMENT_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "state_adjustments.yaml")
 AR_LOW_INCOME_TABLE = pl.read_csv(PARAMETERS_ROOT / "states" / "ar" / "low_income_table.csv")
 
@@ -86,77 +85,60 @@ def _low_income_override(df: pl.DataFrame, effective_year: int) -> pl.Expr | Non
 
 def compute_ar_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     effective_year, flate = resolve_state_year(year)
-    p = AR_PARAMS
-    df = with_defaults(df, ("federal_chcr", "proptax", "otheritem", "mortgage", "dividends", "ltcg", "stcg", "intrec", "depx", "dep17", "ui"))
+    p = YearParams(AR_PARAMS, effective_year)
 
-    # Year>LASTAT (2021): deflate every dollar-valued raw/federal-computed
-    # input by `flate`, run 2021's REAL law (`effective_year`, already
-    # forced to 2021 by `resolve_state_year`) on the deflated figures, then
-    # reinflate the final tax at the very end (see
-    # engine/state_extrapolation.py). A no-op for year<=2021 (`flate==1`).
-    # Unlike AL, AR never re-invokes `compute_regular_tax` internally and
-    # only reads ONE federal-computed column (`ccc`, comnew(53) - within
-    # the dispatcher's `comnew(1:98)` generic-deflate range, so it's
-    # divided by `flate` for real too) - `wages` is federal.py's own
-    # pwages+swages sum, computed at the real year before this module
-    # runs, so it needs deflating directly (deflating pwages/swages alone
-    # wouldn't reach the already-materialized `wages` column).
-    # Business income (TAXSIM slots above 199) is not deflated.
+    # Business income (TAXSIM slots above 199) is not deflated; Schedule E
+    # income (`comnew(8)`) is.
     df = df.with_columns(
-        ar_business=pl.col("pbusinc") + pl.col("pprofinc") + pl.col("sbusinc") + pl.col("sprofinc") + pl.col("scorp")
+        ar_business=pl.col("pbusinc") + pl.col("pprofinc") + pl.col("sbusinc") + pl.col("sprofinc") + pl.col("scorp"),
+        # Federal Schedule E income (`comnew(8)`).
+        ar_schede=pl.col("otherprop") + (pl.col("scorp") if effective_year >= 1987 else 0.0),
     )
-    df = deflate_for_extrapolation(
-        df,
-        flate,
-        [
-            "federal_chcr",
-            "pwages", "swages", "wages", "proptax", "otheritem", "mortgage",
-            "dividends", "ltcg", "stcg", "intrec", "ui", "ccc", "psemp", "ssemp", "pensions", "otherprop",
-            "scorp",
-        ],
-    )
+    df = deflate_for_extrapolation(df, flate, extra=("ar_schede",))
 
     df = df.with_columns(
-        ar_txp=taxpayer_count(),
-        ar_sep=pl.when(pl.col("filing_status") == "married_separate").then(2.0).otherwise(1.0),
+        ar_taxpayers=taxpayer_count(),
+        ar_sep=separate_divisor(),
         ar_low_income_eligible=pl.col("filing_status") != "married_separate",
     )
 
     # --- Capital gains inclusion (`capgn`) ---
-    if effective_year <= 1986:
-        excl = float(resolve_year(PRE1987_PARAMS["capital_gains_exclusion_rate"], effective_year))
-        df = df.with_columns(ar_capgn=pl.col("stcg") + pl.col("ltcg") * (1.0 - excl))
+    # Federal gain in AGI (`comnew(6)`); through 1990 a net loss enters in
+    # full (`comnew(5)`). From 1999 only part of a net gain is taxed.
+    fullcg = pl.col("stcg") + pl.col("ltcg")
+    federal_capgn = federal_capital_gain_in_agi(effective_year, flate)
+    if effective_year <= 1990:
+        capgn = pl.when(federal_capgn < 0).then(fullcg).otherwise(federal_capgn)
     elif effective_year <= 1998:
-        df = df.with_columns(ar_capgn=pl.col("stcg") + pl.col("ltcg"))
+        capgn = federal_capgn
     else:
-        exclusion_rate = float(
-            resolve_year(
-                p["capital_gains_ltcg_exclusion_rate_1999plus"],
-                effective_year,
-            )
+        rate = 1.0 - float(resolve_year(p["capital_gains_ltcg_exclusion_rate_1999plus"], effective_year))
+        partial = (
+            pl.when(pl.col("stcg") < 0)
+            .then(rate * fullcg)
+            .otherwise(rate * pl.col("ltcg") + pl.col("stcg"))
         )
-        rate = 1.0 - exclusion_rate
-        capgn = pl.col("stcg") + rate * pl.col("ltcg")
+        capgn = pl.when(federal_capgn > 0).then(partial).otherwise(federal_capgn)
         if effective_year >= 2014:
             capgn = capgn.clip(None, float(p["capital_gains_cap_2014plus"]))
-        df = df.with_columns(ar_capgn=capgn)
+    df = df.with_columns(ar_capgn=capgn)
 
     # --- AGI ---
     # Arkansas builds income from its parts: wages, dividends, interest,
     # self-employment income, pensions, gains, the federal Schedule E figure
     # (other property income, and from 1987 S corporation income) and
     # business income including S corporation income again.
-    schedule_e = pl.col("otherprop") + (pl.col("scorp") if effective_year >= 1987 else 0.0)
+    schedule_e = pl.col("ar_schede")
     business = pl.col("ar_business")
     df = df.with_columns(
-        ar_agi=pl.col("wages") + (pl.col("dividends") + 0.001) + pl.col("intrec") + pl.col("ar_capgn")
+        ar_agi=pl.col("wages") + (pl.col("dividends") + dividend_input_adjustment()) + pl.col("intrec") + pl.col("ar_capgn")
         + pl.col("psemp") + pl.col("ssemp") + pl.col("pensions") + schedule_e + business
     )
     # Pension exclusion.
     if effective_year >= 1983:
-        amount = float(resolve_year(p["pension_exclusion_amount"], effective_year))
-        basis = resolve_year(p["pension_exclusion_basis"], effective_year)
-        count = {"return": pl.lit(1.0), "taxpayer": pl.col("ar_txp"), "aged": aged_count()}[basis]
+        amount = p.num("pension_exclusion_amount")
+        basis = p.value("pension_exclusion_basis")
+        count = {"return": pl.lit(1.0), "taxpayer": pl.col("ar_taxpayers"), "aged": aged_count()}[basis]
         df = df.with_columns(ar_agi=pl.col("ar_agi") - pl.min_horizontal(pl.col("pensions"), amount * count))
     if 2018 <= effective_year <= 2019:
         df = df.with_columns(ar_agi=pl.col("ar_agi") + pl.col("ui"))
@@ -165,24 +147,22 @@ def compute_ar_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     # --- Standard deduction ---
     if effective_year <= 1986:
         pct = float(p["standard_deduction_pct_pre1987"])
-        cap = 4000.0
+        cap = p.num("standard_deduction_cap")
     elif effective_year <= 1997:
         pct = float(p["standard_deduction_pct_1987_1997"])
-        cap = 2000.0
+        cap = p.num("standard_deduction_cap")
     else:
         pct = None
     if pct is not None:
         df = df.with_columns(
-            ar_stded=(pct * pl.col("ar_agi")).clip(0, cap * pl.col("ar_txp") / pl.col("ar_sep"))
+            ar_stded=(pct * pl.col("ar_agi")).clip(0, cap * pl.col("ar_taxpayers") / pl.col("ar_sep"))
         )
     else:
-        flat = float(resolve_year(p["standard_deduction_flat_1998plus"], effective_year))
-        df = df.with_columns(ar_stded=flat * pl.col("ar_txp"))
+        flat = p.num("standard_deduction_flat_1998plus")
+        df = df.with_columns(ar_stded=flat * pl.col("ar_taxpayers"))
 
-    # --- Itemized deduction: raw proptax+otheritem+mortgage (comnew(30)
-    # minus the SALT term cancels exactly, same technique as AL/IL/AZ<=1990)
-    # + AR's own Pease-style phaseout, 1991-2017 (a real, AR-only 1% - not
-    # 3% - reduction rate for 2009 specifically). ---
+    # --- Itemized deduction: the itemized inputs, with Arkansas's own
+    # limitation 1991-2017 (1% instead of 3% in 2009). ---
     df = df.with_columns(ar_xitded_base=pl.col("proptax") + pl.col("otheritem") + pl.col("mortgage"))
     if 1991 <= effective_year <= 2017:
         if effective_year <= 2012:
@@ -191,48 +171,36 @@ def compute_ar_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
             df = df.with_columns(ar_phas=threshold / pl.col("ar_sep"))
         else:
             aif13 = float(resolve_year(STATE_ADJUSTMENT_PARAMS["itemized_phaseout_inflation"], effective_year))
-            thr_expr = pl.lit(None, dtype=pl.Float64)
-            for status in _PRE1987_STATUSES:
-                v = float(p["itemized_phaseout_income_2013_2017"][status]) * aif13
-                thr_expr = pl.when(pl.col("filing_status") == status).then(pl.lit(v)).otherwise(thr_expr)
-            df = df.with_columns(ar_phas=thr_expr)
-        reduce_rate = 0.01 if effective_year == 2009 else 0.03
+            thresholds = p["itemized_phaseout_income_2013_2017"]
+            df = df.with_columns(ar_phas=by_filing_status({s: float(thresholds[s]) * aif13 for s in _PRE1987_STATUSES}))
+        reduce_rate = p.num("itemized_phaseout_rate")
         if 2010 <= effective_year <= 2012:
             df = df.with_columns(ar_reduce=pl.lit(0.0))
         else:
             df = df.with_columns(
                 ar_reduce=pl.when(pl.col("ar_agi") > pl.col("ar_phas"))
-                .then(pl.min_horizontal(0.8 * pl.col("ar_xitded_base"), reduce_rate * (pl.col("ar_agi") - pl.col("ar_phas"))))
+                .then(pl.min_horizontal(p["itemized_phaseout_cap_rate"] * pl.col("ar_xitded_base"), reduce_rate * (pl.col("ar_agi") - pl.col("ar_phas"))))
                 .otherwise(0.0)
             )
         df = df.with_columns(ar_xitded=(pl.col("ar_xitded_base") - pl.col("ar_reduce")).clip(0, None))
     else:
         df = df.with_columns(ar_xitded=pl.col("ar_xitded_base"))
 
-    # `if(ided.eq.-2) xitded=0` - `ided`=`data(4)` is the SAME flag
-    # `federal_state.py`'s forced-standard pass sets, so AR's own
-    # itemized deduction is unconditionally zeroed on that pass,
-    # independent of whether stded>=xitded would otherwise have chosen
-    # standard anyway. Confirmed via a live oracle probe (single, $50,000
-    # wages, no itemizable expenses, 1977-1997: the winning branch is
-    # actually the FORCED-ITEMIZE one using the `tab`/`tbase` table, not
-    # the `tabst1` standard-AGI table a naive stded>=xitded check would
-    # have picked - because federal's own combined tax is lower there for
-    # this era, not because AR's OWN state tax is lower).
+    # `if(ided.eq.-2) xitded=0`: a forced standard deduction zeroes
+    # itemized deductions.
     df = df.with_columns(ar_xitded=pl.when(forced_standard()).then(0.0).otherwise(pl.col("ar_xitded")))
 
     df = df.with_columns(ar_deduc=pl.max_horizontal(pl.col("ar_stded"), pl.col("ar_xitded")))
     df = df.with_columns(ar_taxinc=(pl.col("ar_agi") - pl.col("ar_deduc")).clip(0, None))
 
-    # --- Married earner-split (agih/agiw), taxsim_2022_10_21.f:~1358-1375
-    # - used by every bracket era EXCEPT the pre-1998 standard-deduction
-    # path (which has its own, different look()-internal split). ---
+    # --- Joint returns: each earner's share (taxsim_2022_10_21.f:~1358-1375),
+    # used except on the pre-1998 standard table, which splits internally. ---
     df = df.with_columns(
-        ar_agih=pl.max_horizontal(pl.col("pwages"), pl.col("swages")) + 0.5 * (pl.col("ar_agi") - pl.col("wages")),
+        ar_agi_higher_earner=higher_earner_share(pl.col("ar_agi")),
     )
-    df = df.with_columns(ar_agiw=pl.col("ar_agi") - pl.col("ar_agih"))
     df = df.with_columns(
-        ar_xitdh=pl.when(pl.col("ar_agi") != 0).then(pl.col("ar_xitded") * pl.col("ar_agih") / pl.col("ar_agi")).otherwise(0.0)
+        ar_agi_lower_earner=pl.col("ar_agi") - pl.col("ar_agi_higher_earner"),
+        ar_xitdh=pl.when(pl.col("ar_agi") != 0).then(pl.col("ar_xitded") * pl.col("ar_agi_higher_earner") / pl.col("ar_agi")).otherwise(0.0),
     )
     df = df.with_columns(ar_xitdw=pl.col("ar_xitded") - pl.col("ar_xitdh"))
     df = df.with_columns(
@@ -240,30 +208,29 @@ def compute_ar_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         ar_dedw=pl.max_horizontal(0.5 * pl.col("ar_stded"), pl.col("ar_xitdw")),
     )
     df = df.with_columns(
-        ar_taxinh=(pl.col("ar_agih") - pl.col("ar_dedh")).clip(0, None),
-        ar_taxinw=(pl.col("ar_agiw") - pl.col("ar_dedw")).clip(0, None),
+        ar_taxinh=(pl.col("ar_agi_higher_earner") - pl.col("ar_dedh")).clip(0, None),
+        ar_taxinw=(pl.col("ar_agi_lower_earner") - pl.col("ar_dedw")).clip(0, None),
     )
-    is_joint_split = (pl.col("filing_status") == "married_joint") & (pl.col("ar_agi") > 0)
+    is_joint_split = (files_joint()) & (pl.col("ar_agi") > 0)
 
     # --- Main bracket computation ---
-    # `if(stded.ge.xitded.and.ided.ne.-1)` -> standard/AGI-based table;
-    # else itemized/taxinc-based table. `force_itemize=True` always takes
-    # the itemized branch (even with $0 itemized deductions - a real,
-    # confirmed-via-probe oracle behavior, not a heuristic).
+    # `if(stded.ge.xitded.and.ided.ne.-1)` uses the standard (AGI) table,
+    # otherwise the itemized (taxable income) table; forced itemizing
+    # always uses the itemized table.
     prefers_itemized_or_forced = forced_itemized() | (pl.col("ar_stded") < pl.col("ar_xitded"))
     if effective_year <= 1997:
         brackets_std1 = TABST1
         brackets_std2 = TABST2
         brackets_item = p["brackets_base"]
-        stat_std = pl.when(pl.col("filing_status") == "married_separate").then(
+        stat_std = pl.when(files_separate()).then(
             bracket_tax(pl.col("ar_agi"), brackets_std2)
         ).otherwise(bracket_tax(pl.col("ar_agi"), brackets_std1))
         # look2's own ajnt=2 doubling (method A) vs look's earner-split (method B); take the min.
         method_a = 2.0 * bracket_tax(pl.col("ar_agi") / 2.0, TABST1)
-        agih_wage = pl.max_horizontal(pl.col("pwages"), pl.col("swages")) + 0.5 * (pl.col("ar_agi") - pl.col("wages"))
+        agih_wage = higher_earner_share(pl.col("ar_agi"))
         agiw_wage = pl.col("ar_agi") - agih_wage
         method_b = bracket_tax(agih_wage, TABST1) + bracket_tax(agiw_wage, TABST1)
-        stat_std = pl.when(pl.col("filing_status") == "married_joint").then(
+        stat_std = pl.when(files_joint()).then(
             pl.min_horizontal(method_a, method_b)
         ).otherwise(stat_std)
 
@@ -277,8 +244,8 @@ def compute_ar_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         # table on joint returns (the full table halves income), else the
         # wife's share on itemized joint returns.
         rate_std = (
-            pl.when(pl.col("filing_status") == "married_joint").then(bracket_rate(agih_wage, TABST1))
-            .when(pl.col("filing_status") == "married_separate").then(bracket_rate(pl.col("ar_agi"), TABST2))
+            pl.when(files_joint()).then(bracket_rate(agih_wage, TABST1))
+            .when(files_separate()).then(bracket_rate(pl.col("ar_agi"), TABST2))
             .otherwise(bracket_rate(pl.col("ar_agi"), TABST1))
         )
         rate_item = pl.when(is_joint_split).then(bracket_rate(pl.col("ar_taxinw"), brackets_item)).otherwise(
@@ -289,10 +256,8 @@ def compute_ar_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         brackets = [list(b) for b in p["brackets_base"]]
         thresholds_by_year = p["bracket_thresholds_by_year"]
         if effective_year in thresholds_by_year:
-            # raw `tab(1,1..5)` = upper bounds of brackets 1-5 = the START
-            # of (my 0-indexed) brackets 1-5 too (bracket 0 always starts
-            # at 0; bracket 5's own start, the 6th and last entry, is the
-            # 5th override value).
+            # `tab(1,1..5)` are the upper bounds of brackets 1-5, which are
+            # also the starts of brackets 2-6.
             new_thr = thresholds_by_year[effective_year]
             for i in range(1, 6):
                 brackets[i][0] = float(new_thr[i - 1])
@@ -338,13 +303,16 @@ def compute_ar_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         rate = float(p["working_taxpayer_credit_rate"])
         cap = float(p["working_taxpayer_credit_cap"])
         floor = float(p["working_taxpayer_credit_floor"])
-        winc85 = pl.max_horizontal(pl.col("pwages"), pl.col("swages"))
+        # TAXSIM's `data(17)` is combined primary/spouse self-employment
+        # income. It assigns the whole amount to the higher-wage spouse.
+        self_employment = pl.col("psemp") + pl.col("ssemp")
+        winc85 = pl.max_horizontal(pl.col("pwages"), pl.col("swages")) + self_employment
         winc86 = pl.min_horizontal(pl.col("pwages"), pl.col("swages"))
         work85 = pl.when(winc85 > floor).then(pl.min_horizontal(cap, rate * winc85)).otherwise(0.0)
         work86 = pl.when((winc86 > floor) & (pl.col("pwages") > 0) & (pl.col("swages") > 0)).then(
             pl.min_horizontal(cap, rate * winc86)
         ).otherwise(0.0)
-        winc_single = pl.col("wages")
+        winc_single = pl.col("wages") + self_employment
         work_single = pl.when(winc_single > floor).then(pl.min_horizontal(cap, rate * winc_single)).otherwise(0.0)
         two_earner = (pl.col("pwages") > 0) & (pl.col("swages") > 0)
         work = pl.when(two_earner).then(work85 + work86).otherwise(work_single)
@@ -357,21 +325,21 @@ def compute_ar_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     # verified 1991-2021 CSV) - married_separate is excluded entirely. ---
     if effective_year <= 1990:
         depx = pl.col("depx")
-        single_ov = pl.when(pl.col("ar_agi") < 3010).then(0.0).when(pl.col("ar_agi") <= 3100).then(
-            ((pl.col("ar_agi") - 2990) / 10).floor()
-        ).otherwise(None)
-        married_nodep_ov = pl.when(pl.col("ar_agi") < 4008).then(0.0).when(pl.col("ar_agi") <= 4100).then(
-            ((pl.col("ar_agi") - 3990) / 10).floor() * 1.2
-        ).otherwise(None)
-        richer_dep01_ov = pl.when(pl.col("ar_agi") < 4505).then(0.0).when(pl.col("ar_agi") <= 4600).then(
-            ((pl.col("ar_agi") - 4490) / 10).floor() * 1.7
-        ).otherwise(None)
-        richer_dep2_ov = pl.when(pl.col("ar_agi") < 5004).then(0.0).when(pl.col("ar_agi") <= 5100).then(
-            ((pl.col("ar_agi") - 4990) / 10).floor() * 1.1
-        ).otherwise(None)
-        ov = pl.when((pl.col("filing_status") == "single") & single_ov.is_not_null()).then(single_ov)
+        schedules = p["low_income_override_pre1991"]
+
+        def override(c: dict) -> pl.Expr:
+            agi = pl.col("ar_agi")
+            return pl.when(agi < c["start"]).then(0.0).when(agi <= c["end"]).then(
+                ((agi - c["offset"]) / schedules["step"]).floor() * c["multiplier"]
+            ).otherwise(None)
+
+        single_ov = override(schedules["single"])
+        married_nodep_ov = override(schedules["married_no_dependents"])
+        richer_dep01_ov = override(schedules["married_or_hoh_up_to_one_dependent"])
+        richer_dep2_ov = override(schedules["married_or_hoh_two_dependents"])
+        ov = pl.when((files_single()) & single_ov.is_not_null()).then(single_ov)
         ov = ov.when(
-            (pl.col("filing_status") == "married_joint") & (depx < 1) & married_nodep_ov.is_not_null()
+            (files_joint()) & (depx < 1) & married_nodep_ov.is_not_null()
         ).then(married_nodep_ov)
         richer = pl.col("filing_status").is_in(["married_joint", "head_of_household"])
         ov = ov.when(richer & (depx <= 1) & richer_dep01_ov.is_not_null()).then(richer_dep01_ov)
@@ -389,24 +357,24 @@ def compute_ar_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
 
     # --- AR capital gains adjustment, 1991-1998 ---
     if 1991 <= effective_year <= 1998:
+        cg = p["capital_gains_credit_1991_1998"]
         df = df.with_columns(
             ar_statax=pl.col("ar_statax")
-            - 0.01
-            * pl.when(pl.col("ar_taxinc") > 25000)
-            .then(pl.min_horizontal(pl.col("ar_taxinc") - 25000, 15000.0, pl.col("ar_capgn").clip(0, None)))
+            - cg["rate"]
+            * pl.when(pl.col("ar_taxinc") > cg["threshold"])
+            .then(pl.min_horizontal(pl.col("ar_taxinc") - cg["threshold"], float(cg["maximum"]), pl.col("ar_capgn").clip(0, None)))
             .otherwise(0.0)
         )
 
     # --- Personal Tax Credit + Child/Dependent Care Credit ---
     if effective_year <= 1986:
-        # `gcred=17.50*(data(7)+data(9)+data(10))+6.*data(8)` - dependents
-        # get a SEPARATE, smaller $6 rate pre-1987 (not $17.50), and there
-        # is no head_of_household bonus at all in this era's formula.
-        gcred = p["personal_credit_pre1987"] * (pl.col("ar_txp") + aged_count()) + p["dependent_credit_pre1987"] * pl.col("depx")
+        # `gcred=17.50*(data(7)+data(9)+data(10))+6.*data(8)`: $6 per
+        # dependent and no head of household amount.
+        gcred = p["personal_credit_pre1987"] * (pl.col("ar_taxpayers") + aged_count()) + p["dependent_credit_pre1987"] * pl.col("depx")
     else:
-        pcr = float(resolve_year(p["personal_credit_rate_by_year"], effective_year))
-        gcred = pcr * (pl.col("ar_txp") + aged_count() + pl.col("depx"))
-        gcred = gcred + pl.when(pl.col("filing_status") == "head_of_household").then(pcr).otherwise(0.0)
+        pcr = p.num("personal_credit_rate_by_year")
+        gcred = pcr * (pl.col("ar_taxpayers") + aged_count() + pl.col("depx"))
+        gcred = gcred + pl.when(files_head_of_household()).then(pcr).otherwise(0.0)
         # Taxpayers 65 or older without pension income get one more credit.
         gcred = gcred + pl.when((pl.col("pensions") == 0) & (aged_count() > 0)).then(pcr).otherwise(0.0)
     df = df.with_columns(ar_gcred=gcred)
@@ -416,7 +384,7 @@ def compute_ar_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     child = pl.col("federal_chcr").clip(0, None)
     df = df.with_columns(ar_chcr=(child_rate * child).clip(0, None))
     if effective_year == 1982:
-        df = df.with_columns(ar_chcr=pl.min_horizontal(pl.col("ar_chcr"), 40.0 * pl.col("depx").clip(0, 2)))
+        df = df.with_columns(ar_chcr=pl.min_horizontal(pl.col("ar_chcr"), p["child_care_credit_cap_per_dependent_1982"] * pl.col("depx").clip(0, 2)))
 
     df = df.with_columns(ar_credit=pl.col("ar_chcr") + pl.col("ar_gcred"))
     df = df.with_columns(siitax=(pl.col("ar_statax") - pl.col("ar_credit")).clip(0, None) * flate)

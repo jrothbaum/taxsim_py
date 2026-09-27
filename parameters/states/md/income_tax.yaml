@@ -344,3 +344,75 @@ pension_exclusion:
 standard_deduction_aged_addition_1987_1989: 800
 # 1990+ exemption per taxpayer 65 or older (`blage`).
 aged_exemption: 1000
+
+# Child care expense subtraction per child, for up to two children.
+child_care_subtraction_per_child:
+  1977: 0
+  1978: 2400
+  2003: 3000
+child_care_subtraction_max_children: 2
+
+# Through 1986, half of federal preference income (`comnew(36)`) above
+# $10,000 per taxpayer is added.
+preference_addback_share:
+  1977: 0.5
+preference_exclusion_per_taxpayer:
+  1977: 10000
+
+# 1980 interest exclusion per taxpayer.
+interest_exclusion_per_taxpayer_1980: 200
+
+# Two-earner subtraction (1992+): the lesser of this and each spouse's
+# income; 1992-1994 returns with AGI above the limit get the lower amount.
+two_earner_subtraction:
+  1992: 1200
+  1998: 1154
+  1999: 1200
+two_earner_subtraction_high_income_1992_1994: 1000
+two_earner_high_income_agi_1992_1994: 150000
+
+# Capital gains: 1987-1990 excluded share; 1991 excluded share up to a cap,
+# reduced by half of income above a threshold.
+capital_gains_exclusion_share_1987_1990: 0.4
+capital_gains_exclusion_1991:
+  share: 0.3
+  cap: {married_joint: 15000, other: 7500}
+  income_threshold: {married_joint: 100000, other: 50000}
+  reduction_rate: 0.5
+
+# Standard deduction: a share of AGI, through 1986 capped per exemption.
+standard_deduction_rate:
+  1977: 0.1
+  1979: 0.13
+  1987: 0.15
+standard_deduction_cap_per_exemption:
+  1977: 500
+  1979: 1500
+
+# Itemized deduction limitation thresholds (times the inflation factor):
+# per return through 2012, times the status multiplier 2013-2017.
+itemized_phaseout_threshold_1991_2012: 100000
+itemized_phaseout_threshold_base_2013_2017: 250000
+
+# Federal AGI above which the 2008+ exemption reductions apply.
+exemption_phaseout_agi_floor: 100000
+
+# 1995-2007 brackets below the top rate, and where the top rate starts.
+brackets_1995_2007_lower: [[0, 0.02], [1000, 0.03], [2000, 0.04]]
+brackets_1995_2007_top_start: 3000
+
+# Nonrefundable EITC share of the federal credit (1987+).
+eitc_nonrefundable_share:
+  1987: 0.5
+
+# Child/Dependent Care Credit rate: `unit * (units - (agi - start/sep) /
+# (step/sep))`, floored at 0 (2000-2018); 2019+ by joint or other return,
+# with the refundable part limited to AGI up to `refundable_agi_limit`.
+child_care_credit_rate_2000: {unit: 0.001, units: 250, start: 30000, step: 40}
+child_care_credit_rate_2001_2018: {unit: 0.0001, units: 3250, start: 41000, step_numerator: 1000, step_divisor: 325}
+child_care_credit_rate_2019:
+  married_joint: {unit: 0.01, units: 32, start: 50000, step: 3000, refundable_agi_limit: 75000}
+  other: {unit: 0.01, units: 32, start: 30000, step: 2000, refundable_agi_limit: 50000}
+
+# Poverty Level Credit (1997+): a share of earned income.
+poverty_credit_rate: 0.05

@@ -219,7 +219,7 @@ family_credit_cap_joint_or_hoh:
   1998: 240
 family_credit_agi_threshold_joint_by_dep_count_1998plus:  # depx: 0-1,2,3,4+
   1998: [20000, 23600, 27300, 31000]
-family_credit_agi_threshold_hoh_by_dep_count_1998plus:  # depx: 0,1,2,3,4+
+family_credit_agi_threshold_hoh_by_dep_count_1998plus:  # dependents: 0-1,2,3,4,5+ (A.R.S. 43-1073)
   1998: [20000, 20135, 23800, 25200, 26575]
 
 # 2019+ Dependent Tax Credit (non-refundable) - $100/CTC-eligible child
@@ -313,3 +313,12 @@ renter_credit_rate: {1977: 0.10, 1984: 0.05}
 renter_credit_cap: {1977: 50, 1978: 83, 1979: 92, 1980: 107, 1981: 120, 1982: 130, 1983: 132, 1984: 100, 1988: 85, 1989: 70}
 renter_credit_agi_limit_1990: 25000
 renter_credit_max_1990: 55
+
+# 1990+ flat standard deduction multiple by filing status.
+standard_deduction_multiple: {married_joint: 2, head_of_household: 1.5, other: 1}
+# Through 1990 child care deduction: up to the cap, for household income
+# below the limit (halved for separate returns).
+child_care_deduction_pre1991: {income_limit: 6000, cap: 1200}
+# Itemized limitation rates (1991-2017).
+itemized_phaseout_rate: 0.03
+itemized_phaseout_cap_rate: 0.8

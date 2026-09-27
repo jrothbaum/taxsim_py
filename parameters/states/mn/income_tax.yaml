@@ -1312,3 +1312,8 @@ property_credit_1977_1978_aged:
 property_credit_1979_1982_aged:
   first_step: [[3000, 13], [3500, 25], [4000, 50], [4500, 70], [5000, 100], [6000, 130], [7000, 150], [8000, 200], [9000, 250], [10000, 300], [11000, 350], [12000, 400], [13000, 450], [14000, 500], [15000, 550], [16000, 600], [17000, 650], [18000, 700], [19000, 750], [20000, 800], [21000, 850]]
   first_step_top_base: 850
+
+# 1978 personal credit additions for taxpayers 65 or older, and for aged
+# taxpayers beyond the number of taxpayers.
+personal_credit_aged_1978: 20
+personal_credit_extra_aged_1978: 10

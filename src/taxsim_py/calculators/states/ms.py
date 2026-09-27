@@ -4,28 +4,21 @@ import polars as pl
 
 from taxsim_py.calculators.payroll import payroll_parts
 from taxsim_py.engine.brackets import bracket_rate, bracket_tax
-from taxsim_py.engine.inputs import aged_count, taxpayer_count
-from taxsim_py.engine.schema import PARAMETERS_ROOT, load_yaml, resolve_year
+from taxsim_py.engine.inputs import aged_count, files_joint, files_separate, taxpayer_count
+from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml, resolve_year
 from taxsim_py.engine.state import (
-    with_defaults,
+    dividend_input_adjustment,
     forced_standard,
     by_filing_status,
     checkpoint,
     dividend_exclusion_addback,
     pre1987_federal_itemizing,
     unemployment_total,
-    with_default,
     with_state_detail,
 )
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
 MS_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "ms" / "income_tax.yaml")
-STATE_ADJUSTMENT_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "state_adjustments.yaml")
-
-
-def _p(name: str, year: int) -> float:
-    return float(resolve_year(MS_PARAMS[name], year))
-
 
 
 def _by_status_year(name: str, year: int) -> pl.Expr:
@@ -36,31 +29,15 @@ def compute_ms_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     """Calculate Mississippi income tax for each row."""
     effective_year, flate = resolve_state_year(year)
     y = effective_year
-    df = with_defaults(df, (
-        "proptax", "otheritem", "mortgage", "dividends", "intrec", "stcg", "ltcg", "ui", "pui", "sui",
-        "psemp", "ssemp", "depx", "charity_cash", "state_sales_or_income_tax_ded",
-        "taxable_unemployment", "itemized_deduction", "pensions", "gssi", "taxable_social_security", "nonprop",
-    ))
-    df = with_default(df, "itemizes", False)
+    p = YearParams(MS_PARAMS, effective_year)
 
     setax = payroll_parts(year)["setax"]  # `comnew(175)`, real-year and undeflated
-    dividend_adjustment = float(
-        resolve_year(STATE_ADJUSTMENT_PARAMS["household_income_dividend_adjustment"], y)
-    )
-    df = df.with_columns(ms_setax=setax, ms_divexc=dividend_exclusion_addback(y, dividend_adjustment))
-    df = deflate_for_extrapolation(
-        df, flate,
-        [
-            "pwages", "swages", "dividends", "intrec", "stcg", "ltcg", "ui", "pui", "sui", "psemp", "ssemp",
-            "proptax", "otheritem", "mortgage", "charity_cash", "state_sales_or_income_tax_ded",
-            "agi", "taxable_unemployment", "itemized_deduction", "ms_divexc", "pensions", "gssi",
-            "taxable_social_security", "nonprop",
-        ],
-    )
+    dividend_input_adjustment()
+    df = df.with_columns(ms_setax=setax, ms_divexc=dividend_exclusion_addback(y))
+    df = deflate_for_extrapolation(df, flate, extra=("ms_divexc",))
 
-    status = pl.col("filing_status")
-    is_joint = status == "married_joint"
-    is_sep = status == "married_separate"
+    is_joint = files_joint()
+    is_sep = files_separate()
     sep = pl.when(is_sep).then(2.0).otherwise(1.0)
     txp = taxpayer_count()
     salt_ded = pl.col("state_sales_or_income_tax_ded")
@@ -76,22 +53,22 @@ def compute_ms_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     fed_agi = pl.col("agi")
     if y == 2020:
         fed_agi = fed_agi - pl.when(fed_itemizes).then(0.0).otherwise(
-            pl.min_horizontal(_p("charity_nonitemizer_addback", y) / sep, pl.col("charity_cash"))
+            pl.min_horizontal(p.num("charity_nonitemizer_addback") / sep, pl.col("charity_cash"))
         )
 
     # --- Mississippi AGI ---
     if y in (2011, 2012):
-        halfse = pl.when(setax <= _p("self_employment_tax_addback_threshold", y)).then(
-            _p("self_employment_tax_addback_lower_rate", y) * setax
+        halfse = pl.when(setax <= p.num("self_employment_tax_addback_threshold")).then(
+            p.num("self_employment_tax_addback_lower_rate") * setax
         ).otherwise(
-            _p("self_employment_tax_addback_upper_rate", y) * setax + _p("self_employment_tax_addback_amount", y)
+            p.num("self_employment_tax_addback_upper_rate") * setax + p.num("self_employment_tax_addback_amount")
         )
     else:
-        halfse = _p("self_employment_tax_addback_rate", y) * setax
-    agi = fed_agi + pl.col("ms_divexc") + halfse - _p("self_employment_tax_deduction_rate", y) * setax
+        halfse = p.num("self_employment_tax_addback_rate") * setax
+    agi = fed_agi + pl.col("ms_divexc") + halfse - p.num("self_employment_tax_deduction_rate") * setax
     # Retirement income is exempt, up to a cap per taxpayer through 1993.
     if y <= 1993:
-        agi = agi - pl.min_horizontal(pl.col("pensions"), _p("retirement_exclusion_per_taxpayer", y) * txp)
+        agi = agi - pl.min_horizontal(pl.col("pensions"), p.num("retirement_exclusion_per_taxpayer") * txp)
     else:
         agi = agi - pl.col("pensions")
     # Through 1979 other non-property income is excluded.
@@ -106,22 +83,22 @@ def compute_ms_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         agi = agi + pl.col("gssi") - pl.col("taxable_social_security")
     if y == 2020:
         agi = agi + unemployment_total() - pl.col("taxable_unemployment") + pl.when(fed_itemizes).then(0.0).otherwise(
-            pl.min_horizontal(_p("charity_nonitemizer_addback", y), pl.col("charity_cash"))
+            pl.min_horizontal(p.num("charity_nonitemizer_addback"), pl.col("charity_cash"))
         )
 
     df, (agi,) = checkpoint(df, ms_agi=agi)
 
     # --- Exemptions ---
     exemp = (
-        _by_status_year("exemption", y) + pl.col("depx") * _p("dependent_exemption", y)
-        + aged_count() * _p("aged_exemption", y)
+        _by_status_year("exemption", y) + pl.col("depx") * p.num("dependent_exemption")
+        + aged_count() * p.num("aged_exemption")
     ) / sep
 
     # --- Standard deduction ---
     if y <= 1979:
         stded = pl.min_horizontal(
-            _p("standard_deduction_cap_per_taxpayer", y) * txp,
-            _p("standard_deduction_pct", y) * agi.clip(0, None),
+            p.num("standard_deduction_cap_per_taxpayer") * txp,
+            p.num("standard_deduction_pct") * agi.clip(0, None),
         )
     else:
         stded = _by_status_year("standard_deduction", y) / sep
@@ -140,19 +117,19 @@ def compute_ms_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         if y <= 2017:
             if y >= 2013:
                 threshold = (
-                    _p("itemized_limit_threshold_base", y)
-                    * _p("itemized_limit_inflation", y)
+                    p.num("itemized_limit_threshold_base")
+                    * p.num("itemized_limit_inflation")
                     * by_filing_status(MS_PARAMS["itemized_limit_status_multiplier"])
                 )
             else:
-                threshold = _p("itemized_limit_threshold_base", y) * _p("itemized_limit_inflation", y) / sep
+                threshold = p.num("itemized_limit_threshold_base") * p.num("itemized_limit_inflation") / sep
             dedphs = deducp - pl.col("itemized_deduction")
             limited = (
                 deducp - dedphs - (salt_ded - salt_ded * dedphs / deducp)
             ).clip(0, None)
             xitded = pl.when((agi > threshold) & (deducp > 0)).then(limited).otherwise(xitded)
     if y <= 1978:
-        contributions = -_p("charity_agi_limit", y) * agi.clip(0, None)
+        contributions = -p.num("charity_agi_limit") * agi.clip(0, None)
         xitded = (xitded - contributions).clip(0, None)
     if y == 1999:
         xitded = pl.when(forced_standard()).then(0.0).otherwise(xitded)
@@ -170,7 +147,7 @@ def compute_ms_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
 
     # --- Married couples: tax as separate returns if lower ---
     wages_total = pl.col("pwages").clip(0, None) + pl.col("swages").clip(0, None)
-    agih = pl.min_horizontal(agi, pl.max_horizontal(pl.col("pwages"), pl.col("swages")) + _p("joint_split_other_income_share", y) * (agi - wages_total))
+    agih = pl.min_horizontal(agi, pl.max_horizontal(pl.col("pwages"), pl.col("swages")) + p.num("joint_split_other_income_share") * (agi - wages_total))
     agiw = agi - agih
     exemph = exemp * agih / agi
     exempw = exemp - exemph

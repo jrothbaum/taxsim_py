@@ -101,6 +101,27 @@ def filing_status() -> pl.Expr:
     )
 
 
+def files_single() -> pl.Expr:
+    return pl.col("filing_status") == "single"
+
+
+def files_joint() -> pl.Expr:
+    return pl.col("filing_status") == "married_joint"
+
+
+def files_separate() -> pl.Expr:
+    return pl.col("filing_status") == "married_separate"
+
+
+def files_head_of_household() -> pl.Expr:
+    return pl.col("filing_status") == "head_of_household"
+
+
+def separate_divisor() -> pl.Expr:
+    """2 on a married-separate return, otherwise 1 (TAXSIM `sep`)."""
+    return pl.when(files_separate()).then(2.0).otherwise(1.0)
+
+
 def taxpayer_count() -> pl.Expr:
     """Taxpayers on the return (TAXSIM `data(7)`): 0 for a dependent filer."""
     mstat = pl.col("mstat")

@@ -347,3 +347,14 @@ separate_aged_reduction: {1988: 150, 1991: 200}
 grocery_credit_aged: {1977: 5, 1978: 15, 2008: 20}
 # Permanent building fund tax income limit rises per aged taxpayer.
 building_fund_limit_aged: 1000
+
+# Child care deduction (1978+) per dependent, up to two.
+child_care_deduction_per_dependent:
+  1978: 2400
+  2003: 3000
+# 2013-2017 itemized limitation threshold multiple of the base.
+itemized_phaseout_base_multiple_2013_2017: 2.5
+# 1977 standard deduction share of AGI (between the floor and ceiling).
+standard_deduction_agi_share_1977: 0.16
+# 1990: separate returns add this amount (`-150.*nblage+25.`).
+standard_deduction_separate_addition_1990: 25

@@ -3,31 +3,21 @@
 import polars as pl
 
 from taxsim_py.engine.brackets import bracket_rate, bracket_tax
-from taxsim_py.engine.inputs import aged_count, is_dependent_filer, taxpayer_count
-from taxsim_py.engine.schema import PARAMETERS_ROOT, load_yaml, resolve_year
+from taxsim_py.engine.inputs import aged_count, files_head_of_household, files_joint, files_separate, files_single, is_dependent_filer, taxpayer_count
+from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml, resolve_year
 from taxsim_py.engine.state import (
+    dividend_input_adjustment,
     by_filing_status,
     checkpoint,
     dividend_exclusion_addback,
     household_income,
     pre1987_federal_itemizing,
     unemployment_total,
-    with_default,
-    with_defaults,
     with_state_detail,
 )
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
 OK_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "ok" / "income_tax.yaml")
-STATE_ADJUSTMENT_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "state_adjustments.yaml")
-
-
-def _p(name: str, year: int) -> float:
-    return float(resolve_year(OK_PARAMS[name], year))
-
-
-def _adj(name: str, year: int) -> float:
-    return float(resolve_year(STATE_ADJUSTMENT_PARAMS[name], year))
 
 
 def _table(kind: str, suffix: str) -> list[list[float]]:
@@ -45,38 +35,21 @@ def compute_ok_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     """Calculate Oklahoma income tax for each row."""
     effective_year, flate = resolve_state_year(year)
     y = effective_year
-    p = OK_PARAMS
-    df = with_defaults(df, (
-        "dividends", "intrec", "stcg", "ltcg", "psemp", "ssemp", "ui", "pui", "sui", "proptax", "otheritem",
-        "mortgage", "depx", "dep17", "charity_cash", "state_sales_or_income_tax_ded", "taxable_unemployment",
-        "itemized_deduction", "itemized_before_limit", "regular_tax", "ccc", "ccc_uncapped", "odc", "actc", "eitc", "credit",
-        "pre1987_taxbc", "pre1987_chcr", "pensions", "taxable_social_security",
-        "federal_chcr",
-    ))
-    df = with_default(df, "itemizes", False)
-    dividend_adjustment = _adj("household_income_dividend_adjustment", y)
+    p = YearParams(OK_PARAMS, effective_year)
+    dividend_input_adjustment()
     # Household income is taken before projected years are deflated (`hy`);
     # the 1999+ sales tax credit reads the deflated copy (`data(159)`).
     df = df.with_columns(
-        ok_hy=household_income(dividend_adjustment, _adj("household_income_record_adjustment", y)),
+        ok_household_income_undeflated=household_income(),
         ok_ui=unemployment_total(),
     )
-    df = df.with_columns(ok_hh=pl.col("ok_hy"))
-    df = deflate_for_extrapolation(
-        df, flate,
-        [
-            "federal_chcr", "pwages", "swages", "dividends", "intrec", "stcg", "ltcg", "psemp", "ssemp", "ok_ui", "proptax",
-            "otheritem", "mortgage", "charity_cash", "state_sales_or_income_tax_ded", "agi", "fiitax",
-            "taxable_unemployment", "itemized_deduction", "itemized_before_limit", "regular_tax", "ccc", "odc",
-            "actc", "eitc", "ok_hh", "pensions", "taxable_social_security",
-        ],
-    )
+    df = df.with_columns(ok_household_income=pl.col("ok_household_income_undeflated"))
+    df = deflate_for_extrapolation(df, flate, extra=("ok_ui", "ok_household_income"))
 
-    status = pl.col("filing_status")
-    is_joint = status == "married_joint"
-    is_sep = status == "married_separate"
-    is_hoh = status == "head_of_household"
-    single_like = (status == "single") | is_sep
+    is_joint = files_joint()
+    is_sep = files_separate()
+    is_hoh = files_head_of_household()
+    single_like = (files_single()) | is_sep
     sep = pl.when(is_sep).then(2.0).otherwise(1.0)
     txp = taxpayer_count()
     aged = aged_count()
@@ -87,14 +60,14 @@ def compute_ok_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     # --- AGI ---
     agi = fed_agi
     if y <= 1986:
-        agi = agi + dividend_exclusion_addback(y, dividend_adjustment)
+        agi = agi + dividend_exclusion_addback(y)
     if y >= 1985:
         agi = agi - pl.col("taxable_social_security")
     # Retirement income exclusion.
     pensions = pl.col("pensions")
     if y <= 2006:
         limit = float(p["pension_exclusion_agi_limit_per_aged_taxpayer"]) * aged
-        penmax = pl.when(agi <= limit).then(_p("pension_exclusion_per_aged_taxpayer", y) * aged).otherwise(0.0)
+        penmax = pl.when(agi <= limit).then(p.num("pension_exclusion_per_aged_taxpayer") * aged).otherwise(0.0)
     elif y <= 2009:
         limits = p["pension_exclusion_agi_limit_2007_2009"][y]
         under = pl.when(txp == 1).then(agi <= limits["one"]).when(txp == 2).then(agi <= limits["two"]).otherwise(False)
@@ -107,12 +80,12 @@ def compute_ok_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         agi = agi - pl.col("taxable_unemployment") + pl.col("ok_ui")
     df, (agi,) = checkpoint(df, ok_agi=agi)
 
-    exemp = (txp + depx) * _p("exemption_amount", y)
+    exemp = (txp + depx) * p.num("exemption_amount")
     if y <= 1986:
-        exemp = exemp + aged * _p("exemption_amount", y)
+        exemp = exemp + aged * p.num("exemption_amount")
     else:
         aged_limit = by_filing_status(p["aged_exemption_agi_limit_1987"])
-        exemp = exemp + pl.when(fed_agi <= aged_limit).then(aged * _p("exemption_amount", y)).otherwise(0.0)
+        exemp = exemp + pl.when(fed_agi <= aged_limit).then(aged * p.num("exemption_amount")).otherwise(0.0)
     exemp = pl.when(dependent_filer).then(0.0).otherwise(exemp)
 
     # --- Federal values ---
@@ -137,8 +110,8 @@ def compute_ok_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         amounts = p["standard_deduction_2006"]
         stded = pl.when(single_like).then(amounts["single"]).otherwise(amounts["married"])
     else:
-        stded = pl.when(is_hoh).then(_p("standard_deduction_head_of_household", y)).otherwise(
-            _p("standard_deduction_per_taxpayer", y) * txp
+        stded = pl.when(is_hoh).then(p.num("standard_deduction_head_of_household")).otherwise(
+            p.num("standard_deduction_per_taxpayer") * txp
         )
 
     perc2 = pl.lit(1.0)
@@ -169,8 +142,8 @@ def compute_ok_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
             detail_taxinc = taxyb
             rate = by_status(bracket_rate)
         else:
-            long_suffix = resolve_year(p["long_form_tables"], y)
-            short_suffix = resolve_year(p["short_form_tables"], y)
+            long_suffix = p.value("long_form_tables")
+            short_suffix = p.value("short_form_tables")
             stax1 = _by_table(taxya, long_suffix, single_like)
             stax2 = _by_table(taxyb, short_suffix, single_like)
             statax = pl.min_horizontal(stax1, stax2)
@@ -202,7 +175,7 @@ def compute_ok_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
             detail_xitded = pl.when(fed_itemizes & (deducp > 0)).then(xitded).otherwise(detail_xitded)
         taxinc = pl.when(fed_agi > 0).then((agi - deduc - exemp).clip(0, None)).otherwise(0.0)
         df, (taxinc,) = checkpoint(df, ok_taxinc=taxinc)
-        suffix = "56" if y == 2006 else resolve_year(p["long_form_tables"], y)
+        suffix = "56" if y == 2006 else p.value("long_form_tables")
         statax = _by_table(taxinc, suffix, single_like)
         detail_taxinc = taxinc
         rate = _by_table(taxinc, suffix, single_like, bracket_rate)
@@ -233,18 +206,18 @@ def compute_ok_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         earncr = pl.when(fed_agi > 0).then(p["eitc_rate"] * pl.col("eitc") * agi / fed_agi).otherwise(0.0)
 
     # Property tax credit for taxpayers 65 or older.
-    hhy_prop = pl.col("ok_hy") + pl.col("eitc")
-    pcred = pl.when((aged > 0) & (hhy_prop < _p("property_credit_income_limit", y))).then(
+    hhy_prop = pl.col("ok_household_income_undeflated") + pl.col("eitc")
+    pcred = pl.when((aged > 0) & (hhy_prop < p.num("property_credit_income_limit"))).then(
         (pl.col("proptax") - float(p["property_credit_income_share"]) * hhy_prop).clip(0, float(p["property_credit_max"]))
     ).otherwise(0.0)
 
     scred = pl.lit(0.0)
     per_person = p["sales_tax_credit"]
     if 1990 <= y <= 1998 or y == 2003:
-        scred = pl.when(pl.col("ok_hy") < p["sales_tax_credit_income_limit_1990"]).then(per_person * (txp + depx)).otherwise(0.0)
+        scred = pl.when(pl.col("ok_household_income_undeflated") < p["sales_tax_credit_income_limit_1990"]).then(per_person * (txp + depx)).otherwise(0.0)
     if 1999 <= y <= 2002 or y >= 2004:
         limits = p["sales_tax_credit_income_limit"]
-        hhy = pl.col("ok_hh") + pl.col("eitc")
+        hhy = pl.col("ok_household_income") + pl.col("eitc")
         with_dependents = (depx > 0) | (aged > 0)
         limit = pl.when(with_dependents).then(_p_nested(limits["with_dependents"], y)).otherwise(_p_nested(limits["alone"], y))
         amount = pl.when(with_dependents).then(per_person * (txp + depx)).otherwise(per_person * txp)

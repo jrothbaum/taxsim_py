@@ -2,8 +2,9 @@
 
 import polars as pl
 
+from taxsim_py.engine.inputs import files_head_of_household, files_joint, files_separate
 from taxsim_py.engine.brackets import bracket_rate, bracket_tax
-from taxsim_py.engine.schema import PARAMETERS_ROOT, load_yaml, resolve_year
+from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml
 from taxsim_py.engine.state import with_state_detail
 
 AK_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "ak" / "income_tax.yaml")
@@ -13,19 +14,19 @@ def compute_ak_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     if year > 1979:
         return df.with_columns(siitax=pl.lit(0.0))
 
-    p = AK_PARAMS
-    std_single = float(resolve_year(p["standard_deduction_single"], year))
-    std_joint = float(resolve_year(p["standard_deduction_married_joint"], year))
-    std_sep = float(resolve_year(p["standard_deduction_married_separate"], year))
-    std_hoh = float(resolve_year(p["standard_deduction_head_of_household"], year))
-    flat_credit = float(resolve_year(p["flat_credit"], year))
+    p = YearParams(AK_PARAMS, year)
+    std_single = p.num("standard_deduction_single")
+    std_joint = p.num("standard_deduction_married_joint")
+    std_sep = p.num("standard_deduction_married_separate")
+    std_hoh = p.num("standard_deduction_head_of_household")
+    flat_credit = p.num("flat_credit")
 
     df = df.with_columns(
-        ak_stded=pl.when(pl.col("filing_status") == "married_joint")
+        ak_stded=pl.when(files_joint())
         .then(std_joint)
-        .when(pl.col("filing_status") == "married_separate")
+        .when(files_separate())
         .then(std_sep)
-        .when(pl.col("filing_status") == "head_of_household")
+        .when(files_head_of_household())
         .then(std_hoh)
         .otherwise(std_single)
     )
@@ -42,20 +43,18 @@ def compute_ak_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     def by_status(lookup) -> pl.Expr:
         taxinc = pl.col("ak_taxinc").clip(0, None)
         return (
-            pl.when(pl.col("filing_status") == "married_joint")
+            pl.when(files_joint())
             .then(lookup(taxinc, brackets_joint))
-            .when(pl.col("filing_status") == "head_of_household")
+            .when(files_head_of_household())
             .then(lookup(taxinc, brackets_hoh))
             .otherwise(lookup(taxinc, brackets_single))
         )
 
     df = df.with_columns(ak_regtax=by_status(bracket_tax))
 
-    # Flat, year-specific credit (doubled for married_joint only) - the
-    # "minimum tax" term and the small win-credit-based credit are both
-    # confirmed inert given this project's schema (see the YAML note).
+    # Flat, year-specific credit, doubled on joint returns.
     df = df.with_columns(
-        ak_flat_credit=pl.when(pl.col("filing_status") == "married_joint").then(2.0 * flat_credit).otherwise(flat_credit)
+        ak_flat_credit=pl.when(files_joint()).then(2.0 * flat_credit).otherwise(flat_credit)
     )
     df = df.with_columns(siitax=(pl.col("ak_regtax") - pl.col("ak_flat_credit")).clip(0, None))
     # The reported credit excludes the flat credit.

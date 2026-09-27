@@ -5,10 +5,13 @@ from typing import Any
 
 import polars as pl
 
+from taxsim_py.engine.inputs import separate_divisor
 from taxsim_py.engine.schema import PARAMETERS_ROOT, load_yaml, resolve_year
 
 _PRE1987_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "pre1987.yaml")
 _SOCSEC_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "state_socsec.yaml")
+_ADJUSTMENT_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "state_adjustments.yaml")
+_CAPITAL_GAINS_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "capital_gains.yaml")
 
 
 def with_default(
@@ -105,7 +108,20 @@ def unemployment_total() -> pl.Expr:
     return pl.max_horizontal(pl.col("ui"), pl.col("pui") + pl.col("sui"))
 
 
-def household_income(dividend_adjustment: float, record_adjustment: float) -> pl.Expr:
+def federal_capital_gain_in_agi(year: int, flate: float = 1.0) -> pl.Expr:
+    """Net capital gain in federal AGI (TAXSIM `comnew(6)`) in the state frame's (deflated) dollars."""
+    if year <= 1986:
+        return pl.col("pre1987_capgn")
+    loss_limit = float(resolve_year(_CAPITAL_GAINS_PARAMS["net_capital_loss_limit"], year))
+    return pl.max_horizontal(pl.col("stcg") + pl.col("ltcg"), -loss_limit / flate / separate_divisor())
+
+
+def dividend_input_adjustment() -> float:
+    """Amount TAXSIM adds to the dividend input."""
+    return float(_ADJUSTMENT_PARAMS["household_income_dividend_adjustment"])
+
+
+def household_income() -> pl.Expr:
     """TAXSIM's household-income total (`data(159)`) from raw inputs.
 
     Sums positive wages, dividends, pensions, unemployment compensation,
@@ -114,11 +130,12 @@ def household_income(dividend_adjustment: float, record_adjustment: float) -> pl
     gains, plus the two TAXSIM input adjustments. Self-employment and other
     non-property income are not included.
     """
+    record_adjustment = float(_ADJUSTMENT_PARAMS["household_income_record_adjustment"])
     return (
         pl.col("pwages").clip(0, None)
         + pl.col("swages").clip(0, None)
         + pl.col("dividends")
-        + dividend_adjustment
+        + dividend_input_adjustment()
         + pl.col("pensions")
         + unemployment_total()
         + pl.col("gssi")
@@ -131,7 +148,12 @@ def household_income(dividend_adjustment: float, record_adjustment: float) -> pl
     )
 
 
-def dividend_exclusion_addback(year: int, dividend_adjustment: float) -> pl.Expr:
+def higher_earner_share(income: pl.Expr) -> pl.Expr:
+    """The higher earner's share of joint income: their wages plus half the rest."""
+    return pl.max_horizontal(pl.col("pwages"), pl.col("swages")) + (income - pl.col("wages")) / 2.0
+
+
+def dividend_exclusion_addback(year: int) -> pl.Expr:
     """Federal dividend exclusion that states add back to federal AGI (`divexc`).
 
     Before 1987 this is the dividends (plus interest in 1981) excluded from
@@ -139,7 +161,7 @@ def dividend_exclusion_addback(year: int, dividend_adjustment: float) -> pl.Expr
     """
     if year >= 1987:
         return pl.lit(0.0)
-    excluded = pl.col("dividends") + dividend_adjustment
+    excluded = pl.col("dividends") + dividend_input_adjustment()
     if year == 1981:
         excluded = excluded + pl.col("intrec")
     limit = by_filing_status(
@@ -231,16 +253,16 @@ def taxsim_socsec(year: int, setax: pl.Expr, addmed: pl.Expr | None = None) -> p
 
 
 _DETAIL_NAMES = {
-    "agi": "state_agi",
+    "agi": "state_adjusted_gross_income",
     "exemptions": "state_exemptions",
     "standard_deduction": "state_standard_deduction",
     "itemized_deductions": "state_itemized_deductions",
     "taxable_income": "state_taxable_income",
     "property_credit": "state_property_credit",
-    "child_care_credit": "state_child_care_credit",
-    "eic": "state_eic",
-    "credits": "state_credits",
-    "rate": "state_rate",
+    "child_care_credit": "state_child_and_dependent_care_credit",
+    "eic": "state_earned_income_tax_credit",
+    "credits": "state_total_credits",
+    "rate": "state_marginal_rate",
 }
 
 

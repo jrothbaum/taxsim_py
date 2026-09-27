@@ -2,9 +2,9 @@
 
 import polars as pl
 
-from taxsim_py.engine.brackets import bracket_rate, bracket_tax
-from taxsim_py.engine.inputs import aged_count, is_dependent_filer, taxpayer_count
-from taxsim_py.engine.schema import PARAMETERS_ROOT, load_yaml, resolve_year
+from taxsim_py.engine.brackets import bracket_rate, bracket_tax, scale_brackets
+from taxsim_py.engine.inputs import aged_count, files_head_of_household, files_joint, files_separate, files_single, is_dependent_filer, taxpayer_count
+from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml, resolve_year
 from taxsim_py.engine.state import (
     by_filing_status,
     checkpoint,
@@ -14,23 +14,12 @@ from taxsim_py.engine.state import (
     pre1987_federal_itemizing,
     tier_values,
     unemployment_total,
-    with_default,
-    with_defaults,
     with_state_detail,
 )
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
 WI_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "wi" / "income_tax.yaml")
-STATE_ADJUSTMENT_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "state_adjustments.yaml")
 CAPITAL_GAINS_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "capital_gains.yaml")
-
-
-def _p(name: str, year: int) -> float:
-    return float(resolve_year(WI_PARAMS[name], year))
-
-
-def _scaled(brackets: list[list[float]], factor: float) -> list[list[float]]:
-    return [[start * factor, rate] for start, rate in brackets]
 
 
 def _low_income_deduction(rows: list[list[float]], agi: pl.Expr, depx: pl.Expr, depadd: pl.Expr) -> pl.Expr:
@@ -62,35 +51,14 @@ def compute_wi_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     """Calculate Wisconsin income tax for each row."""
     effective_year, flate = resolve_state_year(year)
     y = effective_year
-    p = WI_PARAMS
-    df = with_defaults(df, (
-        "stcg", "ltcg", "ui", "pui", "sui", "proptax", "mortgage", "charity_cash", "childcare", "rentpaid",
-        "depx", "dep13", "psemp", "ssemp", "pbusinc", "pprofinc", "sbusinc", "sprofinc", "gssi",
-        "taxable_unemployment", "taxable_social_security", "earned_income", "federal_chcr", "eitc",
-        "pre1987_capgn", "pre1987_capded", "pre1987_earncr", "pre1987_twoded", "pre1987_almtax", "amt_income",
-        "state_sales_or_income_tax_ded", "itemized_before_limit",
-    ))
-    df = with_default(df, "itemizes", False)
-    adjustments = [
-        float(resolve_year(STATE_ADJUSTMENT_PARAMS[name], y))
-        for name in ("household_income_dividend_adjustment", "household_income_record_adjustment")
-    ]
+    p = YearParams(WI_PARAMS, effective_year)
     # Household income (`hy`) is read before projected years are deflated.
-    df = df.with_columns(wi_hy=household_income(*adjustments), wi_ui=unemployment_total())
-    df = deflate_for_extrapolation(
-        df, flate,
-        [
-            "pwages", "swages", "stcg", "ltcg", "wi_ui", "proptax", "mortgage", "charity_cash", "childcare",
-            "rentpaid", "psemp", "ssemp", "pbusinc", "pprofinc", "sbusinc", "sprofinc", "gssi", "agi",
-            "taxable_unemployment", "taxable_social_security", "earned_income", "federal_chcr", "eitc",
-            "amt_income", "state_sales_or_income_tax_ded", "itemized_before_limit",
-        ],
-    )
+    df = df.with_columns(wi_household_income_undeflated=household_income(), wi_ui=unemployment_total())
+    df = deflate_for_extrapolation(df, flate, extra=("wi_ui",))
 
-    status = pl.col("filing_status")
-    is_joint = status == "married_joint"
-    is_sep = status == "married_separate"
-    single_like = (status == "single") | (status == "head_of_household")
+    is_joint = files_joint()
+    is_sep = files_separate()
+    single_like = (files_single()) | (files_head_of_household())
     sep = pl.when(is_sep).then(2.0).otherwise(1.0)
     txp = taxpayer_count()
     aged = aged_count()
@@ -127,9 +95,9 @@ def compute_wi_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         closswi = pl.min_horizontal(caplss, pl.lit(float(p["capital_loss_limit_1987"])), agi.clip(0, None))
         agi = agi + pl.when(fullcg <= 0).then(caplss - closswi).otherwise(0.0)
     if y <= 1983:
-        agi = agi + pl.when(fullcg > 0).then(_p("capital_gain_exclusion_addback", y) * pl.col("pre1987_capded")).otherwise(0.0)
+        agi = agi + pl.when(fullcg > 0).then(p.num("capital_gain_exclusion_addback") * pl.col("pre1987_capded")).otherwise(0.0)
     elif y >= 1987:
-        agi = agi - pl.when(fullcg > 0).then(_p("capital_gain_exclusion", y) * pl.min_horizontal(fullcg, ltcg)).otherwise(0.0)
+        agi = agi - pl.when(fullcg > 0).then(p.num("capital_gain_exclusion") * pl.min_horizontal(fullcg, ltcg)).otherwise(0.0)
     if 1982 <= y <= 1986:
         agi = agi + pl.col("pre1987_twoded")
     if 1986 <= y <= 2007:
@@ -144,7 +112,7 @@ def compute_wi_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     # Child and dependent care expenses (2011 on, with a federal credit).
     if y >= 2011:
         children = pl.when(pl.col("dep13") > 0).then(pl.col("dep13")).otherwise(depx).clip(None, 2)
-        child = pl.min_horizontal(pl.col("childcare"), _p("child_care_subtraction_per_child", y) * children)
+        child = pl.min_horizontal(pl.col("childcare"), p.num("child_care_subtraction_per_child") * children)
         child = pl.when(is_joint).then(
             pl.min_horizontal(child, pl.col("pwages"), pl.col("swages")).clip(0, None)
         ).otherwise(child)
@@ -152,18 +120,18 @@ def compute_wi_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     df, (agi,) = checkpoint(df, wi_agi=agi)
 
     # --- Standard deduction ---
-    depadd = interpolate_table(agi, resolve_year(p["dependent_addition"], y))
+    depadd = interpolate_table(agi, p.value("dependent_addition"))
     if y <= 1978:
         c = p["standard_deduction_1978"]
         stded = (c["rate"] * agi).clip(0, c["cap"]) + depadd
     elif y <= 1985:
         stded = pl.lit(0.0)
     else:
-        tables = resolve_year(p["standard_deduction"], y)
-        index = _p("standard_deduction_index", y) if y >= 2000 else 1.0
+        tables = p.value("standard_deduction")
+        index = p.num("standard_deduction_index") if y >= 2000 else 1.0
         stded = (
-            pl.when(status == "single").then(_standard_deduction(tables["single"], agi, index))
-            .when(status == "head_of_household").then(_standard_deduction(tables["head_of_household"], agi, index))
+            pl.when(files_single()).then(_standard_deduction(tables["single"], agi, index))
+            .when(files_head_of_household()).then(_standard_deduction(tables["head_of_household"], agi, index))
             .when(is_joint).then(_standard_deduction(tables["married_joint"], agi, index))
             .otherwise(_standard_deduction(tables["married_separate"], agi, index))
         )
@@ -172,7 +140,7 @@ def compute_wi_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         pl.min_horizontal(stded, pl.max_horizontal(pl.lit(float(d["floor"])), pl.col("earned_income") + d["earned_addition"]))
     ).otherwise(stded)
     if y <= 1985:
-        tables = resolve_year(p["low_income_deduction"], y)
+        tables = p.value("low_income_deduction")
 
         def low(key: str) -> pl.Expr:
             return _low_income_deduction(tables[key], agi, depx, depadd)
@@ -211,15 +179,15 @@ def compute_wi_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     exemp = pl.lit(0.0)
     if y >= 2000:
         exemp = pl.when(dependent_filer).then(0.0).otherwise(
-            _p("exemption", y) * (depx + txp) + _p("exemption_aged", y) * aged
+            p.num("exemption") * (depx + txp) + p.num("exemption_aged") * aged
         )
     df, (taxinc,) = checkpoint(df, wi_taxinc=(taxinc - exemp).clip(0, None))
 
     # --- Tax ---
-    schedules = resolve_year(p["brackets"], y)
-    index = _p("bracket_index", y)
+    schedules = p.value("brackets")
+    index = p.num("bracket_index")
     if y <= 1985:
-        table = _scaled(schedules["all"], index)
+        table = scale_brackets(schedules["all"], index)
         # Joint returns: the lesser of income splitting and the spouses'
         # shares, whose lookup leaves the rate at the higher earner's share.
         yh = pl.max_horizontal(pl.col("pwages"), pl.col("swages")) + (taxinc - pl.col("pwages") - pl.col("swages")) / 2.0
@@ -229,9 +197,9 @@ def compute_wi_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         statax = pl.when(is_joint).then(pl.min_horizontal(split, spouses)).otherwise(bracket_tax(taxinc, table))
         rate = pl.when(is_joint).then(bracket_rate(yh.clip(0, None), table)).otherwise(bracket_rate(taxinc, table))
     else:
-        single_index = _p("single_bracket_index", y) if 2014 <= y <= 2019 else index
-        single = _scaled(schedules["single"], single_index)
-        joint = _scaled(schedules["married_joint"], index)
+        single_index = p.num("single_bracket_index") if 2014 <= y <= 2019 else index
+        single = scale_brackets(schedules["single"], single_index)
+        joint = scale_brackets(schedules["married_joint"], index)
         separate = schedules["married_separate"]
         statax = pl.when(single_like).then(bracket_tax(taxinc, single)).when(is_joint).then(bracket_tax(taxinc, joint))
         rate = pl.when(single_like).then(bracket_rate(taxinc, single)).when(is_joint).then(bracket_rate(taxinc, joint))
@@ -240,7 +208,7 @@ def compute_wi_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
             statax = statax.otherwise(0.0)
             rate = rate.otherwise(0.0)
         else:
-            separate = _scaled(separate, index)
+            separate = scale_brackets(separate, index)
             statax = statax.otherwise(bracket_tax(taxinc, separate))
             rate = rate.otherwise(bracket_rate(taxinc, separate))
     if y == 1979:
@@ -251,11 +219,11 @@ def compute_wi_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     df, (statax,) = checkpoint(df, wi_tax_before_credits=statax)
 
     # --- Credits ---
-    hy = pl.col("wi_hy")
+    hy = pl.col("wi_household_income_undeflated")
     if y <= 1985:
         c = p["exemption_credit_1985"]
         exempc = c["taxpayer"] * txp + c["aged"] * aged + c["dependent"] * depx + pl.when(
-            status == "head_of_household"
+            files_head_of_household()
         ).then(float(c["head_of_household"])).otherwise(0.0)
     elif y <= 1996:
         c = p["exemption_credit_1996"]
@@ -283,17 +251,17 @@ def compute_wi_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
             (c["rate"] * pl.col("proptax")).clip(c["minimum"], c["maximum"])
         )
     elif y >= 1979:
-        cmax = _p("school_property_credit_max", y) / sep
+        cmax = p.num("school_property_credit_max") / sep
         # The renter credit multiplies TAXSIM's renter indicator (1), not rent.
         spcred = pl.when(pl.col("rentpaid") > 0).then(
             pl.min_horizontal(
-                _p("school_property_credit_renter_rate", y) * renter.cast(pl.Float64)
+                p.num("school_property_credit_renter_rate") * renter.cast(pl.Float64)
                 / p["school_property_credit_renter_divisor"],
                 cmax,
             )
         ).otherwise(
             pl.min_horizontal(
-                _p("school_property_credit_owner_rate", y) * pl.col("proptax") / p["school_property_credit_owner_divisor"],
+                p.num("school_property_credit_owner_rate") * pl.col("proptax") / p["school_property_credit_owner_divisor"],
                 cmax,
             )
         )
@@ -360,11 +328,11 @@ def compute_wi_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         alminy = pl.col("amt_income") - ss_taxable
         alminy = alminy - pl.when(ui > 0).then(ui - ui_taxable).otherwise(0.0)
         gains = pl.when(stcg >= 0).then(ltcg.clip(0, None)).otherwise(fullcg.clip(0, None))
-        alminy = alminy + _p("capital_gain_exclusion", y) * gains
+        alminy = alminy + p.num("capital_gain_exclusion") * gains
         rate_out = p["amt_phaseout_rate"]
-        exempt_single = (_p("amt_exemption_single", y) - rate_out * (alminy - _p("amt_phaseout_single", y)).clip(0, None)).clip(0, None)
+        exempt_single = (p.num("amt_exemption_single") - rate_out * (alminy - p.num("amt_phaseout_single")).clip(0, None)).clip(0, None)
         exempt_married = (
-            _p("amt_exemption_married", y) - rate_out * (alminy - _p("amt_phaseout_married", y) / sep).clip(0, None)
+            p.num("amt_exemption_married") - rate_out * (alminy - p.num("amt_phaseout_married") / sep).clip(0, None)
         ).clip(0, None)
         alminy = alminy - pl.when(single_like).then(exempt_single).otherwise(exempt_married)
         amt = (p["amt_rate"] * alminy - statax).clip(0, None)
@@ -374,7 +342,7 @@ def compute_wi_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     # --- Married couple credit ---
     twocrd = pl.lit(0.0)
     if y >= 1986:
-        c = resolve_year(p["married_couple_credit"], y)
+        c = p.value("married_couple_credit")
         business = 0.5 * (pl.col("psemp") + pl.col("ssemp"))
         earh = (pl.col("pwages") + pl.col("pbusinc") + pl.col("pprofinc") + business).clip(0, None)
         earw = (pl.col("swages") + pl.col("sbusinc") + pl.col("sprofinc") + business).clip(0, None)
@@ -384,7 +352,7 @@ def compute_wi_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     statax = statax + (amt - statax).clip(0, None)
 
     # --- Homestead credit (refundable) ---
-    c = resolve_year(p["homestead_credit"], y)
+    c = p.value("homestead_credit")
     rentpaid = pl.col("rentpaid")
     hymod = (hy - c["dependent_deduction"] * depx).clip(0, None)
     income_test = hy if y <= 1988 else hymod

@@ -83,6 +83,8 @@ def build_md_test_cases() -> list[dict[str, Any]]:
         rows.append(case(year, "MD very high income, married_joint", mstat=2, pwages=500000, swages=400000, proptax=30000, otheritem=15000, mortgage=40000))
         rows.append(case(year, "MD exemption phaseout range, single", mstat=1, pwages=180000))
         rows.append(case(year, "MD exemption phaseout range, married_joint", mstat=2, pwages=120000, swages=100000))
+        if year >= 2012:
+            rows.append(case(year, "MD exemption phaseout, aged single, top tier", mstat=1, page=70, pwages=180000))
         rows.append(case(year, "MD unemployment, single", mstat=1, pwages=10000, ui=8000))
         rows.append(case(year, "MD unemployment, married_joint", mstat=2, pwages=15000, swages=5000, ui=8000, sui=4000))
 

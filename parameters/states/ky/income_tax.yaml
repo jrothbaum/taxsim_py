@@ -310,3 +310,9 @@ retirement_exclusion_cap: {1995: 6250, 1996: 12500, 1997: 18750, 1998: 35000, 19
 # Personal credits per taxpayer 65 or older: counted twice before 2004;
 # $40 in 2014-2017 and 2018+.
 aged_personal_credit_2014: 40
+
+# 1985 interest exclusion: this share of interest, up to the cap per filer.
+interest_exclusion_1985_rate: 0.15
+# Itemized limitation rates (1991-2017).
+itemized_phaseout_rate: 0.03
+itemized_phaseout_cap_rate: 0.8

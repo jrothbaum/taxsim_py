@@ -4,9 +4,9 @@ import polars as pl
 
 from taxsim_py.calculators.payroll import payroll_parts
 from taxsim_py.calculators.federal_pre1987 import PRE1987_PARAMS
-from taxsim_py.engine.brackets import bracket_rate, bracket_tax
-from taxsim_py.engine.inputs import aged_count, is_dependent_filer, taxpayer_count
-from taxsim_py.engine.schema import PARAMETERS_ROOT, load_yaml, resolve_year
+from taxsim_py.engine.brackets import bracket_rate, bracket_tax, scale_brackets
+from taxsim_py.engine.inputs import aged_count, files_head_of_household, files_joint, files_separate, is_dependent_filer, taxpayer_count
+from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml, resolve_year
 from taxsim_py.engine.state import (
     by_filing_status,
     checkpoint,
@@ -14,63 +14,30 @@ from taxsim_py.engine.state import (
     household_income,
     itemize_choice,
     taxsim_socsec,
-    with_default,
-    with_defaults,
     with_state_detail,
 )
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
 MO_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "mo" / "income_tax.yaml")
-STATE_ADJUSTMENT_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "state_adjustments.yaml")
 _STATUSES = ["single", "married_joint", "married_separate", "head_of_household"]
-
-
-def _p(name: str, year: int) -> float:
-    return float(resolve_year(MO_PARAMS[name], year))
-
-
-def _scaled(brackets: list[list[float]], factor: float) -> list[list[float]]:
-    return [[float(start) * factor, float(rate)] for start, rate in brackets]
 
 
 def compute_mo_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     """Calculate Missouri income tax for each row."""
     effective_year, flate = resolve_state_year(year)
     y = effective_year
-    df = with_defaults(df, (
-        "proptax", "otheritem", "mortgage", "depx", "charity_cash", "state_sales_or_income_tax_ded",
-        "itemized_deduction", "standard_deduction", "regular_tax", "ccc", "ccc_uncapped", "odc", "actc",
-        "eitc", "making_work_pay", "addmed", "fiitax", "pre1987_taxbc", "pre1987_chcr", "pre1987_earncr",
-        "pensions", "gssi", "taxable_social_security", "rentpaid",
-        "federal_chcr",
-    ))
-    df = with_default(df, "itemizes", False)
+    p = YearParams(MO_PARAMS, effective_year)
 
     setax = payroll_parts(year)["setax"]  # `comnew(175)`, real-year and undeflated
-    adjustments = {
-        name: float(resolve_year(STATE_ADJUSTMENT_PARAMS[name], y))
-        for name in ("household_income_dividend_adjustment", "household_income_record_adjustment")
-    }
     df = df.with_columns(
         mo_setax=setax,
-        mo_hh=household_income(
-            adjustments["household_income_dividend_adjustment"], adjustments["household_income_record_adjustment"]
-        ),
+        mo_household_income=household_income(),
     )
-    df = deflate_for_extrapolation(
-        df, flate,
-        [
-            "federal_chcr", "pwages", "swages", "proptax", "otheritem", "mortgage", "charity_cash",
-            "state_sales_or_income_tax_ded", "agi", "itemized_deduction", "standard_deduction",
-            "regular_tax", "ccc", "odc", "actc", "eitc", "making_work_pay", "pensions", "gssi",
-            "taxable_social_security", "rentpaid", "mo_hh",
-        ],
-    )
+    df = deflate_for_extrapolation(df, flate, extra=("mo_household_income",))
 
-    status = pl.col("filing_status")
-    is_joint = status == "married_joint"
-    is_sep = status == "married_separate"
-    is_hoh = status == "head_of_household"
+    is_joint = files_joint()
+    is_sep = files_separate()
+    is_hoh = files_head_of_household()
     sep = pl.when(is_sep).then(2.0).otherwise(1.0)
     txp = taxpayer_count()
     aged = aged_count()
@@ -80,7 +47,7 @@ def compute_mo_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     setax = pl.col("mo_setax")
     agi = pl.col("agi")
     wages_total = pl.col("pwages").clip(0, None) + pl.col("swages").clip(0, None)
-    split_share = _p("joint_split_other_income_share", y)
+    split_share = p.num("joint_split_other_income_share")
     agih = pl.max_horizontal(pl.col("pwages"), pl.col("swages")) + split_share * (agi - wages_total)
     agiw = agi - agih
 
@@ -107,13 +74,13 @@ def compute_mo_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     # --- Exemptions ---
     exemp = (
         pl.when(is_hoh)
-        .then(_p("exemption_head_of_household", y))
-        .otherwise(_p("exemption_per_taxpayer", y) * txp)
-        + depx * _p("exemption_per_dependent", y)
+        .then(p.num("exemption_head_of_household"))
+        .otherwise(p.num("exemption_per_taxpayer") * txp)
+        + depx * p.num("exemption_per_dependent")
     )
     if y == 2017:
-        bonus = _p("low_income_exemption", y)
-        limit = _p("low_income_exemption_limit", y)
+        bonus = p.num("low_income_exemption")
+        limit = p.num("low_income_exemption_limit")
         joint_bonus = pl.when(agih < limit).then(bonus).otherwise(0.0) + pl.when(agiw < limit).then(bonus).otherwise(0.0)
         exemp = exemp + pl.when(dependent_filer).then(0.0).otherwise(
             pl.when(is_joint).then(joint_bonus).otherwise(pl.when(agi < limit).then(bonus).otherwise(0.0))
@@ -125,7 +92,7 @@ def compute_mo_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     ssaxmp = pl.lit(0.0)
     if y >= 2007:
         ssaxmp = (
-            _p("social_security_exemption_share", y) * pl.col("taxable_social_security") - (agi - phase).clip(0, None)
+            p.num("social_security_exemption_share") * pl.col("taxable_social_security") - (agi - phase).clip(0, None)
         ).clip(0, None)
         exemp = exemp + ssaxmp
 
@@ -144,10 +111,10 @@ def compute_mo_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
             cap = float(MO_PARAMS["pension_exemption_1999_2013"])
             scred = pl.when(magi - slim <= cap * txp).then(pl.min_horizontal(pl.lit(cap), pension)).otherwise(0.0)
         else:
-            ssmax = _p("pension_exemption_maximum", y)
+            ssmax = p.num("pension_exemption_maximum")
             if y <= 2013:
                 cap = float(MO_PARAMS["pension_exemption_1999_2013"])
-                limited = pl.min_horizontal(pl.lit(ssmax), _p("social_security_exemption_share", y) * pension)
+                limited = pl.min_horizontal(pl.lit(ssmax), p.num("social_security_exemption_share") * pension)
                 if y <= 2008:
                     nontaxable = pl.col("gssi") - pl.col("taxable_social_security")
                     allowed = pl.max_horizontal((limited - nontaxable).clip(0, None), pl.min_horizontal(pl.lit(cap), pension))
@@ -161,31 +128,31 @@ def compute_mo_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
 
     # --- Itemized deductions (only when itemizing federally) ---
     socsec = taxsim_socsec(y, setax, pl.col("addmed"))
-    xitded = (deducp + pl.min_horizontal(socsec, _p("payroll_tax_deduction_cap", y) * txp) - salt_ded).clip(0, None)
+    xitded = (deducp + pl.min_horizontal(socsec, p.num("payroll_tax_deduction_cap") * txp) - salt_ded).clip(0, None)
     if y == 1993:
-        septx = pl.min_horizontal(_p("self_employment_tax_deduction_cap_1993", y) * txp, setax)
+        septx = pl.min_horizontal(p.num("self_employment_tax_deduction_cap_1993") * txp, setax)
     elif y in (2011, 2012):
-        septx = pl.when(setax <= _p("self_employment_tax_deduction_threshold", y)).then(
-            _p("self_employment_tax_deduction_lower_rate", y) * setax
+        septx = pl.when(setax <= p.num("self_employment_tax_deduction_threshold")).then(
+            p.num("self_employment_tax_deduction_lower_rate") * setax
         ).otherwise(
-            _p("self_employment_tax_deduction_upper_rate", y) * setax + _p("self_employment_tax_deduction_amount", y)
+            p.num("self_employment_tax_deduction_upper_rate") * setax + p.num("self_employment_tax_deduction_amount")
         )
     else:
-        septx = _p("self_employment_tax_deduction_rate", y) * setax
+        septx = p.num("self_employment_tax_deduction_rate") * setax
     xitded = (xitded - septx).clip(0, None)
     stax = salt_ded
     if 1993 <= y <= 2017:
         if y >= 2013:
             threshold = (
-                _p("itemized_limit_threshold_base", y)
-                * _p("itemized_limit_inflation", y)
+                p.num("itemized_limit_threshold_base")
+                * p.num("itemized_limit_inflation")
                 * by_filing_status(MO_PARAMS["itemized_limit_status_multiplier"])
             )
         else:
-            threshold = _p("itemized_limit_threshold_base", y) * _p("itemized_limit_inflation", y) / sep
+            threshold = p.num("itemized_limit_threshold_base") * p.num("itemized_limit_inflation") / sep
         xtot = salt_ded + pl.col("proptax") + pl.col("mortgage") + pl.col("charity_cash")
         over = agi - threshold
-        xconst = pl.min_horizontal(_p("itemized_limit_max_share", y) * xtot, _p("itemized_limit_rate", y) * over)
+        xconst = pl.min_horizontal(p.num("itemized_limit_max_share") * xtot, p.num("itemized_limit_rate") * over)
         stax = pl.when((xtot > 0) & (over > 0)).then((xtot - xconst) / xtot * salt_ded).otherwise(salt_ded)
     xitded = (xitded - dedphs + (salt_ded - stax)).clip(0, None)
     if y == 1999:
@@ -209,10 +176,13 @@ def compute_mo_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
             ctc_used = pl.col("odc")
         else:
             ctc_used = pl.lit(0.0)
-        fedtax = pl.col("regular_tax") - ccc_used - pl.col("eitc") - ctc_used - pl.col("making_work_pay")
+        # `comnew(52)-comnew(53)-comnew(54)-comnew(59)-comnew(81)-comnew(94)`.
+        fedtax = (
+            pl.col("regular_tax") - ccc_used - pl.col("federal_elder") - pl.col("eitc") - ctc_used - pl.col("making_work_pay")
+        )
     fedtax = fedtax.clip(0, None)
     if 1994 <= y <= 2018:
-        fedtax = pl.min_horizontal(fedtax, _p("federal_tax_deduction_cap_per_taxpayer", y) * txp)
+        fedtax = pl.min_horizontal(fedtax, p.num("federal_tax_deduction_cap_per_taxpayer") * txp)
     if y >= 2019:
         share = pl.lit(0.0)
         for upper, value in reversed(MO_PARAMS["federal_tax_deduction_share_2019"]):
@@ -221,8 +191,8 @@ def compute_mo_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
 
     df, (fedtax, exemp) = checkpoint(df, mo_fedtax=fedtax, mo_exemp=exemp)
     df, (taxinc,) = checkpoint(df, mo_taxinc=(agi - deduc - fedtax - exemp).clip(0, None))
-    aif = _p("bracket_inflation", y)
-    brackets = _scaled(resolve_year(MO_PARAMS["brackets"], y), aif)
+    aif = p.num("bracket_inflation")
+    brackets = scale_brackets(resolve_year(MO_PARAMS["brackets"], y), aif)
     df, (taxh, taxw) = checkpoint(df, mo_taxinc_h=taxinc * agih / agi, mo_taxinc_w=taxinc * agiw / agi)
     statax = bracket_tax(taxinc, brackets)
     split_tax = bracket_tax(taxh, brackets) + bracket_tax(taxw, brackets)
@@ -230,22 +200,22 @@ def compute_mo_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         bracket_rate(taxinc, brackets)
     )
     statax = pl.when(is_joint & (agi > 0)).then(pl.min_horizontal(statax, split_tax)).otherwise(statax)
-    statax = pl.when(taxinc < _p("minimum_taxable_income", y) * aif).then(0.0).otherwise(statax)
+    statax = pl.when(taxinc < p.num("minimum_taxable_income") * aif).then(0.0).otherwise(statax)
 
     # --- Property tax credit for taxpayers 65 or older ---
     proptax, rentpaid = pl.col("proptax"), pl.col("rentpaid")
-    hy1 = pl.col("mo_hh")
+    hy1 = pl.col("mo_household_income")
     if y <= 2007:
-        married_sub = _p("property_credit_married_subtraction", y)
+        married_sub = p.num("property_credit_married_subtraction")
     else:
         married_sub = (
             pl.when(proptax > 0).then(float(MO_PARAMS["property_credit_married_owner_subtraction_2008"])).otherwise(0.0)
-            + pl.when(rentpaid > 0).then(_p("property_credit_married_subtraction", y)).otherwise(0.0)
+            + pl.when(rentpaid > 0).then(p.num("property_credit_married_subtraction")).otherwise(0.0)
         )
     hy1 = pl.when(is_joint).then((hy1 - married_sub).clip(0, None)).otherwise(hy1)
     schedule = resolve_year(MO_PARAMS["property_credit_schedule"], y)
     base, step = float(schedule["base"]), float(schedule["step"])
-    income_limit, maximum = _p("property_credit_income_limit", y), _p("property_credit_maximum", y)
+    income_limit, maximum = p.num("property_credit_income_limit"), p.num("property_credit_maximum")
     steps = pl.lit(float(schedule["steps"]))
     if y >= 2008:
         owner = MO_PARAMS["property_credit_owner_2008"]

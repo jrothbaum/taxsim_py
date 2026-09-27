@@ -4,7 +4,7 @@ from collections.abc import Callable, Mapping
 
 import polars as pl
 
-from taxsim_py.calculators.federal import compute_regular_tax
+from taxsim_py.calculators.federal import compute_federal_income_tax
 from taxsim_py.calculators.payroll import compute_payroll_tax
 from taxsim_py.engine.inputs import taxpayer_count
 from taxsim_py.engine.sales_tax import state_sales_tax_deduction
@@ -20,14 +20,40 @@ _DEDUCTION = "state_sales_or_income_tax_ded"
 _TIE_TOLERANCE = 1e-6
 _KEYS = [_ROW, FORCE_ITEMIZE]
 
+# Federal columns state calculators read that an era's federal calculator
+# does not compute; states see them as 0 (not itemizing).
+_PRE1987_ONLY = (
+    "credit", "pre1987_almtax", "pre1987_amex", "pre1987_capded", "pre1987_capgn", "pre1987_chcr",
+    "pre1987_deduc", "pre1987_earncr", "pre1987_pref", "pre1987_pretax", "pre1987_taxbc", "pre1987_twoded",
+)
+_LAW87_ONLY = (
+    "actc", "amt", "amt_income", "cares", "ccc", "ccc_uncapped", "charity_cash", "eitc", "eitc_before_age_test",
+    "federal_elder", "itemized_before_limit", "nonrefundable_credits", "itemized_deduction", "ltg", "making_work_pay", "odc",
+    "personal_exemptions", "qbi_deduction", "salt_capped", "schedule_tax", "se_adjustment", "setax",
+    "standard_deduction", "tax_before_credits",
+)
+_LAW60_MISSING = (
+    "federal_source_rate", "taxable_social_security", "pre1987_capded", "pre1987_capgn", "pre1987_pref",
+    "pre1987_pretax", "pre1987_twoded",
+)
+
+
+def _uncomputed_federal_columns(year: int) -> list[pl.Expr]:
+    """Zero (not itemizing) for the state-read federal columns `year`'s law lacks."""
+    if year >= 1987:
+        return [pl.lit(0.0).alias(c) for c in _PRE1987_ONLY]
+    missing = _LAW87_ONLY + (_LAW60_MISSING if year <= 1976 else ())
+    return [*(pl.lit(0.0).alias(c) for c in missing), pl.lit(False).alias("itemizes")]
+
 
 def _federal(frame: pl.DataFrame, year: int) -> pl.LazyFrame:
     """Lazy federal and payroll plan for one feedback pass, with the sales tax estimate."""
     family_size = taxpayer_count() + pl.col("depx")
     # Resources: AGI plus nontaxable Social Security benefits and transfers.
     resources = pl.col("agi") + pl.col("gssi") - pl.col("taxable_social_security") + pl.col("transfers")
-    return compute_payroll_tax(compute_regular_tax(frame.lazy(), year), year).with_columns(
-        state_sales_tax_deduction(resources, family_size, pl.col("state"), year).alias(_SALES_TAX)
+    return compute_payroll_tax(compute_federal_income_tax(frame.lazy(), year), year).with_columns(
+        *_uncomputed_federal_columns(year),
+        state_sales_tax_deduction(resources, family_size, pl.col("state"), year).alias(_SALES_TAX),
     )
 
 
@@ -55,6 +81,7 @@ def resolve_federal_and_state(
     *,
     keep_intermediate: bool = True,
     keep_columns: tuple[str, ...] = (),
+    result_columns: tuple[str, ...] | None = None,
 ) -> pl.DataFrame:
     """Resolve the federal and state tax interaction.
 
@@ -65,7 +92,8 @@ def resolve_federal_and_state(
     `compute_state_tax_fn` is one calculator, or a mapping from TAXSIM state
     code to calculator for records from several states. Without
     `keep_intermediate` the state plans keep only `siitax` and whichever of
-    `keep_columns` they set.
+    `keep_columns` they set. When `result_columns` is supplied, intermediates
+    are also discarded before choosing between itemized and standard results.
     """
     base = raw_df.with_row_index(_ROW)
     if _DEDUCTION not in base.columns:
@@ -102,6 +130,8 @@ def resolve_federal_and_state(
     state_out = pl.concat(pl.collect_all(final_plans), how="diagonal_relaxed")
     state_columns = [c for c in state_out.columns if c not in federal.columns]
     out = federal.join(state_out.select(*_KEYS, *state_columns), on=_KEYS).drop(_SALES_TAX)
+    if result_columns is not None:
+        out = out.select(*_KEYS, *result_columns)
 
     itemized = out.filter(pl.col(FORCE_ITEMIZE)).sort(_ROW)
     standard = out.filter(~pl.col(FORCE_ITEMIZE)).sort(_ROW)

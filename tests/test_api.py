@@ -1,13 +1,19 @@
 """Tests for the mixed-state public dataframe API."""
 
 import unittest
+from unittest.mock import patch
 
 import polars as pl
 from polars.testing import assert_frame_equal
 
 from taxsim_py import MarginalInput, calculate_taxes
 from taxsim_py.api import OUTPUT_COLUMNS, _default_year_workers
-from taxsim_py.engine.detail import FEDERAL_DETAIL_COLUMNS
+from taxsim_py.engine.detail import (
+    FEDERAL_DETAIL_COLUMNS,
+    STATE_DETAIL_COLUMNS,
+    TAXSIM_FEDERAL_DETAIL_COLUMNS,
+    TAXSIM_STATE_DETAIL_COLUMNS,
+)
 
 
 def _case(case_id: int, year: int, state: int) -> dict[str, int]:
@@ -65,6 +71,15 @@ class CalculateTaxesTests(unittest.TestCase):
 
     def test_default_year_workers_follow_polars_thread_pool(self) -> None:
         self.assertEqual(_default_year_workers(), pl.thread_pool_size())
+
+    def test_single_year_row_partitions_match_serial_result(self) -> None:
+        cases = pl.DataFrame([_case(i, 2020, state) for i, state in enumerate((1, 5, 33, 36))])
+        serial = calculate_taxes(cases, max_year_workers=1)
+
+        with patch("taxsim_py.api._MIN_ROWS_PER_WORKER", 1):
+            parallel = calculate_taxes(cases, max_year_workers=2)
+
+        assert_frame_equal(parallel, serial)
 
     def test_no_state_and_no_income_tax_states(self) -> None:
         # taxsim2024.exe: 2020 single, $50,000 of wages -> fiitax 2514.50, siitax 0.
@@ -147,9 +162,23 @@ class CalculateTaxesTests(unittest.TestCase):
         result = calculate_taxes(cases, idtl=2)
 
         self.assertTrue(set(FEDERAL_DETAIL_COLUMNS).issubset(result.columns))
-        self.assertEqual(result.get_column("v10").to_list(), result.get_column("agi").to_list())
+        self.assertTrue(set(STATE_DETAIL_COLUMNS).issubset(result.columns))
+        self.assertEqual(
+            result.get_column("federal_adjusted_gross_income").to_list(),
+            result.get_column("agi").to_list(),
+        )
         self.assertEqual(sum(result.select(FEDERAL_DETAIL_COLUMNS).null_count().row(0)), 0)
         self.assertFalse(set(FEDERAL_DETAIL_COLUMNS) & set(calculate_taxes(cases).columns))
+        self.assertNotIn("v10", result.columns)
+
+        compatible = calculate_taxes(cases, idtl=2, taxsim_names=True)
+        self.assertTrue(set(TAXSIM_FEDERAL_DETAIL_COLUMNS).issubset(compatible.columns))
+        self.assertTrue(set(TAXSIM_STATE_DETAIL_COLUMNS).issubset(compatible.columns))
+        self.assertEqual(
+            compatible.get_column("v10").to_list(),
+            result.get_column("federal_adjusted_gross_income").to_list(),
+        )
+        self.assertFalse(set(FEDERAL_DETAIL_COLUMNS) & set(compatible.columns))
 
     def test_rejects_unsupported_detail_level(self) -> None:
         cases = pl.DataFrame([_case(1, 2019, 0)])
@@ -162,8 +191,9 @@ class CalculateTaxesTests(unittest.TestCase):
 
         result = calculate_taxes(cases, idtl=2)
 
-        self.assertEqual(result.get_column("v14").to_list()[0], 0.0)
-        self.assertGreater(result.get_column("v14").to_list()[1], 0.0)
+        exemptions = result.get_column("federal_personal_exemptions").to_list()
+        self.assertEqual(exemptions[0], 0.0)
+        self.assertGreater(exemptions[1], 0.0)
 
     def test_child_ages_apply_only_to_rows_that_give_them(self) -> None:
         # Ages 4 and 20: one child under 6, 13, 17 and 19.

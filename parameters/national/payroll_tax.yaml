@@ -426,3 +426,15 @@ se_hi_rate:
   2008: 0.029
   2009: 0.029
   2022: 0.029
+
+# 2011-2012 AGI deduction for self-employment tax during the payroll tax
+# holiday: 57.51% of the tax up to 13.3% of the wage base, then half the tax
+# plus 13.3% x 7.51% of the wage base.
+se_deduction_holiday:
+  threshold_share: 0.133
+  low_rate: 0.5751
+  addon_rate: 0.0751
+
+# The taxpayer's own share of each self-employment item's tax in TAXSIM's
+# `sstax` (`g`), the same in every year.
+own_share_self_employment: 0.9235

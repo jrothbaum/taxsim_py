@@ -270,3 +270,35 @@ alt_capital_gains_tax_threshold_pre1979: {1977: 50000}
 # the 0.4 fraction and 0.2 flat-add rate are both structural constants of
 # that one-year formula, not separately time-varying, so left as literals
 # in calculators/federal_pre1987.py rather than parameterized here.
+
+# 1977-1978 alternative capital gains tax: the rate on `subd` when gated,
+# otherwise the rate on the excluded gain.
+alternative_capital_gains_1977_1978:
+  subd_rate: 0.25
+  capded_rate: 0.5
+# 1981 alternative tax: tax on income less the excluded share of long-term
+# gains, plus the maximum rate on those gains.
+alternative_capital_gains_1981:
+  excluded_share: 0.4
+  rate: 0.2
+
+# Excess itemized deductions (preference income): deductions above a share
+# of AGI, at most a share of AGI.
+excess_itemized_preference:
+  agi_floor_share: 0.6
+  cap_share: 0.4
+
+# 1982-1986 child care credit rate: the maximum less one point per step of
+# AGI above the floor, at least the minimum.
+child_care_credit_rate_1982_1986:
+  max_rate: 0.30
+  min_rate: 0.20
+  agi_floor: 8000
+  agi_step: 200000
+
+# 1977-1978 General Tax Credit: the larger of an amount per exemption and a
+# share of taxable income up to a maximum.
+general_tax_credit_1977_1978:
+  per_exemption: 35
+  maximum: 180
+  taxable_income_rate: 0.02

@@ -6,27 +6,19 @@ import polars as pl
 
 from taxsim_py.calculators.federal_pre1987 import PRE1987_PARAMS
 from taxsim_py.engine.brackets import bracket_rate, bracket_tax
-from taxsim_py.engine.inputs import aged_count, federal_exemption_count, is_dependent_filer, taxpayer_count
-from taxsim_py.engine.schema import PARAMETERS_ROOT, load_yaml, resolve_year
-from taxsim_py.engine.state import with_defaults, by_filing_status, checkpoint, household_income, interpolate_table, unemployment_total, with_default, itemize_choice, with_state_detail
+from taxsim_py.engine.inputs import aged_count, federal_exemption_count, files_head_of_household, files_joint, files_separate, files_single, is_dependent_filer, taxpayer_count
+from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml, resolve_year
+from taxsim_py.engine.state import by_filing_status, checkpoint, household_income, interpolate_table, unemployment_total, itemize_choice, with_state_detail, dividend_input_adjustment
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
 NM_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "nm" / "income_tax.yaml")
 CAPITAL_GAINS_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "capital_gains.yaml")
-STATE_ADJUSTMENT_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "state_adjustments.yaml")
 _STATUSES = ["single", "married_joint", "married_separate", "head_of_household"]
 
 
-def _p(name: str, year: int) -> float:
-    return float(resolve_year(NM_PARAMS[name], year))
-
-
-def _adj(name: str, year: int) -> float:
-    return float(resolve_year(STATE_ADJUSTMENT_PARAMS[name], year))
-
-
 def _pre1987_brackets(kind: str, y: int) -> list[list[float]]:
-    factor = _p("rate_factor_pre1987", y)
+    p = YearParams(NM_PARAMS, y)
+    factor = p.num("rate_factor_pre1987")
     rows = []
     for index, (start, rate_pct) in enumerate(NM_PARAMS["brackets_1977"][kind], start=1):
         rate_pct = math.floor(10.0 * float(rate_pct) * factor + 0.5) / 10.0
@@ -45,21 +37,21 @@ def _schedule_tax(taxinc: pl.Expr, status: pl.Expr, sep: pl.Expr, y: int) -> pl.
             .then(bracket_tax(taxinc, _pre1987_brackets("separate", y)))
             .otherwise(bracket_tax(taxinc, _pre1987_brackets("married", y)))
         )
-    tables = NM_PARAMS["brackets"]
-    married = bracket_tax(taxinc * sep, resolve_year(tables["married"], y)) / sep
+    tables = YearParams(NM_PARAMS["brackets"], y)
+    married = bracket_tax(taxinc * sep, tables.value("married")) / sep
     if y <= 2005:
         if y == 1995:
             married = pl.when(status == "married_separate").then(
                 bracket_tax(taxinc, NM_PARAMS["brackets_separate_1995"])
-            ).otherwise(bracket_tax(taxinc, resolve_year(tables["married"], y)))
+            ).otherwise(bracket_tax(taxinc, tables.value("married")))
         return (
             pl.when(status == "single")
-            .then(bracket_tax(taxinc, resolve_year(tables["single"], y)))
+            .then(bracket_tax(taxinc, tables.value("single")))
             .when(status == "head_of_household")
-            .then(bracket_tax(taxinc, resolve_year(tables["head_of_household"], y)))
+            .then(bracket_tax(taxinc, tables.value("head_of_household")))
             .otherwise(married)
         )
-    return pl.when(status == "single").then(bracket_tax(taxinc, resolve_year(tables["single"], y))).otherwise(married)
+    return pl.when(status == "single").then(bracket_tax(taxinc, tables.value("single"))).otherwise(married)
 
 
 def _schedule_rate(taxinc: pl.Expr, status: pl.Expr, sep: pl.Expr, y: int) -> pl.Expr:
@@ -71,22 +63,22 @@ def _schedule_rate(taxinc: pl.Expr, status: pl.Expr, sep: pl.Expr, y: int) -> pl
             .then(bracket_rate(taxinc, _pre1987_brackets("separate", y)))
             .otherwise(bracket_rate(taxinc, _pre1987_brackets("married", y)))
         )
-    tables = NM_PARAMS["brackets"]
-    married = bracket_rate(taxinc * sep, resolve_year(tables["married"], y))
+    tables = YearParams(NM_PARAMS["brackets"], y)
+    married = bracket_rate(taxinc * sep, tables.value("married"))
     if y <= 2005:
         if y == 1995:
             married = pl.when(status == "married_separate").then(
                 bracket_rate(taxinc, NM_PARAMS["brackets_separate_1995"])
-            ).otherwise(bracket_rate(taxinc, resolve_year(tables["married"], y)))
+            ).otherwise(bracket_rate(taxinc, tables.value("married")))
         return (
             pl.when(status == "single")
-            .then(bracket_rate(taxinc, resolve_year(tables["single"], y)))
+            .then(bracket_rate(taxinc, tables.value("single")))
             .when(status == "head_of_household")
-            .then(bracket_rate(taxinc, resolve_year(tables["head_of_household"], y)))
+            .then(bracket_rate(taxinc, tables.value("head_of_household")))
             .otherwise(married)
         )
     return pl.when(status == "single").then(
-        bracket_rate(taxinc, resolve_year(tables["single"], y))
+        bracket_rate(taxinc, tables.value("single"))
     ).otherwise(married)
 
 
@@ -94,18 +86,9 @@ def compute_nm_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     """Calculate New Mexico income tax for each row."""
     effective_year, flate = resolve_state_year(year)
     y = effective_year
-    p = NM_PARAMS
-    df = with_defaults(df, (
-        "dividends", "intrec", "psemp", "ssemp", "stcg", "ltcg", "ui", "pui", "sui", "proptax", "otheritem", "mortgage", "depx",
-        "childcare", "state_sales_or_income_tax_ded", "itemized_deduction", "standard_deduction",
-        "personal_exemptions", "ccc", "ccc_uncapped", "regular_tax", "eitc", "pre1987_capgn", "pre1987_chcr",
-        "pensions", "gssi", "taxable_social_security", "rentpaid", "pbusinc", "pprofinc", "scorp", "sbusinc",
-        "sprofinc", "pre1987_amex",
-        "federal_chcr",
-    ))
-    df = with_default(df, "itemizes", False)
-    dividend_adjustment = _adj("household_income_dividend_adjustment", y)
-    hh = household_income(dividend_adjustment, _adj("household_income_record_adjustment", y))
+    p = YearParams(NM_PARAMS, effective_year)
+    dividend_adjustment = dividend_input_adjustment()
+    hh = household_income()
     business = pl.col("psemp") + pl.col("ssemp") + pl.col("pwages").clip(None, 0) + pl.col("swages").clip(None, 0)
     modagi = (
         pl.col("pwages").clip(0, None) + pl.col("swages").clip(0, None) + unemployment_total()
@@ -114,22 +97,14 @@ def compute_nm_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     )
     # Business and S corporation income, which are not deflated in projected years.
     business_income = sum(pl.col(c).clip(0, None) for c in ("pbusinc", "pprofinc", "scorp", "sbusinc", "sprofinc"))
-    df = df.with_columns(nm_hh=hh, nm_modagi=modagi, nm_business=business_income)
-    df = deflate_for_extrapolation(
-        df, flate,
-        [
-            "federal_chcr", "stcg", "ltcg", "childcare", "state_sales_or_income_tax_ded", "agi", "itemized_deduction",
-            "standard_deduction", "personal_exemptions", "ccc", "ccc_uncapped", "regular_tax", "eitc",
-            "pre1987_capgn", "pre1987_chcr", "nm_hh", "nm_modagi", "taxable_social_security", "rentpaid",
-            "proptax",
-        ],
-    )
+    df = df.with_columns(nm_household_income=hh, nm_modagi=modagi, nm_business=business_income)
+    df = deflate_for_extrapolation(df, flate, extra=("nm_household_income", "nm_modagi"))
 
     status = pl.col("filing_status")
-    is_single = status == "single"
-    is_joint = status == "married_joint"
-    is_sep = status == "married_separate"
-    is_hoh = status == "head_of_household"
+    is_single = files_single()
+    is_joint = files_joint()
+    is_sep = files_separate()
+    is_hoh = files_head_of_household()
     sep = pl.when(is_sep).then(2.0).otherwise(1.0)
     txp = taxpayer_count()
     aged = aged_count()
@@ -159,8 +134,8 @@ def compute_nm_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         amex = pl.col("personal_exemptions")
 
     # --- New Mexico AGI ---
-    share = _p("capital_gains_deduction_share", y)
-    floor = _p("capital_gains_deduction_floor", y)
+    share = p.num("capital_gains_deduction_share")
+    floor = p.num("capital_gains_deduction_floor")
     cgded = pl.when(capgn > 0).then(
         pl.min_horizontal(capgn, pl.max_horizontal(pl.lit(floor), share * capgn))
     ).otherwise(0.0) / sep
@@ -202,7 +177,7 @@ def compute_nm_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     if y in (1984, 1985) or y >= 1991:
         exemp = amex
     else:
-        exemp = _p("exemption_per_person", y) * exemps
+        exemp = p.num("exemption_per_person") * exemps
     if y >= 2006:
         limits = p["low_income_exemption_income_limit"]
         income_limit = pl.when(is_single).then(float(resolve_year(limits["single"], y))).otherwise(
@@ -210,12 +185,12 @@ def compute_nm_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         )
         start = by_filing_status({s: resolve_year(v, y) for s, v in p["low_income_exemption_phaseout_start"].items()})
         rate = by_filing_status(p["low_income_exemption_phaseout_rate"])
-        per_person = (_p("low_income_exemption_amount", y) - rate * (fed_agi - start).clip(0, None)).clip(0, None)
+        per_person = (p.num("low_income_exemption_amount") - rate * (fed_agi - start).clip(0, None)).clip(0, None)
         # The federal exemption count is deflated with other federal values
         # when a later year is projected.
         exemp = exemp + pl.when(fed_agi <= income_limit).then(exemps / flate * per_person).otherwise(0.0)
     exemp = pl.when(dependent_filer).then(0.0).otherwise(exemp)
-    cerdep = pl.when(is_joint | is_hoh).then(_p("dependent_deduction", y) * (depx - 1).clip(0, None)).otherwise(0.0)
+    cerdep = pl.when(is_joint | is_hoh).then(p.num("dependent_deduction") * (depx - 1).clip(0, None)).otherwise(0.0)
     df, (taxinc,) = checkpoint(df, nm_taxinc=(agi - elded - deduc - exemp - cerdep).clip(0, None))
     df, (statax,) = checkpoint(df, nm_table_tax=_schedule_tax(taxinc, status, sep, y))
     rate = _schedule_rate(taxinc, status, sep, y)
@@ -225,19 +200,19 @@ def compute_nm_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     ncred = (txp + depx + aged).clip(None, 6).floor()
     if y >= 1985:
         ncred = (ncred + aged).clip(None, 6)
-    rebate_rows = resolve_year(p["low_income_rebate"], y)
+    rebate_rows = p.value("low_income_rebate")
     ycred = pl.lit(0.0)
     for size in range(1, 7):
         table = [[float(row[0]), float(row[size])] for row in rebate_rows]
         ycred = pl.when(ncred == size).then(interpolate_table(modagi, table)).otherwise(ycred)
     ycred = pl.when(dependent_filer).then(0.0).otherwise(ycred)
     if y <= 1985:
-        xtra = (_p("food_credit", y) + _p("medical_credit", y)) * ncred
+        xtra = (p.num("food_credit") + p.num("medical_credit")) * ncred
     elif y <= 1989:
-        xtra = pl.when(ycred > 0).then((txp + depx) * _p("food_credit", y)).otherwise(0.0)
+        xtra = pl.when(ycred > 0).then((txp + depx) * p.num("food_credit")).otherwise(0.0)
     elif y == 1990:
         food = p["food_credit_1990"]
-        hh = pl.col("nm_hh")
+        hh = pl.col("nm_household_income")
         xtra = pl.when(is_single).then(interpolate_table(hh, food["single"])).otherwise(
             interpolate_table(hh / sep, food["married"])
         ) * (txp + depx)
@@ -249,10 +224,10 @@ def compute_nm_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         expense = pl.min_horizontal(
             float(p["child_care_expense_share"]) * pl.col("childcare"), float(p["child_care_cap_per_child"]) * children
         )
-        chcr = pl.when(modagi < _p("child_care_income_limit", y)).then(
+        chcr = pl.when(modagi < p.num("child_care_income_limit")).then(
             (pl.min_horizontal(pl.lit(float(p["child_care_credit_cap"])), expense) - fed_ccc).clip(0, None)
         ).otherwise(0.0)
-    earncr = _p("eitc_match_rate", y) * pl.col("eitc")
+    earncr = p.num("eitc_match_rate") * pl.col("eitc")
     # Property tax rebate for taxpayers 65 or older.
     ptax = pl.col("proptax") + float(p["property_rebate_rent_share"]) * pl.col("rentpaid")
     pmax = interpolate_table(modagi, p["property_rebate_threshold"])

@@ -335,3 +335,24 @@ aged_low_income_earned_limit: 2500
 aged_low_income_agi_limit: 10000
 # Additional standard deduction per taxpayer 65 or older.
 aged_standard_deduction: {1987: 1000, 1999: 2500}
+
+# Through 1987 the standard deduction is at most this share of AGI.
+standard_deduction_agi_share_pre1988: 0.1
+# 1987 itemized deductions are multiplied by this factor.
+itemized_deduction_multiplier_1987: 1.12
+# 2018: property, other and state taxes deductible up to this amount per
+# return (halved for separate returns).
+state_tax_deduction_cap_2018: 10000
+# Itemized limitation: 2013-2017 threshold multiple of the base; rates; the
+# share applied (phased down 2006-2009, none 2010-2012).
+itemized_phaseout_base_multiple_2013_2017: 2.5
+itemized_phaseout_rate: 0.03
+itemized_phaseout_cap_rate: 0.8
+itemized_phaseout_share:
+  1991: 1.0
+  2006: 0.6666666666666666
+  2008: 0.3333333333333333
+  2010: 0.0
+  2013: 1.0
+# Through 1987 federal income tax up to this amount per taxpayer adds to exemptions.
+federal_tax_exemption_per_taxpayer_pre1988: 300

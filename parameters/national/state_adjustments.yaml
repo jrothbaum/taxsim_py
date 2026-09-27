@@ -30,5 +30,5 @@ itemized_phaseout_inflation:
 # TAXSIM's household-income total (`data(159)`) adds a fixed amount to the
 # dividend input and, for every record after the first in a run, a
 # leftover `data(93)` value of 1.
-household_income_dividend_adjustment: {1960: 0.001}
-household_income_record_adjustment: {1960: 1}
+household_income_dividend_adjustment: 0.001
+household_income_record_adjustment: 1

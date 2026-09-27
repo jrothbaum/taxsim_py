@@ -31,7 +31,11 @@ pass serves records from several states. With a mapping, each pass collects
 the federal result once, splits it with `partition_by("state")`, and runs every
 state's lazy plan together through `pl.collect_all`. The first two passes
 collect only the row keys and the next pass's deduction; only the last pass
-collects every column. State calculators receive a `LazyFrame`. Because
+collects every column. State calculators receive a `LazyFrame` holding every
+federal column any state reads: each federal era adds 0 (not itemizing) for
+the ones it does not compute, from fixed lists rather than a schema check.
+The law-1987+ federal calculator, `compute_federal_income_tax`, runs as
+stages: income, deductions, regular tax, AMT, credits, net tax. Because
 state calculators deflate federal columns in place for projected years, the
 final pass keeps the federal pass's own columns and joins in only the columns
 each state adds. The public API normally projects state plans to `siitax`
@@ -58,26 +62,33 @@ stacked into one resolver call so they share plan-construction overhead. Only
 rows whose upward difference falls outside TAXSIM's accepted rate range are
 rerun with a downward perturbation.
 
-`idtl=2` adds TAXSIM's detailed federal outputs (`engine.detail`,
-`credits` and `v10`-`v29`, `v42`-`v45`), each read from the base run's federal
+`idtl=2` adds meaningfully named detailed federal outputs from `engine.detail`,
+including `federal_adjusted_gross_income`, `federal_standard_deduction`,
+`federal_itemized_deductions`, `federal_taxable_income`,
+`federal_earned_income_tax_credit`, and
+`federal_alternative_minimum_tax`. Each is read from the base run's federal
 columns. Pre-1987 law fills different TAXSIM slots, so the 1960-1986
 calculators export `pre1987_` columns for them. Several federal figures that
 states read have their own shared column: `federal_chcr` is the child care
 credit states see (`comnew(53)`), `ccc_uncapped` the credit before its
 liability limit (`comnew(176)`, 0 before 1987).
 
-`idtl=2` also adds the state worksheet TAXSIM prints (`v30`-`v41`, `staxbc`):
-household income, rent, and the state's AGI, exemptions, standard and
-itemized deductions, taxable income, property tax credit, child care credit,
-EITC, total credits and marginal rate (`v41`, percent). Each state calculator
+`idtl=2` also adds a meaningfully named state worksheet: household income,
+rent, adjusted gross income, exemptions, standard and itemized deductions,
+taxable income, property tax credit, child and dependent care credit, earned
+income tax credit, total credits, and marginal rate. Each state calculator
 ends with `engine.state.with_state_detail(df, agi=..., rate=..., ...)`, which
-stores the values as `state_*` columns; values a state never sets report 0,
-as TAXSIM zeroes them before each state. Detail values are in law-year
-dollars for projected years; household income and rent are the undeflated
-inputs. `staxbc` is always 0 (TAXSIM never sets it). The reported rate is the
-rate of the bracket from TAXSIM's last lookup in that state routine, which is
-not always the taxpayer's statutory bracket (for example a spouse's share on
-split joint returns).
+stores the values under expanded `state_*` names; values a state never sets
+report 0, as TAXSIM zeroes them before each state. Detail values are in
+law-year dollars for projected years; household income and rent are the
+undeflated inputs. `state_tax_before_credits` is always 0 because TAXSIM never
+sets it. The reported rate is the rate of the bracket from TAXSIM's last
+lookup in that state routine, which is not always the taxpayer's statutory
+bracket (for example a spouse's share on split joint returns).
+
+`calculate_taxes(..., taxsim_names=True)` performs a final compatibility-only
+rename of these detail columns to `credits`, `v10`-`v45`, and `staxbc`. No
+calculation or internal engine step uses those opaque labels.
 
 TAXSIM prints the state worksheet of the last calculation it runs for a
 record, which is the marginal-rate perturbation (+$0.01, or -$0.01 when the

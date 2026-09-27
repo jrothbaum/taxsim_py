@@ -4,132 +4,59 @@ import polars as pl
 
 from taxsim_py.calculators.payroll import payroll_parts
 from taxsim_py.engine.brackets import bracket_rate, bracket_tax
-from taxsim_py.engine.inputs import taxpayer_count
-from taxsim_py.engine.schema import PARAMETERS_ROOT, load_yaml, resolve_year
-from taxsim_py.engine.state import with_defaults, with_default as _with_default, with_state_detail
+from taxsim_py.engine.inputs import files_head_of_household, files_joint, files_single, separate_divisor, taxpayer_count
+from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml, resolve_year
+from taxsim_py.engine.state import dividend_exclusion_addback, with_state_detail
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
 AL_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "al" / "income_tax.yaml")
 PRE1987_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "pre1987.yaml")
-_PRE1987_STATUSES = ["single", "married_joint", "married_separate", "head_of_household"]
+
 
 def compute_al_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     effective_year, flate = resolve_state_year(year)
-    p = AL_PARAMS
-    df = with_defaults(df, ("proptax", "otheritem", "mortgage", "dividends", "ltcg", "intrec", "ui", "pui", "sui", "psemp", "ssemp"))
-    df = _with_default(df, "taxable_unemployment")
-    df = _with_default(df, "taxable_social_security")
+    p = YearParams(AL_PARAMS, effective_year)
 
     df = df.with_columns(
-        al_sep=pl.when(pl.col("filing_status") == "married_separate").then(2.0).otherwise(1.0)
+        al_sep=separate_divisor(),
+        # Taxpayers (`data(7)`): 2 only on joint returns. Caps the standard
+        # deduction; the exemption below gives head of household the joint amount.
+        al_taxpayers=taxpayer_count(),
+        # Self-employment tax (`comnew(175)`) is never deflated.
+        al_setax=payroll_parts(year)["setax"],
+        # Unemployment compensation in federal AGI is exempt.
+        al_taxable_ui=pl.col("taxable_unemployment"),
     )
-    # `data(7)` - self/spouse count ONLY (1 for single/HoH/married_separate,
-    # 2 for married_joint), NOT including dependents - only married_joint
-    # ever gets data(7)=2 (taxsim_2022_10_21.f:21160-21178, HoH's own input
-    # code path leaves data(7) at its default 1). Used for the standard-
-    # deduction cap and the 2007+ formula's `stmin` - a genuinely different
-    # quantity from the personal-exemption dollar amount below (which DOES
-    # give HoH the same $3,000 as married_joint).
-    df = df.with_columns(al_exemps_count=taxpayer_count())
-
-    # Self-employment tax (`comnew(175)`), real-year and undeflated.
-    df = df.with_columns(al_setax=payroll_parts(year)["setax"])
-
-    # AL exempts the unemployment compensation included in federal AGI.
-    df = df.with_columns(al_taxable_ui=pl.col("taxable_unemployment"))
-
-    # Year>LASTAT (2021): no real AL law exists in the oracle past this
-    # point - deflate every dollar-valued raw/federal-computed input by
-    # `flate`, run 2021's REAL law (`effective_year`, already forced to
-    # 2021 by `resolve_state_year`) on the deflated figures, then reinflate
-    # the final tax (see engine/state_extrapolation.py, taxsim_2022_10_21.f:
-    # 44-65). A no-op for year<=2021 (`flate==1.0`). Everything below this
-    # point reads only already-deflated columns EXCEPT `al_setax` and
-    # `addmed`/`niit`/`tax_before_credits` (deliberately excluded - see
-    # below).
-    #
-    # NOT every federal-computed figure gets deflated: the real
-    # dispatcher's own generic scaling loop only covers `comnew(1:98)`
-    # (taxsim_2022_10_21.f:62-65, `do 300 i=1,98`) - `comnew(154)` (used
-    # by the >=2009 `al_fedtax` formula), `comnew(173)`=niit, `comnew(175)`
-    # =setax, and `comnew(180)`=addmed are all OUTSIDE that range, so
-    # `altax` receives them completely UNSCALED even in an extrapolated
-    # year. Confirmed via oracle probe (2022, single, wages=$50,000): the
-    # real `al_fedtax`/`al_fica_addback` only reconcile against the
-    # REAL-YEAR (undeflated) `tax_before_credits`/`niit`/`addmed`/`setax` -
-    # dividing them by `flate` (an earlier version of this retrofit did
-    # exactly that, matching the natural "deflate everything federal
-    # computed" assumption that holds for every OTHER column) overstated
-    # the deduction and understated `siitax` by $1-$300 across 2022/2023.
-    # `eitc`/`actc`/`ccc`/`odc`/`agi`/`fica` (comnew 59/93/53/81ish/2/75)
-    # ARE all within 1-98, so those stay in the deflate list below.
-    df = deflate_for_extrapolation(
-        df,
-        flate,
-        [
-            "pwages", "swages", "proptax", "otheritem", "mortgage", "dividends",
-            "ltcg", "intrec", "ui", "pui", "sui", "psemp", "ssemp", "childcare",
-            "agi", "fica", "odc", "ccc", "eitc", "actc", "fiitax", "al_taxable_ui", "taxable_social_security",
-        ],
-    )
+    # Tax before credits, NIIT and additional Medicare tax (`comnew(154)`,
+    # `comnew(173)`, `comnew(180)`) stay undeflated in projected years.
+    df = deflate_for_extrapolation(df, flate, extra=("al_taxable_ui",))
 
     # --- AGI ---
-    # AL doesn't allow the federal above-the-line half-of-SE-tax AGI
-    # deduction (real federally since 1990 - established elsewhere in this
-    # project), so it's added BACK unconditionally regardless of year
-    # (there's no year gate on this in the source besides the 2011-2012
-    # special rate) - taxsim_2022_10_21.f:581-589. A real mechanism missed
-    # on the first pass (its own `data(44)` term is correctly inert given
-    # this project's schema, but `comnew(175)=setax` is real and populated
-    # whenever psemp/ssemp is nonzero - wrongly judged fully inert together
-    # with data(44) instead of checked separately). Found via a debug-
-    # instrumented oracle build showing AL's own `agi` for a psemp=$50,000
-    # case was exactly gross SE income, not federal AGI net of its own
-    # half-SE-tax deduction.
+    # The federal deduction for half of self-employment tax is added back
+    # in every year (taxsim_2022_10_21.f:581-589).
     if effective_year in (2011, 2012):
+        holiday = p["se_deduction_holiday"]
         df = df.with_columns(
-            al_setax_addback=pl.when(pl.col("al_setax") <= 14204.0)
-            .then(0.5751 * pl.col("al_setax"))
-            .otherwise(0.5 * pl.col("al_setax") + 1067.0)
+            al_setax_addback=pl.when(pl.col("al_setax") <= holiday["threshold"])
+            .then(holiday["rate"] * pl.col("al_setax"))
+            .otherwise(0.5 * pl.col("al_setax") + holiday["flat"])
         )
     else:
         df = df.with_columns(al_setax_addback=0.5 * pl.col("al_setax"))
-    # Federal dividend-exclusion addback: real 1977-1986 (overlaps law79's
-    # own federal range exactly, `divexc(data,comnew,law)` - an
-    # unconditional function call in the source), negligible 1987+ (see
-    # Illinois's own identical finding - calculators/states/il.py).
-    #
-    # NOTE there is no equivalent capital-gains addback for actual GAINS -
-    # a first pass wrongly added one based on the source's own comment
-    # ("Capital Gains are treated similar to Federal Taxes, except that
-    # all gains are taxable and all losses are deductible") without
-    # checking the actual formula: `if(comnew(6).lt.0) agi=agi+comnew(5)-
-    # comnew(6)` only ever fires for a NET LOSS (comnew(6)=capgn<0), which
-    # this project's schema never produces (stcg/ltcg both non-negative,
-    # same limitation as calculators/federal.py) - for a real gain, AL's
-    # own AGI keeps the FEDERAL exclusion intact, it does not add it back.
-    # Caught by an oracle probe showing the extra addback overstated AL
-    # taxable income by exactly the excluded amount.
+    # The federal dividend exclusion (through 1986) is added back. The
+    # capital-gains adjustment (`if(comnew(6).lt.0)`) applies only to net
+    # losses, which the inputs cannot produce.
     if effective_year <= 1986:
-        divexc_expr = pl.lit(None, dtype=pl.Float64)
-        for status in _PRE1987_STATUSES:
-            fed_divexc = float(resolve_year(PRE1987_PARAMS["dividend_exclusion"][status], effective_year))
-            divexc_expr = pl.when(pl.col("filing_status") == status).then(pl.lit(fed_divexc)).otherwise(divexc_expr)
-        dividends_plus_fudge = pl.col("dividends") + 0.001
-        if effective_year == 1981:
-            dividends_plus_fudge = dividends_plus_fudge + pl.col("intrec")
-        df = df.with_columns(al_dividend_addback=pl.min_horizontal(dividends_plus_fudge, divexc_expr).clip(0, None))
+        df = df.with_columns(al_dividend_addback=dividend_exclusion_addback(effective_year))
     else:
         df = df.with_columns(al_dividend_addback=pl.lit(0.0))
-    df = df.with_columns(al_capgains_addback=pl.lit(0.0))
 
-    # Federal two-earner deduction addback (real 1982-1986 only - AL
-    # doesn't allow it federal itself did for those years).
+    # The federal two-earner deduction (1982-1986) is added back.
     if 1982 <= effective_year <= 1986:
         two_earner_rate = float(resolve_year(PRE1987_PARAMS["two_earner_deduction_rate"], effective_year))
         two_earner_cap = float(resolve_year(PRE1987_PARAMS["two_earner_deduction_cap"], effective_year))
         df = df.with_columns(
-            al_twoded_addback=pl.when(pl.col("filing_status") == "married_joint")
+            al_twoded_addback=pl.when(files_joint())
             .then((two_earner_rate * pl.min_horizontal(pl.col("pwages"), pl.col("swages")).clip(0, None)).clip(0, two_earner_cap))
             .otherwise(0.0)
         )
@@ -139,7 +66,6 @@ def compute_al_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     df = df.with_columns(
         al_agi=pl.col("agi")
         + pl.col("al_dividend_addback")
-        + pl.col("al_capgains_addback")
         + pl.col("al_twoded_addback")
         + pl.col("al_setax_addback")
         - pl.col("al_taxable_ui")
@@ -148,56 +74,44 @@ def compute_al_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     )
 
     # --- Standard vs. itemized deduction ---
-    df = df.with_columns(al_ag=pl.col("al_agi").clip(0, None))
     if effective_year <= 2006:
-        pct = float(resolve_year(p["standard_deduction_pct"], effective_year))
-        cap_per_exemption = float(resolve_year(p["standard_deduction_cap_per_exemption"], effective_year))
+        pct = p.num("standard_deduction_pct")
+        cap_per_exemption = p.num("standard_deduction_cap_per_exemption")
         df = df.with_columns(
-            al_stded=(pct * pl.col("al_agi")).clip(0, cap_per_exemption * pl.col("al_exemps_count"))
+            al_stded=(pct * pl.col("al_agi")).clip(0, cap_per_exemption * pl.col("al_taxpayers"))
         )
     else:
-        income_floor = float(resolve_year(p["standard_deduction_2007_income_floor"], effective_year)) / 1.0
-        income_ceiling = float(resolve_year(p["standard_deduction_2007_income_ceiling"], effective_year))
-        stmin_per_exemption = float(resolve_year(p["standard_deduction_2007_min_per_exemption"], effective_year))
-        max_single = float(resolve_year(p["standard_deduction_2007_max_single"], effective_year))
-        max_hoh = float(resolve_year(p["standard_deduction_2007_max_hoh"], effective_year))
-        max_joint_or_sep = float(resolve_year(p["standard_deduction_2007_max_joint_or_separate"], effective_year))
+        income_floor = p.num("standard_deduction_2007_income_floor")
+        income_ceiling = p.num("standard_deduction_2007_income_ceiling")
+        stmin_per_exemption = p.num("standard_deduction_2007_min_per_exemption")
+        max_single = p.num("standard_deduction_2007_max_single")
+        max_hoh = p.num("standard_deduction_2007_max_hoh")
+        max_joint_or_sep = p.num("standard_deduction_2007_max_joint_or_separate")
         df = df.with_columns(
             al_agimin=income_floor / pl.col("al_sep"),
             al_agimax=income_ceiling / pl.col("al_sep"),
-            al_stmin=stmin_per_exemption * pl.col("al_exemps_count"),
+            al_stmin=stmin_per_exemption * pl.col("al_taxpayers"),
+            al_stmax=pl.when(files_single())
+                .then(max_single)
+                .when(files_head_of_household())
+                .then(max_hoh)
+                .otherwise(max_joint_or_sep / pl.col("al_sep")),
         )
         df = df.with_columns(
-            al_stmax=pl.when(pl.col("filing_status") == "single")
-            .then(max_single)
-            .when(pl.col("filing_status") == "head_of_household")
-            .then(max_hoh)
-            .otherwise(max_joint_or_sep / pl.col("al_sep"))
+            al_excess=(pl.col("al_agi") - pl.col("al_agimin")).clip(0, None),
+            al_tga=(pl.col("al_stmax") - pl.col("al_stmin")) / (pl.col("al_agimax") - pl.col("al_agimin")),
         )
-        df = df.with_columns(al_excess=(pl.col("al_agi") - pl.col("al_agimin")).clip(0, None))
-        df = df.with_columns(al_tga=(pl.col("al_stmax") - pl.col("al_stmin")) / (pl.col("al_agimax") - pl.col("al_agimin")))
         df = df.with_columns(
             al_stded=pl.col("al_stmax")
             - pl.min_horizontal(pl.col("al_excess"), pl.col("al_agimax") - pl.col("al_agimin")) * pl.col("al_tga")
         )
 
-    # Itemized deduction: proptax + otheritem + mortgage (the only real
-    # itemized categories reachable given this project's input schema -
-    # see the YAML scope note), plus (1982+) half of wage FICA, plus half
-    # of SE tax netted against itself (algebraically: 0.5*wage_fica +
-    # 1.5*additional_medicare_tax - see module docstring's derivation),
-    # plus SE tax itself in full.
-    # `if(law.ge.1982) xitded=xitded+data(51)+data(54)` - the proptax/
-    # otheritem addback is real for `>=1982` INCLUSIVE, not `>1982` (a
-    # real off-by-one on the first pass: 1982 itself needs BOTH this
-    # branch and the base mortgage-only formula, found via a live oracle
-    # probe showing 1982's own itemized deduction case understated by
-    # exactly proptax+otheritem).
-    df = df.with_columns(al_mortgage=pl.col("mortgage"))
+    # Itemized deductions: mortgage interest, plus from 1982 property and
+    # other taxes, half of wage FICA and self-employment tax.
     if effective_year < 1982:
-        df = df.with_columns(al_xitded_base=pl.col("al_mortgage"))
+        df = df.with_columns(al_xitded_base=pl.col("mortgage"))
     else:
-        df = df.with_columns(al_xitded_base=pl.col("al_mortgage") + pl.col("proptax") + pl.col("otheritem"))
+        df = df.with_columns(al_xitded_base=pl.col("mortgage") + pl.col("proptax") + pl.col("otheritem"))
 
     if effective_year >= 1982:
         df = df.with_columns(al_fica_addback=0.5 * (pl.col("fica") - pl.col("al_setax")) + pl.col("addmed"))
@@ -207,47 +121,20 @@ def compute_al_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
 
     df = df.with_columns(al_deduc_before_fedtax=pl.max_horizontal(pl.col("al_stded"), pl.col("al_xitded")))
 
-    # --- Federal-tax-paid deduction (`fedtax`) - three genuinely different
-    # eras, all added on top of whichever of standard/itemized is larger,
-    # not part of that choice itself. ---
+    # --- Federal income tax deduction (`fedtax`), added to the larger of
+    # the standard and itemized deductions. ---
     if effective_year <= 1999:
         df = df.with_columns(al_fedtax=pl.col("fiitax").clip(0, None))
     elif effective_year <= 2008:
-        df = df.with_columns(al_fedtax=(pl.col("tax_before_credits") - pl.col("odc") - pl.col("ccc")).clip(0, None))
+        # Tax after nonrefundable credits (`comnew(154)`, `comnew(52)-comnew(58)`).
+        df = df.with_columns(al_fedtax=(pl.col("tax_before_credits") - pl.col("nonrefundable_credits")).clip(0, None))
     else:
-        # `fedtax = max(0, comnew(154)+comnew(173)-comnew(59)-comnew(93))`
-        # (taxsim_2024_09_21.f:671), where comnew(154) was verified via
-        # live probe (2018 HoH/CTC case) to equal comnew(52)-comnew(58) -
-        # i.e. `tax_before_credits` net of nonrefundable credits, the SAME
-        # `odc`/`ccc` subtraction as the <=2008 era - so the >=2009
-        # formula is just the <=2008 one plus NIIT and the refundable-CTC
-        # portion (`actc`) also subtracted (EITC was already subtracted
-        # both eras).
-        #
-        # An earlier version of this code special-cased `effective_year==
-        # 2021` as a one-time ARPA lookback (re-running federal at law
-        # year 2020 for hypothetical prior-year EITC/CTC/CCC), matching an
-        # OLDER oracle vintage (taxsim_2022_10_21.f) - taxsim_2024_09_21.f
-        # has that entire mechanism commented out (lines 679-693) in favor
-        # of the single unconditional >=2009 formula below. A first pass
-        # at removing it also incorrectly dropped the `odc`/`ccc`
-        # subtraction entirely, having been misled by 2021's own ARPA-era
-        # full CTC refundability (`comnew(58)`==0 for every 2021 probe
-        # case, since ARPA moved the whole credit into the refundable
-        # `actc` bucket that year) into looking like comnew(154) was just
-        # `tax_before_credits` with nothing subtracted - a 2018 HoH/CTC
-        # probe (nonrefundable CTC present) caught the $25 (=$500*5%)
-        # resulting understatement and confirmed the `-comnew(58)` term is
-        # real for every other year. Bug confirmed via oracle probe: real
-        # 2021 AL siitax for a single/wages=10000/ui=8000 case ($258.97)
-        # only matches this general formula, not the 2020-lookback
-        # variant - and since `resolve_state_year` always forces
-        # `effective_year=2021` for extrapolated years, this also silently
-        # broke every year>2021, which is what surfaced it during the
-        # 2022/2023 extrapolation retrofit.
+        # `max(0, comnew(154)+comnew(173)-comnew(59)-comnew(93))`
+        # (taxsim_2024_09_21.f:671): tax after nonrefundable credits, plus
+        # NIIT, less the EITC and refundable child credit.
         df = df.with_columns(
             al_fedtax=(
-                pl.col("tax_before_credits") - pl.col("odc") - pl.col("ccc") - pl.col("eitc") - pl.col("actc") + pl.col("niit")
+                pl.col("tax_before_credits") - pl.col("nonrefundable_credits") - pl.col("eitc") - pl.col("actc") + pl.col("niit")
             ).clip(0, None)
         )
 
@@ -256,18 +143,18 @@ def compute_al_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     # --- Exemptions ---
     df = df.with_columns(
         al_exemp_base=pl.when(pl.col("filing_status").is_in(["married_joint", "head_of_household"]))
-        .then(3000.0)
-        .otherwise(1500.0)
+        .then(float(p["personal_exemption"]["joint_or_hoh"]))
+        .otherwise(float(p["personal_exemption"]["other"]))
     )
     if effective_year <= 2006:
-        dep_flat = float(resolve_year(p["dependent_exemption_flat"], effective_year))
+        dep_flat = p.num("dependent_exemption_flat")
         df = df.with_columns(al_dep_exemp=dep_flat * pl.col("depx"))
     else:
-        high = float(resolve_year(p["dependent_exemption_2007_high"], effective_year))
-        mid = float(resolve_year(p["dependent_exemption_2007_mid"], effective_year))
-        low = float(resolve_year(p["dependent_exemption_2007_low"], effective_year))
-        bp1 = float(resolve_year(p["dependent_exemption_2007_breakpoint1"], effective_year))
-        bp2 = float(resolve_year(p["dependent_exemption_2007_breakpoint2"], effective_year))
+        high = p.num("dependent_exemption_2007_high")
+        mid = p.num("dependent_exemption_2007_mid")
+        low = p.num("dependent_exemption_2007_low")
+        bp1 = p.num("dependent_exemption_2007_breakpoint1")
+        bp2 = p.num("dependent_exemption_2007_breakpoint2")
         tga = (high - mid) / bp1
         tgb = (mid - low) / (bp2 - bp1)
         excesa = pl.col("al_agi").clip(0, bp1)
@@ -277,10 +164,8 @@ def compute_al_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
 
     df = df.with_columns(al_taxinc=(pl.col("al_agi") - pl.col("al_deduc") - pl.col("al_exemp")).clip(0, None))
 
-    # --- Bracket tax: real income-splitting for married_joint (run half
-    # taxable income through the table, double the result) - NOT the usual
-    # "married_separate = joint/2" shape; married_separate uses its OWN
-    # full taxable income directly, same as single/HoH. ---
+    # --- Bracket tax: joint returns split income (tax on half, doubled);
+    # other returns use the table directly. ---
     if effective_year <= 1981:
         brackets = p["brackets_pre1982"]
         df = df.with_columns(al_regtax=bracket_tax(pl.col("al_taxinc"), brackets))
@@ -288,11 +173,11 @@ def compute_al_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     else:
         brackets = p["brackets"]
         df = df.with_columns(
-            al_taxy=pl.when(pl.col("filing_status") == "married_joint").then(pl.col("al_taxinc") / 2).otherwise(pl.col("al_taxinc"))
+            al_taxy=pl.when(files_joint()).then(pl.col("al_taxinc") / 2).otherwise(pl.col("al_taxinc"))
         )
         df = df.with_columns(al_stat=bracket_tax(pl.col("al_taxy"), brackets))
         df = df.with_columns(
-            al_regtax=pl.when(pl.col("filing_status") == "married_joint").then(pl.col("al_stat") * 2).otherwise(pl.col("al_stat"))
+            al_regtax=pl.when(files_joint()).then(pl.col("al_stat") * 2).otherwise(pl.col("al_stat"))
         )
         rate = bracket_rate(pl.col("al_taxy"), brackets)
 

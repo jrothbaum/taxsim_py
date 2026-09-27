@@ -42,3 +42,24 @@ def bracket_rate(income: pl.Expr, brackets: list[list[float]]) -> pl.Expr:
     starts = [float(b[0]) for b in brackets]
     rates = [float(b[1]) for b in brackets]
     return pl.lit(pl.Series(rates, dtype=pl.Float64)).gather(_bracket_index(income, starts))
+
+
+def scale_brackets(brackets: list[list[float]], factor: float) -> list[list[float]]:
+    """Brackets with every threshold multiplied by `factor`."""
+    return [[float(start) * factor, float(rate)] for start, rate in brackets]
+
+
+def bracket_tax_by_status(income: pl.Expr, brackets_by_status: dict[str, list[list[float]]]) -> pl.Expr:
+    """`bracket_tax` with a schedule chosen by the ``filing_status`` column."""
+    expression = pl.lit(None, dtype=pl.Float64)
+    for status, brackets in brackets_by_status.items():
+        expression = pl.when(pl.col("filing_status") == status).then(bracket_tax(income, brackets)).otherwise(expression)
+    return expression
+
+
+def bracket_rate_by_status(income: pl.Expr, brackets_by_status: dict[str, list[list[float]]]) -> pl.Expr:
+    """`bracket_rate` with a schedule chosen by the ``filing_status`` column."""
+    expression = pl.lit(None, dtype=pl.Float64)
+    for status, brackets in brackets_by_status.items():
+        expression = pl.when(pl.col("filing_status") == status).then(bracket_rate(income, brackets)).otherwise(expression)
+    return expression

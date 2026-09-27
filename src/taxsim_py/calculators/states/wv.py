@@ -4,39 +4,26 @@ import polars as pl
 
 from taxsim_py.engine.brackets import bracket_rate, bracket_tax
 from taxsim_py.calculators.payroll import payroll_parts
-from taxsim_py.engine.inputs import aged_count, federal_exemption_count, is_dependent_filer, taxpayer_count
-from taxsim_py.engine.schema import PARAMETERS_ROOT, load_yaml, resolve_year
-from taxsim_py.engine.state import checkpoint, pre1987_federal_itemizing, tier_values, with_defaults, with_state_detail
+from taxsim_py.engine.inputs import aged_count, federal_exemption_count, files_head_of_household, files_joint, files_separate, is_dependent_filer, taxpayer_count
+from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml
+from taxsim_py.engine.state import checkpoint, pre1987_federal_itemizing, tier_values, with_state_detail
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
 WV_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "wv" / "income_tax.yaml")
-
-
-def _p(name: str, year: int) -> float:
-    return float(resolve_year(WV_PARAMS[name], year))
 
 
 def compute_wv_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     """Calculate West Virginia income tax for each row."""
     effective_year, flate = resolve_state_year(year)
     y = effective_year
-    p = WV_PARAMS
-    df = with_defaults(df, (
-        "proptax", "otheritem", "mortgage", "charity_cash", "state_sales_or_income_tax_ded", "depx",
-        "earned_income", "pre1987_twoded",
-    ))
-    df = with_defaults(df, ("taxable_social_security", "gssi", "pensions"))
+    p = YearParams(WV_PARAMS, effective_year)
     # Federal total income (`comnew(65)`) is not deflated in projected years.
     df = df.with_columns(wv_total_income=pl.col("agi") + 0.5 * payroll_parts(year)["setax"])
-    df = deflate_for_extrapolation(
-        df, flate,
-        ["proptax", "agi", "earned_income", "taxable_social_security", "gssi", "pensions", "pwages", "swages"],
-    )
+    df = deflate_for_extrapolation(df, flate)
 
-    status = pl.col("filing_status")
-    is_joint = status == "married_joint"
-    is_hoh = status == "head_of_household"
-    sep = pl.when(status == "married_separate").then(2.0).otherwise(1.0)
+    is_joint = files_joint()
+    is_hoh = files_head_of_household()
+    sep = pl.when(files_separate()).then(2.0).otherwise(1.0)
     txp = taxpayer_count()
     aged = aged_count()
     dependent_filer = is_dependent_filer()
@@ -53,7 +40,7 @@ def compute_wv_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         agi = agi - ss
     if y >= 2020:
         agi = agi - pl.when(fed_agi <= p["social_security_subtraction_agi_per_taxpayer"] * txp).then(
-            _p("social_security_subtraction_share", y) * ss
+            p.num("social_security_subtraction_share") * ss
         ).otherwise(0.0)
     # Senior citizen deduction.
     cap = float(p["senior_deduction"])
@@ -80,7 +67,7 @@ def compute_wv_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         deduc = pl.max_horizontal(stded, xitded)
     else:
         stded = xitded = deduc = pl.lit(0.0)
-    exemp = exemps * _p("exemption", y)
+    exemp = exemps * p.num("exemption")
     if y >= 1987:
         exemp = pl.when(dependent_filer).then(float(p["dependent_filer_exemption"])).otherwise(exemp)
     taxinc = (agi - deduc - exemp).clip(0, None)
@@ -107,7 +94,7 @@ def compute_wv_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         statax = bracket_tax(taxinc * sep, brackets[1987]) / sep
         rate = bracket_rate(taxinc * sep, brackets[1987])
     if 1983 <= y <= 1985:
-        statax = pl.when(taxinc > p["surtax_income_per_taxpayer"] * txp).then(_p("surtax", y) * statax).otherwise(statax)
+        statax = pl.when(taxinc > p["surtax_income_per_taxpayer"] * txp).then(p.num("surtax") * statax).otherwise(statax)
     df, (statax,) = checkpoint(df, wv_tax_before_credits=statax)
 
     credits = pl.lit(0.0)
@@ -115,12 +102,12 @@ def compute_wv_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
 
     # --- Family tax credit ---
     if y >= 2007:
-        limits = resolve_year(p["family_credit_limit"], y)
+        limits = p.value("family_credit_limit")
         nexemp = exemps.floor()
         (fcp,) = tier_values(nexemp, [float(n) for n in range(1, 8)] + [1.0e20], [float(v) for v in limits])
         fcp = fcp / sep
-        full = _p("family_credit_full_share", y)
-        points = _p("family_credit_phaseout_points", y)
+        full = p.num("family_credit_full_share")
+        points = p.num("family_credit_phaseout_points")
         share = pl.when(agi <= fcp).then(full).otherwise(
             (0.01 * (100.0 * full - points * (agi - fcp) / (p["family_credit_phaseout_step"] / sep))).clip(0, None)
         )
@@ -131,8 +118,8 @@ def compute_wv_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
 
     # --- Homestead excess property tax credit (refundable) ---
     if y >= 2008:
-        per_person = _p("property_credit_per_person", y)
-        pagi = _p("property_credit_base", y) + depx * per_person + pl.when(is_joint).then(per_person).otherwise(0.0)
+        per_person = p.num("property_credit_per_person")
+        pagi = p.num("property_credit_base") + depx * per_person + pl.when(is_joint).then(per_person).otherwise(0.0)
         income = fed_agi + pl.col("gssi") - ss
         pcred = (pl.col("proptax") - p["property_credit_rate"] * income).clip(0, p["property_credit_cap"])
         pcred = pl.when(fed_agi < pagi).then(pcred).otherwise(0.0)

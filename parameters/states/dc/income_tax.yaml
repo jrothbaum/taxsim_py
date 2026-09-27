@@ -513,3 +513,49 @@ property_credit_rent_share: {1977: 0.15, 2014: 0.20}
 # 3% of AGI up to `pagi` in property_credit_by_year_2014plus.
 property_credit_aged_base_rate: 0.01
 property_credit_aged_rate_income: 20000
+
+# Through 1981 the standard deduction is this share of AGI, up to the cap.
+standard_deduction_share_pre1982: 0.1
+
+# 2018+: property, other and state taxes deductible up to this amount per
+# return (halved for separate returns).
+state_tax_deduction_cap_2018plus: 10000
+
+# Itemized deductions fall by this share of AGI above the threshold.
+itemized_agi_reduction_rate: 0.05
+
+# 2015-2017 exemption phaseout: this share per band of AGI above the floor.
+exemption_phaseout_2015_2017_share_per_band: 0.02
+
+# Property tax credit through 2013 for returns without a taxpayer 65 or
+# older: property tax less income times (`base_pct` + income / `divisor`)
+# percent; the result is multiplied by `low_income_share` below the low
+# income limit and `share` above, for income up to `income_limit`.
+property_credit_nonaged_pre2014:
+  base_pct: 1.5
+  divisor: 8000
+  low_income_limit: 3000
+  low_income_share: 0.95
+  share: 0.75
+  income_limit: 20000
+# 2014+: property tax less a share of AGI: `low_rate` below `low_income`
+# (and for returns with a taxpayer 65 or older); above it `rate` (2019+
+# `rate` up to `middle_income` and `high_rate` above).
+property_credit_2014plus:
+  low_income: 25000
+  low_rate: 0.03
+  rate: 0.04
+  middle_income: 52000
+  high_rate: 0.05
+
+# Childless earned income credit (2015+): phase-in rate (doubled in 2021),
+# phaseout rate, and the age limits (under 25, or over 65 with a spouse
+# under 25, get none).
+eitc_childless:
+  phase_in_rate:
+    2015: 0.0765
+    2021: 0.153
+    2022: 0.0765
+  phaseout_rate: 0.0848
+  minimum_age: 25
+  maximum_age: 65

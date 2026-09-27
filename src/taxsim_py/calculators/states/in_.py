@@ -4,81 +4,54 @@ import polars as pl
 
 from taxsim_py.calculators.federal_pre1987 import PRE1987_PARAMS
 from taxsim_py.calculators.payroll import payroll_parts
-from taxsim_py.engine.inputs import aged_count, is_dependent_filer, taxpayer_count
-from taxsim_py.engine.schema import PARAMETERS_ROOT, load_yaml, resolve_year
-from taxsim_py.engine.state import household_income, interpolate_table, with_default as _with_default, with_defaults, with_state_detail
+from taxsim_py.engine.inputs import aged_count, files_joint, is_dependent_filer, separate_divisor, taxpayer_count
+from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml, resolve_year
+from taxsim_py.engine.state import by_filing_status, household_income, interpolate_table, unemployment_total, with_state_detail
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
-STATE_ADJUSTMENT_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "state_adjustments.yaml")
 IN_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "in" / "income_tax.yaml")
 
 def compute_in_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     effective_year, flate = resolve_state_year(year)
-    p = IN_PARAMS
-    df = with_defaults(df, ("proptax", "dividends", "intrec", "ui", "pui", "sui", "depx", "dep17", "dep18"))
-    df = _with_default(df, "earned_income")
-    df = _with_default(df, "eitc")
-    df = _with_default(df, "taxable_unemployment")
-    df = _with_default(df, "taxable_social_security")
+    p = YearParams(IN_PARAMS, effective_year)
     df = df.with_columns(
-        in_household_income=household_income(
-            float(resolve_year(STATE_ADJUSTMENT_PARAMS["household_income_dividend_adjustment"], effective_year)),
-            float(resolve_year(STATE_ADJUSTMENT_PARAMS["household_income_record_adjustment"], effective_year)),
-        )
+        in_household_income=household_income(),
+        in_sep=separate_divisor(),
+        in_taxpayers=taxpayer_count(),
     )
 
-    df = df.with_columns(
-        in_sep=pl.when(pl.col("filing_status") == "married_separate").then(2.0).otherwise(1.0),
-        in_num_filers=taxpayer_count(),
-    )
+    df = deflate_for_extrapolation(df, flate, extra=("in_household_income",))
 
-    df = deflate_for_extrapolation(
-        df,
-        flate,
-        [
-            "pwages", "swages", "proptax", "otheritem", "mortgage", "dividends", "intrec",
-            "stcg", "ltcg", "ui", "pui", "sui", "agi", "earned_income", "eitc", "taxable_unemployment",
-            "taxable_social_security", "rentpaid", "in_household_income",
-        ],
-    )
-
-    rate = float(resolve_year(p["rate_by_year"], effective_year))
+    rate = p.num("rate_by_year")
 
     # --- AGI ---
     # Social Security benefits are exempt.
     df = df.with_columns(in_agi=pl.col("agi").clip(0, None) - pl.col("taxable_social_security"))
 
-    ui_total = pl.max_horizontal(pl.col("ui"), pl.col("pui") + pl.col("sui"))
+    ui_total = unemployment_total()
 
     if effective_year == 1981:
         excl_table = PRE1987_PARAMS["dividend_exclusion"]
-        fed_excl = pl.lit(None, dtype=pl.Float64)
-        for status in ("single", "head_of_household", "married_separate", "married_joint"):
-            fed_excl = (
-                pl.when(pl.col("filing_status") == status)
-                .then(pl.lit(float(resolve_year(excl_table[status], effective_year))))
-                .otherwise(fed_excl)
-            )
+        fed_excl = by_filing_status({status: resolve_year(amounts, effective_year) for status, amounts in excl_table.items()})
         divexc = pl.min_horizontal(pl.col("dividends") + pl.col("intrec"), fed_excl)
         own_excl_per_filer = float(p["dividend_exclusion_indiana_1981_per_filer"][1960])
-        own_excl = pl.min_horizontal(pl.col("dividends"), own_excl_per_filer * pl.col("in_num_filers"))
+        own_excl = pl.min_horizontal(pl.col("dividends"), own_excl_per_filer * pl.col("in_taxpayers"))
         df = df.with_columns(in_agi=pl.col("in_agi") + divexc - own_excl)
 
     df = df.with_columns(in_untax=pl.col("taxable_unemployment"))
 
     if effective_year == 2020:
         df = df.with_columns(in_agi=pl.col("in_agi") + ui_total - pl.col("in_untax"))
-        # `comnew(26)<1` (not itemizing) $300 cash-charity addback: `data(58)`
-        # (charity_cash) has no corresponding input column - confirmed inert.
+        # The $300 charitable deduction (`data(58)`) has no TAXSIM input.
 
     if effective_year == 2009:
         cap = float(p["ui_2009_addback_cap_per_filer"][1960])
-        df = df.with_columns(in_agi=pl.col("in_agi") + pl.min_horizontal(ui_total, cap * pl.col("in_num_filers")))
+        df = df.with_columns(in_agi=pl.col("in_agi") + pl.min_horizontal(ui_total, cap * pl.col("in_taxpayers")))
 
     # Indiana's own UI exclusion is zero when no UI is present.
     thr_single = float(p["ui_exclusion_threshold_single"][1960])
     thr_joint = float(p["ui_exclusion_threshold_married_joint"][1960])
-    threshold = pl.when(pl.col("filing_status") == "married_joint").then(thr_joint).otherwise(thr_single)
+    threshold = pl.when(files_joint()).then(thr_joint).otherwise(thr_single)
     if effective_year <= 2008:
         xlin6 = pl.min_horizontal(pl.col("in_untax"), 0.5 * (pl.col("agi") - threshold).clip(0, None))
         unded = pl.col("in_untax") - xlin6
@@ -109,64 +82,59 @@ def compute_in_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         dedown = pl.lit(0.0)
 
     if effective_year in (1997, 1998):
+        ded = p["earned_income_deduction_1997_1998"]
         wages_plus_se = pl.col("wages") + pl.col("psemp") + pl.col("ssemp")
         eligible = (
             (pl.col("depx") > 0)
-            & (pl.col("in_agi") < 12000.0)
-            & (0.8 * pl.col("in_agi").clip(0, None) < wages_plus_se)
+            & (pl.col("in_agi") < ded["income_limit"])
+            & (ded["earnings_share"] * pl.col("in_agi").clip(0, None) < wages_plus_se)
         )
-        dedei = pl.when(eligible).then(12000.0 - pl.col("in_agi").clip(0, None)).otherwise(0.0)
+        dedei = pl.when(eligible).then(ded["income_limit"] - pl.col("in_agi").clip(0, None)).otherwise(0.0)
     else:
         dedei = pl.lit(0.0)
 
     df = df.with_columns(in_deduc=dedr + dedown + dedei)
 
     # --- Exemptions ---
-    # `comnew(68)` (exemps count) sits at array position 68 - inside the
-    # dispatcher's own generic comnew(1:98) deflate loop
-    # (taxsim_2024_09_21.f:62-65), which divides by `flate` blindly by
-    # POSITION, not by whether the value is really a dollar amount. A
-    # pure integer count getting divided by a CPI ratio is a genuine,
-    # replicated-as-found quirk (already flagged in state_cpi_
-    # extrapolation.yaml's own module note) - real and nonzero only for
-    # extrapolated years (flate!=1). `depx` itself (`data(8)`, position 8,
-    # below the loop's own >=11 floor) is NEVER divided.
+    # The federal exemption count (`comnew(68)`) is deflated in projected
+    # years; `depx` (`data(8)`) is not.
     aged = aged_count()
     if effective_year <= 1986:
-        exemps_count = (pl.col("in_num_filers") + pl.col("depx") + aged) / flate
+        exemps_count = (pl.col("in_taxpayers") + pl.col("depx") + aged) / flate
     else:
-        exemps_count = pl.when(is_dependent_filer()).then(0.0).otherwise(pl.col("in_num_filers") + pl.col("depx")) / flate
+        exemps_count = pl.when(is_dependent_filer()).then(0.0).otherwise(pl.col("in_taxpayers") + pl.col("depx")) / flate
+    per_taxpayer = p.num("exemption_per_taxpayer")
     if effective_year <= 1979:
-        exemp = (pl.col("in_num_filers") + aged) * 1000.0 + pl.col("depx") * 500.0
+        exemp = (pl.col("in_taxpayers") + aged) * per_taxpayer + pl.col("depx") * p["exemption_per_dependent_pre1980"]
     elif effective_year <= 1984:
-        base = (exemps_count + aged) * 500.0
-        is_joint = pl.col("filing_status") == "married_joint"
-        xtra1 = (pl.col("in_agi") / 3.0 - 500.0).clip(0, 500)
-        xtra2 = (pl.col("in_agi") * 2.0 / 3.0 - 500.0).clip(0, 500)
-        xtra = pl.when(is_joint).then(xtra1 + xtra2).otherwise((pl.col("in_agi") - 500.0).clip(0, 500))
+        base = (exemps_count + aged) * per_taxpayer
+        is_joint = files_joint()
+        addition = p["exemption_income_addition_1980_1984"]
+        floor, maximum = addition["floor"], addition["maximum"]
+        xtra1 = (pl.col("in_agi") / 3.0 - floor).clip(0, maximum)
+        xtra2 = (pl.col("in_agi") * 2.0 / 3.0 - floor).clip(0, maximum)
+        xtra = pl.when(is_joint).then(xtra1 + xtra2).otherwise((pl.col("in_agi") - floor).clip(0, maximum))
         exemp = base + xtra
     elif effective_year <= 1986:
-        exemp = exemps_count * 1000.0
+        exemp = exemps_count * per_taxpayer
     else:
         # A dependent filer claims one exemption.
-        exemp = (is_dependent_filer().cast(pl.Float64) + exemps_count + aged) * 1000.0
+        exemp = (is_dependent_filer().cast(pl.Float64) + exemps_count + aged) * per_taxpayer
         if effective_year >= 1999:
             low = pl.col("agi") < p["aged_low_income_exemption_agi_limit"]
             exemp = exemp + pl.when(low).then(p["aged_low_income_exemption"] * aged).otherwise(0.0)
 
-    if effective_year in (1997, 1998):
-        exemp = exemp + 500.0 * pl.col("depx")
-    elif effective_year >= 1999:
-        exemp = exemp + 1500.0 * pl.col("depx")
+    if effective_year >= 1997:
+        exemp = exemp + p.num("dependent_exemption_addition") * pl.col("depx")
 
     df = df.with_columns(in_exemp=exemp)
 
     df = df.with_columns(in_taxinc=(pl.col("in_agi") - pl.col("in_deduc") - pl.col("in_exemp")).clip(0, None))
     df = df.with_columns(in_statax=pl.col("in_taxinc") * rate)
     if effective_year == 1979:
-        df = df.with_columns(in_statax=pl.col("in_statax") * 0.85)
+        df = df.with_columns(in_statax=pl.col("in_statax") * p["tax_share_1979"])
 
-    # --- Credits --- (`pcred`/`ecred` confirmed inert - see module docstring)
+    # --- Credits ---
     if 1999 <= effective_year <= 2002:
         rate_cr = float(p["eitc_1999_2002_rate"][1960])
         cap = float(p["eitc_1999_2002_income_cap"][1960])
@@ -174,7 +142,7 @@ def compute_in_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         total_income = pl.col("agi") + 0.5 * payroll_parts(year)["setax"]
         eligible = (
             (pl.col("depx") > 0)
-            & ((pl.col("earned_income") >= 0.8 * total_income) | (total_income < 1.0))
+            & ((pl.col("earned_income") >= p["eitc_1999_2002_earnings_share"] * total_income) | (total_income < 1.0))
             & (total_income < cap)
         )
         earncr = pl.when(eligible).then(rate_cr * (cap - total_income.clip(0, None))).otherwise(0.0)
@@ -190,15 +158,15 @@ def compute_in_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         if effective_year >= 2011:
             ieic_expr = pl.min_horizontal(pl.col("dep18"), 2.0)
             crm = pl.when(ieic_expr == 0).then(
-                pl.lit(float(resolve_year(p["eitc_crmax_0kids"], effective_year)))
+                pl.lit(p.num("eitc_crmax_0kids"))
             ).when(ieic_expr == 1).then(
-                pl.lit(float(resolve_year(p["eitc_crmax_1kid"], effective_year)))
-            ).otherwise(pl.lit(float(resolve_year(p["eitc_crmax_2kids"], effective_year))))
+                pl.lit(p.num("eitc_crmax_1kid"))
+            ).otherwise(pl.lit(p.num("eitc_crmax_2kids")))
             ym = pl.when(ieic_expr == 0).then(
-                pl.lit(float(resolve_year(p["eitc_ymax_0kids"], effective_year)))
+                pl.lit(p.num("eitc_ymax_0kids"))
             ).when(ieic_expr == 1).then(
-                pl.lit(float(resolve_year(p["eitc_ymax_1kid"], effective_year)))
-            ).otherwise(pl.lit(float(resolve_year(p["eitc_ymax_2kids"], effective_year))))
+                pl.lit(p.num("eitc_ymax_1kid"))
+            ).otherwise(pl.lit(p.num("eitc_ymax_2kids")))
             rtbs = pl.when(ieic_expr == 0).then(
                 pl.lit(float(p["eitc_rtbase_0kids"][1960]))
             ).when(ieic_expr == 1).then(
@@ -210,15 +178,7 @@ def compute_in_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
                 pl.lit(float(p["eitc_rtless_1kid"][1960]))
             ).otherwise(pl.lit(float(p["eitc_rtless_2kids"][1960])))
             earny = pl.col("earned_income")
-            # `comnew(6)` (net capital gain in AGI) loss add-back: no-op in
-            # this project's scope (stcg/ltcg assumed non-negative). Uses
-            # federal's own ORIGINAL `comnew(2)`/`agi`, NOT Indiana's own
-            # progressively-adjusted `in_agi` (which by this point already
-            # reflects Indiana's own UI-exclusion worksheet reduction) -
-            # confirmed via a live oracle probe (2020/single/$10,000 wages/
-            # $8,000 UI: using `in_agi`=$13,000 wrongly pushed this deep
-            # into the phaseout band, capping the credit at $19.79 instead
-            # of the real $40.09).
+            # Uses federal AGI (`comnew(2)`), not Indiana AGI.
             modagi = pl.col("agi").clip(0, None)
             eic11 = pl.min_horizontal(rtbs * earny, crm)
             over = (modagi > ym) | (earny > ym)
@@ -241,9 +201,9 @@ def compute_in_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
     else:
         pcred = pl.lit(0.0)
         table = p["elderly_credit_table_1981"] if effective_year <= 1984 else p["elderly_credit_table_1985"]
-        second = float(resolve_year(p["elderly_credit_second_aged"], effective_year))
+        second = p.num("elderly_credit_second_aged")
         ecred = interpolate_table(fed_agi, table) + pl.when(
-            (aged > 1) & (pl.col("filing_status") == "married_joint")
+            (aged > 1) & (files_joint())
         ).then(second).otherwise(0.0)
     ecred = pl.when((aged > 0) & (fed_agi < p["elderly_credit_agi_limit"])).then(ecred).otherwise(0.0)
     df = df.with_columns(in_credit=pcred + ecred + earncr)
@@ -251,7 +211,7 @@ def compute_in_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
 
     refund_cr = pl.lit(0.0)
     if effective_year == 2012:
-        refund_cr = float(p["automatic_taxpayer_refund_credit_2012_per_filer"][1960]) * pl.col("in_num_filers")
+        refund_cr = float(p["automatic_taxpayer_refund_credit_2012_per_filer"][1960]) * pl.col("in_taxpayers")
         df = df.with_columns(
             in_refund_cr=pl.when(pl.col("in_statax") > 0).then(refund_cr).otherwise(0.0)
         )
@@ -260,7 +220,7 @@ def compute_in_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         )
     else:
         df = df.with_columns(in_refund_cr=pl.lit(0.0))
-    # `data(38)` (solar/wind carryover credit) confirmed inert, 1980-1994.
+    # The solar and wind credit carryover (`data(38)`) has no TAXSIM input.
 
     df = df.with_columns(siitax=pl.col("in_statax") * flate)
     return with_state_detail(

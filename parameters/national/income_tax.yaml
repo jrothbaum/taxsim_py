@@ -405,3 +405,16 @@ elderly_credit:
   agi_share: 0.5
   base: {one_aged: 5000, two_aged: 7500}
   agi_threshold: {one_aged: 7500, two_aged: 10000}
+
+# Unemployment compensation exclusions: 2009 per return; 2020 per spouse,
+# for AGI (before unemployment) below the limit.
+unemployment_exclusion_2009: 2400
+unemployment_exclusion_2020:
+  per_spouse: 10200
+  agi_limit: 150000
+
+# 1988-1996 exemption surtax: a rate on taxable income over the threshold,
+# capped at a share of the personal exemptions. 1988-1990 bubble surtax rate.
+exemption_surtax_rate: 0.05
+exemption_surtax_cap_share: 0.28
+bubble_surtax_rate: 0.05
