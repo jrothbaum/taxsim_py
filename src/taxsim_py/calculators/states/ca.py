@@ -501,12 +501,15 @@ def compute_ca_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         # Young Child Tax Credit, 2019+ (taxsim_2024_09_21.f:2911-2919):
         # requires a state EITC and an EITC-qualifying child (`data(203)`,
         # `dep18`); the earnings test uses children under 6 (`data(210)`, `dep6`).
-        young_gate = (pl.col("ca_earncr") > 0) & (pl.col("dep18") > 0)
-        yc = p["young_child_credit"]
-        young_low = yc["amount"] * pl.col("dep6")
-        young_high = (yc["amount"] - yc["phaseout_rate"] * (earned - yc["earnings_threshold"])).clip(0, None)
-        young = pl.when(earned <= yc["earnings_threshold"]).then(young_low).otherwise(young_high)
-        df = df.with_columns(ca_young=pl.when(young_gate).then(young).otherwise(0.0))
+        if effective_year >= 2019:
+            young_gate = (pl.col("ca_earncr") > 0) & (pl.col("dep18") > 0)
+            yc = p["young_child_credit"]
+            young_low = yc["amount"] * pl.col("dep6")
+            young_high = (yc["amount"] - yc["phaseout_rate"] * (earned - yc["earnings_threshold"])).clip(0, None)
+            young = pl.when(earned <= yc["earnings_threshold"]).then(young_low).otherwise(young_high)
+            df = df.with_columns(ca_young=pl.when(young_gate).then(young).otherwise(0.0))
+        else:
+            df = df.with_columns(ca_young=pl.lit(0.0))
     else:
         df = df.with_columns(
             ca_earncr=pl.lit(0.0),

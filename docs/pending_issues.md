@@ -74,20 +74,33 @@ Rerun with `uv run scripts/compare_cps.py <cps dir> --out mismatches.parquet`. P
 `--tax-year YEAR` to use the CPS households and incomes as realistic test inputs
 under a different year's tax law.
 
-A cross-year sweep using the 2011 CPS households found and fixed two additional
-formula gaps:
+A cross-year sweep using the 2011 CPS households now covers tax years 1977,
+1978, 1981, 1986, 1987, 1991, 1994, 1998, 2000, 2001, 2005, 2009, 2010,
+2012, 2014, and 2017-2021. It found and fixed three additional formula gaps:
 
 - Arkansas's 1998-2002 Working Taxpayer Credit now includes combined
   self-employment income (`data(17)`) in its earnings base.
 - Maryland's 2012+ top exemption-phaseout tier now removes the aged exemption
   along with the personal exemption, as TAXSIM does.
+- California's Young Child Tax Credit now starts in 2019. It had accidentally
+  shared the California EITC's 2015 start-year gate, understating 2017 state
+  tax for 311 CPS units and 2018 state tax for 347 CPS units by $1,000 per
+  qualifying young child.
 
 The comparator also classifies the existing Minnesota 2019+ head-of-household
 standard-deduction and New Jersey real top-bracket differences as deliberate
 law-over-TAXSIM choices. Representative actual-law runs after those changes had
 35 remaining rows in 1994, 65 in 2000, and 39 in 2020 after known differences
-and itemizing/standard ties. In 2020, 16 of those rows had a tax difference;
-the rest were worksheet-only.
+and itemizing/standard ties. The newly added years leave 39 rows in 1998, 47
+in 2001, 41 in 2005, 47 in 2009, 51 in 2012, 52 in 2014, 51 in 2017, 37 in
+2018, and 45 in 2019. Of those, respectively 1, 21, 2, 3, 8, 13, 17, 17, and
+17 rows have a tax difference; the rest are worksheet-only. In 2020, 16 of
+39 remaining rows have a tax difference.
+
+The main outlier is 1981: 1,681 of 1,734 remaining rows are worksheet-only,
+almost all in `federal_alternative_minimum_taxable_income` (TAXSIM `v26`).
+Only 53 rows have a tax difference. Keep that early minimum-tax detail-field
+cluster separate from liability mismatches when investigating it.
 
 ### TAXSIM options (deferred)
 The `opt1/opt1v/opt2/opt2v` inputs are accepted but ignored. If revisited, implement only the 8 documented switches.

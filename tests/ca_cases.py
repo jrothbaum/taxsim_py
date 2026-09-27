@@ -74,6 +74,8 @@ def build_ca_test_cases() -> list[dict[str, Any]]:
         rows.append(case(year, "CA childcare, single low income", mstat=1, pwages=25000, depx=1, dep17=1, dep18=1, childcare=2000))
         rows.append(case(year, "CA childcare above federal tax, single two kids", mstat=1, pwages=16000, depx=2, dep13=2, dep17=2, dep18=2, childcare=5000))
         rows.append(case(year, "CA childcare, married_joint mid income", mstat=2, pwages=45000, swages=30000, depx=2, dep17=2, dep18=2, childcare=6000))
+        if year in (2017, 2018, 2019):
+            rows.append(case(year, "CA young child credit year boundary", mstat=1, pwages=12000, depx=1, dep6=1, dep13=1, dep17=1, dep18=1))
         rows.append(case(year, "CA low income, single", mstat=1, pwages=8000))
         rows.append(case(year, "CA very high income, single (AMT-relevant)", mstat=1, pwages=800000, proptax=30000, otheritem=15000, mortgage=40000))
         rows.append(case(year, "CA AMT, large property tax with rental income", mstat=2, pwages=65000, otherprop=76000, proptax=99997))
