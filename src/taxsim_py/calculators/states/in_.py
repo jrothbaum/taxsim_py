@@ -7,11 +7,12 @@ from taxsim_py.calculators.payroll import payroll_parts
 from taxsim_py.engine.inputs import aged_count, files_joint, is_dependent_filer, separate_divisor, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml, resolve_year
 from taxsim_py.engine.state import by_filing_status, household_income, interpolate_table, unemployment_total, with_state_detail
+from taxsim_py.behavior import BehaviorProfile, TAXSIM_BEHAVIOR
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
 IN_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "in" / "income_tax.yaml")
 
-def compute_in_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
+def compute_in_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
     effective_year, flate = resolve_state_year(year)
     p = YearParams(IN_PARAMS, effective_year)
     df = df.with_columns(

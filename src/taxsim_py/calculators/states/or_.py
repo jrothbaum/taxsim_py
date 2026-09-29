@@ -18,13 +18,14 @@ from taxsim_py.engine.state import (
     unemployment_total,
     with_state_detail,
 )
+from taxsim_py.behavior import BehaviorProfile, TAXSIM_BEHAVIOR
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
 OR_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "or" / "income_tax.yaml")
 CAPITAL_GAINS_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "capital_gains.yaml")
 
 
-def compute_or_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
+def compute_or_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
     """Calculate Oregon income tax for each row."""
     effective_year, flate = resolve_state_year(year)
     y = effective_year

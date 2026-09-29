@@ -6,14 +6,15 @@ from taxsim_py.calculators.payroll import payroll_parts
 from taxsim_py.engine.brackets import bracket_rate, bracket_tax
 from taxsim_py.engine.inputs import files_head_of_household, files_joint, files_single, separate_divisor, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml, resolve_year
-from taxsim_py.engine.state import dividend_exclusion_addback, with_state_detail
+from taxsim_py.engine.state import dividend_exclusion_addback, federal_capital_gain_in_agi, with_state_detail
+from taxsim_py.behavior import BehaviorProfile, TAXSIM_BEHAVIOR
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
 AL_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "al" / "income_tax.yaml")
 PRE1987_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "pre1987.yaml")
 
 
-def compute_al_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
+def compute_al_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
     effective_year, flate = resolve_state_year(year)
     p = YearParams(AL_PARAMS, effective_year)
 
@@ -43,13 +44,39 @@ def compute_al_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         )
     else:
         df = df.with_columns(al_setax_addback=0.5 * pl.col("al_setax"))
-    # The federal dividend exclusion (through 1986) is added back. The
-    # capital-gains adjustment (`if(comnew(6).lt.0)`) applies only to net
-    # losses, which the inputs cannot produce.
+    # The federal dividend exclusion (through 1986) is added back.
     if effective_year <= 1986:
         df = df.with_columns(al_dividend_addback=dividend_exclusion_addback(effective_year))
     else:
         df = df.with_columns(al_dividend_addback=pl.lit(0.0))
+
+    # "The Capital Gains are treated similar to Federal Taxes, except that
+    # all gains are taxable and all losses are deductible in the year
+    # in[curred]" (taxsim.f:596-598: `if(comnew(6).lt.0) agi = agi +
+    # comnew(5) - comnew(6)`). Federal AGI already includes the
+    # $3,000-capped loss (`comnew(6)`); when it's negative, Alabama adds
+    # back the difference to the raw, uncapped loss (`comnew(5)`) instead,
+    # giving the full loss rather than the federal limit. The port
+    # previously never implemented this branch at all, on the mistaken
+    # assumption a net loss couldn't occur - confirmed against the real
+    # oracle, not just the source: taxsim2024.exe itself already computes
+    # the full-loss figure (a single filer with a $42,000 wage, $8,000
+    # long-term loss return was off by $250 every year before this fix;
+    # not a documented TAXSIM bug to preserve for compatibility, so this
+    # applies unconditionally rather than being calculation_mode-gated).
+    #
+    # `pre1987_pref` looks like the right column at a glance (its own
+    # formula is `fullcg - capgn` when `fullcg<0`, exactly this adjustment)
+    # but it is a *different* TAXSIM output slot (`comnew(74)`, what other
+    # states' own minimum-tax calculators read as "preference income")
+    # that is hardcoded to 0 for 1979-1982 for reasons specific to that
+    # slot, not because this adjustment is actually 0 those years -
+    # recomputed directly here instead from `pre1987_capgn` (`comnew(6)`)
+    # and the raw, unexcluded, uncapped input sum (`comnew(5)`).
+    capped_capital_gain = pl.col("pre1987_capgn") if effective_year <= 1986 else federal_capital_gain_in_agi(year, flate)
+    raw_capital_gain = pl.col("stcg") + pl.col("ltcg")
+    capital_loss_excess = pl.when(capped_capital_gain < 0).then(raw_capital_gain - capped_capital_gain).otherwise(0.0)
+    df = df.with_columns(al_capital_loss_excess=capital_loss_excess)
 
     # The federal two-earner deduction (1982-1986) is added back.
     if 1982 <= effective_year <= 1986:
@@ -68,6 +95,7 @@ def compute_al_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         + pl.col("al_dividend_addback")
         + pl.col("al_twoded_addback")
         + pl.col("al_setax_addback")
+        + pl.col("al_capital_loss_excess")
         - pl.col("al_taxable_ui")
         # Social Security benefits are exempt from 1984.
         - (pl.col("taxable_social_security") if effective_year >= 1984 else 0.0)

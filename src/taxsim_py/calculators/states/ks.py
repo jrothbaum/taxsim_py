@@ -15,13 +15,14 @@ from taxsim_py.engine.state import (
     taxsim_socsec,
     with_state_detail,
 )
+from taxsim_py.behavior import BehaviorProfile, TAXSIM_BEHAVIOR
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
 KS_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "ks" / "income_tax.yaml")
 FEDERAL_CREDITS_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "credits.yaml")
 
 
-def compute_ks_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
+def compute_ks_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
     effective_year, flate = resolve_state_year(year)
     p = YearParams(KS_PARAMS, effective_year)
 

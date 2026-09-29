@@ -4,14 +4,14 @@ import polars as pl
 
 from taxsim_py.engine.inputs import aged_count, is_dependent_filer, taxpayer_count
 from taxsim_py.engine.state import dividend_exclusion_addback, with_state_detail
-from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml, resolve_year
+from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml
+from taxsim_py.behavior import BehaviorProfile, TAXSIM_BEHAVIOR
 from taxsim_py.engine.state_extrapolation import resolve_state_year
 
 IL_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "il" / "income_tax.yaml")
-PRE1987_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "pre1987.yaml")
 
 
-def compute_il_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
+def compute_il_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
     effective_year, flate = resolve_state_year(year)
     p = YearParams(IL_PARAMS, effective_year)
     rate = p.num("rate")
@@ -28,10 +28,22 @@ def compute_il_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
 
     # Federal AGI plus the federal dividend and capital-gains exclusions
     # (`divexc(...)`, `comnew(7)=capded`), which exist through 1986.
+    # `comnew(7)`/`capded` is the federal exclusion on the NET long-term
+    # gain after netting any short-term loss against it (`caprat *
+    # min(ltcg, stcg+ltcg)`, floored at 0 - see
+    # `federal_pre1987.capded`/`pre1987_capded`); computing the addback
+    # from gross `ltcg` alone overstated it whenever a short-term loss
+    # coincided with a long-term gain (a $12,000 long-term gain with a
+    # $4,000 short-term loss got the exclusion added back on the full
+    # $12,000 instead of the $8,000 actually excluded federally) -
+    # confirmed against the real oracle, which already computes it
+    # correctly, so this applies unconditionally rather than being
+    # calculation_mode-gated.
     if effective_year <= 1986:
-        df = df.with_columns(il_dividend_addback=dividend_exclusion_addback(effective_year))
-        caprat = float(resolve_year(PRE1987_PARAMS["capital_gains_exclusion_rate"], effective_year))
-        df = df.with_columns(il_capgains_addback=(caprat * pl.col("ltcg")).clip(0, None))
+        df = df.with_columns(
+            il_dividend_addback=dividend_exclusion_addback(effective_year),
+            il_capgains_addback=pl.col("pre1987_capded"),
+        )
     else:
         df = df.with_columns(il_dividend_addback=pl.lit(0.0), il_capgains_addback=pl.lit(0.0))
 

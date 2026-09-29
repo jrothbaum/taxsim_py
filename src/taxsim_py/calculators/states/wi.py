@@ -16,6 +16,7 @@ from taxsim_py.engine.state import (
     unemployment_total,
     with_state_detail,
 )
+from taxsim_py.behavior import BehaviorProfile, TAXSIM_BEHAVIOR
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
 WI_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "wi" / "income_tax.yaml")
@@ -47,7 +48,7 @@ def _standard_deduction(rows: list[list[float]], agi: pl.Expr, index: float) -> 
     return (amount - rate * (agi - start)).clip(0, None)
 
 
-def compute_wi_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
+def compute_wi_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
     """Calculate Wisconsin income tax for each row."""
     effective_year, flate = resolve_state_year(year)
     y = effective_year

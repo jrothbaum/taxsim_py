@@ -6,6 +6,7 @@ from taxsim_py.engine.brackets import bracket_rate, bracket_tax
 from taxsim_py.engine.inputs import aged_count, files_joint, files_separate, separate_divisor, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml, resolve_year
 from taxsim_py.engine.state import by_filing_status, dividend_input_adjustment, dividend_exclusion_addback, household_income, interpolate_table, with_state_detail
+from taxsim_py.behavior import BehaviorProfile, TAXSIM_BEHAVIOR
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
 CO_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "co" / "income_tax.yaml")
@@ -16,7 +17,7 @@ FEDERAL_AMT_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "amt.yaml")
 _STATUSES = ["single", "married_joint", "married_separate", "head_of_household"]
 
 
-def compute_co_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
+def compute_co_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
     effective_year, flate = resolve_state_year(year)
     p = YearParams(CO_PARAMS, effective_year)
 

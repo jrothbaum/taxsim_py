@@ -151,7 +151,9 @@ once, in the API registry.
 
 Calculators read the itemize choice through `engine.state.itemize_choice`,
 `forced_itemized` and `forced_standard`, not a Python argument, and are called
-as `compute_xx_tax(df, year)`.
+as `compute_xx_tax(df, year, behavior)`. Nearly every state ignores `behavior`
+today; California is the first to use it (see `statutory_corrections.md`'s
+CA-001/CA-002).
 
 Docstrings describe the public contract or calculation represented by a
 function. Validation history, past bugs, oracle discrepancies, and source

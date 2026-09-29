@@ -106,8 +106,10 @@ backward-compatible TAXSIM behavior.
 
 ### P2: explicitly deferred or optional
 
-- [ ] Fix the negative-capital-gain state cases listed below, then move their
-  shared regression cases back into `tests/state_new_inputs.py`.
+- [x] Fix the negative-capital-gain state cases (Alabama, California,
+  Connecticut, Illinois, Hawaii - all fixed unconditionally, see
+  "Negative capital gains" below) and move their shared regression cases
+  back into `tests/state_new_inputs.py` - done.
 - [ ] Decide whether to implement the eight documented
   `opt1/opt1v/opt2/opt2v` switches. Until then, warn or reject when callers
   supply nonzero option values instead of silently ignoring them.
@@ -131,13 +133,13 @@ These still need to be added to the "Apparent TAXSIM errors" tab. The docs conne
 - **Where:** lines 2419-2439.
 - **What TAXSIM does:** total income (`totinc`) never includes unemployment compensation. The adjustments (`adj`) still subtract taxable unemployment (`data(22)+comnew(78)`), so it is taken out of California AGI a second time. Someone with $10,000 of wages and $4,000 of taxable unemployment gets a California AGI of $6,000.
 - **Presumably meant:** either include unemployment in total income, or skip the subtraction.
-- **Port:** copies it.
+- **Port:** corrected in statutory mode (skips the subtraction); retained in TAXSIM mode. See CA-001 in `statutory_corrections.md`.
 
 ### California, 1987 onward: minimum tax excludes business and rental income
 - **Where:** lines 2761-2762.
 - **What TAXSIM does:** the income subject to California's minimum tax (`alminy`) subtracts positive self-employment income (`data(17)`) and Schedule E rent and S-corp income (`comnew(8)`). California's actual minimum-tax base (Schedule P) keeps that income.
 - **Example (2004):** a couple with $83,000 of pensions, $1,000 of rent and $99,997 of property tax. Each dollar of rent lowers their California tax by 7 cents.
-- **Port:** copies it.
+- **Port:** corrected in statutory mode; retained in TAXSIM mode. See CA-002 in `statutory_corrections.md`.
 
 ### Arizona, 1998 onward: family income credit limit for five or more dependents
 - **Where:** line 1139 (`fag98h(itwn(nchild,1,4))`).
@@ -153,7 +155,10 @@ These still need to be added to the "Apparent TAXSIM errors" tab. The docs conne
 ### Federal, before 1998: nonrefundable credit total (`comnew(58)`)
 - **Where:** found by probing the executable. The credit total is set to tax before credits only when the elderly credit exceeds tax; otherwise it is 0, even when the credit applies. It never reduces `fiitax`.
 - **Effect:** states that read this total get the wrong federal tax base. These include LA, UT, OR, ND, AL and AZ; for example, Utah's federal tax deduction.
-- **Port:** copies it, in the `nonrefundable_credits` column.
+- **Port:** corrected in statutory mode (reports the real `federal_elder`
+  credit instead); retained in TAXSIM mode - `fiitax` itself is unaffected
+  either way, since TAXSIM applies no nonrefundable credits pre-1998
+  regardless. See FED-INCOME-001 in `statutory_corrections.md`.
 
 ### The executable ignores reported ages under 65
 - It pays the no-child EITC to filers under the minimum age: 25, or 19 in 2021.
@@ -194,24 +199,62 @@ and test is recorded in
 
 ## Open work
 
-### Negative capital gains (deferred by the user)
-Several calculators assume capital gains aren't negative, but TAXSIM accepts losses. Three test cases show the known failures:
+### Negative capital gains - fixed (2026-09-28)
+Several calculators assumed capital gains weren't negative, but TAXSIM accepts
+losses. Three test cases exposed the failures:
 - a couple with a $3,000 loss and wages;
 - a single filer with an $8,000 loss;
 - a $12,000 long-term gain with a $4,000 short-term loss.
 
-The states that fail:
+All five previously-failing states (Alabama, California, Connecticut,
+Illinois, Hawaii) are now fixed, along with Arkansas, which was already
+fixed. **Important:** despite earlier notes in this file and in
+`statutory_corrections.md` describing some of these as `calculation_mode`-
+gated corrections, that was a mistake - the real `taxsim2024.exe` already
+computes all five correctly, so these are plain bugs in this port with no
+compatibility reason to preserve, fixed unconditionally (not gated). Verified
+against the real oracle with `uv run scripts/validate_states.py`: 278,776
+cases across all 45 implemented states, 0 failures. Root causes, each
+different:
 
-| State | Failing years |
-|---|---|
-| Alabama | every year (the $8,000 loss), and 1977-86 (the couple) |
-| California | 1977-86 |
-| Connecticut | 1977-91 (short-term loss) |
-| Illinois | 1977-86 (short-term loss) |
-| Hawaii | 1977-86 (short-term loss) |
+- **Alabama:** never implemented the source's own documented rule that
+  Alabama allows the full capital loss (no $3,000 federal-style cap) -
+  `taxsim_py.calculators.states.al.compute_al_tax`.
+- **Connecticut:** its pre-1991 capital-gains figure clipped `stcg`/`ltcg` to
+  zero individually before combining, discarding a loss instead of netting
+  it - `taxsim_py.calculators.states.ct.compute_ct_tax`. Two related bugs
+  surfaced by the same investigation, also fixed: the 1987-1988 CT-only
+  additional exclusion had the identical clipping mistake one level down,
+  and reported `state_taxable_income` (`v36`) didn't floor a net loss at
+  zero before adding dividends/interest (a reporting-only detail - it never
+  affected the tax itself).
+- **Illinois:** computed its federal-exclusion addback from gross `ltcg`
+  instead of the net-of-loss amount federal AGI actually excluded -
+  `taxsim_py.calculators.states.il.compute_il_tax`.
+- **California:** applied no cap at all on a net capital loss; real law (and
+  `taxsim.f`'s `catax`, around line 2463) caps it at $1,000 per return
+  (halved for married-separate), tighter than federal's $3,000 -
+  `taxsim_py.calculators.states.ca.compute_ca_tax`. Known remaining gap:
+  real law floors that cap further, for very low-income filers, at a
+  computed pre-capital-gain income measure (`taxy`) that isn't replicated;
+  the plain $1,000 cap matched every case checked (all ordinary wage
+  levels), so only unusually low-income returns could still disagree.
+- **Hawaii:** its alternative capital-gains tax recomputed a cruder
+  netted-gain figure that applied the federal exclusion to the full `ltcg`
+  regardless of an offsetting short-term loss, instead of the properly
+  netted federal amount - `taxsim_py.calculators.states.hi.compute_hi_tax`.
 
-- Arkansas is fixed. The three cases currently run only for Arkansas (`tests/ar_cases.py`); move them back into `tests/state_new_inputs.py` once the other states are fixed.
-- `engine/state.py::federal_capital_gain_in_agi` gives the federal gain included in AGI (TAXSIM `comnew(6)`), and the fixes can reuse it. Several states still rebuild that amount on their own lines (for example `nm.py` and `ma.py`).
+`engine/state.py::federal_capital_gain_in_agi` gives the federal gain
+included in AGI (TAXSIM `comnew(6)`), and was the fix in three of the five
+cases (CT, IL, HI). Several other states still rebuild that amount on their
+own lines instead of reusing it (for example `nm.py` and `ma.py`) - not
+confirmed broken, just not yet checked.
+
+Regression tests: `tests/test_negative_capital_gains.py` (one case per
+state per scenario, checked directly against the real oracle). The three
+shared cases moved from `tests/ar_cases.py` (AR-only) into
+`tests/state_new_inputs.py`'s shared pool, so every state's own test suite
+now runs them via `scripts/validate_states.py`.
 
 ### Remaining CPS ASEC differences
 Taxes now match on the 2005 and 2011 files, except for the known age errors above. After the sales-tax floor and Virginia below-filing-minimum AGI fixes, only a small number of state worksheet rows still differ even though the tax matches:

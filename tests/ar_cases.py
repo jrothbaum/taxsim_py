@@ -85,8 +85,8 @@ def build_ar_test_cases() -> list[dict[str, Any]]:
                 )
             )
         rows.append(case(year, "AR childcare, single low income", mstat=1, pwages=15000, depx=1, dep17=1, dep18=1, childcare=2000))
-        rows.append(case(year, "AR capital loss with wages, couple", mstat=2, pwages=50000, swages=30000, ltcg=-3000, dividends=2000))
-        rows.append(case(year, "AR large capital loss, single", mstat=1, pwages=42000, ltcg=-8000))
-        rows.append(case(year, "AR long-term gain with short-term loss, single", mstat=1, pwages=40000, ltcg=12000, stcg=-4000))
+        # The negative-capital-gains cases moved to state_new_inputs.py's
+        # shared pool, run for every state, now that AL/CA/CT/IL/HI are
+        # also fixed (see statutory_corrections.md).
 
     return rows

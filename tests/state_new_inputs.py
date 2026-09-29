@@ -37,4 +37,11 @@ def build_new_input_cases(state: int, prefix: str, years: list[int]) -> list[dic
         case("professional and S corporation income, couple", mstat=2, pwages=50000, pprofinc=30000, scorp=30000)
         case("other property income", pwages=40000, otherprop=15000)
         case("other non-property income", pwages=40000, nonprop=8000)
+        # TAXSIM accepts a negative net capital gain; several state
+        # calculators assumed it couldn't happen (AL-001/CA-003/CT-001/
+        # IL-001/HI-001 in statutory_corrections.md). These three cases
+        # were AR-only (tests/ar_cases.py) until those were fixed.
+        case("capital loss with wages, couple", mstat=2, pwages=50000, swages=30000, ltcg=-3000, dividends=2000)
+        case("large capital loss, single", pwages=42000, ltcg=-8000)
+        case("long-term gain with short-term loss, single", pwages=40000, ltcg=12000, stcg=-4000)
     return rows

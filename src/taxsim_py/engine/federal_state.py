@@ -65,18 +65,21 @@ def _federal(
 
 
 def _state_plans(
-    federal: pl.LazyFrame | pl.DataFrame, year: int, calculators: StateCalculator | Mapping[int, StateCalculator]
+    federal: pl.LazyFrame | pl.DataFrame,
+    year: int,
+    calculators: StateCalculator | Mapping[int, StateCalculator],
+    behavior: BehaviorProfile = TAXSIM_BEHAVIOR,
 ) -> list[pl.LazyFrame]:
     """Lazy state plans: one plan, or one per state partition."""
     if callable(calculators):
-        return [calculators(federal.lazy(), year)]
+        return [calculators(federal.lazy(), year, behavior)]
     collected = federal.collect() if isinstance(federal, pl.LazyFrame) else federal
     partitions = collected.partition_by("state", as_dict=True)
     missing = sorted(state_code for (state_code,) in partitions if state_code not in calculators)
     if missing:
         raise NotImplementedError(f"No calculator supplied for TAXSIM state code(s): {missing}")
     return [
-        calculators[state_code](rows.lazy(), year)
+        calculators[state_code](rows.lazy(), year, behavior)
         for (state_code,), rows in partitions.items()
     ]
 
@@ -120,7 +123,7 @@ def resolve_federal_and_state(
                     *_KEYS,
                     pl.max_horizontal(pl.col("siitax").clip(0, None), _SALES_TAX).alias(_DEDUCTION),
                 )
-                for plan in _state_plans(_federal(current, year, behavior), year, compute_state_tax_fn)
+                for plan in _state_plans(_federal(current, year, behavior), year, compute_state_tax_fn, behavior)
             )
         )
         current = stacked.drop(_DEDUCTION).join(deduction, on=_KEYS, how="left")
@@ -128,7 +131,7 @@ def resolve_federal_and_state(
     # them in place), so the result keeps the federal pass's own columns and
     # takes only the columns each state adds.
     federal = _federal(current, year, behavior).collect()
-    final_plans = _state_plans(federal, year, compute_state_tax_fn)
+    final_plans = _state_plans(federal, year, compute_state_tax_fn, behavior)
     if not keep_intermediate:
         # Only the state tax, plus any requested columns the calculator sets.
         final_plans = [

@@ -14,13 +14,14 @@ from taxsim_py.engine.state import (
     unemployment_total,
     with_state_detail,
 )
+from taxsim_py.behavior import BehaviorProfile, TAXSIM_BEHAVIOR
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
 SC_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "sc" / "income_tax.yaml")
 FEDERAL_EXEMPTION_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "personal_exemption.yaml")
 
 
-def compute_sc_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
+def compute_sc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
     """Calculate South Carolina income tax for each row."""
     effective_year, flate = resolve_state_year(year)
     y = effective_year

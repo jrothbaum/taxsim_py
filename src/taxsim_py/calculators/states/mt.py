@@ -15,6 +15,7 @@ from taxsim_py.engine.state import (
     forced_standard,
     with_state_detail,
 )
+from taxsim_py.behavior import BehaviorProfile, TAXSIM_BEHAVIOR
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
 MT_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "mt" / "income_tax.yaml")
@@ -34,7 +35,7 @@ def _brackets(y: int) -> list[list[float]]:
     return [[start, float(rate)] for start, rate in zip(starts, rates)]
 
 
-def compute_mt_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
+def compute_mt_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
     """Calculate Montana income tax for each row."""
     effective_year, flate = resolve_state_year(year)
     y = effective_year

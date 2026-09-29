@@ -337,7 +337,7 @@ def compute_federal_income_tax(
     df = with_default(df, FORCE_ITEMIZE, None)
     df = _income(df, year, behavior)
     for stage in (_deductions, _regular_tax, _alternative_minimum_tax, _credits, _net_tax):
-        df = stage(df, year)
+        df = stage(df, year, behavior)
     return df
 
 
@@ -496,7 +496,7 @@ def _income(
     return df
 
 
-def _deductions(df: pl.DataFrame | pl.LazyFrame, year: int) -> pl.DataFrame | pl.LazyFrame:
+def _deductions(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame | pl.LazyFrame:
     """Standard or itemized deduction, exemptions and taxable income."""
     sepret_expr = _sepret()
     gross_se_income = _gross_se_income()
@@ -665,7 +665,7 @@ def _deductions(df: pl.DataFrame | pl.LazyFrame, year: int) -> pl.DataFrame | pl
     return df
 
 
-def _regular_tax(df: pl.DataFrame | pl.LazyFrame, year: int) -> pl.DataFrame | pl.LazyFrame:
+def _regular_tax(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame | pl.LazyFrame:
     """Bracket tax with capital gains rates and the 1988-1996 surtaxes."""
     # ltg can't exceed taxable income itself (the preferential-rate base is
     # capped by taxable income the same way the source's worksheet does via
@@ -838,7 +838,7 @@ def _regular_tax(df: pl.DataFrame | pl.LazyFrame, year: int) -> pl.DataFrame | p
     return df
 
 
-def _alternative_minimum_tax(df: pl.DataFrame | pl.LazyFrame, year: int) -> pl.DataFrame | pl.LazyFrame:
+def _alternative_minimum_tax(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame | pl.LazyFrame:
     """Alternative minimum tax and tax before credits."""
     # AMT income: AGI, minus mortgage interest if itemizing (SALT is never
     # deductible for AMT; mortgage interest is deductible for both).
@@ -930,7 +930,7 @@ def _alternative_minimum_tax(df: pl.DataFrame | pl.LazyFrame, year: int) -> pl.D
     return df
 
 
-def _credits(df: pl.DataFrame | pl.LazyFrame, year: int) -> pl.DataFrame | pl.LazyFrame:
+def _credits(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame | pl.LazyFrame:
     """Child care, earned income, elderly, child and other dependent credits."""
     # Apply CCC before CTC/ODC in the nonrefundable-credit stacking order.
     analytic_rate = _models_analytic_rate(year)
@@ -1135,7 +1135,7 @@ def _credits(df: pl.DataFrame | pl.LazyFrame, year: int) -> pl.DataFrame | pl.La
     return df
 
 
-def _net_tax(df: pl.DataFrame | pl.LazyFrame, year: int) -> pl.DataFrame | pl.LazyFrame:
+def _net_tax(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame | pl.LazyFrame:
     """Net investment income tax, rebates and refundable credits, and `fiitax`."""
     # NIIT: added on top of regular tax + AMT, outside the pool nonrefundable
     # credits compete for (see engine/niit.py docstring) - not part of
@@ -1163,7 +1163,23 @@ def _net_tax(df: pl.DataFrame | pl.LazyFrame, year: int) -> pl.DataFrame | pl.La
     # Before 1998 it is tax before credits when the elderly credit exceeds
     # it, otherwise 0, and does not reduce federal tax; in 2021 only the
     # elderly credit.
-    if year < 1998:
+    #
+    # FED-INCOME-001: before 1998, the only nonrefundable credit in this
+    # model's scope is the elderly credit, computed but - by design, not the
+    # bug here - never actually applied against `fiitax` those years
+    # (`elderly_credit_raw` is zeroed for year<1998 above, so the capped
+    # `elderly_credit` used against tax is always 0 pre-1998; that part is
+    # unchanged). The bug is what gets *reported* as the credit total:
+    # TAXSIM's formula reports tax-before-credits (not the credit amount)
+    # when the elderly credit happens to exceed it, and 0 otherwise - never
+    # the actual computed credit, `federal_elder`. Several states (LA, UT,
+    # OR, ND, AL, AZ) read this total into their own federal-tax-deduction
+    # or credit calculations, so this only fixes what's reported, not
+    # whether the elderly credit reduces `fiitax` pre-1998 (it still
+    # doesn't, matching TAXSIM). See statutory_corrections.md.
+    if year < 1998 and behavior.count_pre_1998_nonrefundable_credits_correctly:
+        nonrefundable_credits = pl.col("federal_elder")
+    elif year < 1998:
         tax = pl.col("tax_before_credits").clip(0, None)
         nonrefundable_credits = pl.when(pl.col("federal_elder") > tax).then(tax).otherwise(0.0)
     elif year == 2021:

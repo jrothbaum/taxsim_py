@@ -4,14 +4,14 @@ import polars as pl
 
 from taxsim_py.engine.brackets import bracket_rate, bracket_tax
 from taxsim_py.engine.inputs import aged_count, files_head_of_household, files_joint, files_separate, files_single, is_dependent_filer, separate_divisor, taxpayer_count
-from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml, resolve_year
-from taxsim_py.engine.state import forced_standard, interpolate_table, unemployment_total, with_state_detail
+from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml
+from taxsim_py.engine.state import federal_capital_gain_in_agi, forced_standard, interpolate_table, unemployment_total, with_state_detail
+from taxsim_py.behavior import BehaviorProfile, TAXSIM_BEHAVIOR
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
 HI_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "hi" / "income_tax.yaml")
-PRE1987_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "pre1987.yaml")
 
-def compute_hi_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
+def compute_hi_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
     effective_year, flate = resolve_state_year(year)
     p = YearParams(HI_PARAMS, effective_year)
 
@@ -190,11 +190,17 @@ def compute_hi_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
 
     # --- Capital gains alternative tax --- `comnew(6)` is capital gains in
     # federal AGI: net of the federal long-term exclusion through 1986.
-    if effective_year <= 1986:
-        excl = float(resolve_year(PRE1987_PARAMS["capital_gains_exclusion_rate"], effective_year))
-        capgn = pl.col("stcg") + (1.0 - excl) * pl.col("ltcg")
-    else:
-        capgn = pl.col("ltcg") + pl.col("stcg")
+    # The exclusion applies to the smaller of raw `ltcg` or the net gain
+    # after any short-term loss (`min(ltcg, stcg+ltcg)`), not to raw
+    # `ltcg` outright - the port previously recomputed a cruder figure
+    # that applied the exclusion to the full `ltcg` regardless of an
+    # offsetting short-term loss. It happens to match `comnew(6)` for a
+    # pure gain or a pure loss, so this only showed up when a long-term
+    # gain and a short-term loss coincided (a $12,000 long-term gain with
+    # a $4,000 short-term loss was off by $81) - confirmed against the
+    # real oracle, which already nets correctly, so this applies
+    # unconditionally rather than being calculation_mode-gated.
+    capgn = pl.col("pre1987_capgn") if effective_year <= 1986 else federal_capital_gain_in_agi(year, flate)
     has_gain = capgn.clip(0, None) > 0
     brack = pl.when(is_hoh).then(float(p["capital_gains_floor_hoh"])).otherwise(
         p["capital_gains_floor_per_taxpayer"] * pl.col("hi_taxpayers")

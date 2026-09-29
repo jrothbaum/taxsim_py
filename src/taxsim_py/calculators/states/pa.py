@@ -5,12 +5,13 @@ import polars as pl
 from taxsim_py.engine.inputs import aged_count, files_joint, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml, resolve_year
 from taxsim_py.engine.state import with_state_detail, dividend_input_adjustment
+from taxsim_py.behavior import BehaviorProfile, TAXSIM_BEHAVIOR
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
 PA_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "pa" / "income_tax.yaml")
 
 
-def compute_pa_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
+def compute_pa_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
     """Calculate Pennsylvania income tax for each row."""
     effective_year, flate = resolve_state_year(year)
     y = effective_year

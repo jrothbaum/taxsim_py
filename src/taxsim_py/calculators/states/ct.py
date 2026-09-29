@@ -8,14 +8,15 @@ from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml, reso
 from taxsim_py.engine.state import (
     by_filing_status,
     checkpoint,
+    federal_capital_gain_in_agi,
     household_income,
     interpolate_table,
     with_state_detail,
 )
+from taxsim_py.behavior import BehaviorProfile, TAXSIM_BEHAVIOR
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
 CT_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "ct" / "income_tax.yaml")
-PRE1987_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "pre1987.yaml")
 FEDERAL_AMT_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "amt.yaml")
 FEDERAL_CAPITAL_GAINS_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "capital_gains.yaml")
 
@@ -84,7 +85,7 @@ def _flat_rate_step(income: pl.Expr, rows: list[list[float]]) -> pl.Expr:
     return expr
 
 
-def compute_ct_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
+def compute_ct_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
     effective_year, flate = resolve_state_year(year)
     p = YearParams(CT_PARAMS, effective_year)
 
@@ -176,14 +177,22 @@ def compute_ct_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
 
     # --- Pre-1991 capital gains / dividends / interest tax ---
     # `gain` (`comnew(6)`) is federal taxable gains: net of the federal
-    # long-term exclusion through 1986, all gains 1987-1990.
-    if effective_year <= 1986:
-        caprat = float(resolve_year(PRE1987_PARAMS["capital_gains_exclusion_rate"], effective_year))
-        gain = pl.col("stcg").clip(0, None) + (1.0 - caprat) * pl.col("ltcg").clip(0, None)
-    else:
-        gain = pl.col("ltcg").clip(0, None) + pl.col("stcg").clip(0, None)
+    # long-term exclusion through 1986, all gains 1987-1990. The port
+    # previously clipped `stcg`/`ltcg` to 0 individually before adding
+    # them, throwing away a short-term loss instead of netting it against
+    # a long-term gain, which is what `comnew(6)` actually does (a $12,000
+    # long-term gain with a $4,000 short-term loss was taxed as if the
+    # loss didn't exist) - confirmed against the real oracle, which
+    # already nets correctly, so this applies unconditionally rather than
+    # being calculation_mode-gated.
+    gain = pl.col("pre1987_capgn") if effective_year <= 1986 else federal_capital_gain_in_agi(year, flate)
     if effective_year in (1987, 1988):
-        gain = (gain - float(p["ltcg_ct_only_exclusion_1987_1988"]) * pl.col("ltcg").clip(0, None)).clip(0, None)
+        # Same bug as above, in CT's own additional 1987-1988 exclusion:
+        # based on raw `ltcg`, ignoring a short-term loss that may have
+        # already reduced `gain` below what raw `ltcg` alone implies.
+        # Capped at `gain` itself so the exclusion can't exceed the
+        # long-term gain actually remaining after netting.
+        gain = (gain - float(p["ltcg_ct_only_exclusion_1987_1988"]) * pl.min_horizontal(pl.col("ltcg"), gain).clip(0, None)).clip(0, None)
     divint = pl.col("dividends") + pl.col("intrec")
 
     if effective_year <= 1990:
@@ -201,7 +210,13 @@ def compute_ct_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
             divtax = _flat_rate_step(pl.col("ct_agi"), p["divint_rate_table_1986_1988"]) * divint
         else:
             divtax = _flat_rate_step(pl.col("ct_agi"), p["divint_rate_table_1989_1990"]) * divint
-        df = df.with_columns(ct_statax=cgtax + divtax, ct_taxinc=gain + divint, ct_cgtax=cgtax, ct_divtax=divtax)
+        # Reported taxable income floors a net capital loss at 0 before
+        # adding dividends/interest (confirmed against the real oracle);
+        # `cgtax` above already handles a negative `gain` correctly on its
+        # own, so this floor is a reporting-only detail, not a tax change.
+        df = df.with_columns(
+            ct_statax=cgtax + divtax, ct_taxinc=gain.clip(0, None) + divint, ct_cgtax=cgtax, ct_divtax=divtax
+        )
         table = (
             "divint_rate_table_pre1983" if effective_year <= 1983
             else "divint_rate_table_1984" if effective_year == 1984

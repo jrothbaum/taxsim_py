@@ -6,7 +6,9 @@ from importlib import import_module
 
 import polars as pl
 
-StateCalculator = Callable[[pl.LazyFrame, int], pl.LazyFrame]
+from taxsim_py.behavior import BehaviorProfile
+
+StateCalculator = Callable[[pl.LazyFrame, int, BehaviorProfile], pl.LazyFrame]
 
 # TAXSIM numbers states alphabetically, with the District of Columbia after
 # Delaware. Registry values are module and function names so importing the

@@ -9,6 +9,7 @@ from taxsim_py.engine.brackets import bracket_rate, bracket_tax
 from taxsim_py.engine.inputs import aged_count, files_head_of_household, files_joint, files_separate, files_single, is_dependent_filer, separate_divisor, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml, resolve_year
 from taxsim_py.engine.state import by_filing_status, dividend_input_adjustment, forced_standard, household_income, interpolate_table, with_state_detail
+from taxsim_py.behavior import BehaviorProfile, TAXSIM_BEHAVIOR
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
 CA_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "ca" / "income_tax.yaml")
@@ -36,7 +37,7 @@ def _by_status4(vals: list[float]) -> pl.Expr:
     )
 
 
-def compute_ca_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
+def compute_ca_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
     effective_year, flate = resolve_state_year(year)
     p = YearParams(CA_PARAMS, effective_year)
 
@@ -66,6 +67,27 @@ def compute_ca_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         # California's own pre-1987 inclusion of 65% of long-term gains
         # (`cg=data(68)+.65*(data(70)+...)`).
         df = df.with_columns(ca_cg=pl.col("stcg") + p["capital_gains_inclusion_pre1987"] * pl.col("ltcg"))
+        # Real California law (and TAXSIM's own `catax`, taxsim.f around
+        # line 2463: `if(cg.lt.0.) cg=-1.*min(abs(cg),taxy,1000.0d0/sep)`)
+        # caps a net capital LOSS at $1,000 per return (halved for
+        # married-separate returns) - a different, much tighter limit than
+        # federal's $3,000. The port previously allowed the full
+        # 65%-included loss with no cap at all (a single filer with a
+        # $42,000 wage and an $8,000 long-term loss was off by $462) -
+        # confirmed against the real oracle, which already applies this
+        # cap, so this applies unconditionally rather than being
+        # calculation_mode-gated. Real law also floors the cap further at
+        # a computed pre-capital-gain income measure (`taxy`) for very
+        # low-income filers - that floor is NOT replicated here (a known,
+        # narrower simplification than the $1,000 cap itself; see
+        # docs/pending_issues.md), so this is exact except at very low
+        # incomes.
+        capital_loss_cap = 1000.0 / pl.col("ca_sep")
+        df = df.with_columns(
+            ca_cg=pl.when(pl.col("ca_cg") < 0)
+            .then(-pl.min_horizontal(pl.col("ca_cg").abs(), capital_loss_cap))
+            .otherwise(pl.col("ca_cg"))
+        )
         # Gross self-employment income (`data(17)`).
         df = df.with_columns(ca_gross_se=pl.col("psemp") + pl.col("ssemp"))
         df = df.with_columns(
@@ -78,9 +100,21 @@ def compute_ca_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
             limit = p["aged_exclusion_income_limit_1985"] * aged / pl.col("ca_sep")
             oldex = (p["aged_exclusion_1985"] * aged - 0.5 * (pl.col("ca_totinc") - limit).clip(0, None)).clip(0, None)
             df = df.with_columns(ca_totinc=pl.col("ca_totinc") - oldex)
-        # From 1979 the adjustments subtract taxable unemployment compensation
-        # (`comnew(78)`), which total income never included.
-        ui_adjustment = pl.col("taxable_unemployment") if effective_year >= 1979 else 0.0
+        # CA-001: from 1979 the adjustments subtract taxable unemployment
+        # compensation (`comnew(78)`), which total income above never
+        # included in the first place - so it's removed twice, not once. A
+        # filer with $10,000 of wages and $4,000 of taxable unemployment
+        # gets a $6,000 CA AGI instead of $10,000. Corrected by not
+        # subtracting it at all (it was never meant to be in the base
+        # either way), rather than adding it to `ca_totinc` above, since
+        # the 1985-1986 aged exclusion is computed from that same
+        # `ca_totinc` and changing its composition could shift that
+        # unrelated provision too. See statutory_corrections.md.
+        ui_adjustment = (
+            0.0
+            if behavior.include_unemployment_in_california_total_income
+            else (pl.col("taxable_unemployment") if effective_year >= 1979 else 0.0)
+        )
         df = df.with_columns(ca_agi=(pl.col("ca_totinc") - ui_adjustment).clip(0, None))
     else:
         # Federal AGI (`agi=comnew(2)`) less exempt unemployment
@@ -382,10 +416,21 @@ def compute_ca_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
         addprf = pl.when(itemizing).then(pl.col("proptax") + pl.col("otheritem")).otherwise(pl.col("ca_stded"))
         # `alminy=totprf+taxinc-(max(0,data17)+max(0,data21)+max(0,comnew8)+reduce)`;
         # `data(21)` is never set and `comnew(8)` is Schedule E income.
+        #
+        # CA-002: real law (Schedule P) keeps self-employment and Schedule E
+        # rental/S-corp income in the minimum-tax base; TAXSIM's own
+        # `alminy` formula excludes both (positive amounts only). A couple
+        # with $83,000 of pensions, $1,000 of rent and $99,997 of property
+        # tax sees each dollar of rent lower their CA tax by 7 cents under
+        # TAXSIM's formula. Corrected by not subtracting these two terms.
+        # See statutory_corrections.md.
         reduce_col = pl.col("ca_reduce")
-        gross_se = pl.col("psemp").clip(0, None) + pl.col("ssemp").clip(0, None)
-        schedule_e = (pl.col("otherprop") + pl.col("scorp")).clip(0, None)
-        alminy = (addprf + pl.col("ca_taxinc") - gross_se - schedule_e - reduce_col).clip(0, None)
+        if behavior.include_business_and_rental_income_in_california_minimum_tax:
+            alminy = (addprf + pl.col("ca_taxinc") - reduce_col).clip(0, None)
+        else:
+            gross_se = pl.col("psemp").clip(0, None) + pl.col("ssemp").clip(0, None)
+            schedule_e = (pl.col("otherprop") + pl.col("scorp")).clip(0, None)
+            alminy = (addprf + pl.col("ca_taxinc") - gross_se - schedule_e - reduce_col).clip(0, None)
         if effective_year <= 1997:
             excl_by_status = {
                 s: float(resolve_year(FEDERAL_AMT_PARAMS["exemption"][s], effective_year)) for s in _STATUSES

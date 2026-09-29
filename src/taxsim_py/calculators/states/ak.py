@@ -5,12 +5,13 @@ import polars as pl
 from taxsim_py.engine.inputs import files_head_of_household, files_joint, files_separate
 from taxsim_py.engine.brackets import bracket_rate, bracket_tax
 from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml
+from taxsim_py.behavior import BehaviorProfile, TAXSIM_BEHAVIOR
 from taxsim_py.engine.state import with_state_detail
 
 AK_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "ak" / "income_tax.yaml")
 
 
-def compute_ak_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
+def compute_ak_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
     if year > 1979:
         return df.with_columns(siitax=pl.lit(0.0))
 

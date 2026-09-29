@@ -6,6 +6,7 @@ from taxsim_py.engine.brackets import bracket_rate, bracket_tax
 from taxsim_py.engine.inputs import aged_count, federal_exemption_count, files_head_of_household, files_joint, files_separate, files_single, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml, resolve_year
 from taxsim_py.engine.state import by_filing_status, checkpoint, household_income, interpolate_table, with_state_detail, dividend_input_adjustment
+from taxsim_py.behavior import BehaviorProfile, TAXSIM_BEHAVIOR
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
 NJ_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "nj" / "income_tax.yaml")
@@ -74,7 +75,7 @@ def _homestead_rebate(
     return pl.when(aged > 0).then(aged_rebate).otherwise(under65) / sep
 
 
-def compute_nj_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
+def compute_nj_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
     """Calculate New Jersey gross income tax for each row."""
     effective_year, flate = resolve_state_year(year)
     y = effective_year

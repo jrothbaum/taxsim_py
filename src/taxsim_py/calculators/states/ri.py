@@ -6,6 +6,7 @@ from taxsim_py.engine.brackets import bracket_rate, bracket_tax
 from taxsim_py.engine.inputs import aged_count, federal_exemption_count, files_head_of_household, files_joint, files_separate, files_single, is_dependent_filer, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml, resolve_year
 from taxsim_py.engine.state import checkpoint, household_income, interpolate_table, unemployment_total, with_state_detail
+from taxsim_py.behavior import BehaviorProfile, TAXSIM_BEHAVIOR
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
 RI_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "ri" / "income_tax.yaml")
@@ -53,7 +54,7 @@ def _amt_rate_tax(income: pl.Expr, sep: pl.Expr) -> pl.Expr:
     )
 
 
-def compute_ri_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
+def compute_ri_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
     """Calculate Rhode Island income tax for each row."""
     effective_year, flate = resolve_state_year(year)
     y = effective_year

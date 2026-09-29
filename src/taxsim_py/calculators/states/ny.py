@@ -18,6 +18,7 @@ from taxsim_py.engine.state import (
     unemployment_total,
     with_state_detail,
 )
+from taxsim_py.behavior import BehaviorProfile, TAXSIM_BEHAVIOR
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
 NY_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "ny" / "income_tax.yaml")
@@ -241,7 +242,7 @@ def _recapture_real_2021(statax: pl.Expr, taxinc: pl.Expr, agi: pl.Expr, status:
     return pl.when(agi <= c["base_agi"]).then(statax).when(agi > c["top_agi"]).then(top).otherwise(tiered)
 
 
-def compute_ny_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
+def compute_ny_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
     """Calculate New York income tax for each row."""
     effective_year, flate = resolve_state_year(year)
     y = effective_year

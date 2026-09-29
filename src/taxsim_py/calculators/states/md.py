@@ -11,6 +11,7 @@ from taxsim_py.engine.state import (
     pre1987_federal_itemizing,
     with_state_detail,
 )
+from taxsim_py.behavior import BehaviorProfile, TAXSIM_BEHAVIOR
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
 MD_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "md" / "income_tax.yaml")
@@ -26,7 +27,7 @@ def _tiered_replace(income: pl.Expr, tiers: list[list[float]]) -> pl.Expr:
     return expr
 
 
-def compute_md_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
+def compute_md_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
     effective_year, flate = resolve_state_year(year)
     p = YearParams(MD_PARAMS, effective_year)
 

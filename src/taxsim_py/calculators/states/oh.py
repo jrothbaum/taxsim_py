@@ -6,6 +6,7 @@ from taxsim_py.engine.brackets import bracket_rate, bracket_tax
 from taxsim_py.engine.inputs import aged_count, files_joint, files_separate, is_dependent_filer, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml, resolve_year
 from taxsim_py.engine.state import checkpoint, interpolate_table, tier_values, with_state_detail
+from taxsim_py.behavior import BehaviorProfile, TAXSIM_BEHAVIOR
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
 OH_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "oh" / "income_tax.yaml")
@@ -36,7 +37,7 @@ def _joint_credit(statax: pl.Expr, taxinc: pl.Expr, businc: pl.Expr, y: int, eli
     return pl.when(eligible).then((statax - jcred).clip(0, None)).otherwise(statax)
 
 
-def compute_oh_tax(df: pl.DataFrame, year: int) -> pl.DataFrame:
+def compute_oh_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
     """Calculate Ohio income tax for each row."""
     effective_year, flate = resolve_state_year(year)
     y = effective_year

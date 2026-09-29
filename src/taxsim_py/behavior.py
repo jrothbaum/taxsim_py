@@ -20,6 +20,9 @@ class BehaviorProfile:
     enforce_schedule_se_minimum: bool
     prevent_negative_self_employment_tax: bool
     count_self_employment_once_for_additional_medicare: bool
+    include_unemployment_in_california_total_income: bool
+    include_business_and_rental_income_in_california_minimum_tax: bool
+    count_pre_1998_nonrefundable_credits_correctly: bool
 
 
 TAXSIM_BEHAVIOR = BehaviorProfile(
@@ -28,6 +31,9 @@ TAXSIM_BEHAVIOR = BehaviorProfile(
     enforce_schedule_se_minimum=False,
     prevent_negative_self_employment_tax=False,
     count_self_employment_once_for_additional_medicare=False,
+    include_unemployment_in_california_total_income=False,
+    include_business_and_rental_income_in_california_minimum_tax=False,
+    count_pre_1998_nonrefundable_credits_correctly=False,
 )
 
 STATUTORY_BEHAVIOR = BehaviorProfile(
@@ -36,6 +42,9 @@ STATUTORY_BEHAVIOR = BehaviorProfile(
     enforce_schedule_se_minimum=True,
     prevent_negative_self_employment_tax=True,
     count_self_employment_once_for_additional_medicare=True,
+    include_unemployment_in_california_total_income=True,
+    include_business_and_rental_income_in_california_minimum_tax=True,
+    count_pre_1998_nonrefundable_credits_correctly=True,
 )
 
 
