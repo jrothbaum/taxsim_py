@@ -2,6 +2,8 @@
 
 import polars as pl
 
+from taxsim_py.behavior import BehaviorProfile, TAXSIM_BEHAVIOR
+
 
 def oasdi_tax(wages: pl.Expr, wage_base: float, rate_combined: float) -> pl.Expr:
     return wages.clip(0, wage_base) * rate_combined
@@ -116,7 +118,12 @@ PAYROLL_ITEMS = (
 
 
 def _capped_items(
-    items: list[pl.Expr], factors: list[float], rates: list[float], cap: float, factor_in_rate: bool
+    items: list[pl.Expr],
+    factors: list[float],
+    rates: list[float],
+    cap: float,
+    factor_in_rate: bool,
+    coordinate_on_net_earnings: bool,
 ) -> tuple[list[pl.Expr], pl.Expr]:
     """Per-item tax with the cap applied to running factor-weighted earnings.
 
@@ -124,14 +131,21 @@ def _capped_items(
     excess and later items pay nothing; the flag reports whether any did.
     """
     taxes = []
-    running = pl.lit(0.0)
+    running_gross = pl.lit(0.0)
+    running_net = pl.lit(0.0)
     capped_before = pl.lit(False)
     for item, factor, rate in zip(items, factors, rates):
-        running = running + item
+        running_gross = running_gross + item
+        running_net = running_net + factor * item
         effective_rate = factor * rate if factor_in_rate else rate
         full = (item * effective_rate) if factor_in_rate else (factor * item * rate)
-        over = running * factor > cap
-        reduced = full - (running * factor - cap) * effective_rate
+        # TAXSIM multiplies all prior earnings by the current item's factor.
+        # Statutory mode instead coordinates each item at its own net-earnings
+        # factor, so W-2 wages are never discounted by the Schedule SE factor.
+        cap_earnings = running_net if coordinate_on_net_earnings else running_gross * factor
+        over = cap_earnings > cap
+        excess_rate = rate if coordinate_on_net_earnings else effective_rate
+        reduced = full - (cap_earnings - cap) * excess_rate
         taxes.append(pl.when(capped_before).then(0.0).when(over).then(reduced).otherwise(full))
         capped_before = capped_before | over
     return taxes, capped_before
@@ -147,6 +161,7 @@ def taxsim_payroll(
     addmed_rate: float,
     addmed_threshold: pl.Expr,
     own_share_self_employment: float,
+    behavior: BehaviorProfile = TAXSIM_BEHAVIOR,
 ) -> dict[str, pl.Expr]:
     """Payroll and self-employment tax as TAXSIM's `sstax` computes them.
 
@@ -162,10 +177,53 @@ def taxsim_payroll(
     oasdi_rates = [oasdi_rate, se_oasdi_rate, se_oasdi_rate, se_oasdi_rate]
     streams = []
     for names in PAYROLL_ITEMS:
-        # Negative wages are dropped; losses reduce the tax.
-        items = [pl.col(names[0]).clip(0, None), *[pl.col(n) for n in names[1:]]]
-        oasdi, oasdi_capped = _capped_items(items, factors, oasdi_rates, wage_base, factor_in_rate=False)
-        hi, hi_capped = _capped_items(items, factors, [hi_rate] * 4, hi_wage_base, factor_in_rate=True)
+        self_employment_items = [pl.col(name) for name in names[1:]]
+        if behavior.prevent_negative_self_employment_tax:
+            # Schedule SE combines each taxpayer's businesses before applying
+            # its floor and minimum. Allocate the net amount over positive
+            # sources so the downstream QBI categories remain meaningful.
+            net_self_employment_income = pl.sum_horizontal(self_employment_items)
+            taxable_self_employment_income = net_self_employment_income.clip(0, None)
+            if behavior.enforce_schedule_se_minimum:
+                taxable_self_employment_income = (
+                    pl.when(net_earnings_factor * taxable_self_employment_income >= 400)
+                    .then(taxable_self_employment_income)
+                    .otherwise(0.0)
+                )
+            positive_self_employment_items = [
+                item.clip(0, None) for item in self_employment_items
+            ]
+            positive_self_employment_total = pl.sum_horizontal(
+                positive_self_employment_items
+            )
+            self_employment_items = [
+                pl.when(positive_self_employment_total > 0)
+                .then(
+                    taxable_self_employment_income
+                    * item
+                    / positive_self_employment_total
+                )
+                .otherwise(0.0)
+                for item in positive_self_employment_items
+            ]
+        # Compatibility mode retains TAXSIM's item order and loss treatment.
+        items = [pl.col(names[0]).clip(0, None), *self_employment_items]
+        oasdi, oasdi_capped = _capped_items(
+            items,
+            factors,
+            oasdi_rates,
+            wage_base,
+            factor_in_rate=False,
+            coordinate_on_net_earnings=behavior.coordinate_oasdi_on_net_earnings,
+        )
+        hi, hi_capped = _capped_items(
+            items,
+            factors,
+            [hi_rate] * 4,
+            hi_wage_base,
+            factor_in_rate=True,
+            coordinate_on_net_earnings=behavior.coordinate_oasdi_on_net_earnings,
+        )
         streams.append(([o + h for o, h in zip(oasdi, hi)], oasdi_capped, hi_capped))
 
     wage_tax = streams[0][0][0] + streams[1][0][0]
@@ -173,12 +231,19 @@ def taxsim_payroll(
     setax_qbi = streams[0][0][2] + streams[1][0][2]
     setax_sstb = streams[0][0][3] + streams[1][0][3]
     setax = setax_self + setax_qbi + setax_sstb
-    # TAXSIM counts both earners' self-employment income for each earner here.
     earnings = pl.lit(0.0)
-    for names in PAYROLL_ITEMS:
-        earnings = earnings + pl.col(names[0]).clip(0, None)
-        earnings = earnings + net_earnings_factor * (pl.col("psemp") + pl.col("ssemp"))
-        earnings = earnings + net_earnings_factor * (pl.col(names[2]) + pl.col(names[3]))
+    if behavior.count_self_employment_once_for_additional_medicare:
+        for names in PAYROLL_ITEMS:
+            earnings = earnings + pl.col(names[0]).clip(0, None)
+            earnings = earnings + net_earnings_factor * pl.sum_horizontal(
+                pl.col(name) for name in names[1:]
+            ).clip(0, None)
+    else:
+        # TAXSIM counts both earners' combined SE income in each earner loop.
+        for names in PAYROLL_ITEMS:
+            earnings = earnings + pl.col(names[0]).clip(0, None)
+            earnings = earnings + net_earnings_factor * (pl.col("psemp") + pl.col("ssemp"))
+            earnings = earnings + net_earnings_factor * (pl.col(names[2]) + pl.col(names[3]))
     addmed = additional_medicare_tax(earnings, addmed_threshold, addmed_rate)
     primary = streams[0]
     return {

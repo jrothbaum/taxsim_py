@@ -44,6 +44,8 @@ exemption:
     2021: 73600
     2022: 75900
     2023: 81300
+    2024: 85700
+    2025: 88100
   head_of_household:
     1987: 30000
     1991: 30000
@@ -90,6 +92,12 @@ exemption:
     # disagree for any 2023 HoH case where this exemption amount actually
     # binds (high AMT preference income); that mismatch is intentional.
     2023: 81300
+    # 2024/2025: real law continues to give HoH the same exemption as
+    # single (Rev. Proc. 2023-34 p.11, Rev. Proc. 2024-40 p.10; confirmed
+    # against PolicyEngine-US's parameters/gov/irs/income/amt/exemption/
+    # amount.yaml, which also lists HEAD_OF_HOUSEHOLD == SINGLE).
+    2024: 85700
+    2025: 88100
   married_separate:
     1987: 20000
     1991: 20000
@@ -125,6 +133,8 @@ exemption:
     2021: 57300
     2022: 59050
     2023: 63250
+    2024: 66650
+    2025: 68500
   married_joint:
     1987: 40000
     1991: 40000
@@ -160,6 +170,8 @@ exemption:
     2021: 114600
     2022: 118100
     2023: 126500
+    2024: 133300
+    2025: 137000
 
 exemption_phaseout_threshold:
   single:
@@ -190,6 +202,8 @@ exemption_phaseout_threshold:
     2021: 523600
     2022: 539900
     2023: 578150
+    2024: 609350
+    2025: 626350
   head_of_household:
     1987: 112500
     1994: 112500
@@ -218,6 +232,8 @@ exemption_phaseout_threshold:
     2021: 523600
     2022: 539900
     2023: 578150
+    2024: 609350
+    2025: 626350
   married_separate:
     1987: 75000
     1994: 75000
@@ -246,6 +262,10 @@ exemption_phaseout_threshold:
     2021: 523600
     2022: 539900
     2023: 578150
+    # 2024/2025: real law keeps single/HoH/married_separate equal here too
+    # (Rev. Proc. 2023-34 p.13, Rev. Proc. 2024-40 p.11).
+    2024: 609350
+    2025: 626350
   married_joint:
     1987: 150000
     1994: 150000
@@ -274,6 +294,8 @@ exemption_phaseout_threshold:
     2021: 1047200
     2022: 1079800
     2023: 1156300
+    2024: 1218700
+    2025: 1252700
 
 exemption_phaseout_rate:
   1987: 0.25
@@ -330,6 +352,8 @@ rate_breakpoint:  # almspf: below this AMT base, 26%; above, 28% - static defaul
   2021: 199900
   2022: 206100
   2023: 220700
+  2024: 232600
+  2025: 239100
 
 rate_below_breakpoint:
   # 1987-1990: a flat 21% AMT rate (the source's final, unconditional
@@ -468,6 +492,10 @@ cg_rate_15_ceiling:
     2021: 445850
     2022: 459750
     2023: 492300
+    # 2024/2025: same source as capital_gains.yaml's rate_15_ceiling (this
+    # is the AMT's own copy of the same 15%/20% breakpoint).
+    2024: 518900
+    2025: 533400
   head_of_household:
     1993: 1.0e+15
     1994: 1.0e+15
@@ -498,6 +526,8 @@ cg_rate_15_ceiling:
     2021: 473750
     2022: 488500
     2023: 523050
+    2024: 551350
+    2025: 566700
   married_separate:
     1993: 1.0e+15
     1994: 1.0e+15
@@ -528,6 +558,13 @@ cg_rate_15_ceiling:
     2021: 250800
     2022: 258600
     2023: 276925
+    # 2024/2025 from PolicyEngine-US's parameters/gov/irs/capital_gains/
+    # thresholds.yaml (SEPARATE bracket 2). Note: that same source gives
+    # 2023 as $276,900, $25 below this table's pre-existing $276,925 -
+    # a small, unresolved discrepancy already present before this edit,
+    # not something introduced here; not chased down further.
+    2024: 291850
+    2025: 300000
   married_joint:
     1993: 1.0e+15
     1994: 1.0e+15
@@ -558,6 +595,8 @@ cg_rate_15_ceiling:
     2021: 501600
     2022: 517200
     2023: 553850
+    2024: 583750
+    2025: 600050
 
 # 1990+: the exemption of a dependent filer, or of a filer whose reported
 # (older) age is under `young_filer_age`, is capped at earned income plus

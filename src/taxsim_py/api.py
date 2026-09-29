@@ -6,6 +6,7 @@ from typing import Literal
 
 import polars as pl
 
+from taxsim_py.behavior import BehaviorProfile, CalculationMode, resolve_behavior
 from taxsim_py.calculators.states import (
     FIPS_TO_TAXSIM,
     STATE_CALCULATOR_PATHS,
@@ -142,6 +143,7 @@ def _resolve(
     calculators: dict,
     max_year_workers: int | None,
     keep_intermediate: bool,
+    behavior: BehaviorProfile,
     keep_columns: tuple[str, ...] = (),
     result_columns: tuple[str, ...] | None = None,
 ) -> pl.DataFrame:
@@ -154,6 +156,7 @@ def _resolve(
             keep_intermediate=keep_intermediate,
             keep_columns=keep_columns,
             result_columns=result_columns,
+            behavior=behavior,
         )
 
     def resolve_single_year(part: pl.DataFrame, partition_year: int) -> pl.DataFrame:
@@ -185,6 +188,7 @@ def _resolve(
             keep_intermediate=keep_intermediate,
             keep_columns=keep_columns,
             result_columns=result_columns,
+            behavior=behavior,
         )
 
     if len(year_partitions) == 1:
@@ -312,6 +316,7 @@ def calculate_taxes(
     mtr: int | MarginalInput | None = None,
     idtl: int | None = None,
     taxsim_names: bool = False,
+    calculation_mode: str | CalculationMode = CalculationMode.TAXSIM,
 ) -> pl.DataFrame:
     """Calculate federal, payroll, and state taxes for a Polars dataframe.
 
@@ -337,7 +342,13 @@ def calculate_taxes(
     ``STATE_DETAIL_COLUMNS``. Set ``taxsim_names=True`` to rename only those
     detail columns to TAXSIM's compatibility labels (``credits``, ``v10``-
     ``v45`` and ``staxbc``) as the final output step.
+
+    ``calculation_mode="taxsim"`` preserves the compiled model's behavior.
+    ``calculation_mode="statutory"`` applies independently verified corrections
+    recorded in ``docs/statutory_corrections.md``. The compatibility mode is
+    the default so existing replication results do not change silently.
     """
+    behavior = resolve_behavior(calculation_mode)
     frame = df.collect() if isinstance(df, pl.LazyFrame) else df
     columns = frame.columns
     if state_column not in columns:
@@ -389,8 +400,9 @@ def calculate_taxes(
             calculators,
             max_year_workers,
             keep_intermediate,
-            tuple(STATE_DETAIL_SOURCES.values()) if 2 in detail_levels else (),
-            result_columns,
+            behavior,
+            keep_columns=tuple(STATE_DETAIL_SOURCES.values()) if 2 in detail_levels else (),
+            result_columns=result_columns,
         ).sort(row_column)
 
     marginal_input = None if mtr is None else _as_marginal_input(mtr)

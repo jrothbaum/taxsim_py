@@ -135,6 +135,11 @@ child_tax_credit:
     2019: 1400
     2022: 1500
     2023: 1600
+    # 2024/2025: Rev. Proc. 2023-34 p.9, Rev. Proc. 2024-40 p.8 - the cap
+    # holds flat at $1,700 both years (confirmed against PolicyEngine-US's
+    # parameters/gov/irs/credits/ctc/refundable/individual_max.yaml).
+    2024: 1700
+    2025: 1700
   # Pre-2018: no Credit for Other Dependents at all (TCJA introduced it) -
   # CTC alone phases out above a FLAT, never-inflation-indexed threshold
   # that was unchanged 2001-2017 (the `cphas` array,

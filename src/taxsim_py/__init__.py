@@ -1,5 +1,6 @@
 """Dataframe-oriented TAXSIM calculations."""
 
 from taxsim_py.api import MarginalInput, calculate_taxes
+from taxsim_py.behavior import CalculationMode
 
-__all__ = ["MarginalInput", "calculate_taxes"]
+__all__ = ["CalculationMode", "MarginalInput", "calculate_taxes"]

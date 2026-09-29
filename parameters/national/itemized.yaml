@@ -11,6 +11,16 @@ salt_cap:
   2018: 10000
   2019: 10000
   2022: 10000
+  # 2024: still $10,000 (OBBBA's SALT change below doesn't take effect
+  # until 2025). 2025: OBBBA (H.R.1, enacted 2025-07-04) raised the cap to
+  # $40,000 (single/joint/HoH/surviving spouse) - modeled here as a flat
+  # cap only. Real 2025+ law phases the cap back down toward a $10,000
+  # floor for MAGI above $500,000 (PolicyEngine-US's parameters/gov/irs/
+  # deductions/itemized/salt_and_real_estate/{cap,phase_out}.yaml); that
+  # income-based phase-out is NOT modeled here - a known gap, not an
+  # oversight (see docs/pending_issues.md).
+  2024: 10000
+  2025: 40000
 
 # Pease limitation (pre-TCJA, reinstated by ATRA 2013, suspended 2018-2025):
 # itemized deductions are reduced by the LESSER of 3% of AGI over a

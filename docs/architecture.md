@@ -57,6 +57,12 @@ runner sends rows with ages as a separate batch. The result is the input frame,
 unchanged, plus `api.OUTPUT_COLUMNS`; `keep_intermediate=True` adds every
 intermediate federal and state column.
 
+The public `calculation_mode` resolves once to an immutable behavior profile
+before rows are partitioned. `"taxsim"` is the backward-compatible default;
+`"statutory"` enables only the reviewed corrections listed in
+`docs/statutory_corrections.md`. Calculators receive the profile explicitly so
+formula code does not depend on ambient state or opaque string checks.
+
 When marginal rates are requested, the base and upward-perturbed rows are
 stacked into one resolver call so they share plan-construction overhead. Only
 rows whose upward difference falls outside TAXSIM's accepted rate range are

@@ -27,7 +27,12 @@ def state_sales_tax_deduction(
         return pl.lit(0.0)
     coefficient_year = min(year, int(_SALES_TAX_PARAMS["last_coefficient_year"]))
     xndxa = _CPI_PARAMS["xndxa"]
-    factor = float(xndxa[coefficient_year]) / float(xndxa[year])
+    # The CPI proxy table also has a last coded year (2023, matching NBER's
+    # own `xndxa(1981:2023)` array bound); beyond it there is no newer NBER
+    # observation to copy, so this reuses the latest coded ratio the same way
+    # `coefficient_year` above already does for the formula coefficients.
+    deflation_year = min(year, max(xndxa))
+    factor = float(xndxa[coefficient_year]) / float(xndxa[deflation_year])
     coefficients = _SALES_TAX_PARAMS["coefficients"][coefficient_year]
     a = b = c = pl.lit(0.0)
     for code, (a_value, b_value, c_value) in coefficients.items():

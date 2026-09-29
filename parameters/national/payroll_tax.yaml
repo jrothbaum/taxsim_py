@@ -115,6 +115,10 @@ oasdi_wage_base:  # smax: OASDI taxable wage cap, no cap on the HI (Medicare) si
   # that mismatch is intentional, not something to chase back into
   # agreement with the oracle.
   2023: 160200
+  # 2024/2025: official SSA-published wage base (Contribution and Benefit
+  # Base, https://www.ssa.gov/oact/cola/cbb.html), no discrepancy this time.
+  2024: 168600
+  2025: 176100
 # owrate = 2*(trate-hrate). Flat at 12.4% since 1990 EXCEPT the 2011-2012
 # "payroll tax holiday" (Tax Relief Act of 2010): `trate`'s own data array
 # has an explicit two-year carve-out (taxsim_2022_10_21.f:22198-22207,

@@ -55,6 +55,11 @@ dylim:
   # wrong, use the real parameters that are known"), this project uses
   # the real $11,000 - a deliberate departure from the oracle, not a bug.
   2023: 11000
+  # 2024/2025: real, IRS-published limits (Rev. Proc. 2023-34 p.10, Rev.
+  # Proc. 2024-40 p.9) - confirmed against PolicyEngine-US's parameters/
+  # gov/irs/credits/eitc/phase_out/max_investment_income.yaml.
+  2024: 11600
+  2025: 11950
 
 # Filers without qualifying children (from 1994): the youngest age at which
 # at least one taxpayer qualifies. TAXSIM keeps 2021's 19 for 2022 on; the

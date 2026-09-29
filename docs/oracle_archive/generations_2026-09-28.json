@@ -1,0 +1,753 @@
+{
+  "archived_at": "2026-09-29T02:18:11.144653+00:00",
+  "generations": {
+    "frozen-2024": {
+      "build": "unknown",
+      "output_schema": [
+        "taxsimid",
+        "year",
+        "state",
+        "fiitax",
+        "siitax",
+        "fica",
+        "frate",
+        "srate",
+        "ficar",
+        "tfica",
+        "credits",
+        "v10",
+        "v11",
+        "v12",
+        "v13",
+        "v14",
+        "v15",
+        "v16",
+        "v17",
+        "v18",
+        "v19",
+        "v20",
+        "v21",
+        "v22",
+        "v23",
+        "v24",
+        "v25",
+        "v26",
+        "v27",
+        "v28",
+        "v29",
+        "v30",
+        "v31",
+        "v32",
+        "v33",
+        "v34",
+        "v35",
+        "v36",
+        "v37",
+        "v38",
+        "v39",
+        "v40",
+        "v41",
+        "staxbc",
+        "v42",
+        "v43",
+        "v44",
+        "v45"
+      ],
+      "path": "/home/jrothbaum/Coding/claude_code/taxsim_py/taxsim2024.exe",
+      "sha256": "857cbc2a6ceba6531aa0442856060af79dc205b90a73eb2bf41ed0c58ef38958",
+      "size_bytes": 857816
+    },
+    "policyengine-taxsim35-legacy": {
+      "build": "unknown",
+      "output_schema": [
+        "taxsimid",
+        "year",
+        "state",
+        "fiitax",
+        "siitax",
+        "fica",
+        "frate",
+        "srate",
+        "ficar",
+        "tfica",
+        "credits",
+        "v10",
+        "v11",
+        "v12",
+        "v13",
+        "v14",
+        "v15",
+        "v16",
+        "v17",
+        "v18",
+        "v19",
+        "v20",
+        "v21",
+        "v22",
+        "v23",
+        "v24",
+        "v25",
+        "v26",
+        "v27",
+        "v28",
+        "v29",
+        "v30",
+        "v31",
+        "v32",
+        "v33",
+        "v34",
+        "v35",
+        "v36",
+        "v37",
+        "v38",
+        "v39",
+        "v40",
+        "v41",
+        "staxbc",
+        "v42",
+        "v43",
+        "v44",
+        "v45"
+      ],
+      "path": "/home/jrothbaum/Coding/claude_code/taxsim_py/.venv/share/policyengine_taxsim/taxsim35/taxsim35-unix.exe",
+      "sha256": "c83d6a214e49f0206f69eb675502968ffe1109dff4420f5ec4b8d85f7386055d",
+      "size_bytes": 4545432
+    },
+    "policyengine-taxsimtest-2026081819": {
+      "build": 2026081819,
+      "output_schema": [
+        "taxsimid",
+        "year",
+        "state",
+        "fiitax",
+        "siitax",
+        "fica",
+        "frate",
+        "srate",
+        "ficar",
+        "tfica",
+        "v10",
+        "v11",
+        "v12",
+        "v13",
+        "v14",
+        "v15",
+        "v16",
+        "v17",
+        "v18",
+        "v19",
+        "v20",
+        "v21",
+        "v22",
+        "v23",
+        "v24",
+        "v25",
+        "v26",
+        "v27",
+        "v28",
+        "v29",
+        "v30",
+        "v31",
+        "v32",
+        "v33",
+        "v34",
+        "v35",
+        "v36",
+        "v37",
+        "v38",
+        "v39",
+        "v40",
+        "v41",
+        "staxbc",
+        "srebate",
+        "senergy",
+        "sctc",
+        "sptcr",
+        "samt",
+        "qbid",
+        "niit",
+        "addmed",
+        "cares",
+        "actc",
+        "\"cd2026081819\"",
+        "credits",
+        "v42",
+        "v43",
+        "v44",
+        "v45"
+      ],
+      "path": "/home/jrothbaum/Coding/claude_code/taxsim_py/.venv/share/policyengine_taxsim/taxsimtest/taxsimtest-linux.exe",
+      "sha256": "00a321d2467ba011992f8b83c6e485a9b710c48fca4262a23fec1de26942a89b",
+      "size_bytes": 2129624
+    },
+    "repo-taxsimtest-2026072709": {
+      "build": 2026072709,
+      "output_schema": [
+        "taxsimid",
+        "year",
+        "state",
+        "fiitax",
+        "siitax",
+        "fica",
+        "frate",
+        "srate",
+        "ficar",
+        "tfica",
+        "v10",
+        "v11",
+        "v12",
+        "v13",
+        "v14",
+        "v15",
+        "v16",
+        "v17",
+        "v18",
+        "v19",
+        "v20",
+        "v21",
+        "v22",
+        "v23",
+        "v24",
+        "v25",
+        "v26",
+        "v27",
+        "v28",
+        "v29",
+        "v30",
+        "v31",
+        "v32",
+        "v33",
+        "v34",
+        "v35",
+        "v36",
+        "v37",
+        "v38",
+        "v39",
+        "v40",
+        "v41",
+        "staxbc",
+        "srebate",
+        "senergy",
+        "sctc",
+        "sptcr",
+        "samt",
+        "qbid",
+        "niit",
+        "addmed",
+        "cares",
+        "actc",
+        "\"cd2026072709\"",
+        "credits",
+        "v42",
+        "v43",
+        "v44",
+        "v45"
+      ],
+      "path": "/home/jrothbaum/Coding/claude_code/taxsim_py/taxsim.exe",
+      "sha256": "55ff606006939852c2187b74848e30f6633c26e9b9ae9413a9ae32003c29b1b0",
+      "size_bytes": 2118896
+    }
+  },
+  "note": "Large-N CPS-based diff counts are recorded separately in docs/pending_issues.md (\"TAXSIM executable generations\"); this archive does not reproduce them.",
+  "synthetic_matrix": {
+    "case_count": 48,
+    "states": {
+      "CA": 5,
+      "MN": 24,
+      "NY": 33,
+      "federal": 0
+    },
+    "years": [
+      2013,
+      2018,
+      2021,
+      2023
+    ]
+  },
+  "synthetic_matrix_comparisons": {
+    "frozen-2024_vs_policyengine-taxsim35-legacy": {},
+    "frozen-2024_vs_policyengine-taxsimtest-2026081819": {
+      "credits": {
+        "maximum_absolute_difference": 4000.0,
+        "mismatch_count": 12,
+        "mismatch_rate": 0.25
+      },
+      "fica": {
+        "maximum_absolute_difference": 700.6000000000022,
+        "mismatch_count": 4,
+        "mismatch_rate": 0.08333333333333333
+      },
+      "ficar": {
+        "maximum_absolute_difference": 15.3,
+        "mismatch_count": 48,
+        "mismatch_rate": 1.0
+      },
+      "fiitax": {
+        "maximum_absolute_difference": 711.75,
+        "mismatch_count": 1,
+        "mismatch_rate": 0.020833333333333332
+      },
+      "frate": {
+        "maximum_absolute_difference": 28.0,
+        "mismatch_count": 48,
+        "mismatch_rate": 1.0
+      },
+      "siitax": {
+        "maximum_absolute_difference": 3603.0899999999992,
+        "mismatch_count": 22,
+        "mismatch_rate": 0.4583333333333333
+      },
+      "srate": {
+        "maximum_absolute_difference": 9.3,
+        "mismatch_count": 36,
+        "mismatch_rate": 0.75
+      },
+      "staxbc": {
+        "maximum_absolute_difference": 8824.22,
+        "mismatch_count": 36,
+        "mismatch_rate": 0.75
+      },
+      "v13": {
+        "maximum_absolute_difference": 6100.0,
+        "mismatch_count": 3,
+        "mismatch_rate": 0.0625
+      },
+      "v17": {
+        "maximum_absolute_difference": 8641.96,
+        "mismatch_count": 1,
+        "mismatch_rate": 0.020833333333333332
+      },
+      "v18": {
+        "maximum_absolute_difference": 2541.9600000000064,
+        "mismatch_count": 1,
+        "mismatch_rate": 0.020833333333333332
+      },
+      "v19": {
+        "maximum_absolute_difference": 711.75,
+        "mismatch_count": 1,
+        "mismatch_rate": 0.020833333333333332
+      },
+      "v28": {
+        "maximum_absolute_difference": 711.75,
+        "mismatch_count": 1,
+        "mismatch_rate": 0.020833333333333332
+      },
+      "v29": {
+        "maximum_absolute_difference": 700.6000000000022,
+        "mismatch_count": 4,
+        "mismatch_rate": 0.08333333333333333
+      },
+      "v32": {
+        "maximum_absolute_difference": 11788.619999999995,
+        "mismatch_count": 9,
+        "mismatch_rate": 0.1875
+      },
+      "v33": {
+        "maximum_absolute_difference": 16600.0,
+        "mismatch_count": 7,
+        "mismatch_rate": 0.14583333333333334
+      },
+      "v34": {
+        "maximum_absolute_difference": 6100.0,
+        "mismatch_count": 7,
+        "mismatch_rate": 0.14583333333333334
+      },
+      "v35": {
+        "maximum_absolute_difference": 1938.0700000000002,
+        "mismatch_count": 3,
+        "mismatch_rate": 0.0625
+      },
+      "v36": {
+        "maximum_absolute_difference": 115241.97,
+        "mismatch_count": 18,
+        "mismatch_rate": 0.375
+      },
+      "v39": {
+        "maximum_absolute_difference": 247.07999999999998,
+        "mismatch_count": 2,
+        "mismatch_rate": 0.041666666666666664
+      },
+      "v40": {
+        "maximum_absolute_difference": 662.64,
+        "mismatch_count": 13,
+        "mismatch_rate": 0.2708333333333333
+      },
+      "v41": {
+        "maximum_absolute_difference": 6.33,
+        "mismatch_count": 9,
+        "mismatch_rate": 0.1875
+      }
+    },
+    "frozen-2024_vs_repo-taxsimtest-2026072709": {
+      "credits": {
+        "maximum_absolute_difference": 4000.0,
+        "mismatch_count": 12,
+        "mismatch_rate": 0.25
+      },
+      "fica": {
+        "maximum_absolute_difference": 700.6000000000022,
+        "mismatch_count": 4,
+        "mismatch_rate": 0.08333333333333333
+      },
+      "ficar": {
+        "maximum_absolute_difference": 15.3,
+        "mismatch_count": 48,
+        "mismatch_rate": 1.0
+      },
+      "fiitax": {
+        "maximum_absolute_difference": 711.75,
+        "mismatch_count": 1,
+        "mismatch_rate": 0.020833333333333332
+      },
+      "frate": {
+        "maximum_absolute_difference": 28.0,
+        "mismatch_count": 48,
+        "mismatch_rate": 1.0
+      },
+      "siitax": {
+        "maximum_absolute_difference": 3603.0899999999992,
+        "mismatch_count": 22,
+        "mismatch_rate": 0.4583333333333333
+      },
+      "srate": {
+        "maximum_absolute_difference": 9.3,
+        "mismatch_count": 36,
+        "mismatch_rate": 0.75
+      },
+      "staxbc": {
+        "maximum_absolute_difference": 8824.22,
+        "mismatch_count": 36,
+        "mismatch_rate": 0.75
+      },
+      "v13": {
+        "maximum_absolute_difference": 6100.0,
+        "mismatch_count": 3,
+        "mismatch_rate": 0.0625
+      },
+      "v17": {
+        "maximum_absolute_difference": 8641.96,
+        "mismatch_count": 1,
+        "mismatch_rate": 0.020833333333333332
+      },
+      "v18": {
+        "maximum_absolute_difference": 2541.9600000000064,
+        "mismatch_count": 1,
+        "mismatch_rate": 0.020833333333333332
+      },
+      "v19": {
+        "maximum_absolute_difference": 711.75,
+        "mismatch_count": 1,
+        "mismatch_rate": 0.020833333333333332
+      },
+      "v28": {
+        "maximum_absolute_difference": 711.75,
+        "mismatch_count": 1,
+        "mismatch_rate": 0.020833333333333332
+      },
+      "v29": {
+        "maximum_absolute_difference": 700.6000000000022,
+        "mismatch_count": 4,
+        "mismatch_rate": 0.08333333333333333
+      },
+      "v32": {
+        "maximum_absolute_difference": 11788.619999999995,
+        "mismatch_count": 9,
+        "mismatch_rate": 0.1875
+      },
+      "v33": {
+        "maximum_absolute_difference": 16600.0,
+        "mismatch_count": 7,
+        "mismatch_rate": 0.14583333333333334
+      },
+      "v34": {
+        "maximum_absolute_difference": 6100.0,
+        "mismatch_count": 7,
+        "mismatch_rate": 0.14583333333333334
+      },
+      "v35": {
+        "maximum_absolute_difference": 1938.0700000000002,
+        "mismatch_count": 3,
+        "mismatch_rate": 0.0625
+      },
+      "v36": {
+        "maximum_absolute_difference": 115241.97,
+        "mismatch_count": 18,
+        "mismatch_rate": 0.375
+      },
+      "v39": {
+        "maximum_absolute_difference": 247.07999999999998,
+        "mismatch_count": 2,
+        "mismatch_rate": 0.041666666666666664
+      },
+      "v40": {
+        "maximum_absolute_difference": 662.64,
+        "mismatch_count": 12,
+        "mismatch_rate": 0.25
+      },
+      "v41": {
+        "maximum_absolute_difference": 2.5,
+        "mismatch_count": 9,
+        "mismatch_rate": 0.1875
+      }
+    },
+    "policyengine-taxsim35-legacy_vs_policyengine-taxsimtest-2026081819": {
+      "credits": {
+        "maximum_absolute_difference": 4000.0,
+        "mismatch_count": 12,
+        "mismatch_rate": 0.25
+      },
+      "fica": {
+        "maximum_absolute_difference": 700.6000000000022,
+        "mismatch_count": 4,
+        "mismatch_rate": 0.08333333333333333
+      },
+      "ficar": {
+        "maximum_absolute_difference": 15.3,
+        "mismatch_count": 48,
+        "mismatch_rate": 1.0
+      },
+      "fiitax": {
+        "maximum_absolute_difference": 711.75,
+        "mismatch_count": 1,
+        "mismatch_rate": 0.020833333333333332
+      },
+      "frate": {
+        "maximum_absolute_difference": 28.0,
+        "mismatch_count": 48,
+        "mismatch_rate": 1.0
+      },
+      "siitax": {
+        "maximum_absolute_difference": 3603.0899999999992,
+        "mismatch_count": 22,
+        "mismatch_rate": 0.4583333333333333
+      },
+      "srate": {
+        "maximum_absolute_difference": 9.3,
+        "mismatch_count": 36,
+        "mismatch_rate": 0.75
+      },
+      "staxbc": {
+        "maximum_absolute_difference": 8824.22,
+        "mismatch_count": 36,
+        "mismatch_rate": 0.75
+      },
+      "v13": {
+        "maximum_absolute_difference": 6100.0,
+        "mismatch_count": 3,
+        "mismatch_rate": 0.0625
+      },
+      "v17": {
+        "maximum_absolute_difference": 8641.96,
+        "mismatch_count": 1,
+        "mismatch_rate": 0.020833333333333332
+      },
+      "v18": {
+        "maximum_absolute_difference": 2541.9600000000064,
+        "mismatch_count": 1,
+        "mismatch_rate": 0.020833333333333332
+      },
+      "v19": {
+        "maximum_absolute_difference": 711.75,
+        "mismatch_count": 1,
+        "mismatch_rate": 0.020833333333333332
+      },
+      "v28": {
+        "maximum_absolute_difference": 711.75,
+        "mismatch_count": 1,
+        "mismatch_rate": 0.020833333333333332
+      },
+      "v29": {
+        "maximum_absolute_difference": 700.6000000000022,
+        "mismatch_count": 4,
+        "mismatch_rate": 0.08333333333333333
+      },
+      "v32": {
+        "maximum_absolute_difference": 11788.619999999995,
+        "mismatch_count": 9,
+        "mismatch_rate": 0.1875
+      },
+      "v33": {
+        "maximum_absolute_difference": 16600.0,
+        "mismatch_count": 7,
+        "mismatch_rate": 0.14583333333333334
+      },
+      "v34": {
+        "maximum_absolute_difference": 6100.0,
+        "mismatch_count": 7,
+        "mismatch_rate": 0.14583333333333334
+      },
+      "v35": {
+        "maximum_absolute_difference": 1938.0700000000002,
+        "mismatch_count": 3,
+        "mismatch_rate": 0.0625
+      },
+      "v36": {
+        "maximum_absolute_difference": 115241.97,
+        "mismatch_count": 18,
+        "mismatch_rate": 0.375
+      },
+      "v39": {
+        "maximum_absolute_difference": 247.07999999999998,
+        "mismatch_count": 2,
+        "mismatch_rate": 0.041666666666666664
+      },
+      "v40": {
+        "maximum_absolute_difference": 662.64,
+        "mismatch_count": 13,
+        "mismatch_rate": 0.2708333333333333
+      },
+      "v41": {
+        "maximum_absolute_difference": 6.33,
+        "mismatch_count": 9,
+        "mismatch_rate": 0.1875
+      }
+    },
+    "policyengine-taxsim35-legacy_vs_repo-taxsimtest-2026072709": {
+      "credits": {
+        "maximum_absolute_difference": 4000.0,
+        "mismatch_count": 12,
+        "mismatch_rate": 0.25
+      },
+      "fica": {
+        "maximum_absolute_difference": 700.6000000000022,
+        "mismatch_count": 4,
+        "mismatch_rate": 0.08333333333333333
+      },
+      "ficar": {
+        "maximum_absolute_difference": 15.3,
+        "mismatch_count": 48,
+        "mismatch_rate": 1.0
+      },
+      "fiitax": {
+        "maximum_absolute_difference": 711.75,
+        "mismatch_count": 1,
+        "mismatch_rate": 0.020833333333333332
+      },
+      "frate": {
+        "maximum_absolute_difference": 28.0,
+        "mismatch_count": 48,
+        "mismatch_rate": 1.0
+      },
+      "siitax": {
+        "maximum_absolute_difference": 3603.0899999999992,
+        "mismatch_count": 22,
+        "mismatch_rate": 0.4583333333333333
+      },
+      "srate": {
+        "maximum_absolute_difference": 9.3,
+        "mismatch_count": 36,
+        "mismatch_rate": 0.75
+      },
+      "staxbc": {
+        "maximum_absolute_difference": 8824.22,
+        "mismatch_count": 36,
+        "mismatch_rate": 0.75
+      },
+      "v13": {
+        "maximum_absolute_difference": 6100.0,
+        "mismatch_count": 3,
+        "mismatch_rate": 0.0625
+      },
+      "v17": {
+        "maximum_absolute_difference": 8641.96,
+        "mismatch_count": 1,
+        "mismatch_rate": 0.020833333333333332
+      },
+      "v18": {
+        "maximum_absolute_difference": 2541.9600000000064,
+        "mismatch_count": 1,
+        "mismatch_rate": 0.020833333333333332
+      },
+      "v19": {
+        "maximum_absolute_difference": 711.75,
+        "mismatch_count": 1,
+        "mismatch_rate": 0.020833333333333332
+      },
+      "v28": {
+        "maximum_absolute_difference": 711.75,
+        "mismatch_count": 1,
+        "mismatch_rate": 0.020833333333333332
+      },
+      "v29": {
+        "maximum_absolute_difference": 700.6000000000022,
+        "mismatch_count": 4,
+        "mismatch_rate": 0.08333333333333333
+      },
+      "v32": {
+        "maximum_absolute_difference": 11788.619999999995,
+        "mismatch_count": 9,
+        "mismatch_rate": 0.1875
+      },
+      "v33": {
+        "maximum_absolute_difference": 16600.0,
+        "mismatch_count": 7,
+        "mismatch_rate": 0.14583333333333334
+      },
+      "v34": {
+        "maximum_absolute_difference": 6100.0,
+        "mismatch_count": 7,
+        "mismatch_rate": 0.14583333333333334
+      },
+      "v35": {
+        "maximum_absolute_difference": 1938.0700000000002,
+        "mismatch_count": 3,
+        "mismatch_rate": 0.0625
+      },
+      "v36": {
+        "maximum_absolute_difference": 115241.97,
+        "mismatch_count": 18,
+        "mismatch_rate": 0.375
+      },
+      "v39": {
+        "maximum_absolute_difference": 247.07999999999998,
+        "mismatch_count": 2,
+        "mismatch_rate": 0.041666666666666664
+      },
+      "v40": {
+        "maximum_absolute_difference": 662.64,
+        "mismatch_count": 12,
+        "mismatch_rate": 0.25
+      },
+      "v41": {
+        "maximum_absolute_difference": 2.5,
+        "mismatch_count": 9,
+        "mismatch_rate": 0.1875
+      }
+    },
+    "policyengine-taxsimtest-2026081819_vs_repo-taxsimtest-2026072709": {
+      "sctc": {
+        "maximum_absolute_difference": 302.94000000000005,
+        "mismatch_count": 1,
+        "mismatch_rate": 0.020833333333333332
+      },
+      "siitax": {
+        "maximum_absolute_difference": 372.65999999999985,
+        "mismatch_count": 2,
+        "mismatch_rate": 0.041666666666666664
+      },
+      "sptcr": {
+        "maximum_absolute_difference": 40.0,
+        "mismatch_count": 1,
+        "mismatch_rate": 0.020833333333333332
+      },
+      "staxbc": {
+        "maximum_absolute_difference": 372.65999999999985,
+        "mismatch_count": 1,
+        "mismatch_rate": 0.020833333333333332
+      },
+      "v40": {
+        "maximum_absolute_difference": 660.0,
+        "mismatch_count": 2,
+        "mismatch_rate": 0.041666666666666664
+      },
+      "v41": {
+        "maximum_absolute_difference": 6.25,
+        "mismatch_count": 3,
+        "mismatch_rate": 0.0625
+      }
+    }
+  },
+  "unavailable_generations": {
+    "nber-out2psl-2026092717": "NBER out2psl/linux download, seen 2026-09-27; not cached locally."
+  }
+}

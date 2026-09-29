@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 from collections.abc import Callable
 import sys
@@ -14,10 +15,15 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from taxsim_py.engine.inputs import CHILD_AGE_INPUTS, DEPENDENT_DEFAULT_INPUTS, TAXSIM_INPUTS  # noqa: E402
 
-TAXSIM_EXE = ROOT / "taxsim2024.exe"
+# Keep the frozen local executable as the compatibility baseline when present.
+# Release and CI jobs can point at PolicyEngine's bundled or an archived NBER
+# build without copying that binary into this repository. Build identity must
+# be recorded because TAXSIM is being sunset and outputs differ by snapshot.
+TAXSIM_EXE = Path(os.environ.get("TAXSIM_EXE", ROOT / "taxsim2024.exe")).expanduser().resolve()
 # Inputs sent unless a case sets them: controls and child ages change how
 # TAXSIM reads the whole file, so they are only sent when used.
 _OPTIONAL = {"idtl", "mtr", "opt1", "opt1v", "opt2", "opt2v", *CHILD_AGE_INPUTS}
+_DEPENDENT_AGE_COUNT_INPUTS = {*DEPENDENT_DEFAULT_INPUTS, "dep6", "dep19"}
 
 
 # TAXSIM adds a leftover $1 to household income for every record after the
@@ -26,7 +32,7 @@ _WARMUP_ID = 999_999_999
 _WARMUP_VALUES = {"taxsimid": _WARMUP_ID, "year": 2000, "mstat": 1}
 
 
-def _run(cases: pl.DataFrame, columns: list[str]) -> pl.DataFrame:
+def _run(cases: pl.DataFrame, columns: list[str], executable: Path) -> pl.DataFrame:
     lines = [" ".join(columns)]
     # Output controls (the header TAXSIM prints) follow the first record.
     first = cases.row(0, named=True)
@@ -35,21 +41,47 @@ def _run(cases: pl.DataFrame, columns: list[str]) -> pl.DataFrame:
     for row in cases.select(columns).iter_rows():
         lines.append(" ".join(str(v) for v in row))
     result = subprocess.run(
-        [str(TAXSIM_EXE)], input="\n".join(lines) + "\n", capture_output=True, text=True, timeout=600
+        [str(executable)], input="\n".join(lines) + "\n", capture_output=True, text=True, timeout=600
     )
     if result.returncode != 0:
-        raise RuntimeError(f"taxsim.exe failed: {result.stderr}\n{result.stdout[-2000:]}")
+        raise RuntimeError(
+            f"{executable} failed: {result.stderr}\n{result.stdout[-2000:]}"
+        )
     out_lines = [ln for ln in result.stdout.splitlines() if ln.strip()]
     header = [h.strip() for h in out_lines[0].split(",")]
     rows = [[v.strip() for v in ln.split(",")] for ln in out_lines[1:]]
     out = pl.DataFrame(rows, schema=header, orient="row")
-    return out.with_columns(
+    out = out.with_columns(
         pl.col("taxsimid").cast(pl.Float64).cast(pl.Int64),
         *[pl.col(c).cast(pl.Float64) for c in header if c != "taxsimid"],
     ).filter(pl.col("taxsimid") != _WARMUP_ID)
+    # Rolling taxsimtest builds replaced several old vNN columns with semantic
+    # names. Normalize the directly corresponding fields so the same comparison
+    # scripts can inspect both schemas. The removed `credits` and `v42` fields
+    # have no direct replacement and are represented as zero, which makes a
+    # substantive difference visible instead of failing during projection.
+    present = set(out.columns)
+    compatibility_columns = []
+    if "credits" not in present:
+        compatibility_columns.append(pl.lit(0.0).alias("credits"))
+    if "v42" not in present:
+        compatibility_columns.append(pl.lit(0.0).alias("v42"))
+    for compatibility_name, semantic_name in {
+        "v43": "niit",
+        "v44": "addmed",
+        "v45": "cares",
+    }.items():
+        if compatibility_name not in present and semantic_name in present:
+            compatibility_columns.append(pl.col(semantic_name).alias(compatibility_name))
+    return out.with_columns(*compatibility_columns)
 
 
-def run_oracle(cases: pl.DataFrame, idtl: int | None = None, mtr: int | None = None) -> pl.DataFrame:
+def run_oracle(
+    cases: pl.DataFrame,
+    idtl: int | None = None,
+    mtr: int | None = None,
+    executable: str | Path | None = None,
+) -> pl.DataFrame:
     """TAXSIM outputs for `cases` (one row per `taxsimid`).
 
     Absent or null inputs are sent as 0, except `dep13`/`dep17`/`dep18`,
@@ -57,6 +89,7 @@ def run_oracle(cases: pl.DataFrame, idtl: int | None = None, mtr: int | None = N
     separate batch with the age columns, since TAXSIM derives dependent counts
     from ages for every row of a file with age columns.
     """
+    oracle_executable = Path(executable or TAXSIM_EXE).expanduser().resolve()
     frame = cases
     if idtl is not None:
         frame = frame.with_columns(idtl=pl.lit(idtl))
@@ -85,9 +118,18 @@ def run_oracle(cases: pl.DataFrame, idtl: int | None = None, mtr: int | None = N
         without_ages = frame
     parts = []
     if without_ages.height:
-        parts.append(_run(without_ages, [*base, *controls]))
+        parts.append(_run(without_ages, [*base, *controls], oracle_executable))
     if with_ages.height:
-        parts.append(_run(with_ages, [*base, *controls, *CHILD_AGE_INPUTS]))
+        # Current TAXSIM-35 rejects a file that supplies both individual ages
+        # and depNN age-band counts. Older binaries silently preferred ages.
+        age_base = [column for column in base if column not in _DEPENDENT_AGE_COUNT_INPUTS]
+        parts.append(
+            _run(
+                with_ages,
+                [*age_base, *controls, *CHILD_AGE_INPUTS],
+                oracle_executable,
+            )
+        )
     return pl.concat(parts, how="diagonal_relaxed")
 
 

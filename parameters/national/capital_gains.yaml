@@ -91,6 +91,9 @@ rate_0_ceiling:  # brac15: the 0%/15% breakpoint
     2021: 40400
     2022: 41675
     2023: 44625
+    # 2024/2025 (Rev. Proc. 2023-34 p.8, Rev. Proc. 2024-40 p.7).
+    2024: 47025
+    2025: 48350
   head_of_household:
     1987: 2500
     1988: 23900
@@ -129,6 +132,8 @@ rate_0_ceiling:  # brac15: the 0%/15% breakpoint
     2021: 54100
     2022: 55800
     2023: 59750
+    2024: 63000
+    2025: 64750
   married_separate:
     1987: 1500
     1988: 14875
@@ -167,6 +172,8 @@ rate_0_ceiling:  # brac15: the 0%/15% breakpoint
     2021: 40400
     2022: 41675
     2023: 44625
+    2024: 47025
+    2025: 48350
   married_joint:
     1987: 3000
     1988: 29750
@@ -205,6 +212,8 @@ rate_0_ceiling:  # brac15: the 0%/15% breakpoint
     2021: 80800
     2022: 83350
     2023: 89250
+    2024: 94050
+    2025: 96700
 rate_15_ceiling:  # topbrk: the 15%/20% breakpoint
   # Before 2013, there was no 20% capital-gains rate in law at all - the
   # source's `addtax` (regular tax's 20%-tier add-on) is gated behind
@@ -258,6 +267,9 @@ rate_15_ceiling:  # topbrk: the 15%/20% breakpoint
     2021: 445850
     2022: 459650
     2023: 492300
+    # 2024/2025 (Rev. Proc. 2023-34 p.8, Rev. Proc. 2024-40 p.7).
+    2024: 518900
+    2025: 533400
   head_of_household:
     1987: 1.0e+15
     1988: 1.0e+15
@@ -295,6 +307,8 @@ rate_15_ceiling:  # topbrk: the 15%/20% breakpoint
     2021: 473750
     2022: 488500
     2023: 523050
+    2024: 551350
+    2025: 566700
   married_separate:
     1987: 1.0e+15
     1988: 1.0e+15
@@ -332,6 +346,10 @@ rate_15_ceiling:  # topbrk: the 15%/20% breakpoint
     2021: 250800
     2022: 258600
     2023: 276925
+    # 2024/2025 from PolicyEngine-US (see amt.yaml's own cg_rate_15_ceiling
+    # comment for the same $25 pre-existing 2023 discrepancy note).
+    2024: 291850
+    2025: 300000
   married_joint:
     1987: 1.0e+15
     1988: 1.0e+15
@@ -369,6 +387,8 @@ rate_15_ceiling:  # topbrk: the 15%/20% breakpoint
     2021: 501600
     2022: 517200
     2023: 553850
+    2024: 583750
+    2025: 600050
 # Pre-2003 (2001-2002): the old, pre-JGTRRA flat two-tier LTCG system -
 # 10% up to the rate_0_ceiling breakpoint, 20% above it, no third tier at
 # all. Reuses this same three-tier engine (rate_0/rate_15/rate_0_ceiling)

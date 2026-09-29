@@ -2,6 +2,7 @@
 
 import polars as pl
 
+from taxsim_py.behavior import BehaviorProfile, TAXSIM_BEHAVIOR
 from taxsim_py.engine.payroll_tax import PAYROLL_ITEMS, taxsim_payroll
 from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml, resolve_year
 from taxsim_py.engine.state import by_filing_status, with_defaults
@@ -12,7 +13,7 @@ FILING_STATUSES = ["single", "married_joint", "married_separate", "head_of_house
 PAYROLL_INPUTS = tuple(name for names in PAYROLL_ITEMS for name in names)
 
 
-def payroll_parts(year: int) -> dict[str, pl.Expr]:
+def payroll_parts(year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> dict[str, pl.Expr]:
     """TAXSIM's payroll figures for `year` (see `engine.payroll_tax.taxsim_payroll`)."""
     p = YearParams(PAYROLL_TAX_PARAMS, year)
     threshold_expr = by_filing_status(
@@ -28,14 +29,17 @@ def payroll_parts(year: int) -> dict[str, pl.Expr]:
         addmed_rate=p.num("additional_medicare_rate"),
         addmed_threshold=threshold_expr,
         own_share_self_employment=float(p["own_share_self_employment"]),
+        behavior=behavior,
     )
 
 
 def compute_payroll_tax(
-    df: pl.DataFrame | pl.LazyFrame, year: int
+    df: pl.DataFrame | pl.LazyFrame,
+    year: int,
+    behavior: BehaviorProfile = TAXSIM_BEHAVIOR,
 ) -> pl.DataFrame | pl.LazyFrame:
     df = with_defaults(df, PAYROLL_INPUTS)
-    parts = payroll_parts(year)
+    parts = payroll_parts(year, behavior)
     # Reuse the figures the federal calculation already computed.
     present = set(df.collect_schema().names())
     parts = {name: pl.col(f"__payroll_{name}") if f"__payroll_{name}" in present else expr for name, expr in parts.items()}

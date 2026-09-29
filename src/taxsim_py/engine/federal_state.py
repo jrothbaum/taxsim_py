@@ -4,6 +4,7 @@ from collections.abc import Callable, Mapping
 
 import polars as pl
 
+from taxsim_py.behavior import BehaviorProfile, TAXSIM_BEHAVIOR
 from taxsim_py.calculators.federal import compute_federal_income_tax
 from taxsim_py.calculators.payroll import compute_payroll_tax
 from taxsim_py.engine.inputs import taxpayer_count
@@ -46,12 +47,18 @@ def _uncomputed_federal_columns(year: int) -> list[pl.Expr]:
     return [*(pl.lit(0.0).alias(c) for c in missing), pl.lit(False).alias("itemizes")]
 
 
-def _federal(frame: pl.DataFrame, year: int) -> pl.LazyFrame:
+def _federal(
+    frame: pl.DataFrame,
+    year: int,
+    behavior: BehaviorProfile = TAXSIM_BEHAVIOR,
+) -> pl.LazyFrame:
     """Lazy federal and payroll plan for one feedback pass, with the sales tax estimate."""
     family_size = taxpayer_count() + pl.col("depx")
     # Resources: AGI plus nontaxable Social Security benefits and transfers.
     resources = pl.col("agi") + pl.col("gssi") - pl.col("taxable_social_security") + pl.col("transfers")
-    return compute_payroll_tax(compute_federal_income_tax(frame.lazy(), year), year).with_columns(
+    return compute_payroll_tax(
+        compute_federal_income_tax(frame.lazy(), year, behavior), year, behavior
+    ).with_columns(
         *_uncomputed_federal_columns(year),
         state_sales_tax_deduction(resources, family_size, pl.col("state"), year).alias(_SALES_TAX),
     )
@@ -82,6 +89,7 @@ def resolve_federal_and_state(
     keep_intermediate: bool = True,
     keep_columns: tuple[str, ...] = (),
     result_columns: tuple[str, ...] | None = None,
+    behavior: BehaviorProfile = TAXSIM_BEHAVIOR,
 ) -> pl.DataFrame:
     """Resolve the federal and state tax interaction.
 
@@ -112,14 +120,14 @@ def resolve_federal_and_state(
                     *_KEYS,
                     pl.max_horizontal(pl.col("siitax").clip(0, None), _SALES_TAX).alias(_DEDUCTION),
                 )
-                for plan in _state_plans(_federal(current, year), year, compute_state_tax_fn)
+                for plan in _state_plans(_federal(current, year, behavior), year, compute_state_tax_fn)
             )
         )
         current = stacked.drop(_DEDUCTION).join(deduction, on=_KEYS, how="left")
     # State calculators may rewrite federal columns (projected years deflate
     # them in place), so the result keeps the federal pass's own columns and
     # takes only the columns each state adds.
-    federal = _federal(current, year).collect()
+    federal = _federal(current, year, behavior).collect()
     final_plans = _state_plans(federal, year, compute_state_tax_fn)
     if not keep_intermediate:
         # Only the state tax, plus any requested columns the calculator sets.

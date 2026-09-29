@@ -2,6 +2,7 @@
 
 import polars as pl
 
+from taxsim_py.behavior import BehaviorProfile, TAXSIM_BEHAVIOR
 from taxsim_py.calculators.payroll import payroll_parts
 from taxsim_py.engine.amt import alternative_minimum_tax, separate_return_amt_income
 from taxsim_py.engine.brackets import bracket_rate, bracket_rate_by_status, bracket_tax, bracket_tax_by_status
@@ -310,6 +311,7 @@ def _models_analytic_rate(year: int) -> bool:
 def compute_federal_income_tax(
     df: pl.DataFrame | pl.LazyFrame,
     year: int,
+    behavior: BehaviorProfile = TAXSIM_BEHAVIOR,
 ) -> pl.DataFrame | pl.LazyFrame:
     """Federal income tax (`fiitax`) and the intermediate columns states read."""
     if year <= 1976:
@@ -333,17 +335,22 @@ def compute_federal_income_tax(
         "sage",
     ))
     df = with_default(df, FORCE_ITEMIZE, None)
-    for stage in (_income, _deductions, _regular_tax, _alternative_minimum_tax, _credits, _net_tax):
+    df = _income(df, year, behavior)
+    for stage in (_deductions, _regular_tax, _alternative_minimum_tax, _credits, _net_tax):
         df = stage(df, year)
     return df
 
 
-def _income(df: pl.DataFrame | pl.LazyFrame, year: int) -> pl.DataFrame | pl.LazyFrame:
+def _income(
+    df: pl.DataFrame | pl.LazyFrame,
+    year: int,
+    behavior: BehaviorProfile = TAXSIM_BEHAVIOR,
+) -> pl.DataFrame | pl.LazyFrame:
     """AGI: self-employment tax, gains, Social Security and unemployment compensation."""
     # AGI includes gross self-employment and business income and deducts the
     # applicable share of self-employment tax.
     pt_p = YearParams(PAYROLL_TAX_PARAMS, year)
-    payroll = payroll_parts(year)
+    payroll = payroll_parts(year, behavior)
     setax_total = payroll["setax"]
     gross_se_income = _gross_se_income()
 
