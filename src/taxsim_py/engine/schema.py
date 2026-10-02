@@ -6,7 +6,13 @@ from typing import Any
 
 import yaml
 
-PARAMETERS_ROOT = Path(__file__).resolve().parents[3] / "parameters"
+_REPOSITORY_PARAMETERS = Path(__file__).resolve().parents[3] / "parameters"
+_INSTALLED_PARAMETERS = Path(__file__).resolve().parents[1] / "parameters"
+PARAMETERS_ROOT = (
+    _REPOSITORY_PARAMETERS
+    if _REPOSITORY_PARAMETERS.exists()
+    else _INSTALLED_PARAMETERS
+)
 
 
 # The C loader parses identically to the pure-Python safe loader, faster.

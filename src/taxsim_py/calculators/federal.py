@@ -1090,7 +1090,8 @@ def _credits(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorProfi
         ctc_before_tcja_phaseout = flat_amount * ideps
 
     # TAXSIM computes ODC after 2021 but does not add it to `precrd`.
-    combined_base = ctc_before_tcja_phaseout + (odc_base if year <= 2021 else pl.lit(0.0))
+    include_odc = year <= 2021 or behavior.allow_other_dependent_credit_after_2021
+    combined_base = ctc_before_tcja_phaseout + (odc_base if include_odc else pl.lit(0.0))
 
     # The other dependent credit and child tax credit share the TCJA
     # phaseout; the refundable credit needs the amount after phaseout and

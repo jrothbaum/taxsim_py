@@ -257,6 +257,7 @@ def taxsim_payroll(
         "own_fica_primary": pl.sum_horizontal(
             share * tax for share, tax in zip((1.0, *[own_share_self_employment] * 3), primary[0])
         ),
+        "own_wage_fica_primary": primary[0][0],
         "oasdi_rate_primary": pl.when(primary[1]).then(0.0).otherwise(oasdi_rate),
         "hi_rate_primary": pl.when(primary[2]).then(0.0).otherwise(hi_rate),
     }

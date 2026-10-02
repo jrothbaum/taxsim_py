@@ -16,6 +16,9 @@ TAXSIM_INPUTS = (
 )
 # Integer-valued inputs that default to 0.
 COUNT_INPUTS = ("depx", "dep6", "dep19", "page", "sage", "age1", "age2", "age3")
+# Optional semantic extensions. These are not part of TAXSIM's 35 inputs and
+# default to zero when a caller does not provide them.
+OPTIONAL_CHILD_COUNT_INPUTS = ("children_under_3", "children_under_4")
 # Dependent counts by age group; they default to `depx`, or come from the
 # child ages when any age column is present (as TAXSIM decides per file).
 DEPENDENT_DEFAULT_INPUTS = ("dep13", "dep17", "dep18")
@@ -50,6 +53,8 @@ def child_counts_from_ages(year: pl.Expr) -> dict[str, pl.Expr]:
         "dep13": count(_age_limit("child_care_age", year)),
         "dep17": count(_age_limit("child_tax_credit_age", year)),
         "dep18": count(_age_limit("eitc_age", year)),
+        "children_under_3": count(pl.lit(3.0)),
+        "children_under_4": count(pl.lit(4.0)),
     }
 
 
@@ -65,6 +70,7 @@ def with_input_defaults(frame: pl.DataFrame, year: pl.Expr) -> pl.DataFrame:
     frame = frame.with_columns(
         pl.col("mstat").cast(pl.Int64),
         *[(pl.col(c) if c in frame.columns else pl.lit(0)).cast(pl.Int64).fill_null(0).alias(c) for c in COUNT_INPUTS],
+        *[(pl.col(c) if c in frame.columns else pl.lit(0)).cast(pl.Int64).fill_null(0).alias(c) for c in OPTIONAL_CHILD_COUNT_INPUTS],
         *[
             (pl.col(c) if c in frame.columns else pl.lit(0.0)).cast(pl.Float64).fill_null(0.0).alias(c)
             for c in DOLLAR_INPUTS
@@ -76,11 +82,13 @@ def with_input_defaults(frame: pl.DataFrame, year: pl.Expr) -> pl.DataFrame:
         for c in DEPENDENT_DEFAULT_INPUTS
     }
     counts["dep6"] = pl.col("dep6")
+    child_counts = {c: pl.col(c) for c in OPTIONAL_CHILD_COUNT_INPUTS}
     if row_uses_ages is None:
-        return frame.with_columns(**counts)
+        return frame.with_columns(**counts, **child_counts)
     from_ages = child_counts_from_ages(year)
     return frame.with_columns(
-        **{c: pl.when(pl.col("__uses_child_ages")).then(from_ages[c]).otherwise(counts[c]) for c in counts}
+        **{c: pl.when(pl.col("__uses_child_ages")).then(from_ages[c]).otherwise(counts[c]) for c in counts},
+        **{c: pl.when(pl.col("__uses_child_ages")).then(from_ages[c]).otherwise(child_counts[c]) for c in OPTIONAL_CHILD_COUNT_INPUTS},
     ).drop("__uses_child_ages")
 
 

@@ -316,7 +316,7 @@ def calculate_taxes(
     mtr: int | MarginalInput | None = None,
     idtl: int | None = None,
     taxsim_names: bool = False,
-    calculation_mode: str | CalculationMode = CalculationMode.TAXSIM,
+    calculation_mode: str | CalculationMode = CalculationMode.STATUTORY,
 ) -> pl.DataFrame:
     """Calculate federal, payroll, and state taxes for a Polars dataframe.
 
@@ -324,7 +324,9 @@ def calculate_taxes(
     years. State IDs are interpreted as TAXSIM codes by default or as Census
     state FIPS codes when ``state_id_type="fips"``; 0 means no state. Input
     columns other than the year, state and ``mstat`` default to 0 when absent
-    or null (``dep13``, ``dep17`` and ``dep18`` default to ``depx``). The returned
+    or null (``dep13``, ``dep17`` and ``dep18`` default to ``depx``). Optional
+    semantic survey extensions ``children_under_3`` and ``children_under_4``
+    also default to 0; they are not part of TAXSIM's 35-input contract. The returned
     eager frame is the input, unchanged and in order, plus ``OUTPUT_COLUMNS``;
     ``keep_intermediate=True`` also returns every intermediate federal and
     state column. Mixed-year calls resolve years concurrently; large
@@ -343,10 +345,10 @@ def calculate_taxes(
     detail columns to TAXSIM's compatibility labels (``credits``, ``v10``-
     ``v45`` and ``staxbc``) as the final output step.
 
-    ``calculation_mode="taxsim"`` preserves the compiled model's behavior.
-    ``calculation_mode="statutory"`` applies independently verified corrections
-    recorded in ``docs/statutory_corrections.md``. The compatibility mode is
-    the default so existing replication results do not change silently.
+    ``calculation_mode="statutory"`` is the default and applies the canonical
+    parameter tables plus independently verified corrections recorded in
+    ``docs/statutory_corrections.md``. ``calculation_mode="taxsim"`` preserves
+    the compiled model's behavior for replication and compatibility testing.
     """
     behavior = resolve_behavior(calculation_mode)
     frame = df.collect() if isinstance(df, pl.LazyFrame) else df

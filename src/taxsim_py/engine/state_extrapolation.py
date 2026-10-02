@@ -8,12 +8,71 @@ _PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "state_cpi_extrapolation.yaml
 LASTAT = int(_PARAMS["lastat"])
 _XNDXA = {int(y): float(v) for y, v in _PARAMS["xndxa"].items()}
 
+# These states have been reviewed against the installed PolicyEngine-US
+# parameter tree for actual 2022-2024 values. Other states remain on the
+# historical TAXSIM-style extrapolation path until their mappings are reviewed.
+ACTUAL_STATE_PARAMETER_YEARS = {
+    "al": 2024,
+    "ar": 2024,
+    "nh": 2024,
+    "ca": 2024,
+    "co": 2024,
+    "az": 2024,
+    "ct": 2024,
+    "dc": 2024,
+    "de": 2024,
+    "ga": 2024,
+    "in": 2024,
+    "il": 2024,
+    "id": 2024,
+    "ky": 2024,
+    "mi": 2024,
+    "nc": 2024,
+    "pa": 2024,
+    "ut": 2024,
+    "oh": 2024,
+    "ok": 2024,
+    "or": 2024,
+    "hi": 2024,
+    "vt": 2024,
+    "nm": 2024,
+    "wv": 2024,
+    "sc": 2024,
+    "ri": 2024,
+    "nd": 2024,
+    "ne": 2024,
+    "mt": 2024,
+    "mo": 2024,
+    "ms": 2024,
+    "me": 2024,
+    "la": 2024,
+    "ks": 2024,
+    "ia": 2024,
+    "md": 2024,
+    "wi": 2024,
+    "mn": 2024,
+    "nj": 2024,
+    "va": 2024,
+    "ny": 2024,
+    "ma": 2024,
+}
 
-def resolve_state_year(year: int) -> tuple[int, float]:
+
+def _index(year: int) -> float:
+    """The CPI proxy, continued past its last year at the source's assumed 2.5% a year."""
+    last = max(_XNDXA)
+    if year <= last:
+        return _XNDXA[year]
+    return _XNDXA[last] * 1.025 ** (year - last)
+
+
+def resolve_state_year(year: int, state: str | None = None) -> tuple[int, float]:
     """Return the effective state-law year and inflation factor."""
+    if state in ACTUAL_STATE_PARAMETER_YEARS and year <= ACTUAL_STATE_PARAMETER_YEARS[state]:
+        return year, 1.0
     if year <= LASTAT:
         return year, 1.0
-    flate = _XNDXA[year] / _XNDXA[LASTAT]
+    flate = _index(year) / _XNDXA[LASTAT]
     return LASTAT, flate
 
 

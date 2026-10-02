@@ -178,6 +178,8 @@ def cps_asec_tax_units(
         dep13=(age < 13).sum(),
         dep17=(age < 17).sum(),
         dep18=((age < 19) | ((age < 24) & enrolled) | disabled).sum(),
+        children_under_3=(age < 3).sum(),
+        children_under_4=(age < 4).sum(),
     )
     filers = p.filter(pl.col("role").is_in(["head", "spouse"]))
     sums = filers.group_by("taxsimid").agg(
@@ -207,7 +209,7 @@ def cps_asec_tax_units(
         units.join(spouse, on="taxsimid", how="left")
         .join(dependents, on="taxsimid", how="left")
         .join(sums, on="taxsimid", how="left")
-        .with_columns(pl.col("sage", "depx", "dep6", "dep13", "dep17", "dep18").fill_null(0),
+        .with_columns(pl.col("sage", "depx", "dep6", "dep13", "dep17", "dep18", "children_under_3", "children_under_4").fill_null(0),
                       pl.col("swages", "ssemp", "sui").fill_null(0.0))
     )
 
@@ -228,7 +230,7 @@ def cps_asec_tax_units(
     ).drop("survey_year", "proptax_unit")
 
     inputs = [
-        "taxsimid", "year", "state", "mstat", "page", "sage", "depx", "dep6", "dep13", "dep17", "dep18",
+        "taxsimid", "year", "state", "mstat", "page", "sage", "depx", "dep6", "dep13", "dep17", "dep18", "children_under_3", "children_under_4",
         "pwages", "swages", "psemp", "ssemp", "dividends", "intrec", "ltcg", "otherprop", "nonprop",
         "pensions", "gssi", "ui", "pui", "sui", "transfers", "proptax",
     ]

@@ -23,6 +23,9 @@ class BehaviorProfile:
     include_unemployment_in_california_total_income: bool
     include_business_and_rental_income_in_california_minimum_tax: bool
     count_pre_1998_nonrefundable_credits_correctly: bool
+    allow_other_dependent_credit_after_2021: bool
+    require_young_child_for_california_yctc: bool
+    exclude_hawaii_pensions: bool
 
 
 TAXSIM_BEHAVIOR = BehaviorProfile(
@@ -34,6 +37,9 @@ TAXSIM_BEHAVIOR = BehaviorProfile(
     include_unemployment_in_california_total_income=False,
     include_business_and_rental_income_in_california_minimum_tax=False,
     count_pre_1998_nonrefundable_credits_correctly=False,
+    allow_other_dependent_credit_after_2021=False,
+    require_young_child_for_california_yctc=False,
+    exclude_hawaii_pensions=False,
 )
 
 STATUTORY_BEHAVIOR = BehaviorProfile(
@@ -45,6 +51,9 @@ STATUTORY_BEHAVIOR = BehaviorProfile(
     include_unemployment_in_california_total_income=True,
     include_business_and_rental_income_in_california_minimum_tax=True,
     count_pre_1998_nonrefundable_credits_correctly=True,
+    allow_other_dependent_credit_after_2021=True,
+    require_young_child_for_california_yctc=True,
+    exclude_hawaii_pensions=True,
 )
 
 

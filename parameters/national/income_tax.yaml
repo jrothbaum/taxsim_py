@@ -1,7 +1,10 @@
 # Federal regular income tax parameters.
 # Bracket lists are [threshold, rate] pairs, threshold = start of that rate's range.
 # Year keys are sparse: only present when the value changes from the prior coded year.
-# Verified against taxsim.exe (2022_10_21 build) for state=44 (TX, no state income tax).
+# 2022-2024 thresholds are the published federal statutory schedules; they
+# also agree with the newer NBER TAXSIM federal bracket tables where that
+# source exposes the same schedule. TAXSIM compatibility affects behavior and
+# selected worksheet fields, not the canonical statutory values here.
 
 # married_separate's brackets: married_joint's thresholds divided by 2 at
 # EVERY bracket, not "single's own thresholds with just the top one
