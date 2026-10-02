@@ -85,7 +85,8 @@ def _schedule_rate(taxinc: pl.Expr, status: pl.Expr, sep: pl.Expr, y: int) -> pl
 
 def compute_nm_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
     """Calculate New Mexico income tax for each row."""
-    effective_year, flate = resolve_state_year(year)
+    state_year = "nm" if behavior.mode.value == "statutory" else None
+    effective_year, flate = resolve_state_year(year, state_year)
     y = effective_year
     p = YearParams(NM_PARAMS, effective_year)
     dividend_adjustment = dividend_input_adjustment()
@@ -205,7 +206,12 @@ def compute_nm_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     ycred = pl.lit(0.0)
     for size in range(1, 7):
         table = [[float(row[0]), float(row[size])] for row in rebate_rows]
-        ycred = pl.when(ncred == size).then(interpolate_table(modagi, table)).otherwise(ycred)
+        if y >= 2022:
+            table = [[float(a), float(b)] for a, b in p["low_income_rebate_2022plus"][y][size]]
+            lookup = bracket_rate(modagi, table)
+        else:
+            lookup = interpolate_table(modagi, table)
+        ycred = pl.when(ncred == size).then(lookup).otherwise(ycred)
     ycred = pl.when(dependent_filer).then(0.0).otherwise(ycred)
     if y <= 1985:
         xtra = (p.num("food_credit") + p.num("medical_credit")) * ncred
@@ -235,7 +241,13 @@ def compute_nm_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     pcred = pl.when((aged > 0) & (modagi <= float(p["property_rebate_income_limit"]))).then(
         (ptax - pmax).clip(0, None).clip(None, float(p["property_rebate_max"]) / sep)
     ).otherwise(0.0)
-    credit = ycred + xtra + chcr + pcred + earncr
+    ctc = pl.lit(0.0)
+    if effective_year >= 2023:
+        # Refundable child tax credit by federal AGI (right-closed tiers),
+        # halved on separate returns.
+        rows = p["child_tax_credit_2023plus"][effective_year]
+        ctc = bracket_rate(pl.col("nm_fed_agi") - 0.005, rows) * pl.col("dep18") / pl.when(is_sep).then(2.0).otherwise(1.0)
+    credit = ycred + xtra + chcr + pcred + earncr + ctc
     statax = statax - credit
 
     return with_state_detail(

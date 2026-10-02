@@ -39,7 +39,8 @@ def _joint_credit(statax: pl.Expr, taxinc: pl.Expr, businc: pl.Expr, y: int, eli
 
 def compute_oh_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
     """Calculate Ohio income tax for each row."""
-    effective_year, flate = resolve_state_year(year)
+    state_year = "oh" if behavior.mode.value == "statutory" else None
+    effective_year, flate = resolve_state_year(year, state_year)
     y = effective_year
     p = YearParams(OH_PARAMS, effective_year)
     df = deflate_for_extrapolation(df, flate)
@@ -128,7 +129,11 @@ def compute_oh_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     hagi = pl.col("pwages").clip(0, None) + 0.5 * (xlind - wages)
     wagi = xlind - hagi
     min_income = p["joint_credit_min_spouse_income"]
-    joint_eligible = (hagi >= min_income) & (wagi >= min_income) & (pl.col("earned_income") >= p["joint_credit_min_earned"])
+    joint_eligible = (hagi >= min_income) & (wagi >= min_income)
+    # TAXSIM also requires earned income; the statute's qualifying income
+    # includes pensions, so actual-law years drop that test.
+    if behavior.mode.value != "statutory" or y < 2022:
+        joint_eligible = joint_eligible & (pl.col("earned_income") >= p["joint_credit_min_earned"])
     df, (joint_eligible,) = checkpoint(df, oh_joint_eligible=joint_eligible)
 
     brackets = _brackets(y)

@@ -18,7 +18,8 @@ _PRE1987_STATUSES = ["single", "married_joint", "married_separate", "head_of_hou
 _RICH_STATUSES = ["married_joint", "head_of_household"]  # mst.eq.2/4/7 in the source
 
 def compute_az_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
-    effective_year, flate = resolve_state_year(year)
+    state_year = "az" if behavior.mode.value == "statutory" else None
+    effective_year, flate = resolve_state_year(year, state_year)
     p = YearParams(AZ_PARAMS, effective_year)
     df = df.with_columns(
         az_household_income=household_income()
@@ -246,7 +247,12 @@ def compute_az_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         rate_expr = bracket_rate(pl.col("az_taxinc") / brkif, brackets)
     elif effective_year >= 2019:
         aif19 = p.num("bracket_inflation_2019plus")
-        brackets = p["brackets_2019plus"]
+        if behavior.mode.value == "statutory" and effective_year >= 2023:
+            brackets = p["brackets_2023plus_statutory"]
+        elif behavior.mode.value == "statutory" and effective_year >= 2022:
+            brackets = p["brackets_2022plus_statutory"]
+        else:
+            brackets = p["brackets_2019plus"]
         df = df.with_columns(
             az_taxy=pl.when(pl.col("az_rich")).then(pl.col("az_taxinc") / 2).otherwise(pl.col("az_taxinc"))
         )
@@ -372,8 +378,21 @@ def compute_az_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     rows = [[float(t) + shift, a] for t, a in zip(p["property_tax_credit_thresholds"], amounts)] + [[1.0e20, 0.0]]
     pensions = pl.col("pensions") + pl.col("gssi")
     property_credit = pl.when((aged_count() > 0) & (pensions > 0)).then(
-        interpolate_table(pl.col("az_household_income"), rows)
+        # Arizona's senior property-tax credit uses the state's property-
+        # credit AGI, which excludes Social Security. TAXSIM's household
+        # income total includes gross Social Security, so statutory mode must
+        # remove it before applying the form's income schedule.
+        interpolate_table(
+            pl.col("az_household_income")
+            - (pl.col("gssi") if behavior.mode.value == "statutory" else 0.0),
+            rows,
+        )
     ).otherwise(0.0)
+    if behavior.mode.value == "statutory":
+        # ARS 43-1072(B): the credit is the lesser of the table amount and the
+        # property tax paid (renters: rent times the landlord property-tax factor).
+        paid = pl.col("proptax") + float(p["property_tax_credit_rent_factor"]) * pl.col("rentpaid")
+        property_credit = pl.min_horizontal(property_credit, paid)
     if effective_year <= 1991:
         rate = p.num("renter_credit_rate")
         cap = p.num("renter_credit_cap")

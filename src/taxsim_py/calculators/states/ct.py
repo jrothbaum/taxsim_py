@@ -11,6 +11,7 @@ from taxsim_py.engine.state import (
     federal_capital_gain_in_agi,
     household_income,
     interpolate_table,
+    tier_values,
     with_state_detail,
 )
 from taxsim_py.behavior import BehaviorProfile, TAXSIM_BEHAVIOR
@@ -85,8 +86,18 @@ def _flat_rate_step(income: pl.Expr, rows: list[list[float]]) -> pl.Expr:
     return expr
 
 
+def _step_value(income: pl.Expr, rows: list[list[float]]) -> pl.Expr:
+    """A dated amount scale: row i's value applies above its threshold, up to and including the
+    next one (PolicyEngine's right-closed rule)."""
+    expr = pl.lit(float(rows[0][1]))
+    for threshold, value in rows[1:]:
+        expr = pl.when(income > float(threshold)).then(float(value)).otherwise(expr)
+    return expr
+
+
 def compute_ct_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
-    effective_year, flate = resolve_state_year(year)
+    state_year = "ct" if behavior.mode.value == "statutory" else None
+    effective_year, flate = resolve_state_year(year, state_year)
     p = YearParams(CT_PARAMS, effective_year)
 
     df = df.with_columns(
@@ -104,10 +115,17 @@ def compute_ct_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     agi = pl.col("agi")
     if effective_year >= 2019:
         joint = files_joint()
-        limit_p = p["pension_deduction_agi_limit"]
-        limit = pl.when(joint).then(float(limit_p["joint"])).otherwise(float(limit_p["single"]))
-        share = p.num("pension_deduction_share")
-        agi = agi - (1 - (agi - limit) / limit).clip(0, 1) * share * pl.col("pensions")
+        if behavior.mode.value == "statutory" and effective_year >= 2022:
+            pension_rates = p.value("pension_deduction_rates")
+            rate = pl.when(joint).then(
+                _step_value(agi, pension_rates["joint"])
+            ).otherwise(_step_value(agi, pension_rates["non_joint"]))
+            agi = agi - rate * pl.col("pensions")
+        else:
+            limit_p = p["pension_deduction_agi_limit"]
+            limit = pl.when(joint).then(float(limit_p["joint"])).otherwise(float(limit_p["single"]))
+            share = p.num("pension_deduction_share")
+            agi = agi - (1 - (agi - limit) / limit).clip(0, 1) * share * pl.col("pensions")
     if effective_year >= 1985:
         couple = pl.col("filing_status").is_in(["married_joint", "head_of_household"])
         lim = p["social_security_agi_limit"]
@@ -129,7 +147,17 @@ def compute_ct_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             )
             partial = (taxable_ss - kept).clip(0, None)
         else:
-            partial = pl.when(excl > 0).then(taxable_ss - p["social_security_partial_share"] * pl.min_horizontal(benefits, excl)).otherwise(0.0)
+            if behavior.mode.value == "statutory" and effective_year >= 2022:
+                # PolicyEngine follows IRC section 86: above the state
+                # threshold, CT removes 25% of the lesser of gross SS and
+                # federal combined income in excess of the federal base amount.
+                combined_income = agi - taxable_ss + 0.5 * benefits
+                combined_excess = (combined_income - excl).clip(0, None)
+                partial = (taxable_ss - p["social_security_partial_share"] * pl.min_horizontal(benefits, combined_excess)).clip(0, None)
+            else:
+                partial = pl.when(excl > 0).then(
+                    taxable_ss - p["social_security_partial_share"] * pl.min_horizontal(benefits, excl)
+                ).otherwise(0.0)
         agi = pl.when(taxable_ss > 0).then(
             agi - pl.when(agi < ssbmax).then(taxable_ss).otherwise(partial)
         ).otherwise(agi)
@@ -168,6 +196,17 @@ def compute_ct_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         exemp_sep = pl.lit(0.0)
         if effective_year >= 2000:
             exemp_sep = (float(sep_p["amount"]) - (pl.col("ct_agi") - float(sep_p["phaseout_start"]))).clip(0, float(sep_p["amount"]))
+        if effective_year >= 2022:
+            # The exemption falls $1,000 per $1,000 (or part) of AGI over the
+            # start (PolicyEngine-US gov.states.ct.tax.income.exemptions.personal).
+            def stepped(amount: float, start: float) -> pl.Expr:
+                steps = ((pl.col("ct_agi") - start).clip(0, None) / 1000.0).ceil()
+                return (amount - 1000.0 * steps).clip(0, amount)
+
+            exemp_single = stepped(15000.0, 30000.0)
+            exemp_hoh = stepped(float(hoh["amount"]), float(hoh["phaseout_start"]))
+            exemp_joint = stepped(float(joint["amount"]), float(joint["phaseout_start"]))
+            exemp_sep = stepped(float(sep_p["amount"]), float(sep_p["phaseout_start"]))
         df = df.with_columns(
             ct_exemp=pl.when(files_joint()).then(exemp_joint)
             .when(files_head_of_household()).then(exemp_hoh)
@@ -252,7 +291,9 @@ def compute_ct_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             year_table_map = {
                 1996: "brackets_1996", 1997: "brackets_1997", 1998: "brackets_1998",
             }
-            if effective_year in year_table_map:
+            if effective_year == 2024:
+                prefix = "brackets_2024"
+            elif effective_year in year_table_map:
                 prefix = year_table_map[effective_year]
             elif 1999 <= effective_year <= 2002:
                 prefix = "brackets_1999_2002"
@@ -309,6 +350,33 @@ def compute_ct_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
                 rtax_hoh = pl.min_horizontal(rate_h * (pl.col("ct_agi") - ragi_h).clip(0, None), rmax_h)
                 rtax_joint = pl.min_horizontal(rate_s * (pl.col("ct_agi") - 2 * ragi_s).clip(0, None), 2 * rmax_s)
                 rtax = pl.when(is_hoh).then(rtax_hoh).when(is_joint).then(rtax_joint).otherwise(rtax_single)
+                if effective_year >= 2022:
+                    # Dated statutory recapture: stepwise per increment of AGI
+                    # above each tier's start, capped (the low tier only when
+                    # in effect).
+                    tiers = p["recapture_2022plus"][effective_year]
+                    recapture = pl.lit(0.0)
+                    for name in ("low", "middle", "high"):
+                        tier = tiers[name]
+                        if name == "low" and not tier["in_effect"]:
+                            continue
+                        amount = pl.lit(0.0)
+                        for status in ("single", "married_joint", "married_separate", "head_of_household"):
+                            start, step_amount, increment, maximum = (float(v) for v in tier[status])
+                            steps = ((pl.col("ct_agi") - start).clip(0, None) / increment).ceil()
+                            amount = pl.when(pl.col("filing_status") == status).then(
+                                pl.min_horizontal(maximum, steps * step_amount)
+                            ).otherwise(amount)
+                        recapture = recapture + amount
+                    rtax = recapture
+
+                if effective_year >= 2022:
+                    stax = pl.lit(0.0)
+                    for status, (start, step_amount, increment, maximum) in p["add_back_2022plus"][effective_year].items():
+                        steps = ((pl.col("ct_agi") - start).clip(0, None) / increment).ceil()
+                        stax = pl.when(pl.col("filing_status") == status).then(
+                            pl.min_horizontal(float(maximum), steps * step_amount)
+                        ).otherwise(stax)
 
                 xtax = xtax + stax + rtax
 
@@ -335,11 +403,21 @@ def compute_ct_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             hoh_rows = list(zip(p["personal_credit_1995plus_hoh_thresholds"], rates))
             joint_rows_raw = p["personal_credit_1995plus_joint_thresholds"]
 
-            credp_single = interpolate_table(pl.col("ct_agi"), single_rows)
-            credp_hoh = interpolate_table(pl.col("ct_agi"), hoh_rows)
-            # joint/married_separate: thresholds divided by `sep` (2 for MFS)
-            joint_rows_div1 = list(zip([t for t in joint_rows_raw], rates))
-            credp_joint = interpolate_table(pl.col("ct_agi") * pl.col("ct_sep"), joint_rows_div1)
+            # The historical TAXSIM table interpolates between rows. From
+            # 2022, Connecticut's worksheet applies the first rate whose AGI
+            # threshold has been reached, so a filer exactly at a threshold
+            # must receive that row's discrete rate rather than an average
+            # with the preceding row.
+            if effective_year >= 2022 and behavior.mode.value == "statutory":
+                credp_single = tier_values(pl.col("ct_agi"), single_thresholds, rates)[0]
+                credp_hoh = tier_values(pl.col("ct_agi"), p["personal_credit_1995plus_hoh_thresholds"], rates)[0]
+                credp_joint = tier_values(pl.col("ct_agi") * pl.col("ct_sep"), joint_rows_raw, rates)[0]
+            else:
+                credp_single = interpolate_table(pl.col("ct_agi"), single_rows)
+                credp_hoh = interpolate_table(pl.col("ct_agi"), hoh_rows)
+                # joint/married_separate: thresholds divided by `sep` (2 for MFS)
+                joint_rows_div1 = list(zip([t for t in joint_rows_raw], rates))
+                credp_joint = interpolate_table(pl.col("ct_agi") * pl.col("ct_sep"), joint_rows_div1)
             credp = pl.when(files_head_of_household()).then(credp_hoh).when(
                 pl.col("filing_status").is_in(["married_joint", "married_separate"])
             ).then(credp_joint).otherwise(credp_single)
@@ -435,13 +513,20 @@ def compute_ct_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
                 p.num("property_credit_phaseout_hoh")
             ).otherwise(p.num("property_credit_phaseout_joint") / pl.col("ct_sep"))
             agix = pl.col("ct_agi").clip(0, None)
-            # Phaseout table (phse+10000*i, step) looked up on `agix - phse`
-            # so the thresholds are the same on every row.
             width = float(p["property_credit_phaseout_step_width"])
-            rows = [(width * i, step) for i, step in enumerate(p["property_credit_phaseout_steps"])]
-            rows.append(tuple(p["property_credit_phaseout_final"]))
-            pct = interpolate_table(agix - phse, rows)
-            pcred = pcred - pct * pcred
+            if behavior.mode.value == "statutory" and effective_year >= 2022:
+                # PolicyEngine and the current Connecticut worksheet use a
+                # discrete reduction: each started increment reduces the
+                # credit by 15%. The old TAXSIM path retains its historical
+                # interpolation for compatibility.
+                steps = ((agix - phse).clip(0, None) / width).ceil()
+                pct = (float(p["property_credit_phaseout_rate"]) * steps).clip(0, 1)
+                pcred = pcred * (1.0 - pct)
+            else:
+                rows = [(float(width) * i, step) for i, step in enumerate(p["property_credit_phaseout_steps"])]
+                rows.append(tuple(p["property_credit_phaseout_final"]))
+                pct = interpolate_table(agix - phse, rows)
+                pcred = pcred - pct * pcred
         if effective_year >= 2017:
             no_dep_or_elderly = (pl.col("depx") < 1) & (aged_count() < 1)
             pcred = pl.when(no_dep_or_elderly).then(0.0).otherwise(pcred)

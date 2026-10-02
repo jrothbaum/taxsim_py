@@ -140,3 +140,9 @@ dependent_credit_hoh_2003plus: {first_three: 0.02, fourth: 0.03, additional: 0.0
 # Child care credit above the top income tier: this share of the federal
 # credit, up to the cap.
 child_care_credit_top_tier_rate: 0.1
+
+# 2022+ (PolicyEngine-US gov.states.la.tax.income, queried 2026-10-01): three rates, with head of
+# household on the single schedule, and $1,000 exemptions for dependents and taxpayers 65 or older.
+brackets_2022plus_single: [[0, 0.0185], [12500, 0.035], [50000, 0.0425]]
+brackets_2022plus_married: [[0, 0.0185], [25000, 0.035], [100000, 0.0425]]
+additional_exemption_2022plus: 1000

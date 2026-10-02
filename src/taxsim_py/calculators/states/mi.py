@@ -4,7 +4,7 @@ import polars as pl
 
 from taxsim_py.calculators.payroll import payroll_parts
 from taxsim_py.engine.inputs import aged_count, files_joint, files_separate, is_dependent_filer, taxpayer_count
-from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml
+from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml, resolve_year
 from taxsim_py.engine.state import (
     household_income,
     interpolate_table,
@@ -19,7 +19,8 @@ MI_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "mi" / "income_tax.yaml")
 
 def compute_mi_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
     """Calculate Michigan income tax for each row."""
-    effective_year, flate = resolve_state_year(year)
+    state_year = "mi" if behavior.mode.value == "statutory" else None
+    effective_year, flate = resolve_state_year(year, state_year)
     y = effective_year
     p = YearParams(MI_PARAMS, effective_year)
 
@@ -93,6 +94,16 @@ def compute_mi_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     dependent_exemption = p.num("dependent_filer_exemption")
     exemp = pl.when(is_dependent_filer()).then(dependent_exemption).otherwise(exemp)
 
+    if y >= 2023 and behavior.mode.value == "statutory":
+        # Worksheet 2 of the MI-1040 booklet: the standard deduction for taxpayers
+        # 67 or older is reduced by the personal exemptions claimed.
+        pens = pl.when(aged > 0).then((pens - exemp).clip(0, None)).otherwise(pens)
+        # Born 1946-1958: the phased-in retirement subtraction (a share of the
+        # private-pension maximum, 2023: 25%; 2024: 50%) when it is larger.
+        maximum = p["expanded_retirement_maximum"]
+        cap = pl.when(is_joint).then(float(resolve_year(maximum["joint"], y))).otherwise(float(resolve_year(maximum["single"], y)))
+        expanded = pl.min_horizontal(pl.col("pensions"), p.num("expanded_retirement_share") * cap)
+        pens = pl.when(aged > 0).then(pl.max_horizontal(pens, expanded)).otherwise(pens)
     taxinc = (agi - pens - exemp).clip(0, None)
     regtax = p.num("rate") * taxinc
     regtax = pl.when(is_dependent_filer() & (agi < dependent_exemption)).then(0.0).otherwise(regtax)

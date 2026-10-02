@@ -15,7 +15,8 @@ WV_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "wv" / "income_tax.yaml")
 
 def compute_wv_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
     """Calculate West Virginia income tax for each row."""
-    effective_year, flate = resolve_state_year(year)
+    state_year = "wv" if behavior.mode.value == "statutory" else None
+    effective_year, flate = resolve_state_year(year, state_year)
     y = effective_year
     p = YearParams(WV_PARAMS, effective_year)
     # Federal total income (`comnew(65)`) is not deflated in projected years.
@@ -92,8 +93,9 @@ def compute_wv_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         else:
             statax = split
     else:
-        statax = bracket_tax(taxinc * sep, brackets[1987]) / sep
-        rate = bracket_rate(taxinc * sep, brackets[1987])
+        table = brackets[2023] if y >= 2023 else brackets[1987]
+        statax = bracket_tax(taxinc * sep, table) / sep
+        rate = bracket_rate(taxinc * sep, table)
     if 1983 <= y <= 1985:
         statax = pl.when(taxinc > p["surtax_income_per_taxpayer"] * txp).then(p.num("surtax") * statax).otherwise(statax)
     df, (statax,) = checkpoint(df, wv_tax_before_credits=statax)
@@ -112,6 +114,12 @@ def compute_wv_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         share = pl.when(agi <= fcp).then(full).otherwise(
             (0.01 * (100.0 * full - points * (agi - fcp) / (p["family_credit_phaseout_step"] / sep))).clip(0, None)
         )
+        if y >= 2022:
+            # The statutory fraction falls in steps: 90% for the first $300 over the poverty line,
+            # then 10 points less for each further $300.
+            # Tested against federal AGI (state subtractions do not lower it).
+            steps = ((fed_agi - fcp).clip(0, None) / (p["family_credit_phaseout_step"] / sep)).floor()
+            share = pl.when(fed_agi < fcp).then(1.0).otherwise((0.9 - 0.1 * steps).clip(0, None))
         famcrd = pl.when(dependent_filer).then(0.0).otherwise(share * statax)
         famcrd = pl.when((statax > 0) & (nexemp > 0)).then(famcrd).otherwise(0.0)
         statax = (statax - famcrd).clip(0, None)

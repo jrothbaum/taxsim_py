@@ -48,6 +48,16 @@ def _schedule(status: pl.Expr, taxinc: pl.Expr, y: int) -> tuple[pl.Expr, pl.Exp
     if y == 1986:
         brackets = NY_PARAMS["brackets_1986"]
         return bracket_tax(taxinc, brackets), bracket_rate(taxinc, brackets)
+    if y >= 2022:
+        dated = NY_PARAMS["statutory_2022plus"][y]
+        tax = pl.lit(0.0)
+        rate = pl.lit(0.0)
+        for status_name, key in (("single", "single"), ("married_separate", "married_separate"),
+                                 ("head_of_household", "head_of_household"), ("married_joint", "married")):
+            brackets = dated[key]["brackets"]
+            tax = pl.when(status == status_name).then(bracket_tax(taxinc, brackets)).otherwise(tax)
+            rate = pl.when(status == status_name).then(bracket_rate(taxinc, brackets)).otherwise(rate)
+        return tax, rate
     factor = p.num("bracket_inflation") if 2012 <= y <= 2017 else 1.0
     tax = pl.lit(0.0)
     rate = pl.lit(0.0)
@@ -61,6 +71,29 @@ def _schedule(status: pl.Expr, taxinc: pl.Expr, y: int) -> tuple[pl.Expr, pl.Exp
 def _blend(statax: pl.Expr, target: pl.Expr, ratio: pl.Expr, addition: float = 0.0) -> pl.Expr:
     """Worksheet step: tax moves toward `target` by `ratio`, keeping `addition`."""
     return statax + ratio * (target - statax - addition) + addition
+
+
+def _supplemental_2022plus(statax: pl.Expr, taxinc: pl.Expr, agi: pl.Expr, status: pl.Expr, y: int) -> pl.Expr:
+    """Statutory tax plus the supplemental (recapture) tax: a base for the bracket
+    plus a share of the incremental benefit phased in over AGI above the lower of
+    the bracket start and the minimum AGI; above the top AGI, the top rate on all
+    taxable income."""
+    d = NY_PARAMS["statutory_2022plus"][y]
+    supplemental = pl.lit(0.0)
+    for status_name, key in (("single", "single"), ("married_separate", "married_separate"),
+                             ("head_of_household", "head_of_household"), ("married_joint", "married")):
+        brackets = d[key]["brackets"]
+        starts = [float(b[0]) for b in brackets]
+        previous = pl.lit(pl.Series(starts, dtype=pl.Float64)).gather(
+            (pl.lit(pl.Series(starts, dtype=pl.Float64)).search_sorted(taxinc, side="right").cast(pl.Int64) - 1).clip(0, None)
+        )
+        applicable = (agi - pl.max_horizontal(previous, pl.lit(float(d["min_agi"])))).clip(0, None)
+        fraction = (applicable / float(d["phase_in_length"])).clip(None, 1.0)
+        base = bracket_rate(taxinc, d[key]["base"])
+        incremental = bracket_rate(taxinc, d[key]["incremental"])
+        supplemental = pl.when(status == status_name).then(base + fraction * incremental).otherwise(supplemental)
+    high = taxinc * float(d["top_rate"]) - statax
+    return statax + pl.when(agi > float(d["top_agi"])).then(high).otherwise(supplemental)
 
 
 def _recapture(statax: pl.Expr, taxinc: pl.Expr, agi: pl.Expr, rt: pl.Expr, status: pl.Expr, y: int) -> pl.Expr:
@@ -135,6 +168,8 @@ def _recapture(statax: pl.Expr, taxinc: pl.Expr, agi: pl.Expr, rt: pl.Expr, stat
             .then(taxinc * c["top_rate"])
             .otherwise(statax)
         )
+    if y >= 2022:
+        return _supplemental_2022plus(statax, taxinc, agi, status, y)
     if y >= 2021:
         return _recapture_real_2021(statax, taxinc, agi, status)
     if y >= 2012:
@@ -244,7 +279,8 @@ def _recapture_real_2021(statax: pl.Expr, taxinc: pl.Expr, agi: pl.Expr, status:
 
 def compute_ny_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
     """Calculate New York income tax for each row."""
-    effective_year, flate = resolve_state_year(year)
+    state_year = "ny" if behavior.mode.value == "statutory" else None
+    effective_year, flate = resolve_state_year(year, state_year)
     y = effective_year
     p = YearParams(NY_PARAMS, effective_year)
     dividend_adjustment = dividend_input_adjustment()
@@ -545,21 +581,26 @@ def compute_ny_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         nkids = pl.col("dep18").clip(0, 3)
         disqy = capgn.clip(0, None) + pl.col("ny_dividends") + pl.col("intrec") + pl.col("otherprop").clip(0, None)
 
-        def eitc_for(law: int, agi_value: pl.Expr) -> pl.Expr:
+        def eitc_for(law: int, agi_value: pl.Expr, eligibility_year: int | None = None) -> pl.Expr:
             params = FEDERAL_EITC_PARAMS.filter(pl.col("year") == law)
             dylim = float(resolve_year(FEDERAL_EITC_MISC["dylim"], law))
             credit = federal_eitc(pl.col("earned_income"), agi_value, disqy, status, nkids, params, dylim)
             childless = nkids == 0
-            eligible = eitc_filer_eligible(childless, law) & eitc_age_eligible(childless, law)
+            age_law = law if eligibility_year is None else eligibility_year
+            eligible = eitc_filer_eligible(childless, age_law) & eitc_age_eligible(childless, age_law)
             return pl.when(eligible).then(credit).otherwise(0.0)
 
         df, (eitc,) = checkpoint(df, ny_eitc=eitc_for(y, agieic))
         if y == 2021:
-            childless_single = is_single & (pl.col("dep17") < 1)
+            # New York's 2021 special childless calculation uses the 2020
+            # credit schedule, but retains the state's pre-expansion upper
+            # age exclusion for taxpayers 65 or older.
+            aged_single_childless = is_single & (pl.col("dep17") < 1) & (aged >= taxpayer_count())
+            childless_single = is_single & (pl.col("dep17") < 1) & (aged < taxpayer_count())
             eitc = pl.when(childless_single).then(
                 p["eitc_2021_childless_credit_factor"]
-                * eitc_for(2020, agieic * p["eitc_2021_childless_agi_factor"])
-            ).otherwise(eitc)
+                * eitc_for(2020, agieic * p["eitc_2021_childless_agi_factor"], eligibility_year=2021)
+            ).when(aged_single_childless).then(0.0).otherwise(eitc)
         earncr = (p.num("eitc_match_rate") * eitc - pl.min_horizontal(hcred, taxbc)).clip(0, None)
 
     # Empire State child credit.
@@ -574,11 +615,20 @@ def compute_ny_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         ).otherwise(0.0)
     elif y >= 2018:
         fagi = pl.col("agi")
+        dep17 = pl.col("dep17")
+        dep18 = pl.col("dep18")
+        kids = depx
+        if y == 2022 and behavior.mode.value == "statutory":
+            # Children under 4 qualify only from 2023; TAXSIM does not know ages.
+            young = pl.col("children_under_4")
+            dep17 = dep17 - young
+            dep18 = dep18 - young
+            kids = depx - young
         if y == 2020:
             fagi = fagi + pl.col("ny_ui") - pl.col("taxable_unemployment")
         df, (precrd,) = checkpoint(
             df,
-            ny_precrd=(e["per_child"] * pl.col("dep18") - e["phaseout_rate"] * (fagi - cphase).clip(0, None)).clip(0, None),
+            ny_precrd=(e["per_child"] * dep18 - e["phaseout_rate"] * (fagi - cphase).clip(0, None)).clip(0, None),
         )
         taxbca = pl.col("ny_taxbca")
         df, (ctcred,) = checkpoint(df, ny_ctcred=pl.min_horizontal(precrd, (taxbca - pl.col("ccc") - pl.col("federal_elder")).clip(0, None)))
@@ -591,11 +641,14 @@ def compute_ny_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             pl.min_horizontal(remaining, pl.max_horizontal(fift, (ssmtax - pl.col("eitc")).clip(0, None)))
         ).otherwise(chcr1))
         base = chcr1 + ctcred
-        per_child = e["federal_share"] * base / depx
-        credit = pl.when(fed_agi > cphase).then(
-            pl.col("dep17") * pl.max_horizontal(pl.lit(float(e["minimum_per_child"])), per_child)
-        ).otherwise(pl.col("dep17") * per_child)
-        eschcr = pl.when((depx > 0) & (precrd > 0)).then(credit).otherwise(0.0)
+        per_child = e["federal_share"] * base / kids.clip(1, None)
+        # The $100-per-child minimum applies at every income in the dated
+        # statutory years; TAXSIM applies it only above the phase-out start.
+        floor_applies = (fed_agi > cphase) | (y >= 2022)
+        credit = pl.when(floor_applies).then(
+            dep17 * pl.max_horizontal(pl.lit(float(e["minimum_per_child"])), per_child)
+        ).otherwise(dep17 * per_child)
+        eschcr = pl.when((kids > 0) & (precrd > 0) & (dep17 > 0)).then(credit).otherwise(0.0)
 
     df, (statax,) = checkpoint(df, ny_before_relief=statax - earncr - eschcr - pcred)
     f = p["family_tax_relief"]

@@ -124,6 +124,8 @@ def _schedule_tax(taxinc: pl.Expr, fedtax: pl.Expr, status: pl.Expr, y: int) -> 
         tax = split_joint(p["brackets_2000_2012"], p.num("brackets_2000_2012_inflation"))
     elif y <= 2018:
         tax = split_joint(p["brackets_2013_2018"], p.num("brackets_2013plus_inflation"))
+    elif y >= 2022:
+        tax = split_joint(p["brackets_2022plus"][y], 1.0)
     else:
         tax = split_joint(p["brackets_2019plus"], p.num("brackets_2013plus_inflation"))
     if y <= 1983:
@@ -185,6 +187,8 @@ def _schedule_rate(taxinc: pl.Expr, fedtax: pl.Expr, status: pl.Expr, y: int) ->
         return split_joint(p["brackets_2000_2012"], p.num("brackets_2000_2012_inflation"))
     if y <= 2018:
         return split_joint(p["brackets_2013_2018"], p.num("brackets_2013plus_inflation"))
+    if y >= 2022:
+        return split_joint(p["brackets_2022plus"][y], 1.0)
     return split_joint(p["brackets_2019plus"], p.num("brackets_2013plus_inflation"))
 
 
@@ -375,6 +379,67 @@ def _property_credit_pre1989(hh: pl.Expr, y: int) -> pl.Expr:
     return pl.when((ptx > 0) & (excess > 0)).then(credit).otherwise(0.0)
 
 
+def _phaseout_2022plus(y: int) -> dict:
+    return MN_PARAMS["phaseouts_2022plus"][y]
+
+
+def _status_value(values: dict, status: pl.Expr) -> pl.Expr:
+    expr = pl.lit(float(values["single"]))
+    for name in ("married_joint", "married_separate", "head_of_household"):
+        expr = pl.when(status == name).then(float(values[name])).otherwise(expr)
+    return expr
+
+
+def _deduction_after_reduction_2022plus(amount: pl.Expr, agi: pl.Expr, status: pl.Expr, y: int) -> pl.Expr:
+    """Standard or itemized deduction after Minnesota's AGI reduction."""
+    d = _phaseout_2022plus(y)
+    low = _status_value(d["low"], status)
+    high = _status_value(d["high"], status)
+    alternate = float(d["alternate_rate"]) * amount
+    if d["alternate_applies"]:
+        main = float(d["low_rate"]) * pl.min_horizontal((agi - low).clip(0, None), high - low) + float(
+            d["high_rate"]
+        ) * (agi - high).clip(0, None)
+        reduction = pl.when(agi > float(d["alternate_income"])).then(alternate).otherwise(
+            pl.min_horizontal(alternate, main)
+        )
+    else:
+        reduction = pl.min_horizontal(alternate, float(d["low_rate"]) * (agi - low).clip(0, None))
+    return (amount - reduction).clip(0, None)
+
+
+def _statutory_working_family_credit(y: int, earned: pl.Expr, agi: pl.Expr, is_joint: pl.Expr) -> pl.Expr:
+    """Dated statutory credits. 2022: the pre-2023 working family credit by
+    EITC child count. 2023+: the combined child and working families credit
+    ($1,750 per child under 18 plus a 4% phase-in), reduced 12% above a threshold."""
+    c = MN_PARAMS["cwfc_2022plus"]
+    ages = (
+        ((pl.col("page") >= 19) & (pl.col("page") <= 64)) | ((pl.col("sage") >= 19) & (pl.col("sage") <= 64))
+        | ((pl.col("page") == 0) & (pl.col("sage") == 0))
+    )
+    eligible = ((pl.col("depx") > 0) | ages) & (pl.col("filing_status") != "married_separate")
+    income = pl.max_horizontal(earned, agi)
+    if y == 2022:
+        count = pl.col("dep18").clip(0, 3).cast(pl.Int64)
+
+        def by_count(values: list[float]) -> pl.Expr:
+            expr = pl.lit(float(values[-1]))
+            for i in range(len(values) - 2, -1, -1):
+                expr = pl.when(count == i).then(float(values[i])).otherwise(expr)
+            return expr
+
+        pre = c["pre_cwfc"]
+        credit = pl.min_horizontal(earned.clip(0, None), by_count(pre["earnings_maximum"])) * by_count(pre["phase_in_rate"])
+        threshold = pl.when(is_joint).then(by_count(pre["phase_out_threshold_joint"])).otherwise(by_count(pre["phase_out_threshold_other"]))
+        reduction = (income - threshold).clip(0, None) * by_count(pre["phase_out_rate"])
+        return pl.when(eligible).then((credit - reduction).clip(0, None)).otherwise(0.0)
+    d = resolve_year(c["by_year"], y)
+    base = float(c["child_amount"]) * pl.col("dep17") + float(c["phase_in_rate"]) * earned.clip(0, float(d["phase_in_end"]))
+    threshold = pl.when(is_joint).then(float(d["phase_out_joint"])).otherwise(float(d["phase_out_other"]))
+    reduction = (income - threshold).clip(0, None) * float(c["phase_out_rate"])
+    return pl.when(eligible).then((base - reduction).clip(0, None)).otherwise(0.0)
+
+
 def _working_family_credit(
     base_earned: pl.Expr, base_agi: pl.Expr, fed_agi: pl.Expr, is_joint: pl.Expr, y: int
 ) -> pl.Expr:
@@ -382,6 +447,8 @@ def _working_family_credit(
     p = YearParams(MN_PARAMS, y)
     nkid = pl.col("depx").floor()
     eitc = pl.col("eitc")
+    if y >= 2022:
+        return _statutory_working_family_credit(y, pl.col("earned_income"), pl.col("agi"), is_joint)
     if y < 1991:
         return pl.lit(0.0)
     if y <= 1997:
@@ -515,7 +582,8 @@ def _working_family_credit(
 
 def compute_mn_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
     """Calculate Minnesota income tax for each row."""
-    effective_year, flate = resolve_state_year(year)
+    state_year = "mn" if behavior.mode.value == "statutory" else None
+    effective_year, flate = resolve_state_year(year, state_year)
     y = effective_year
     p = YearParams(MN_PARAMS, effective_year)
 
@@ -620,6 +688,11 @@ def compute_mn_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             p.num("exemption_phaseout_rate") * excess / (p.num("exemption_phaseout_step") / sep),
         )
         exemp = exemp - ratio * exemp
+        if y >= 2022:
+            d22 = _phaseout_2022plus(y)
+            steps = ((fed_agi - _status_value(d22["exemption_start"], pl.col("filing_status"))).clip(0, None)
+                     / _status_value(d22["exemption_step"], pl.col("filing_status"))).ceil()
+            exemp = (count * exemption_amount * (1 - float(d22["step_fraction"]) * steps)).clip(0, None)
         exemp = pl.when(dependent_filer).then(0.0).otherwise(exemp)
 
     # --- Standard deduction ---
@@ -651,6 +724,8 @@ def compute_mn_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             )
             + _by_filer(_sub(aged_add, "single", y), _sub(aged_add, "married", y), _sub(aged_add, "single", y)) * aged
         ) / sep
+    if y >= 2022:
+        stded = _deduction_after_reduction_2022plus(stded, fed_agi, pl.col("filing_status"), y)
     if y >= 2018:
         dependent_limit = pl.max_horizontal(
             pl.lit(p.num("dependent_standard_deduction_floor")),
@@ -693,6 +768,9 @@ def compute_mn_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             p.num("itemized_phaseout_rate") * (fed_agi - phded),
         )
         xitded = xitded - pl.when(fed_agi - phded > 0).then(dedphs).otherwise(0.0)
+        if y >= 2022:
+            # Statutory reduction replaces the historical phase-out above.
+            xitded = _deduction_after_reduction_2022plus(fed_deduc - stt, fed_agi, pl.col("filing_status"), y)
 
     df, (stded, xitded, exemp) = checkpoint(df, mn_stded=stded, mn_xitded=xitded, mn_exemp=exemp)
     deduc = pl.max_horizontal(stded, xitded)
@@ -716,7 +794,8 @@ def compute_mn_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
 
     # Subtraction for the elderly, less nontaxable Social Security.
     subrac = pl.lit(0.0)
-    if 1988 <= y <= 2016:
+    # The subtraction continues under current law; it is not in TAXSIM past 2016.
+    if 1988 <= y <= 2016 or (y >= 2022 and behavior.mode.value == "statutory"):
         eld = p["elderly_subtraction"][1994 if y >= 1994 else 1988]
         classes = (
             pl.when(is_joint & (aged >= 2)).then(0).when(is_joint).then(1).when(is_sep).then(3).otherwise(2)

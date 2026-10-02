@@ -58,6 +58,8 @@ standard_deduction_cap:
   2019: 4710
   2020: 4790
   2021: 4830
+  2022: 5090
+  2023: 5540
 standard_deduction_floor:
   1977: 0
   1996: 1260
@@ -83,6 +85,8 @@ standard_deduction_floor:
   2018: 2030
   2019: 2090
   2020: 2130
+  2022: 2260
+  2023: 2460
 head_of_household_standard_deduction_taxpayers: 2
 
 # --- Itemized deductions ---
@@ -185,6 +189,9 @@ exemption:
   2019: 2510
   2020: 2560
   2021: 2580
+  2022: 2710
+  2023: 2960
+  2024: 0
 
 # --- Rate schedules ---
 # Through 2004: these rates on brackets whose upper bounds are
@@ -251,7 +258,7 @@ surtax:
 # --- Credits ---
 capital_gains_credit_rate: {1977: 0.0, 2005: 0.01, 2007: 0.02}
 homeowner_credit_2007: 140
-eitc_match_rate: {1977: 0.0, 2019: 0.03}
+eitc_match_rate: {1977: 0.0, 2019: 0.03, 2022: 0.03, 2023: 0.03, 2024: 0.1}
 
 # Married couples may be taxed as two separate returns: the higher earner
 # takes their own wages plus this share of the couple's other income, and
@@ -283,6 +290,8 @@ retirement_exclusion_inflation:
   2019: 1.193
   2020: 1.2139
   2021: 1.2222
+  2022: 1.288889
+  2023: 1.405556
 
 # Social Security (1984+): Montana taxes benefits on its own worksheet,
 # with its subtractions counted against provisional income.
@@ -313,3 +322,21 @@ elderly_credit_income_limit_1998: 35000
 # 1999+ multiplier by household income (`ptab`); in 1981-1982 the same
 # table is a share of income subtracted from property tax.
 elderly_credit_multiplier: [[35000, 1.0], [37500, 0.4], [40000, 0.3], [42500, 0.2], [44999, 0.1], [1.0e+20, 0.0]]
+
+# 2022-2023 statutory bracket tables, one scale for every filing status (PolicyEngine-US
+# gov.states.mt.tax.income.main, queried 2026-10-01); [taxable income above, rate].
+brackets_2022_2023:
+  2022: [[0, 0.01], [3300, 0.02], [5800, 0.03], [8900, 0.04], [12000, 0.05], [15400, 0.06], [19800, 0.0675]]
+  2023: [[0, 0.01], [3600, 0.02], [6300, 0.03], [9700, 0.04], [13000, 0.05], [16800, 0.06], [21600, 0.0675]]
+# 2024+: two ordinary rates and a separate gains scale below/above `threshold` (same thresholds).
+schedule_2024plus:
+  single: {threshold: 20500, rate_low: 0.047, rate_high: 0.059}
+  married_separate: {threshold: 20500, rate_low: 0.047, rate_high: 0.059}
+  head_of_household: {threshold: 30750, rate_low: 0.047, rate_high: 0.059}
+  married_joint: {threshold: 41000, rate_low: 0.047, rate_high: 0.059}
+  gains_rate_low: 0.03
+  gains_rate_high: 0.041
+
+# Subtraction for each taxpayer 65 or older, 2024+ (PolicyEngine-US gov.states.mt.tax.income.subtractions.old_age,
+# queried 2026-10-01).
+old_age_subtraction_2024plus: 5500

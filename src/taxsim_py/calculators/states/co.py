@@ -14,11 +14,13 @@ FEDERAL_INCOME_TAX_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "income_tax
 PRE1987_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "pre1987.yaml")
 FEDERAL_AMT_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "amt.yaml")
 
+FEDERAL_CREDITS_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "credits.yaml")
 _STATUSES = ["single", "married_joint", "married_separate", "head_of_household"]
 
 
 def compute_co_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
-    effective_year, flate = resolve_state_year(year)
+    state_year = "co" if behavior.mode.value == "statutory" else None
+    effective_year, flate = resolve_state_year(year, state_year)
     p = YearParams(CO_PARAMS, effective_year)
 
     df = df.with_columns(
@@ -219,6 +221,23 @@ def compute_co_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             ).otherwise(0.0)
             taxinc = taxinc + addback
 
+        if effective_year >= 2022 and behavior.mode.value == "statutory":
+            # High-income add-backs: federal deductions above a limit (itemized
+            # only in 2022) and the federal qualified business income deduction.
+            hi = p["high_income_addback"]
+            threshold = float(resolve_year(hi["agi_threshold"], effective_year))
+            joint = files_joint()
+            limit = pl.when(joint).then(float(resolve_year(hi["limit_joint"], effective_year))).otherwise(
+                float(resolve_year(hi["limit_other"], effective_year))
+            )
+            claimed = pl.when(pl.col("itemizes")).then(pl.col("itemized_deduction")).otherwise(
+                0.0 if bool(resolve_year(hi["itemized_only"], effective_year)) else pl.col("standard_deduction")
+            )
+            taxinc = taxinc + pl.when(pl.col("agi") > threshold).then((claimed - limit).clip(0, None)).otherwise(0.0)
+            if "qbi_deduction" in df.columns:
+                qbi_limit = pl.when(joint).then(float(hi["qbi_agi_limit_joint"])).otherwise(float(hi["qbi_agi_limit_other"]))
+                taxinc = taxinc + pl.when(pl.col("agi") > qbi_limit).then(pl.col("qbi_deduction")).otherwise(0.0)
+
 
         # 2000-2002 Marriage Penalty Subtraction (joint filers only), less
         # the federal standard deduction (`comnew(3)`). The pension
@@ -273,12 +292,18 @@ def compute_co_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         1997: p["sales_tax_refund_1997"], 1998: p["sales_tax_refund_1998"],
         1999: p["sales_tax_refund_1999"], 2000: p["sales_tax_refund_2000"],
         2001: p["sales_tax_refund_2001"], 2015: p["sales_tax_refund_2015"],
-        2021: p["sales_tax_refund_2021"],
+        2021: p["sales_tax_refund_2021"], 2022: p["sales_tax_refund_2022"],
+        2024: p["sales_tax_refund_2024"],
     }
-    if effective_year in refund_tables:
+    if effective_year in (2022, 2024):
+        # Dated statutory schedule: a step function, not TAXSIM's tablki.
+        df = df.with_columns(co_salesrefund=bracket_rate(coagi, refund_tables[effective_year]) * pl.col("co_taxpayers"))
+    elif effective_year in refund_tables:
         df = df.with_columns(co_salesrefund=interpolate_table(coagi, refund_tables[effective_year]) * pl.col("co_taxpayers"))
     elif effective_year == 2005:
         df = df.with_columns(co_salesrefund=float(p["sales_tax_refund_2005"]) * pl.col("co_taxpayers"))
+    elif effective_year == 2023:
+        df = df.with_columns(co_salesrefund=float(p["sales_tax_refund_2023"]) * pl.col("co_taxpayers"))
     else:
         df = df.with_columns(co_salesrefund=pl.lit(0.0))
 
@@ -305,10 +330,58 @@ def compute_co_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     eitc_fed = pl.col("eitc").clip(0, None)
     if effective_year == 1999:
         df = df.with_columns(co_earncr=float(p["eitc_rate_1999"]) * eitc_fed)
+    elif effective_year in (2022, 2023, 2024):
+        # C.R.S. 39-22-123.5 drops the federal childless minimum age of 25 to
+        # 19 (the under-25 expansion), so start from the pre-age-test credit.
+        older = pl.max_horizontal(pl.col("page"), pl.col("sage"))
+        too_young = (pl.col("num_children") == 0) & (older > 0) & (older < float(p["eitc_under_25_minimum_age"]))
+        eitc_co = pl.when(too_young).then(0.0).otherwise(pl.col("eitc_before_age_test").clip(0, None))
+        df = df.with_columns(co_earncr=p.num("eitc_rate_actual") * eitc_co)
     elif (2000 <= effective_year <= 2001) or effective_year >= 2015:
         df = df.with_columns(co_earncr=float(p["eitc_rate_2000_2001_2015plus"]) * eitc_fed)
     else:
         df = df.with_columns(co_earncr=pl.lit(0.0))
+
+    # Colorado's refundable child tax credit is separate from the federal
+    # CTC. It is based on children under six and the state's filing-status
+    # MAGI scale. In 2022-2023 it is a share of the federal child credit; 2024
+    # law replaces that with flat amounts and adds the Family Affordability
+    # Credit.
+    if effective_year in (2022, 2023, 2024):
+        ctc_rate = pl.lit(0.0)
+        for status in _STATUSES:
+            ctc_rate = pl.when(pl.col("filing_status") == status).then(
+                bracket_rate(pl.col("co_agi"), p["child_tax_credit_amount"][status])
+            ).otherwise(ctc_rate)
+        if effective_year <= 2023:
+            # DR 0104CN worksheet: the federal credit recomputed for children
+            # under six only (nonrefundable part limited by tax, refundable
+            # part by the ACTC cap and earnings), times the income-based share.
+            fed = YearParams(FEDERAL_CREDITS_PARAMS["child_tax_credit"], effective_year)
+            maximum = fed.num("flat_amount_pre2021") * pl.col("dep6")
+            available_tax = (pl.col("tax_before_credits") - pl.col("ccc") - pl.col("elderly_credit_raw")).clip(0, None)
+            nonrefundable = pl.min_horizontal(maximum, available_tax)
+            refundable = pl.min_horizontal(
+                fed.num("actc_max_refundable_per_child") * pl.col("dep6"),
+                maximum - nonrefundable,
+                fed.num("actc_rate") * (pl.col("earned_income").clip(0, None) - fed.num("actc_earned_income_floor")).clip(0, None),
+            ).clip(0, None)
+            co_ctc = (ctc_rate / fed.num("flat_amount_pre2021")) * (nonrefundable + refundable)
+        else:
+            co_ctc = ctc_rate * pl.col("dep6")
+        if effective_year >= 2024:
+            fac = YearParams(p["family_affordability_credit"], effective_year)
+            threshold = pl.lit(0.0)
+            for status in _STATUSES:
+                threshold = pl.when(pl.col("filing_status") == status).then(
+                    float(resolve_year(fac["reduction_threshold"][status], effective_year))
+                ).otherwise(threshold)
+            increments = ((pl.col("agi") - threshold).clip(0, None) / float(fac["reduction_increment"])).ceil()
+            remaining = 1.0 - (increments * float(fac["reduction_rate"])).clip(None, 1.0)
+            children = pl.col("dep6") + float(fac["older_child_share"]) * (pl.col("dep17") - pl.col("dep6")).clip(0, None)
+            co_ctc = co_ctc + fac.num("amount") * children * remaining
+    else:
+        co_ctc = pl.lit(0.0)
 
     # `statax=max(0,statax-credit)-cr-earncr-chcr-child` - the pre-1987
     # NON-refundable credit pool (`credit`=propcr+fuelcr+foodcr+itc+encr,
@@ -320,7 +393,7 @@ def compute_co_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         co_statax=(pl.col("co_statax") - pl.col("co_foodcr") - pl.col("co_propcr") - pl.col("co_fuelcr")).clip(0, None)
     )
     df = df.with_columns(
-        siitax=(pl.col("co_statax") - pl.col("co_salesrefund") - pl.col("co_chcr") - pl.col("co_earncr")) * flate
+        siitax=(pl.col("co_statax") - pl.col("co_salesrefund") - pl.col("co_chcr") - pl.col("co_earncr") - co_ctc) * flate
     )
     return with_state_detail(
         df,
@@ -329,6 +402,6 @@ def compute_co_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         child_care_credit=pl.col("co_chcr"),
         eic=pl.col("co_earncr"),
         credits=pl.col("co_propcr") + pl.col("co_fuelcr") + pl.col("co_foodcr") + pl.col("co_salesrefund")
-        + pl.col("co_earncr") + pl.col("co_chcr"),
+        + pl.col("co_earncr") + pl.col("co_chcr") + co_ctc,
         **detail,
     )

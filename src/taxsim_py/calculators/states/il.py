@@ -2,7 +2,7 @@
 
 import polars as pl
 
-from taxsim_py.engine.inputs import aged_count, is_dependent_filer, taxpayer_count
+from taxsim_py.engine.inputs import aged_count, files_joint, is_dependent_filer, taxpayer_count
 from taxsim_py.engine.state import dividend_exclusion_addback, with_state_detail
 from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml
 from taxsim_py.behavior import BehaviorProfile, TAXSIM_BEHAVIOR
@@ -12,7 +12,8 @@ IL_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "il" / "income_tax.yaml")
 
 
 def compute_il_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
-    effective_year, flate = resolve_state_year(year)
+    state_year = "il" if behavior.mode.value == "statutory" else None
+    effective_year, flate = resolve_state_year(year, state_year)
     p = YearParams(IL_PARAMS, effective_year)
     rate = p.num("rate")
     exemption_amount = p.num("personal_exemption_amount")
@@ -61,6 +62,11 @@ def compute_il_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     exemption = pl.when(is_dependent_filer()).then(
         pl.when(pl.col("il_agi") <= exemption_amount).then(exemption_amount).otherwise(0.0)
     ).otherwise(exemption)
+    if effective_year >= 2017 and behavior.mode.value == "statutory":
+        # No exemption allowance when base income exceeds $250,000 ($500,000 joint).
+        limits = p["exemption_income_limit"]
+        limit = pl.when(files_joint()).then(float(limits["joint"])).otherwise(float(limits["other"]))
+        exemption = pl.when(pl.col("il_agi") > limit).then(0.0).otherwise(exemption)
     df = df.with_columns(
         il_exemption=exemption,
         il_proptax=pl.col("proptax") / flate,
@@ -104,7 +110,13 @@ def compute_il_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     # 2000-2002 and refundable from 2003 (taxsim_2022_10_21.f:5841-5845).
     if effective_year >= 2000:
         eitc_match_rate = p.num("eitc_match_rate")
-        df = df.with_columns(il_eitc_raw=eitc_match_rate * (pl.col("eitc") / flate))
+        federal_eitc = pl.col("eitc")
+        if effective_year >= 2023:
+            # Childless filers qualify from age 18, not the federal 25.
+            older = pl.max_horizontal(pl.col("page"), pl.col("sage"))
+            too_young = (pl.col("num_children") == 0) & (older > 0) & (older < float(p["eitc_childless_minimum_age"]))
+            federal_eitc = pl.when(too_young).then(0.0).otherwise(pl.col("eitc_before_age_test"))
+        df = df.with_columns(il_eitc_raw=eitc_match_rate * (federal_eitc / flate))
         if effective_year <= 2002:
             # `earncr = max(0, min(eirt*fed_eitc, statax-pcred))`, where
             # `statax` already has `pcred` subtracted, so `pcred` counts twice.
@@ -118,7 +130,13 @@ def compute_il_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             df = df.with_columns(il_eitc=pl.col("il_eitc_raw"))
     else:
         df = df.with_columns(il_eitc=pl.lit(0.0))
-    df = df.with_columns(il_tax_after_eitc=pl.col("il_tax_after_property_credit") - pl.col("il_eitc"))
+    if effective_year >= 2024:
+        # Child tax credit (P.A. 103-0592): a share of the state EITC for a
+        # return with a child under 12 (`dep13` is the closest input count).
+        il_ctc = pl.when(pl.col("dep13") > 0).then(float(p["child_tax_credit_rate"]) * pl.col("il_eitc")).otherwise(0.0)
+    else:
+        il_ctc = pl.lit(0.0)
+    df = df.with_columns(il_tax_after_eitc=pl.col("il_tax_after_property_credit") - pl.col("il_eitc") - il_ctc)
 
     df = df.with_columns(siitax=pl.col("il_tax_after_eitc") * flate)
     return with_state_detail(

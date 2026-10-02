@@ -23,7 +23,8 @@ FEDERAL_EXEMPTION_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "personal_ex
 
 def compute_sc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
     """Calculate South Carolina income tax for each row."""
-    effective_year, flate = resolve_state_year(year)
+    state_year = "sc" if behavior.mode.value == "statutory" else None
+    effective_year, flate = resolve_state_year(year, state_year)
     y = effective_year
     p = YearParams(SC_PARAMS, effective_year)
     dividend_adjustment = dividend_input_adjustment()
@@ -207,6 +208,8 @@ def compute_sc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             table = brackets[2001]
         else:
             table = scale_brackets(brackets[2002] if y <= 2008 else brackets[2009], p.num("index_2002"))
+            if y >= 2022:
+                table = brackets[y]  # statutory dollars
         statax = bracket_tax(taxinc, table)
         rate = bracket_rate(taxinc, table)
         detail_taxinc = taxinc

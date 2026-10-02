@@ -61,7 +61,8 @@ def _federal_tax_deduction(y: int) -> pl.Expr:
 
 def compute_nd_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
     """Calculate North Dakota income tax for each row."""
-    effective_year, flate = resolve_state_year(year)
+    state_year = "nd" if behavior.mode.value == "statutory" else None
+    effective_year, flate = resolve_state_year(year, state_year)
     y = effective_year
     p = YearParams(ND_PARAMS, effective_year)
     dividend_adjustment = dividend_input_adjustment()
@@ -207,6 +208,10 @@ def compute_nd_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         pw = pl.col("pwages").clip(0, None)
         sw = pl.col("swages").clip(0, None)
         lower = pl.min_horizontal(pw, sw)
+        if y >= 2022 and behavior.mode.value == "statutory":
+            # Actual-law years: pensions are shared between spouses.
+            half = pl.col("pensions") / 2.0
+            lower = pl.min_horizontal(pw + half, sw + half)
         single = _single_schedule(y)
         taxin3 = (lower - p.num("marriage_credit_deduction")).clip(0, None)
         taxin4 = (taxinc - taxin3).clip(0, None)
@@ -220,7 +225,7 @@ def compute_nd_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
 
     # --- Tax relief credit 2021 ---
     relief = pl.lit(0.0)
-    if y == 2021:
+    if y in (2021, 2022):
         relief = p.num("relief_credit") * txp
         statax = (statax - relief).clip(0, None)
 

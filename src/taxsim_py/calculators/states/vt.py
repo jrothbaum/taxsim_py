@@ -22,7 +22,8 @@ VT_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "vt" / "income_tax.yaml")
 
 def compute_vt_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
     """Calculate Vermont income tax for each row."""
-    effective_year, flate = resolve_state_year(year)
+    state_year = "vt" if behavior.mode.value == "statutory" else None
+    effective_year, flate = resolve_state_year(year, state_year)
     y = effective_year
     p = YearParams(VT_PARAMS, effective_year)
     payroll = payroll_parts(year)
@@ -106,6 +107,8 @@ def compute_vt_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             # Taxable Social Security is exempt, phased out above an AGI start.
             ss = pl.col("taxable_social_security")
             starts = p["social_security_exemption_start"]
+            if y >= 2022:
+                starts = p["social_security_exemption_start_2022plus"]
             phb = pl.when(is_joint).then(float(starts["married_joint"])).otherwise(float(starts["other"]))
             exssb = ss - ((fed_agi - phb).clip(0, None) / p["social_security_exemption_range"]).clip(None, 1.0) * ss
             agi = fed_agi - dedg - exssb
@@ -115,6 +118,12 @@ def compute_vt_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             stded = p.num("standard_deduction_2018") * (
                 pl.when(is_hoh).then(factors["head_of_household"]).when(is_joint).then(factors["married_joint"]).otherwise(1.0)
             )
+            if y >= 2022:
+                # Dated statutory amounts (not the base times a status factor).
+                dated = p["standard_deduction_2022plus"][y]
+                stded = pl.when(is_hoh).then(float(dated["head_of_household"])).when(is_joint).then(
+                    float(dated["married_joint"])
+                ).otherwise(float(dated["single"]))
             stded = stded + p.num("standard_deduction_aged_addition_2018") * aged
             taxinc = (agi - exemps * p.num("exemption_2018") - stded).clip(0, None)
             detail_agi = agi
@@ -204,7 +213,19 @@ def compute_vt_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         else:
             pcred = excess.clip(0, None)
         pcred = pl.when(vthy > p["renter_rebate_income_limit"]).then(0.0).otherwise(pcred)
-    statax = statax - pcred - earncr - telcr - chcref
+    ctc = pl.lit(0.0)
+    if y >= 2022:
+        # Statutory years: no telephone credit; the child and dependent care
+        # credit is 72% of the federal credit, refundable; and a child tax
+        # credit for children under six (32 V.S.A. 5830f).
+        telcr = pl.lit(0.0)
+        chcref = float(p["child_care_credit_rate_2022plus"]) * fed_ccc
+        chcr = pl.lit(0.0)
+        credit = p["child_tax_credit_2022plus"]
+        excess = (fed_agi - float(credit["reduction_start"])).clip(0, None)
+        reduction = float(credit["reduction_amount"]) * (excess / float(credit["reduction_increment"])).ceil()
+        ctc = (float(credit["amount"]) * pl.col("dep6") - reduction).clip(0, None)
+    statax = statax - pcred - earncr - telcr - chcref - ctc
 
     df = df.with_columns(siitax=statax * flate)
     return with_state_detail(
@@ -216,6 +237,6 @@ def compute_vt_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         property_credit=pcred,
         child_care_credit=pl.when(chcref > 0).then(chcref).otherwise(chcr),
         eic=earncr,
-        credits=lowcr + studcr + pcred + telcr + earncr + chcr + chcref + contr,
+        credits=lowcr + studcr + pcred + telcr + earncr + chcr + chcref + contr + ctc,
         rate=rate,
     )

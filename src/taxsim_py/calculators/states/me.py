@@ -27,7 +27,8 @@ def _max2(a: pl.Expr, b: pl.Expr) -> pl.Expr:
 
 
 def compute_me_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
-    effective_year, flate = resolve_state_year(year)
+    state_year = "me" if behavior.mode.value == "statutory" else None
+    effective_year, flate = resolve_state_year(year, state_year)
     p = YearParams(ME_PARAMS, effective_year)
     df = df.with_columns(
         me_household_income=household_income()
@@ -172,6 +173,8 @@ def compute_me_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         thr_p = p["deduction_phaseout_2018plus_threshold"]
         rng_p = p["deduction_phaseout_2018plus_range"]
         phased = by_filing_status(thr_p) * xmp18
+        if effective_year >= 2022:
+            phased = by_filing_status(p["deduction_phaseout_2022plus"][effective_year])
         xl4 = by_filing_status(rng_p)
         over = pl.col("me_agi") >= phased
         df = df.with_columns(
@@ -191,6 +194,8 @@ def compute_me_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         exemp = xmp_amt * pl.col("me_txp")
         xmp18 = p.num("xmp18_index")
         phasex = by_filing_status(p["exemption_phaseout_2018plus_threshold"]) * xmp18
+        if effective_year >= 2022:
+            phasex = by_filing_status(p["exemption_phaseout_2022plus"][effective_year])
         rng = float(p["exemption_phaseout_2018plus_range"][1960])
         over = pl.col("me_agi") > phasex
         exemp = pl.when(over).then(exemp * (1.0 - ((pl.col("me_agi") - phasex) / (rng / pl.col("me_sep"))).clip(0, 1))).otherwise(exemp)
@@ -231,6 +236,10 @@ def compute_me_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     else:
         table = p["brackets_2017plus"]
         aif = p.num("bracket_inflation_factor_2017plus")
+        if effective_year >= 2022:
+            # Statutory dollars (single schedule; joint and head of household scale from it).
+            table = p["brackets_2022plus"][effective_year]
+            aif = 1.0
 
     tinc = pl.col("me_taxinc") / me_texp
     stat = bracket_tax(tinc / aif, table) * aif
@@ -273,9 +282,21 @@ def compute_me_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     chcrn = chcr - chcrr
 
     depcrd = pl.lit(0.0)
+    dep_refundable = pl.lit(0.0)
     if effective_year >= 2018:
         per_child = float(p["dependent_credit_per_child"][1960])
         depcrd = pl.min_horizontal(per_child * pl.col("dep17"), pl.col("me_statax"))
+        if effective_year >= 2022:
+            # Every dependent, reduced $7.50 per $1,000 (or part) of AGI above the start.
+            dep = p["dependent_exemption_credit_2022plus"]
+            start = pl.when(is_joint).then(float(dep["start_joint"])).otherwise(float(dep["start_other"]))
+            steps = ((pl.col("me_agi") - start).clip(0, None) / float(dep["increment"])).ceil()
+            statutory = (float(dep["amount"]) * pl.col("depx") - float(dep["step"]) * steps).clip(0, None)
+            depcrd = pl.min_horizontal(statutory, pl.col("me_statax"))
+            if effective_year >= 2024:
+                # Refundable from 2024: applied with the other refundable credits below.
+                dep_refundable = statutory
+                depcrd = pl.lit(0.0)
 
     # Credit for the elderly: a share of the federal credit, 1978-2016.
     eldcr = pl.lit(0.0)
@@ -355,6 +376,15 @@ def compute_me_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             # 2020 reads the federal credit before its minimum-age test.
             federal = pl.col("eitc_before_age_test")
             earncr = pl.when(pl.col("dep18") < 1).then(p["eitc_rate_childless_2020"] * federal).otherwise(rate_eitc * federal)
+    if effective_year >= 2022:
+        # 25% of the federal credit with a qualifying child; 50% for childless
+        # filers aged 18 or older (the federal minimum age of 25 does not apply).
+        rates = p["eitc_rate_2022plus"]
+        older = pl.max_horizontal(pl.col("page"), pl.col("sage"))
+        childless_ok = (older == 0) | (older >= 18)
+        earncr = pl.when(pl.col("dep18") > 0).then(float(rates["with_child"]) * pl.col("eitc")).when(childless_ok).then(
+            float(rates["childless"]) * pl.col("eitc_before_age_test")
+        ).otherwise(0.0)
     df = df.with_columns(me_earncr=earncr)
     if 2000 <= effective_year <= 2015:
         df = df.with_columns(me_statax=(pl.col("me_statax") - pl.col("me_earncr")).clip(0, None))
@@ -438,9 +468,32 @@ def compute_me_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             (credit_amt - ((tis - threshold) / p["stfc_phaseout_step"]).clip(0, None)).clip(0, None)
         ).otherwise(0.0)
 
+    if effective_year >= 2022:
+        # Dated statutory credit: base plus a children supplement, reduced per
+        # increment of income above the start.
+        d = p["stfc_2022plus"][effective_year]
+        children = pl.col("dep17")
+        extra_joint = bind = pl.lit(0.0)
+        for threshold, amount in d["additional"]["joint"]:
+            extra_joint = pl.when(children >= threshold).then(float(amount)).otherwise(extra_joint)
+        extra_hoh = pl.lit(0.0)
+        for threshold, amount in d["additional"]["head_of_household"]:
+            extra_hoh = pl.when(children >= threshold).then(float(amount)).otherwise(extra_hoh)
+        statuses = {"single": pl.lit(0.0), "married_joint": extra_joint, "head_of_household": extra_hoh, "married_separate": pl.lit(0.0)}
+        credit = pl.lit(0.0)
+        for status, extra in statuses.items():
+            row = d[status]
+            if not row["increment"]:
+                continue
+            reduction = ((tis - float(row["start"])).clip(0, None) / float(row["increment"])).ceil() * float(row["step"])
+            credit = pl.when(pl.col("filing_status") == status).then(
+                (float(row["base"]) + extra - reduction).clip(0, None)
+            ).otherwise(credit)
+        stfc = pl.when(nmst_eligible).then(credit).otherwise(0.0)
+
     df = df.with_columns(me_ptfc=ptfc, me_stfc=stfc)
     df = df.with_columns(
-        me_statax=pl.col("me_statax") - pl.col("me_chcrr") - pl.col("me_ptfc") - pl.col("me_stfc")
+        me_statax=pl.col("me_statax") - pl.col("me_chcrr") - pl.col("me_ptfc") - pl.col("me_stfc") - dep_refundable
     )
     if effective_year >= 2016:
         df = df.with_columns(me_statax=pl.col("me_statax") - pl.col("me_earncr"))
@@ -457,7 +510,7 @@ def compute_me_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         child_care_credit=pl.col("me_chcr"),
         eic=pl.col("me_earncr"),
         credits=pl.col("me_credit") + pl.col("me_pcred") + pl.col("me_earncr")
-        + pl.col("me_chcrr") + pl.col("me_ptfc") + pl.col("me_stfc"),
+        + pl.col("me_chcrr") + pl.col("me_ptfc") + pl.col("me_stfc") + dep_refundable,
         rate=bracket_rate(tinc / aif, table),
     )
 

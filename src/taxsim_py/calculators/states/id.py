@@ -16,7 +16,8 @@ _STATUSES = ["single", "married_joint", "married_separate", "head_of_household"]
 _SEPRET_BY_STATUS = {"single": 1.0, "married_joint": 1.0, "head_of_household": 1.0, "married_separate": 2.0}
 
 def compute_id_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
-    effective_year, flate = resolve_state_year(year)
+    state_year = "id" if behavior.mode.value == "statutory" else None
+    effective_year, flate = resolve_state_year(year, state_year)
     p = YearParams(ID_PARAMS, effective_year)
 
     df = df.with_columns(
@@ -188,10 +189,13 @@ def compute_id_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             key = "2018_2020"
         else:
             key = "2021plus"
-        aif = p.num("bracket_inflation_factor")
+        aif = 1.0 if behavior.mode.value == "statutory" and effective_year >= 2022 else p.num("bracket_inflation_factor")
     else:
         aif = 1.0
-    brackets = p[f"brackets_{key}"]
+    if behavior.mode.value == "statutory" and effective_year >= 2022:
+        brackets = p[f"brackets_{effective_year}_statutory"]
+    else:
+        brackets = p[f"brackets_{key}"]
     txp = pl.when(pl.col("filing_status").is_in(["married_joint", "head_of_household"])).then(2.0).otherwise(1.0)
     tinc = pl.col("id_taxinc") / txp
     stat = bracket_tax(tinc / aif, brackets) * aif

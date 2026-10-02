@@ -4,16 +4,19 @@ import polars as pl
 
 from taxsim_py.calculators.federal_pre1987 import PRE1987_PARAMS
 from taxsim_py.calculators.payroll import payroll_parts
+from taxsim_py.engine.eitc import trapezoid_credit
 from taxsim_py.engine.inputs import aged_count, files_joint, is_dependent_filer, separate_divisor, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml, resolve_year
 from taxsim_py.engine.state import by_filing_status, household_income, interpolate_table, unemployment_total, with_state_detail
 from taxsim_py.behavior import BehaviorProfile, TAXSIM_BEHAVIOR
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
+FEDERAL_EITC_PARAMS = pl.read_csv(PARAMETERS_ROOT / "national" / "eitc.csv")
 IN_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "in" / "income_tax.yaml")
 
 def compute_in_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
-    effective_year, flate = resolve_state_year(year)
+    state_year = "in" if behavior.mode.value == "statutory" else None
+    effective_year, flate = resolve_state_year(year, state_year)
     p = YearParams(IN_PARAMS, effective_year)
     df = df.with_columns(
         in_household_income=household_income(),
@@ -152,11 +155,27 @@ def compute_in_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         floor = float(p["eitc_2003_2008_federal_floor"][1960])
         earncr = pl.when(pl.col("eitc") >= floor).then(rate_cr * pl.col("eitc")).otherwise(0.0)
     elif effective_year >= 2009:
-        rate_cr = float(p["eitc_2009plus_rate"][1960])
+        rate_cr = p.num("eitc_2009plus_rate")
         floor = float(p["eitc_2009plus_federal_floor"][1960])
         fed_eitc = pl.col("eitc")
         earncr = pl.when(fed_eitc >= floor).then(rate_cr * fed_eitc).otherwise(0.0)
-        if effective_year >= 2011:
+        if effective_year >= 2022:
+            # Actual-law years: a share of the federal credit (PolicyEngine's
+            # decoupled 2022 formula and 2023+ static conformity agree with it).
+            earncr = rate_cr * fed_eitc
+            if effective_year == 2022:
+                # 2022 is computed on its own formula: at most two children and no
+                # higher phase-out start for joint returns.
+                rows = FEDERAL_EITC_PARAMS.filter((pl.col("year") == 2022) & (pl.col("filing_status") == "single"))
+                children = pl.col("dep18").clip(0, 2)
+                decoupled = pl.lit(0.0)
+                for row in rows.to_dicts():
+                    amount = trapezoid_credit(
+                        pl.col("earned_income"), pl.col("agi"), row["rate_in"], row["max_credit"], row["phaseout_start"], row["rate_out"]
+                    )
+                    decoupled = pl.when(children == row["num_children"]).then(amount).otherwise(decoupled)
+                earncr = pl.when(fed_eitc > 0).then(rate_cr * decoupled).otherwise(0.0)
+        elif effective_year >= 2011:
             ieic_expr = pl.min_horizontal(pl.col("dep18"), 2.0)
             crm = pl.when(ieic_expr == 0).then(
                 pl.lit(p.num("eitc_crmax_0kids"))
@@ -203,7 +222,14 @@ def compute_in_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         pcred = pl.lit(0.0)
         table = p["elderly_credit_table_1981"] if effective_year <= 1984 else p["elderly_credit_table_1985"]
         second = p.num("elderly_credit_second_aged")
-        ecred = interpolate_table(fed_agi, table) + pl.when(
+        # Actual-law years: the statute's credit is a step schedule on federal
+        # AGI, not TAXSIM's linearly interpolated table.
+        base_credit = interpolate_table(fed_agi, table)
+        if effective_year >= 2022:
+            base_credit = pl.lit(0.0)
+            for limit, amount in reversed(table):
+                base_credit = pl.when(fed_agi < float(limit)).then(float(amount)).otherwise(base_credit)
+        ecred = base_credit + pl.when(
             (aged > 1) & (files_joint())
         ).then(second).otherwise(0.0)
     ecred = pl.when((aged > 0) & (fed_agi < p["elderly_credit_agi_limit"])).then(ecred).otherwise(0.0)

@@ -13,7 +13,11 @@ DE_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "de" / "income_tax.yaml")
 
 
 def compute_de_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
-    effective_year, flate = resolve_state_year(year)
+    # Statutory mode uses Delaware's dated 2022-2024 values. They happen to
+    # equal the existing TAXSIM table, but must not inherit projected-year
+    # extrapolation when a caller asks for a recent year.
+    state_year = "de" if behavior.mode.value == "statutory" else None
+    effective_year, flate = resolve_state_year(year, state_year)
     p = YearParams(DE_PARAMS, effective_year)
     df = df.with_columns(
         de_sep=separate_divisor(),

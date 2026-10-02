@@ -23,7 +23,8 @@ FEDERAL_CREDITS_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "credits.yaml"
 
 
 def compute_ks_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
-    effective_year, flate = resolve_state_year(year)
+    state_year = "ks" if behavior.mode.value == "statutory" else None
+    effective_year, flate = resolve_state_year(year, state_year)
     p = YearParams(KS_PARAMS, effective_year)
 
     df = df.with_columns(
@@ -87,6 +88,10 @@ def compute_ks_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         else:
             table = p["standard_deduction_2021plus"]
         stded = by_filing_status(table)
+        if effective_year >= 2022:
+            stded = by_filing_status(p["standard_deduction_2022_2023"])
+        if effective_year >= 2024:
+            stded = by_filing_status(p["standard_deduction_2024plus"])
         if effective_year >= 1998:
             limit = pl.max_horizontal(pl.lit(float(p["dependent_standard_deduction_minimum"])), pl.col("earned_income"))
             stded = pl.when(is_dependent_filer()).then(pl.min_horizontal(stded, limit)).otherwise(stded)
@@ -161,7 +166,14 @@ def compute_ks_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         comnew68 = pl.when(is_dependent_filer()).then(0.0).otherwise(pl.col("ks_taxpayers") + pl.col("depx")) / flate
     exemps = pl.when(is_hoh).then(comnew68 + 1.0).otherwise(comnew68)
     xmp = p.num("personal_exemption_amount")
-    df = df.with_columns(ks_exemp=exemps * xmp)
+    exemption = exemps * xmp
+    if effective_year >= 2024:
+        # Exemptions by filing status, plus a dependent amount and a head of household addition.
+        e = p["exemptions_2024plus"]
+        exemption = pl.when(is_dependent_filer()).then(0.0).otherwise(
+            by_filing_status(e["by_status"]) + float(e["dependent"]) * pl.col("depx") + pl.when(is_hoh).then(float(e["head_of_household_addition"])).otherwise(0.0)
+        )
+    df = df.with_columns(ks_exemp=exemption)
 
     df = df.with_columns(ks_taxinc=(pl.col("ks_agi") - pl.col("ks_deduc") - pl.col("ks_exemp") - fedded).clip(0, None))
 
@@ -218,8 +230,16 @@ def compute_ks_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         doubler = pl.when(is_joint).then(2.0).otherwise(1.0)
         statax = bracket_tax(halved, table) * doubler
         rate_expr = bracket_rate(pl.col("ks_taxinc"), table)
+        if effective_year >= 2024:
+            schedule = p["brackets_2024plus"]
+            statax = pl.when(is_joint).then(bracket_tax(pl.col("ks_taxinc"), schedule["joint"])).otherwise(
+                bracket_tax(pl.col("ks_taxinc"), schedule["other"])
+            )
+            rate_expr = pl.when(is_joint).then(bracket_rate(pl.col("ks_taxinc"), schedule["joint"])).otherwise(
+                bracket_rate(pl.col("ks_taxinc"), schedule["other"])
+            )
 
-    if _split_allowed(effective_year):
+    if _split_allowed(effective_year) and effective_year < 2024:
         yh = higher_earner_share(pl.col("ks_taxinc"))
         yw = pl.col("ks_taxinc") - yh
         tax_h = bracket_tax(yh.clip(0, None), table)
@@ -236,6 +256,13 @@ def compute_ks_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         ceiling_s = float(p["zero_tax_taxinc_ceiling_single_2015_2017"][1960])
         under = pl.when(is_joint).then(pl.col("ks_taxinc") <= ceiling).otherwise(pl.col("ks_taxinc") <= ceiling_s)
         df = df.with_columns(ks_statax=pl.when(under).then(0.0).otherwise(pl.col("ks_statax")))
+    elif effective_year >= 2024:
+        zero_agi = pl.when(is_joint).then(float(p["agi_zero_tax_threshold_2024plus"]["joint"])).otherwise(
+            float(p["agi_zero_tax_threshold_2024plus"]["other"])
+        )
+        df = df.with_columns(
+            ks_statax=pl.when((pl.col("ks_taxinc") <= 0) | (pl.col("ks_agi") <= zero_agi)).then(0.0).otherwise(pl.col("ks_statax"))
+        )
     elif effective_year >= 2018:
         ceiling = float(p["zero_tax_taxinc_ceiling_joint_2018plus"][1960])
         ceiling_s = float(p["zero_tax_taxinc_ceiling_single_2018plus"][1960])

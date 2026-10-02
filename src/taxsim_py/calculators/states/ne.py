@@ -32,7 +32,8 @@ def _additional_tax(dagi: pl.Expr, bounds: list[float], rates: list[float]) -> t
 
 def compute_ne_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
     """Calculate Nebraska income tax for each row."""
-    effective_year, flate = resolve_state_year(year)
+    state_year = "ne" if behavior.mode.value == "statutory" else None
+    effective_year, flate = resolve_state_year(year, state_year)
     y = effective_year
     p = YearParams(NE_PARAMS, effective_year)
     df = deflate_for_extrapolation(df, flate)
@@ -213,9 +214,19 @@ def compute_ne_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     statax = (statax - credit).clip(0, None)
     statax = pl.min_horizontal(taxbc + almtax, statax)
     earncr = p.num("eitc_match_rate") * pl.col("eitc")
-    statax = statax - chcref - earncr
+    ctc = pl.lit(0.0)
+    if y >= 2024:
+        # Refundable child tax credit for dependents 5 or younger: any income when child care
+        # expenses are paid, otherwise income at or below the federal poverty guideline.
+        c = p["child_tax_credit_2024plus"]
+        household = taxpayer_count() + pl.col("depx")
+        poverty = float(c["poverty_first_person"]) + float(c["poverty_additional_person"]) * (household - 1)
+        eligible = (pl.col("childcare") > 0) | (pl.col("agi") <= poverty)
+        amount = bracket_rate(pl.col("agi"), c["amount"])
+        ctc = pl.when(eligible).then(amount * pl.col("dep6")).otherwise(0.0)
+    statax = statax - chcref - earncr - ctc
     final_chcr = pl.when(chcref > 0).then(chcref).otherwise(chcr)
-    final_credit = credit + chcref + earncr
+    final_credit = credit + chcref + earncr + ctc
 
     return with_state_detail(
         df.with_columns(siitax=statax * flate),

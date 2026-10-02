@@ -21,7 +21,8 @@ from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, reso
 KY_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "ky" / "income_tax.yaml")
 
 def compute_ky_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
-    effective_year, flate = resolve_state_year(year)
+    state_year = "ky" if behavior.mode.value == "statutory" else None
+    effective_year, flate = resolve_state_year(year, state_year)
     p = YearParams(KY_PARAMS, effective_year)
 
     df = df.with_columns(
@@ -78,7 +79,10 @@ def compute_ky_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     if effective_year >= 1995:
         share = p.num("retirement_exclusion_share")
         cap = p.num("retirement_exclusion_cap")
-        agi = agi - pl.min_horizontal(share * pl.col("pensions"), pl.lit(cap))
+        # The statutory cap is per taxpayer; TAXSIM's single household pension
+        # total is treated as split between joint spouses, so the cap doubles.
+        cap_total = cap * pl.col("ky_taxpayers") if behavior.mode.value == "statutory" else pl.lit(cap)
+        agi = agi - pl.min_horizontal(share * pl.col("pensions"), cap_total)
     if 1987 <= effective_year <= 1989:
         # 60% LTCG exclusion, gated on a positive net capital gain in AGI.
         capgn = pl.col("stcg") + pl.col("ltcg")
@@ -89,7 +93,10 @@ def compute_ky_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
 
     # --- Standard deduction ---
     ded_pf = p.num("standard_deduction_per_filer")
-    df = df.with_columns(ky_stded=ded_pf * pl.col("ky_taxpayers"))
+    # From the dated 2022+ years a joint return takes one deduction (Form 740
+    # instructions); the historical TAXSIM path doubles it per taxpayer.
+    stded_count = pl.lit(1.0) if effective_year >= 2022 else pl.col("ky_taxpayers")
+    df = df.with_columns(ky_stded=ded_pf * stded_count)
 
     # --- Itemized deduction ---
     if effective_year <= 1986:
@@ -140,7 +147,10 @@ def compute_ky_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     df = df.with_columns(ky_taxinc=(pl.col("ky_agi") - pl.col("ky_deduc")).clip(0, None))
 
     # --- Married filing combined --- (own explicit split, real through 2017)
-    is_mfc = is_joint & (pl.col("ky_agi") > 0) & (effective_year <= 2017)
+    # Actual-law years also let spouses file combined in separate columns
+    # (each takes the standard deduction) when that is lower.
+    mfc_years = effective_year <= 2017 or (behavior.mode.value == "statutory" and effective_year >= 2022)
+    is_mfc = is_joint & (pl.col("ky_agi") > 0) & mfc_years
     agih = higher_earner_share(pl.col("ky_agi"))
     agiw = pl.col("ky_agi") - agih
     xitdh = pl.when(pl.col("ky_agi") != 0).then(pl.col("ky_xitded") * agih / pl.col("ky_agi")).otherwise(0.0)
@@ -171,8 +181,10 @@ def compute_ky_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             bracket_rate(pl.col("ky_taxinc"), table)
         )
     else:
-        flat_rate = float(p["flat_rate_2018plus"][1960])
+        flat_rate = p.num("flat_rate_2018plus")
         statax = flat_rate * pl.col("ky_taxinc")
+        if effective_year >= 2022 and behavior.mode.value == "statutory":
+            statax = pl.when(is_mfc).then(flat_rate * pl.min_horizontal(pl.col("ky_taxinc"), pl.col("ky_taxinh") + pl.col("ky_taxinw"))).otherwise(statax)
         # The flat formula does not call TAXSIM's bracket lookup, so its
         # shared reported-rate variable remains zero.
         rate_expr = pl.lit(0.0)
@@ -219,7 +231,9 @@ def compute_ky_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
                 ky_statax=(pl.col("ky_statax") - pl.col("ky_chcr") - pl.col("ky_lowcrd")).clip(0, None)
             )
         elif effective_year >= 2005:
-            num = pl.min_horizontal(pl.col("ky_taxpayers") + pl.col("depx") + aged_count(), 4.0)
+            # TAXSIM counts a taxpayer 65 or older twice; the statute's family size does not.
+            aged_in_family = pl.lit(0.0) if effective_year >= 2022 else aged_count()
+            num = pl.min_horizontal(pl.col("ky_taxpayers") + pl.col("depx") + aged_in_family, 4.0)
             modagi = pl.max_horizontal(pl.col("ky_agi"), pl.col("agi"))
             aif1 = p.num("family_size_credit_aif_1person")
             aif2 = p.num("family_size_credit_aif_2person")
@@ -232,6 +246,15 @@ def compute_ky_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
                 .when(num == 4).then(interpolate_table(modagi / aif4, p["family_size_credit_table_4person"]))
                 .otherwise(0.0)
             )
+            if effective_year >= 2022:
+                # Actual-law years: income as a multiple of the federal poverty
+                # guideline (family size capped at four), by step.
+                fpg = p["family_size_credit_poverty_guideline"]
+                poverty = float(resolve_year(fpg["first_person"], effective_year)) + float(resolve_year(fpg["additional_person"], effective_year)) * (num - 1.0)
+                share = modagi / poverty
+                perc = pl.lit(0.0)
+                for limit, rate in reversed(p["family_size_credit_rate_2022plus"]):
+                    perc = pl.when(share <= float(limit)).then(float(rate)).otherwise(perc)
             famcr = pl.col("ky_statax") * perc
             df = df.with_columns(ky_famcr=famcr)
             if effective_year in (2019, 2020):

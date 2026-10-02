@@ -28,10 +28,12 @@ def _tiered_replace(income: pl.Expr, tiers: list[list[float]]) -> pl.Expr:
 
 
 def compute_md_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
-    effective_year, flate = resolve_state_year(year)
+    state_year = "md" if behavior.mode.value == "statutory" else None
+    effective_year, flate = resolve_state_year(year, state_year)
     p = YearParams(MD_PARAMS, effective_year)
 
     is_joint = files_joint()
+    is_hoh_status = pl.col("filing_status") == "head_of_household"
     is_hoh = files_head_of_household()
     is_sep = files_separate()
     is_single = files_single()
@@ -244,6 +246,11 @@ def compute_md_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     earncr = pl.lit(0.0)
     if effective_year >= 1987:
         earncr = p.num("eitc_nonrefundable_share") * pl.col("eitc")
+        if effective_year >= 2022:
+            # Unmarried childless filers get the whole federal credit
+            # (nonrefundable part first), parents and couples half.
+            unmarried_childless = (pl.col("depx") < 1) & ~is_joint
+            earncr = pl.when(unmarried_childless).then(pl.col("eitc")).otherwise(earncr)
     earncr = pl.min_horizontal(pl.col("md_taxbc"), earncr)
     df = df.with_columns(md_pretax=(pl.col("md_taxbc") - earncr).clip(0, None))
     df = df.with_columns(md_statax=pl.col("md_pretax"))
@@ -258,10 +265,13 @@ def compute_md_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         elif effective_year <= 2019:
             refcr = base_refcr
         else:
-            refcr = pl.when(pl.col("depx") > 0).then(base_refcr).otherwise(0.0)
-            childless_floor = float(p["refundable_eitc_childless_floor_2020plus"][1960])
+            # From 2022 married childless filers use the refundable share like
+            # parents; only unmarried childless filers use the floor below.
+            parent_like = (pl.col("depx") > 0) | ((effective_year >= 2022) & is_joint)
+            refcr = pl.when(parent_like).then(base_refcr).otherwise(0.0)
+            childless_floor = float(resolve_year(p["refundable_eitc_childless_floor_2020plus"], effective_year))
             wl2 = pl.min_horizontal(childless_floor, pl.col("eitc"))
-            childless_gate = (pl.col("md_pretax") < 1.0) & (pl.col("depx") < 1.0)
+            childless_gate = (pl.col("md_pretax") < 1.0) & ~parent_like
             childless_refcr = pl.when(pl.col("md_taxbc") < wl2).then(wl2 - pl.col("md_taxbc")).otherwise(0.0)
             refcr = pl.when(childless_gate).then(childless_refcr).otherwise(refcr)
 
@@ -308,6 +318,19 @@ def compute_md_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         ptcr = pl.lit(0.0)
     df = df.with_columns(md_statax=(pl.col("md_statax") - ptcr).clip(0, None))
 
+    # Senior tax credit (2022+): nonrefundable, for returns with a taxpayer 65 or older below the AGI limit.
+    senior = pl.lit(0.0)
+    if effective_year >= 2022:
+        sc = p["senior_tax_credit_2022plus"]
+        limit = pl.when(is_joint | is_hoh_status).then(float(sc["limit_joint_or_hoh"])).otherwise(float(sc["limit_other"]))
+        amount = (
+            pl.when(is_joint).then(pl.when(aged_count() >= 2).then(float(sc["joint_two"])).when(aged_count() == 1).then(float(sc["joint_one"])).otherwise(0.0))
+            .when(is_hoh_status).then(pl.when(aged_count() > 0).then(float(sc["head_of_household"])).otherwise(0.0))
+            .otherwise(pl.when(aged_count() > 0).then(float(sc["single"])).otherwise(0.0))
+        )
+        senior = pl.when(pl.col("agi") < limit).then(pl.min_horizontal(amount, pl.col("md_statax").clip(0, None))).otherwise(0.0)
+        df = df.with_columns(md_statax=pl.col("md_statax") - senior)
+
     df = df.with_columns(md_statax=pl.col("md_statax") - refcr)
 
     # 2019+ refundable portion of the Child/Dependent Care Credit.
@@ -315,6 +338,13 @@ def compute_md_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     if effective_year >= 2019:
         chref = pl.when(pl.col("agi") <= fagim).then((chcr - pl.col("md_taxbc")).clip(0, None)).otherwise(0.0)
         df = df.with_columns(md_statax=pl.col("md_statax") - chref)
+
+    ctc = pl.lit(0.0)
+    if effective_year >= 2023:
+        # Refundable child tax credit for children under six at low AGI.
+        credit = p["child_tax_credit_2023plus"]
+        ctc = pl.when(pl.col("agi") <= float(credit["agi_cap"])).then(float(credit["amount"]) * pl.col("dep6")).otherwise(0.0)
+        df = df.with_columns(md_statax=pl.col("md_statax") - ctc)
 
     df = df.with_columns(siitax=pl.col("md_statax") * flate)
     return with_state_detail(
@@ -326,6 +356,6 @@ def compute_md_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         taxable_income=pl.col("md_taxinc"),
         child_care_credit=chcr,
         eic=earncr + refcr,
-        credits=earncr + ptcr + refcr + chcr + chref,
+        credits=earncr + ptcr + refcr + chcr + chref + ctc + senior,
         rate=rate_expr,
     )

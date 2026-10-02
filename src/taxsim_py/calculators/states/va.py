@@ -13,6 +13,7 @@ from taxsim_py.engine.state import (
     with_state_detail,
 )
 from taxsim_py.behavior import BehaviorProfile, TAXSIM_BEHAVIOR
+from taxsim_py.engine.schema import resolve_year
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
 VA_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "va" / "income_tax.yaml")
@@ -27,7 +28,8 @@ def _brackets(y: int) -> list[list[float]]:
 
 def compute_va_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
     """Calculate Virginia income tax for each row."""
-    effective_year, flate = resolve_state_year(year)
+    state_year = "va" if behavior.mode.value == "statutory" else None
+    effective_year, flate = resolve_state_year(year, state_year)
     y = effective_year
     p = YearParams(VA_PARAMS, effective_year)
     df = df.with_columns(va_schede=pl.col("otherprop") + (pl.col("scorp") if year >= 1987 else 0.0))
@@ -223,8 +225,29 @@ def compute_va_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         # Not with the age deduction.
         crlow = pl.when(elder > 0).then(0.0).otherwise(crlow)
         crlow = pl.min_horizontal(statax, crlow)
+        refundable_extra = pl.lit(0.0)
+        if y >= 2022:
+            # The EITC may instead be claimed as 15% refundable; the larger
+            # benefit applies, and then no nonrefundable credit is used. The
+            # 2023+ rebate is a nonrefundable credit.
+            refundable_claim = float(p["eitc_refundable_rate_2022plus"]) * pl.col("eitc")
+            elect = (refundable_claim > crlow) & (elder <= 0)
+            refundable_extra = pl.when(elect).then(refundable_claim).otherwise(0.0)
+            crlow = pl.when(elect).then(0.0).otherwise(crlow)
         statax = statax - crlow
         credits = credits + crlow
+        if y >= 2022:
+            rebate_amounts = p["rebate_2023plus"]
+            rebate = pl.lit(0.0)
+            if y >= 2023:
+                rebate = pl.min_horizontal(
+                    statax.clip(0, None),
+                    pl.when(is_joint).then(float(resolve_year(rebate_amounts["married_joint"], y))).otherwise(
+                        float(resolve_year(rebate_amounts["other"], y))
+                    ),
+                )
+            statax = statax - rebate
+            credits = credits + rebate
 
     # Old age credit (through 1989).
     if y <= 1989:
@@ -238,6 +261,9 @@ def compute_va_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         credits = credits + ocred
 
     statax = pl.when(must_file).then(statax.clip(0, None)).otherwise(0.0)
+    if y >= 2022:
+        statax = statax - refundable_extra
+        credits = credits + refundable_extra
     df = df.with_columns(siitax=statax * flate)
     # TAXSIM returns before the worksheet for returns below the filing minimum.
     worksheet = {

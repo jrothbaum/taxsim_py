@@ -12,6 +12,7 @@ from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, reso
 AR_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "ar" / "income_tax.yaml")
 STATE_ADJUSTMENT_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "state_adjustments.yaml")
 AR_LOW_INCOME_TABLE = pl.read_csv(PARAMETERS_ROOT / "states" / "ar" / "low_income_table.csv")
+AR_LOW_INCOME_TABLE_2022PLUS = pl.read_csv(PARAMETERS_ROOT / "states" / "ar" / "low_income_table_2022plus.csv")
 
 _PRE1987_STATUSES = ["single", "married_joint", "married_separate", "head_of_household"]
 _MST_MAP = {"single": 1, "married_joint": 2, "married_separate": 6, "head_of_household": 4}
@@ -85,7 +86,8 @@ def _low_income_override(df: pl.DataFrame, effective_year: int) -> pl.Expr | Non
 
 
 def compute_ar_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
-    effective_year, flate = resolve_state_year(year)
+    state_year = "ar" if behavior.mode.value == "statutory" else None
+    effective_year, flate = resolve_state_year(year, state_year)
     p = YearParams(AR_PARAMS, effective_year)
 
     # Business income (TAXSIM slots above 199) is not deflated; Schedule E
@@ -346,6 +348,23 @@ def compute_ar_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         ov = ov.when(richer & (depx <= 1) & richer_dep01_ov.is_not_null()).then(richer_dep01_ov)
         ov = ov.when(richer & (depx >= 2) & richer_dep2_ov.is_not_null()).then(richer_dep2_ov)
         df = df.with_columns(ar_statax=pl.when(ov.is_not_null()).then(ov).otherwise(pl.col("ar_statax")))
+    elif effective_year >= 2022:
+        # Dated statutory tables: step lookups on net taxable income; the tax
+        # is the lesser of the table and the main schedule.
+        table = AR_LOW_INCOME_TABLE_2022PLUS.filter(pl.col("year") == effective_year)
+        lookup = pl.lit(None, dtype=pl.Float64)
+        for (status, dep_tier), rows in table.group_by(["status", "dep_tier"], maintain_order=True):
+            starts = rows["threshold"].to_list()
+            amounts = [1e18 if a is None else a for a in rows["amount"].to_list()]
+            dep_cond = pl.lit(True) if dep_tier == 0 else (pl.col("depx") <= 1 if dep_tier == 1 else pl.col("depx") >= 2)
+            group = (pl.col("filing_status") == status) & dep_cond
+            value = bracket_rate(pl.col("ar_agi"), [[a, b] for a, b in zip(starts, amounts)])
+            lookup = pl.when(group).then(value).otherwise(lookup)
+        df = df.with_columns(
+            ar_statax=pl.when(pl.col("ar_low_income_eligible") & lookup.is_not_null())
+            .then(pl.min_horizontal(pl.col("ar_statax"), lookup))
+            .otherwise(pl.col("ar_statax"))
+        )
     else:
         override_expr = _low_income_override(df, effective_year)
         if override_expr is not None:
@@ -380,6 +399,45 @@ def compute_ar_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         gcred = gcred + pl.when((pl.col("pensions") == 0) & (aged_count() > 0)).then(pcr).otherwise(0.0)
     df = df.with_columns(ar_gcred=gcred)
 
+    # Arkansas added two nonrefundable credits in the 2022-2024 statutory
+    # years.  TAXSIM has no inputs for resident status or disability, so the
+    # statutory path uses the information this schema can actually represent
+    # (AGI, filing status, and age) while the compatibility path remains the
+    # historical TAXSIM calculation.
+    if behavior.mode.value == "statutory" and effective_year >= 2022:
+        relief = p["inflationary_relief"]
+        relief_max = by_filing_status({
+            status: float(resolve_year(relief["max_amount"][status], effective_year)) for status in
+            ("single", "married_joint", "married_separate", "head_of_household")
+        })
+        relief_start = by_filing_status({
+            status: float(resolve_year(relief["reduction_start"][status], effective_year)) for status in
+            ("single", "married_joint", "married_separate", "head_of_household")
+        })
+        relief_amount = by_filing_status({
+            status: float(resolve_year(relief["reduction_amount"][status], effective_year)) for status in
+            ("single", "married_joint", "married_separate", "head_of_household")
+        })
+        relief_increment = by_filing_status({
+            status: float(resolve_year(relief["reduction_increment"][status], effective_year)) for status in
+            ("single", "married_joint", "married_separate", "head_of_household")
+        })
+        relief_credit = (relief_max - relief_amount * ((pl.col("ar_agi") - relief_start).clip(0, None) / relief_increment).floor()).clip(0, None)
+
+        # Additional tax credit for qualified individuals: each head or spouse
+        # gets the maximum, reduced per $100 of net taxable income above the
+        # start; a joint return gets the doubled maximum and reduction.
+        people = pl.col("ar_taxpayers")
+        qualified_credit = (
+            p.num("qualified_individual_credit_amount") * people
+            - p.num("qualified_individual_credit_reduction")
+            * people
+            * ((pl.col("ar_taxinc") - p.num("qualified_individual_credit_start")).clip(0, None) / p.num("qualified_individual_credit_increment")).ceil()
+        ).clip(0, None)
+        df = df.with_columns(ar_statutory_extra_credit=relief_credit + qualified_credit)
+    else:
+        df = df.with_columns(ar_statutory_extra_credit=pl.lit(0.0))
+
     child_rate = float(p["child_care_credit_rate_1998plus"] if effective_year >= 1998 else p["child_care_credit_rate_pre1998"])
     # A share of the federal child care credit (`comnew(53)`).
     child = pl.col("federal_chcr").clip(0, None)
@@ -387,7 +445,7 @@ def compute_ar_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     if effective_year == 1982:
         df = df.with_columns(ar_chcr=pl.min_horizontal(pl.col("ar_chcr"), p["child_care_credit_cap_per_dependent_1982"] * pl.col("depx").clip(0, 2)))
 
-    df = df.with_columns(ar_credit=pl.col("ar_chcr") + pl.col("ar_gcred"))
+    df = df.with_columns(ar_credit=pl.col("ar_chcr") + pl.col("ar_gcred") + pl.col("ar_statutory_extra_credit"))
     df = df.with_columns(siitax=(pl.col("ar_statax") - pl.col("ar_credit")).clip(0, None) * flate)
     return with_state_detail(
         df,

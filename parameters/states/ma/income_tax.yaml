@@ -31,6 +31,8 @@ part_b_rate:
 part_a_rate:
   1977: 0.10
   1990: 0.12
+  # 2023+: short-term gains rate (PolicyEngine-US gov.states.ma.tax.income.rates.part_a).
+  2023: 0.085
 
 # Part C (long-term capital gains, 1997+) rate.
 part_c_rate:
@@ -176,6 +178,8 @@ eitc_rate:
   2001: 0.15
   2016: 0.23
   2019: 0.30
+  # PolicyEngine-US gov.states.ma.tax.income.credits.eitc.match, queried 2026-10-01.
+  2023: 0.40
 
 # 2020+ unemployment exclusion (`povert`, `uithrs`).
 ui_exclusion_poverty_level:
@@ -332,3 +336,7 @@ limited_income_credit_limit_per_dependent: 1750
 personal_credit_pre1984:
   per_taxpayer: 8
   per_dependent: 4
+
+# 2023+ statutory additions (PolicyEngine-US gov.states.ma.tax.income, queried 2026-10-01).
+additional_tax_2023plus: {rate: 0.04, threshold: {2023: 1000000, 2024: 1053750}}
+child_and_family_credit_2023plus: {2023: 310, 2024: 440}

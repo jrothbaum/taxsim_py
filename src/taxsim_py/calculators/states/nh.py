@@ -13,7 +13,8 @@ NH_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "nh" / "income_tax.yaml")
 
 def compute_nh_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
     """Calculate New Hampshire interest and dividends tax for each row."""
-    effective_year, flate = resolve_state_year(year)
+    state_year = "nh" if behavior.mode.value == "statutory" else None
+    effective_year, flate = resolve_state_year(year, state_year)
     p = YearParams(NH_PARAMS, effective_year)
     dividend_adjustment = dividend_input_adjustment()
     df = df.with_columns(nh_income=pl.col("dividends") + dividend_adjustment + pl.col("intrec"))

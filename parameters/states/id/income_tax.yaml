@@ -89,6 +89,23 @@ brackets_2021plus:  # aif-scaled
   - [4000, 0.055]
   - [5000, 0.065]
 
+# PolicyEngine-US: gov.states.id.tax.income.main. Idaho changed to the
+# 2022 two-rate schedule, then a single 2023 rate and a 2024 indexed rate.
+# The calculator applies these tables to per-taxpayer income after its joint
+# or head-of-household split.
+brackets_2022_statutory:
+  - [0, 0.01]
+  - [1662, 0.03]
+  - [4987, 0.045]
+  - [8311, 0.06]
+  - [1000000000000, 0.065]
+brackets_2023_statutory:
+  - [0, 0.0]
+  - [4490, 0.058]
+brackets_2024_statutory:
+  - [0, 0.0]
+  - [4673, 0.05695]
+
 # `aif01(law)` - the real inflation-adjustment factor for brackets, 2001+.
 bracket_inflation_factor:
   2001: 1.0
@@ -192,6 +209,11 @@ standard_deduction_single_1993plus:  # `deds(law)`
   2019: 12200
   2020: 12400
   2021: 12500
+  # 2022-2024: federal standard deduction (Idaho conforms); PolicyEngine-US
+  # gov.states.id.tax.income.deductions conforms, IRS Rev. Proc. 2021-45/2022-38/2023-34.
+  2022: 12950
+  2023: 13850
+  2024: 14600
 standard_deduction_hoh_1993plus:  # `dedh(law)`
   1993: 5450
   1994: 5600
@@ -222,6 +244,9 @@ standard_deduction_hoh_1993plus:  # `dedh(law)`
   2019: 18350
   2020: 18650
   2021: 18800
+  2022: 19400
+  2023: 20800
+  2024: 21900
 standard_deduction_married_joint_1993plus:  # `dedj(law)` (also used for
   # married_separate, divided by `sep`)
   1993: 6200
@@ -251,6 +276,9 @@ standard_deduction_married_joint_1993plus:  # `dedj(law)` (also used for
   2019: 24400
   2020: 24800
   2021: 25100
+  2022: 25900
+  2023: 27700
+  2024: 29200
 standard_deduction_married_separate_1999plus:  # `dedw(law)` - a REAL,
   # distinct table from `dedj`, used (divided by `sep`) ONLY for
   # married_separate 1999+ (`mst.eq.2` alone gets `dedj` directly; the
@@ -279,6 +307,10 @@ standard_deduction_married_separate_1999plus:  # `dedw(law)` - a REAL,
   2019: 24400
   2020: 24800
   2021: 25500
+  # Joint-equivalent amount (divided by 2 for a separate return).
+  2022: 25900
+  2023: 27700
+  2024: 29200
 
 # Grocery Tax Credit - real, era-dependent per-exemption formula.
 grocery_credit_flat_1977:
@@ -300,6 +332,8 @@ grocery_credit_by_year_2008plus:  # `gr(law)`
   2013: 80
   2014: 90
   2015: 100
+  # PolicyEngine-US gov.states.id.tax.income.credits.grocery.base.amount.
+  2023: 120
 grocery_credit_low_income_bonus_2008_2013:
   1960: 20
 grocery_credit_low_income_bonus_2014:
@@ -332,7 +366,7 @@ building_fund_limit_separate_addon_1981plus:
 
 # 1987+: a dependent filer's standard deduction is at most the greater of
 # this and earned income plus $350 (TAXSIM `dstded`).
-dependent_standard_deduction_minimum: {1987: 500, 1991: 550, 1992: 600, 1995: 650, 1998: 700, 2001: 750, 2004: 800, 2006: 850, 2009: 900, 2010: 950, 2013: 1000, 2015: 1050, 2019: 1100}
+dependent_standard_deduction_minimum: {1987: 500, 1991: 550, 1992: 600, 1995: 650, 1998: 700, 2001: 750, 2004: 800, 2006: 850, 2009: 900, 2010: 950, 2013: 1000, 2015: 1050, 2019: 1100, 2022: 1150, 2023: 1250, 2024: 1300}
 dependent_standard_deduction_earned_addition: 350
 # 1987: standard deduction with aged or blind taxpayers, by filing status:
 # the first amount plus the step for each further aged taxpayer.

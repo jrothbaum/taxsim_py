@@ -19,6 +19,10 @@ rate_by_year:  # rate(law) - Indiana's flat tax rate
   1988: 0.034
   2015: 0.033
   2017: 0.0323
+  # PolicyEngine-US: gov.states.in.tax.income.agi_rate.
+  2022: 0.0323
+  2023: 0.0315
+  2024: 0.0305
 
 # Renter's deduction cap (`dedr`, real; divided by `sep` for
 # married_separate).
@@ -83,6 +87,10 @@ eitc_2003_2008_federal_floor:
 # and takes the smaller of the two.
 eitc_2009plus_rate:
   1960: 0.09
+  # PolicyEngine-US: gov.states.in.tax.income.credits.earned_income.match_rate.
+  2022: 0.10
+  2023: 0.10
+  2024: 0.10
 eitc_2009plus_federal_floor:
   1960: 6.0
 

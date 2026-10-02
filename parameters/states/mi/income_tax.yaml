@@ -26,6 +26,10 @@ rate:
   2008: 0.0435
   2012: 0.0433
   2013: 0.0425
+  # PolicyEngine-US gov.states.mi.tax.income.rate, queried 2026-09-29.
+  2022: 0.0425
+  2023: 0.0405
+  2024: 0.0425
 
 # Personal exemption (`xmp(law,1)`) and the special exemption for the
 # elderly or for filers whose UI is at least half of federal AGI
@@ -55,6 +59,10 @@ personal_exemption:
   2019: 4400
   2020: 4750
   2021: 4900
+  # PolicyEngine-US gov.states.mi.tax.income.exemptions.personal (indexed).
+  2022: 5000
+  2023: 5400
+  2024: 5600
 special_exemption:
   1977: 0
   1987: 1400
@@ -103,6 +111,10 @@ property_credit_phaseout_start:
   2012: 41000
   2018: 51000
   2021: 51600
+  # PolicyEngine-US gov.states.mi.tax.income.credits, dated 2022-2024.
+  2022: 54000
+  2023: 58300
+  2024: 60700
 property_credit_income_share:
   1977: 0.035
   2018: 0.032
@@ -113,6 +125,10 @@ property_credit_rate:
 property_credit_cap:
   1977: 1200
   2018: 1500
+  # PolicyEngine-US gov.states.mi.tax.income.credits, dated 2022-2024.
+  2022: 1600
+  2023: 1700
+  2024: 1800
 property_credit_phaseout_rate:
   1977: 0.1
 property_credit_phaseout_step:
@@ -135,6 +151,10 @@ heating_credit_share:  # `frt` - share of the computed credit actually paid
   2019: 0.80
   2020: 0.85
   2021: 1.0
+  # PolicyEngine-US gov.states.mi.tax.income.credits, dated 2022-2024.
+  2022: 0.9
+  2023: 0.56
+  2024: 0.52
 heating_credit_income_rate:
   1977: 0.035
 heating_credit_base_1977_1984:  # `fuelc1`, by exemptions 1-6
@@ -183,6 +203,10 @@ heating_credit_base_2006plus:  # `fuelc3`, first exemption
   2019: 482
   2020: 492
   2021: 497
+  # PolicyEngine-US gov.states.mi.tax.income.credits, dated 2022-2024.
+  2022: 524
+  2023: 562
+  2024: 581
 heating_credit_per_extra_exemption:  # `cin2` (1985+)
   1985: 70
   1986: 73
@@ -219,12 +243,21 @@ heating_credit_per_extra_exemption:  # `cin2` (1985+)
   2019: 170
   2020: 173
   2021: 175
+  2022: 182
+  2023: 198
+  2024: 208
 
 # Refundable EITC, share of federal (`reic`, 2008+).
 eitc_rate:
   2008: 0.10
   2009: 0.20
   2012: 0.06
+  # PolicyEngine-US gov.states.mi.tax.income.credits.eitc.match,
+  # queried 2026-09-29. Michigan's Working Families Tax Credit raised the
+  # match to 30% beginning with tax year 2023 (2022 stays at 6%).
+  2022: 0.06
+  2023: 0.30
+  2024: 0.30
 
 # Retirement subtraction for taxpayers 65 or older. Through 1993: pensions
 # up to a cap (joint returns; separate filers get half their pensions);
@@ -297,6 +330,13 @@ senior_investment_deduction_per_taxpayer:
 # 2013+: a flat deduction per taxpayer 65 or older replaces both.
 senior_standard_deduction:
   2013: 20000
+
+# 2023+: retirement subtraction phased in for taxpayers born 1946-1958 as a
+# share of the maximum for private pensions (Public Act 4 of 2023).
+expanded_retirement_share: {2022: 0.0, 2023: 0.25, 2024: 0.5}
+expanded_retirement_maximum:
+  single: {2022: 56961, 2023: 61518, 2024: 64040}
+  joint: {2022: 113922, 2023: 123036, 2024: 128080}
 
 # A dependent filer's exemption; no tax when AGI is below it.
 dependent_filer_exemption:

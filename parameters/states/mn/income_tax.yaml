@@ -233,6 +233,9 @@ standard_deduction_table:
     2019: 12200
     2020: 12400
     2021: 12525
+    2022: 12900
+    2023: 13825
+    2024: 14575
   married_joint:
     1988: 5000
     1989: 5200
@@ -266,6 +269,9 @@ standard_deduction_table:
     2019: 24400
     2020: 24800
     2021: 25050
+    2022: 25800
+    2023: 27650
+    2024: 29150
   head_of_household:
     1988: 4400
     1989: 4550
@@ -302,6 +308,9 @@ standard_deduction_table:
     2019: 18350
     2020: 18650
     2021: 18800
+    2022: 19400
+    2023: 20800
+    2024: 21900
 
 # --- Exemptions (2013+) ---
 # TAXSIM's `/fed/` exemption table (`exem`), which continues past 2017.
@@ -339,6 +348,9 @@ exemption_amount:
   2019: 4250
   2020: 4300
   2021: 4350
+  2022: 4450
+  2023: 4800
+  2024: 5050
 # TAXSIM's `/fed/` married-joint standard deduction (`zbrack(2,law)`).
 federal_joint_standard_deduction:
   1987: 3760
@@ -387,6 +399,10 @@ phaseout_inflation:
   2019: 1.9465
   2020: 1.9785
   2021: 1.9985
+  # 2022+: PolicyEngine-US gov.states.mn.tax.income.exemptions.agi_threshold (single) / 100,000.
+  2022: 2.0605
+  2023: 2.2065
+  2024: 2.3255
 phaseout_multiplier:
   single: 1.0
   married_joint: 1.5
@@ -1132,6 +1148,9 @@ standard_deduction_aged_addition:
     2014: 1550
     2018: 1600
     2019: 1650
+    2022: 1700
+    2023: 1850
+    2024: 1950
   married:
     1988: 600
     1990: 650
@@ -1148,6 +1167,9 @@ standard_deduction_aged_addition:
     2013: 1200
     2015: 1250
     2018: 1300
+    2022: 1350
+    2023: 1450
+    2024: 1550
 standard_deduction_2018_aged_addition:
   single: 1600
   married_joint: 1300
@@ -1317,3 +1339,76 @@ property_credit_1979_1982_aged:
 # taxpayers beyond the number of taxpayers.
 personal_credit_aged_1978: 20
 personal_credit_extra_aged_1978: 10
+
+# 2022+ statutory brackets (PolicyEngine-US gov.states.mn.tax.income.rates, queried 2026-10-01); unscaled.
+brackets_2022plus:
+  2022:
+    single: [[0, 0.0535], [28080, 0.068], [92230, 0.0785], [171220, 0.0985]]
+    joint: [[0, 0.0535], [41050, 0.068], [163060, 0.0785], [284810, 0.0985]]
+    head_of_household: [[0, 0.0535], [34570, 0.068], [138890, 0.0785], [227600, 0.0985]]
+  2023:
+    single: [[0, 0.0535], [30070, 0.068], [98760, 0.0785], [183340, 0.0985]]
+    joint: [[0, 0.0535], [43950, 0.068], [174610, 0.0785], [304970, 0.0985]]
+    head_of_household: [[0, 0.0535], [37010, 0.068], [148730, 0.0785], [243720, 0.0985]]
+  2024:
+    single: [[0, 0.0535], [31690, 0.068], [104690, 0.0785], [193240, 0.0985]]
+    joint: [[0, 0.0535], [46330, 0.068], [184040, 0.0785], [321450, 0.0985]]
+    head_of_household: [[0, 0.0535], [39690, 0.068], [156760, 0.0785], [256880, 0.0985]]
+
+# 2022+ working family and child credits (PolicyEngine-US gov.states.mn.tax.income.credits.cwfc,
+# queried 2026-10-01). Lists are indexed by EITC-qualifying children 0, 1, 2, 3+.
+cwfc_2022plus:
+  pre_cwfc:
+    earnings_maximum: [7570, 12650, 20750, 21170]
+    phase_in_rate: [0.039, 0.0935, 0.11, 0.125]
+    phase_out_threshold_joint: [15430, 30290, 34770, 35090]
+    phase_out_threshold_other: [9240, 24110, 28590, 28900]
+    phase_out_rate: [0.02, 0.06, 0.105, 0.105]
+  child_amount: 1750
+  phase_in_rate: 0.04
+  phase_out_rate: 0.12
+  by_year:
+    2023: {phase_in_end: 8750, phase_out_joint: 35000, phase_out_other: 29500}
+    2024: {phase_in_end: 9220, phase_out_joint: 36880, phase_out_other: 31090}
+
+# 2022+ phase-outs (PolicyEngine-US gov.states.mn.tax.income.{deductions,exemptions}, queried 2026-10-01).
+# Standard and itemized deductions fall by `low_rate` of AGI above the low threshold up to the high
+# threshold, then `high_rate` above it, but never by more than `alternate_rate` of the deduction; from 2023
+# above `alternate_income` the full alternate amount applies. Exemptions fall `step_fraction` per step.
+phaseouts_2022plus:
+  2022:
+    low_rate: 0.03
+    high_rate: 0.1
+    alternate_rate: 0.8
+    alternate_applies: false
+    alternate_income: 1000000
+    step_fraction: 0.02
+    low: {single: 206050, married_joint: 206050, married_separate: 103025, head_of_household: 206050}
+    high: {single: 304970, married_joint: 304970, married_separate: 152485, head_of_household: 304970}
+    exemption_start: {single: 206050, married_joint: 309050, married_separate: 154525, head_of_household: 257550}
+    exemption_step: {single: 2500, married_joint: 2500, married_separate: 1250, head_of_household: 2500}
+    itemized_low_equals_standard: true
+  2023:
+    low_rate: 0.03
+    high_rate: 0.1
+    alternate_rate: 0.8
+    alternate_applies: true
+    alternate_income: 1000000
+    step_fraction: 0.02
+    low: {single: 220650, married_joint: 220650, married_separate: 110325, head_of_household: 220650}
+    high: {single: 304970, married_joint: 304970, married_separate: 152485, head_of_household: 304970}
+    exemption_start: {single: 220650, married_joint: 330950, married_separate: 165475, head_of_household: 275800}
+    exemption_step: {single: 2500, married_joint: 2500, married_separate: 1250, head_of_household: 2500}
+    itemized_low_equals_standard: true
+  2024:
+    low_rate: 0.03
+    high_rate: 0.1
+    alternate_rate: 0.8
+    alternate_applies: true
+    alternate_income: 1053750
+    step_fraction: 0.02
+    low: {single: 232500, married_joint: 232500, married_separate: 116250, head_of_household: 232500}
+    high: {single: 321350, married_joint: 321350, married_separate: 160675, head_of_household: 321350}
+    exemption_start: {single: 232550, married_joint: 348850, married_separate: 174425, head_of_household: 290700}
+    exemption_step: {single: 2500, married_joint: 2500, married_separate: 1250, head_of_household: 2500}
+    itemized_low_equals_standard: true

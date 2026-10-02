@@ -25,7 +25,8 @@ _STATUSES = ["single", "married_joint", "married_separate", "head_of_household"]
 
 def compute_mo_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
     """Calculate Missouri income tax for each row."""
-    effective_year, flate = resolve_state_year(year)
+    state_year = "mo" if behavior.mode.value == "statutory" else None
+    effective_year, flate = resolve_state_year(year, state_year)
     y = effective_year
     p = YearParams(MO_PARAMS, effective_year)
 
@@ -237,6 +238,15 @@ def compute_mo_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     if y <= 1978:
         pcred = pl.min_horizontal(pcred, statax)
     statax = statax - pcred
+    wftc = pl.lit(0.0)
+    if y >= 2023:
+        c = MO_PARAMS["working_family_credit_2023plus"]
+        investment = (
+            pl.col("dividends") + pl.col("intrec") + (pl.col("stcg") + pl.col("ltcg")).clip(0, None) + pl.col("otherprop").clip(0, None)
+        )
+        eligible = (investment <= float(resolve_year(c["investment_income_limit"], y))) & ~is_dependent_filer()
+        wftc = pl.when(eligible).then(pl.min_horizontal(float(resolve_year(c["match"], y)) * pl.col("eitc"), statax.clip(0, None))).otherwise(0.0)
+        statax = statax - wftc
 
     detail_stded = fed_zbr
     if year == 2023:

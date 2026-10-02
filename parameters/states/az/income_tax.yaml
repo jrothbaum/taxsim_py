@@ -139,6 +139,19 @@ brackets_2019plus:  # married_joint/HoH split taxable income in half through
   - [53000, 0.0417]
   - [159000, 0.045]
 
+# PolicyEngine-US: gov.states.az.tax.income.main. Arizona reduced the
+# individual rate schedule in 2022 and moved to a single 2.5% rate in 2023.
+# The rich-return calculator divides joint/HoH taxable income by two before
+# applying this table, so the 2022 threshold is the per-spouse threshold.
+brackets_2022plus_statutory:
+  - [0, 0.0255]
+  - [28653, 0.0298]
+  - [1000000000000, 0.0417]
+  - [1000000000000, 0.045]
+brackets_2023plus_statutory:
+  - [0, 0.025]
+  - [1000000000000, 0.025]
+
 # Standard deduction: 3 eras. <=1989: 10% of AGI (CPI-adjusted), capped at
 # $500/exemption-unit (CPI-adjusted). 1990-2018: a flat, year-specific
 # dollar amount PER exemption unit (`txp`). 2019+: a flat, year-specific
@@ -170,6 +183,8 @@ standard_deduction_flat:  # 2019+, multiplied by the status coefficient
   2020: 12400
   2021: 12550
   2022: 12950
+  2023: 13850
+  2024: 14600
 
 # Personal/dependent exemption: 5 genuinely different formula eras - see
 # calculators/states/az.py. All $0 for 2019+ (confirmed above).
@@ -306,6 +321,8 @@ property_tax_credit_thresholds: [1750, 1850, 1950, 2050, 2150, 2250, 2350, 2450,
 property_tax_credit_pre1990: [225, 215, 206, 250, 185, 175, 165, 155, 145, 135, 125, 115, 105, 95, 86, 75, 65, 55, 45, 35, 25]
 property_tax_credit_1990: [502, 479, 457, 435, 412, 390, 368, 345, 323, 301, 279, 256, 234, 212, 189, 167, 145, 123, 100, 78, 56]
 property_tax_credit_family_addition: 750
+# Form 140PTC approximation of the landlord's property-tax factor applied to rent (statutory mode).
+property_tax_credit_rent_factor: 0.15
 
 # Renter credit (through 1991): a share of rent paid up to a cap; 1990-1991
 # only at AGI of $25,000 or less and at most $55.

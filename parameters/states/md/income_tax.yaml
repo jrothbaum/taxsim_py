@@ -209,18 +209,31 @@ standard_deduction_single_separate_floor_2019_2021:
   2019: 1500
   2020: 1550
   2021: 2300
+  # 2022+: PolicyEngine-US gov.states.md.tax.income.deductions.standard, queried 2026-10-01.
+  2022: 1600
+  2023: 1700
+  2024: 1800
 standard_deduction_single_separate_ceiling_2019_2021:
   2019: 1550
   2020: 2250
   2021: 2350
+  2022: 2400
+  2023: 2550
+  2024: 2700
 standard_deduction_joint_hoh_floor_2019_2021:
   2019: 3050
   2020: 3100
   2021: 4650
+  2022: 3200
+  2023: 3450
+  2024: 3650
 standard_deduction_joint_hoh_ceiling_2019_2021:
   2019: 3100
   2020: 4550
   2021: 4700
+  2022: 4850
+  2023: 5150
+  2024: 5450
 
 # Poverty Level Credit (1997+, nonrefundable) - real per-exemption
 # income-ceiling tables.
@@ -290,9 +303,13 @@ refundable_eitc_rate:
   2018: 0.28
   2020: 0.45
   2021: 0.50
+  # 2022+: PolicyEngine-US gov.states.md.tax.income.credits.eitc.refundable.married_or_has_child.match.
+  2022: 0.45
 # 2020+ childless-worker refundable floor (`min(530,comnew(59))`).
 refundable_eitc_childless_floor_2020plus:
   1960: 530
+  # 2023+: the full federal credit (the $530 cap expired); PolicyEngine-US ...eitc.non_refundable.unmarried_childless.
+  2023: 1.0e+9
 
 # Pension exclusion per taxpayer 65 or older (`pex`), less Social Security
 # benefits.
@@ -340,6 +357,10 @@ pension_exclusion:
   2019: 31100
   2020: 33100
   2021: 34300
+  # 2022+: PolicyEngine-US gov.states.md.tax.income.agi.subtractions.pension.max_amount, queried 2026-10-01.
+  2022: 34300
+  2023: 36200
+  2024: 39500
 # 1987-1989 additional standard deduction per taxpayer 65 or older.
 standard_deduction_aged_addition_1987_1989: 800
 # 1990+ exemption per taxpayer 65 or older (`blage`).
@@ -416,3 +437,12 @@ child_care_credit_rate_2019:
 
 # Poverty Level Credit (1997+): a share of earned income.
 poverty_credit_rate: 0.05
+
+# Child tax credit, 2023+ (PolicyEngine-US gov.states.md.tax.income.credits.ctc, queried 2026-10-01):
+# refundable, per child under six, for federal AGI up to the cap. (2022 covers only disabled
+# children, which have no TAXSIM input.)
+child_tax_credit_2023plus: {amount: 500, agi_cap: 15000}
+
+# Senior tax credit, 2022+ (PolicyEngine-US gov.states.md.tax.income.credits.senior_tax): nonrefundable,
+# taxpayer 65 or older, federal AGI below the limit.
+senior_tax_credit_2022plus: {single: 1000, head_of_household: 1750, joint_one: 1000, joint_two: 1750, limit_other: 100000, limit_joint_or_hoh: 150000}

@@ -14,7 +14,8 @@ FEDERAL_INCOME_TAX_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "income_tax
 
 
 def compute_la_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
-    effective_year, flate = resolve_state_year(year)
+    state_year = "la" if behavior.mode.value == "statutory" else None
+    effective_year, flate = resolve_state_year(year, state_year)
     p = YearParams(LA_PARAMS, effective_year)
 
     df = df.with_columns(
@@ -40,6 +41,8 @@ def compute_la_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     ).otherwise(p["exempt_income_tax_base_high"] + p["exempt_income_tax_rate_high"] * (subtr - p["exempt_income_tax_break"]))
     ftadd2 = fedtax * pl.min_horizontal(pl.lit(1.0), subtr / pl.col("agi"))
     ftadd = pl.when((pl.col("agi") > 0) & (fedtax > 0) & (subtr > 0)).then(pl.min_horizontal(ftadd1, ftadd2)).otherwise(0.0)
+    if effective_year >= 2022:
+        ftadd = pl.lit(0.0)  # the federal income tax deduction ended with 2021
     df = df.with_columns(la_agi=pl.col("agi") - (subtr - ftadd))
 
     # --- "Excess federal itemized deductions" ---
@@ -96,6 +99,8 @@ def compute_la_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     else:
         # `max(0,comnew(52)-comnew(58))+comnew(70)`: regular tax less nonrefundable credits, plus AMT.
         la_fedtax = (pl.col("regular_tax") - pl.col("nonrefundable_credits")).clip(0, None) + pl.col("amt").clip(0, None)
+        if effective_year >= 2022:
+            la_fedtax = pl.lit(0.0)
 
     df = df.with_columns(la_taxinc=(pl.col("la_agi") - pl.col("la_deduc") - la_fedtax).clip(0, None))
 
@@ -103,10 +108,19 @@ def compute_la_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     stxmp1 = p.num("combined_stded_exemption_txp1")
     stxmp2 = p.num("combined_stded_exemption_txp2")
     stxmp = pl.when(pl.col("la_txp") == 2).then(stxmp2).otherwise(stxmp1)
-    df = df.with_columns(
-        la_taxinc=(pl.col("la_taxinc") - stxmp).clip(0, None),
-        la_exemp=stxmp,
-    )
+    if effective_year >= 2022:
+        # Exemptions: dependents and each taxpayer 65 or older add $1,000.
+        stxmp = stxmp + float(p["additional_exemption_2022plus"]) * (pl.col("depx") + aged_count())
+    exemption_credit = pl.lit(0.0)
+    if effective_year >= 2022:
+        # Exemptions reduce tax at the lowest rate instead of reducing taxable income.
+        exemption_credit = float(p["brackets_2022plus_single"][0][1]) * stxmp
+        df = df.with_columns(la_taxinc=pl.col("la_taxinc"), la_exemp=stxmp)
+    else:
+        df = df.with_columns(
+            la_taxinc=(pl.col("la_taxinc") - stxmp).clip(0, None),
+            la_exemp=stxmp,
+        )
 
     # --- Bracket tax ---
     xmpd = p.num("dependent_tax_reduction_amount")
@@ -125,12 +139,18 @@ def compute_la_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             single_table, married_table, hoh_table = p["brackets_1983_2002_single"], p["brackets_1983_2002_married"], p["brackets_1983_2002_hoh"]
         elif effective_year <= 2008:
             single_table, married_table, hoh_table = p["brackets_2003_2008_single"], p["brackets_2003_2008_married"], p["brackets_2003_2008_hoh"]
+        elif effective_year >= 2022:
+            single_table, married_table, hoh_table = p["brackets_2022plus_single"], p["brackets_2022plus_married"], p["brackets_2022plus_single"]
         else:
             single_table, married_table, hoh_table = p["brackets_2009plus_single"], p["brackets_2009plus_married"], p["brackets_2009plus_hoh"]
 
+        if effective_year >= 2022:
+            dependents = pl.lit(0.0)  # dependents are exemptions now, not a tax reduction
         tax_single = (bracket_tax(pl.col("la_taxinc"), single_table) - p["dependent_credit_rate"] * xmpd * dependents).clip(0, None)
         tax_married = (bracket_tax(pl.col("la_taxinc"), married_table) - p["dependent_credit_rate"] * xmpd * dependents).clip(0, None)
-        if effective_year <= 2002:
+        if effective_year >= 2022:
+            tax_hoh = bracket_tax(pl.col("la_taxinc"), hoh_table)
+        elif effective_year <= 2002:
             tax_hoh = (
                 bracket_tax(pl.col("la_taxinc"), hoh_table)
                 - xmpd * (
@@ -154,6 +174,8 @@ def compute_la_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             .otherwise(bracket_rate(pl.col("la_taxinc"), hoh_table))
         )
 
+    if effective_year >= 2022:
+        statax = (statax - exemption_credit).clip(0, None)
     df = df.with_columns(la_statax=statax)
 
     # --- Credits ---
@@ -169,7 +191,9 @@ def compute_la_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         fedcr = pl.lit(0.0)
     else:
         # A share of the federal child care and elderly credits (`comnew(53)`, `comnew(54)`).
-        ccc_for_fedcr = pl.col("federal_chcr") + pl.col("federal_elder")
+        # Actual-law years: Louisiana has no credit for the federal elderly credit.
+        elder = pl.lit(0.0) if effective_year >= 2022 else pl.col("federal_elder")
+        ccc_for_fedcr = pl.col("federal_chcr") + elder
         pct = float(p["federal_credit_pct"][1960])
         fedcr = pct * ccc_for_fedcr
         if effective_year >= 1986:

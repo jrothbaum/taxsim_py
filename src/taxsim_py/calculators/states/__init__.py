@@ -65,7 +65,7 @@ STATE_CALCULATOR_PATHS: dict[int, tuple[str, str]] = {
     45: ("ut", "compute_ut_tax"),
     46: ("vt", "compute_vt_tax"),
     47: ("va", "compute_va_tax"),
-    48: _NO_INCOME_TAX,  # Washington
+    48: ("wa", "compute_wa_tax"),  # Washington: Working Families Tax Credit only
     49: ("wv", "compute_wv_tax"),
     50: ("wi", "compute_wi_tax"),
     51: _NO_INCOME_TAX,  # Wyoming

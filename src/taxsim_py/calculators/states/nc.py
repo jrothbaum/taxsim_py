@@ -127,7 +127,8 @@ def _pre1989(df: pl.DataFrame, y: int, agi: pl.Expr) -> tuple[pl.DataFrame, pl.E
 
 def compute_nc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
     """Calculate North Carolina income tax for each row."""
-    effective_year, flate = resolve_state_year(year)
+    state_year = "nc" if behavior.mode.value == "statutory" else None
+    effective_year, flate = resolve_state_year(year, state_year)
     y = effective_year
     p = YearParams(NC_PARAMS, effective_year)
     dividend_adjustment = dividend_input_adjustment()
@@ -279,6 +280,13 @@ def compute_nc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
                 .when(is_hoh).then(interpolate_table(fed_agix, table["head_of_household"]))
                 .otherwise(interpolate_table(fed_agix, table["single"]))
             )
+            if y >= 2022:
+                steps = p["child_deduction_2022plus"][y]
+                per_child = (
+                    pl.when(is_joint).then(bracket_rate(fed_agix, steps["married_joint"]))
+                    .when(is_hoh).then(bracket_rate(fed_agix, steps["head_of_household"]))
+                    .otherwise(bracket_rate(fed_agix, steps["single"]))
+                )
             taxinc = (taxinc - per_child * pl.col("dep17")).clip(0, None)
         df, (taxinc,) = checkpoint(df, nc_taxinc=taxinc)
 

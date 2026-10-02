@@ -5,7 +5,7 @@ import polars as pl
 from taxsim_py.engine.brackets import bracket_rate, bracket_tax
 from taxsim_py.engine.inputs import aged_count, files_head_of_household, files_joint, files_single, is_dependent_filer, separate_divisor, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml, resolve_year
-from taxsim_py.engine.state import by_filing_status, dividend_exclusion_addback, forced_standard, higher_earner_share, household_income, unemployment_total, with_state_detail
+from taxsim_py.engine.state import by_filing_status, dividend_exclusion_addback, forced_standard, higher_earner_share, household_income, tier_values, unemployment_total, with_state_detail
 from taxsim_py.behavior import BehaviorProfile, TAXSIM_BEHAVIOR
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
@@ -16,7 +16,8 @@ PRE1987_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "pre1987.yaml")
 _PRE1987_STATUSES = ["single", "married_joint", "married_separate", "head_of_household"]
 
 def compute_dc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
-    effective_year, flate = resolve_state_year(year)
+    state_year = "dc" if behavior.mode.value == "statutory" else None
+    effective_year, flate = resolve_state_year(year, state_year)
     p = YearParams(DC_PARAMS, effective_year)
     df = df.with_columns(
         dc_sep=separate_divisor(),
@@ -237,7 +238,7 @@ def compute_dc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         (2012, 2014): "brackets_2012_2014",
         (2015, 2015): "brackets_2015",
     }
-    key = "brackets_2016plus"
+    key = "brackets_2022plus" if effective_year >= 2022 else "brackets_2016plus"
     for (lo, hi), k in year_table_map.items():
         if lo <= effective_year <= hi:
             key = k
@@ -307,25 +308,50 @@ def compute_dc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         pcred = pl.when(aged > 0).then(aged_pcred).otherwise(young_pcred)
         pcred = pl.when(hy <= c["income_limit"]).then(pl.min_horizontal(cap, pcred)).otherwise(0.0)
     else:
-        table_years = p["property_credit_by_year_2014plus"]
-        lookup_year = effective_year if effective_year in table_years else max(y for y in table_years if y <= effective_year)
-        prop_cap, pagi_val, prlim_val = (float(v) for v in table_years[lookup_year])
         agix = pl.col("agi").clip(0, None)
-        under_prop_cap = agix <= prop_cap
         c = p["property_credit_2014plus"]
-        if effective_year <= 2018:
-            over_25k_pcred = pl.when(under_prop_cap).then((ptax - c["rate"] * agix).clip(0, None)).otherwise(0.0)
-        else:
-            over_25k_pcred = (
-                pl.when(agix < c["middle_income"])
-                .then((ptax - c["rate"] * agix).clip(0, None))
-                .when(under_prop_cap)
-                .then((ptax - c["high_rate"] * agix).clip(0, None))
-                .otherwise(0.0)
+        recent = behavior.mode.value == "statutory" and effective_year >= 2022
+        if recent:
+            recent_p = p.value("property_credit_recent")
+            # Recent Schedule H adds the rent allowance to property taxes;
+            # the historical TAXSIM path retains its max() approximation.
+            ptax = pl.col("proptax") + float(recent_p["rent_share"]) * pl.col("rentpaid")
+            nonelderly_rate = tier_values(
+                agix,
+                [float(v) for v in recent_p["nonelderly_upper_bounds"]],
+                [float(v) for v in recent_p["nonelderly_rates"]],
+            )[0]
+            elderly_rate = tier_values(
+                agix,
+                [float(v) for v in recent_p["elderly_upper_bounds"]],
+                [float(v) for v in recent_p["elderly_rates"]],
+            )[0]
+            elderly = (
+                (pl.col("page") >= int(recent_p["elderly_age"]))
+                + (pl.col("sage") >= int(recent_p["elderly_age"]))
+            ) > 0
+            pcred = pl.min_horizontal(
+                float(recent_p["max"]),
+                (ptax - pl.when(elderly).then(elderly_rate).otherwise(nonelderly_rate) * agix).clip(0, None),
             )
-        young = pl.when(agix < c["low_income"]).then((ptax - c["low_rate"] * agix).clip(0, None)).otherwise(over_25k_pcred)
-        aged_pcred = pl.when(agix <= pagi_val).then((ptax - c["low_rate"] * agix).clip(0, None)).otherwise(0.0)
-        pcred = pl.min_horizontal(prlim_val, pl.when(aged > 0).then(aged_pcred).otherwise(young))
+        else:
+            table_years = p["property_credit_by_year_2014plus"]
+            lookup_year = effective_year if effective_year in table_years else max(y for y in table_years if y <= effective_year)
+            prop_cap, pagi_val, prlim_val = (float(v) for v in table_years[lookup_year])
+            under_prop_cap = agix <= prop_cap
+            if effective_year <= 2018:
+                over_25k_pcred = pl.when(under_prop_cap).then((ptax - c["rate"] * agix).clip(0, None)).otherwise(0.0)
+            else:
+                over_25k_pcred = (
+                    pl.when(agix < c["middle_income"])
+                    .then((ptax - c["rate"] * agix).clip(0, None))
+                    .when(under_prop_cap)
+                    .then((ptax - c["high_rate"] * agix).clip(0, None))
+                    .otherwise(0.0)
+                )
+            young = pl.when(agix < c["low_income"]).then((ptax - c["low_rate"] * agix).clip(0, None)).otherwise(over_25k_pcred)
+            aged_pcred = pl.when(agix <= pagi_val).then((ptax - c["low_rate"] * agix).clip(0, None)).otherwise(0.0)
+            pcred = pl.min_horizontal(prlim_val, pl.when(aged > 0).then(aged_pcred).otherwise(young))
     pcred = pl.when(is_dependent_filer() & (aged < 1)).then(0.0).otherwise(pcred)
     df = df.with_columns(dc_pcred=pcred)
 
@@ -400,15 +426,27 @@ def compute_dc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         no_childless_credit = (disqy > dylim) | (pl.col("dc_sep") == 2) | is_dependent_filer()
         if effective_year != 2021:
             no_childless_credit = no_childless_credit | (aged >= taxpayer_count())
-        # Childless filers under 25 (or over 65 with a spouse under 25) do
-        # not qualify; an unreported age (0) passes.
+        # Childless filers under 25 (or over 65 with a spouse under 25) did
+        # not qualify before 2021. ARPA lowered the 2021 minimum to 19 and
+        # removed the upper-age restriction for that year.
         older = pl.max_horizontal(pl.col("page"), pl.col("sage"))
         younger = pl.min_horizontal(pl.col("page"), pl.col("sage"))
         min_age, max_age = childless["minimum_age"], childless["maximum_age"]
-        too_young = ((older > 0) & (older < min_age)) | ((older > max_age) & (younger > 0) & (younger < min_age))
+        if effective_year == 2021:
+            too_young = ((older > 0) & (older < 19)) | ((younger > 0) & (younger < 19))
+        else:
+            too_young = ((older > 0) & (older < min_age)) | ((older > max_age) & (younger > 0) & (younger < min_age))
         no_childless_credit = no_childless_credit | too_young
         earncr_childless = pl.when(no_childless_credit).then(0.0).otherwise(earncr_childless_raw)
-        earncr = pl.when(pl.col("depx") > 0).then(earncr_with_kids).otherwise(earncr_childless)
+        # A dependent is not automatically a qualifying EITC child. Statutory
+        # mode uses the age-qualified count; compatibility mode preserves the
+        # historical TAXSIM `depx` switch.
+        has_qualifying_child = (
+            pl.col("dep18") > 0
+            if behavior.mode.value == "statutory"
+            else pl.col("depx") > 0
+        )
+        earncr = pl.when(has_qualifying_child).then(earncr_with_kids).otherwise(earncr_childless)
     df = df.with_columns(dc_earncr=earncr)
     stat2 = pl.col("dc_statax") - pl.col("dc_earncr")
 

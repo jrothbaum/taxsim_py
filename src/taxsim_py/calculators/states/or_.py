@@ -27,7 +27,8 @@ CAPITAL_GAINS_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "capital_gains.y
 
 def compute_or_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
     """Calculate Oregon income tax for each row."""
-    effective_year, flate = resolve_state_year(year)
+    state_year = "or" if behavior.mode.value == "statutory" else None
+    effective_year, flate = resolve_state_year(year, state_year)
     y = effective_year
     p = YearParams(OR_PARAMS, effective_year)
     dividend_adjustment = dividend_input_adjustment()
@@ -101,7 +102,10 @@ def compute_or_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     elif y <= 2001:
         stded = by_filing_status(p["standard_deduction_1987_2001"])
     else:
-        stded = by_filing_status(p["standard_deduction_2002"]) * p.num("standard_deduction_index_2002")
+        if y >= 2022 and behavior.mode.value == "statutory":
+            stded = by_filing_status(p.value("standard_deduction_recent"))
+        else:
+            stded = by_filing_status(p["standard_deduction_2002"]) * p.num("standard_deduction_index_2002")
     if y >= 1987:
         stded = stded + aged * by_filing_status(p["standard_deduction_aged_addition"])
         # Returns with no taxpayer (dependent filers).
@@ -227,7 +231,17 @@ def compute_or_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             r["rate"] * pl.min_horizontal(pl.col("pensions"), room)
         ).otherwise(0.0)
 
-    earncr = p.num("eitc_rate") * pl.col("eitc") if y >= 1997 else pl.lit(0.0)
+    if y >= 1997:
+        eitc_rate = p.num("eitc_rate")
+        if y >= 2022 and behavior.mode.value == "statutory":
+            # Survey adapters may provide this semantic extension directly;
+            # it is deliberately outside TAXSIM's 35 inputs.
+            eitc_rate = pl.when(pl.col("children_under_3") > 0).then(
+                p.num("eitc_rate_young_child")
+            ).otherwise(eitc_rate)
+        earncr = eitc_rate * pl.col("eitc")
+    else:
+        earncr = pl.lit(0.0)
 
     # --- Working family child care credit 1997-2015 ---
     numhh = exemps.clip(1, 8).floor()
@@ -267,7 +281,11 @@ def compute_or_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         num = exemps.floor()
         poverty = p.value("poverty_line")
         agi_limit = p.value("dependent_care_agi_limit")
-        children = depx.clip(None, 2).floor()
+        children = (
+            pl.col("dep13").clip(None, 2).floor()
+            if y >= 2022 and behavior.mode.value == "statutory"
+            else depx.clip(None, 2).floor()
+        )
         expens = pl.min_horizontal(
             pl.col("childcare"), p["dependent_care_expense_per_child"] * children, pl.col("earned_income")
         )
@@ -288,6 +306,15 @@ def compute_or_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         # The 2019 surplus credit; TAXSIM also keeps it for later records (logged).
         statax = statax - p["kicker_2019"] * taxbc_state
         credits = credits + p["kicker_2019"] * taxbc_state
+
+    if y >= 2023:
+        # Oregon Kids Credit (HB 3235): refundable, per child under six up to
+        # five children, phased out over the $5,000 above the AGI start.
+        kids = p["kids_credit"]
+        reduction = ((agi - float(resolve_year(kids["reduction_start"], y))) / float(kids["reduction_width"])).clip(0, 1)
+        kids_credit = float(resolve_year(kids["amount"], y)) * pl.col("dep6").clip(None, float(kids["child_limit"])) * (1 - reduction)
+        statax = statax - kids_credit
+        credits = credits + kids_credit
 
     df = df.with_columns(siitax=statax * flate)
     return with_state_detail(

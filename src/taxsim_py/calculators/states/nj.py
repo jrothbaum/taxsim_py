@@ -77,7 +77,8 @@ def _homestead_rebate(
 
 def compute_nj_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
     """Calculate New Jersey gross income tax for each row."""
-    effective_year, flate = resolve_state_year(year)
+    state_year = "nj" if behavior.mode.value == "statutory" else None
+    effective_year, flate = resolve_state_year(year, state_year)
     y = effective_year
     p = YearParams(NJ_PARAMS, effective_year)
     dividend_adjustment = dividend_input_adjustment()
@@ -125,7 +126,19 @@ def compute_nj_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     deduct = by_filing_status(
         {status: resolve_year(amounts, y) for status, amounts in NJ_PARAMS["pension_exclusion"].items()}
     )
-    if y >= 2005:
+    if y >= 2022:
+        # Actual-law years: the exclusion phases down in steps with household income.
+        household = pl.col("nj_household_income_undeflated")
+        def phased(rows):
+            share = pl.lit(0.0)
+            for limit, fraction in reversed(rows):
+                share = pl.when(household <= float(limit)).then(float(fraction)).otherwise(share)
+            return share
+        share = pl.lit(0.0)
+        for status, rows in NJ_PARAMS["pension_exclusion_phaseout_2022plus"].items():
+            share = pl.when(pl.col("filing_status") == status).then(phased(rows)).otherwise(share)
+        deduct = deduct * share
+    elif y >= 2005:
         deduct = pl.when(pl.col("nj_household_income_undeflated") <= p.num("pension_exclusion_household_income_limit")).then(deduct).otherwise(0.0)
     pensions = pl.col("pensions")
     excluded = agi - pensions.clip(0, deduct)
@@ -230,6 +243,10 @@ def compute_nj_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             (agi <= float(NJ_PARAMS["eitc_income_limit_2000_2006"])) & (depx > 0)
         ).then(earncr).otherwise(0.0)
     statax = statax - earncr
+    if y >= 2022:
+        # Refundable child tax credit for children under six, by NJ taxable income.
+        credit_rows = p["child_tax_credit_2022plus"][y]
+        statax = statax - bracket_rate(taxinc - 0.005, credit_rows) * pl.col("dep6")
 
     return with_state_detail(
         df.with_columns(siitax=statax * flate),

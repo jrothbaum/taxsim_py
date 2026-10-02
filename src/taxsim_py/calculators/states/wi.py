@@ -50,7 +50,8 @@ def _standard_deduction(rows: list[list[float]], agi: pl.Expr, index: float) -> 
 
 def compute_wi_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
     """Calculate Wisconsin income tax for each row."""
-    effective_year, flate = resolve_state_year(year)
+    state_year = "wi" if behavior.mode.value == "statutory" else None
+    effective_year, flate = resolve_state_year(year, state_year)
     y = effective_year
     p = YearParams(WI_PARAMS, effective_year)
     # Household income (`hy`) is read before projected years are deflated.

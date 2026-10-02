@@ -2,9 +2,9 @@
 # state id 14 in the dispatcher's alphabetical numbering). Chosen as this
 # project's first state: the shortest state subroutine (~80 lines) and a
 # genuinely flat-rate tax, matching the design doc's rollout plan (simplest/
-# flat-tax states first, CA/NY/MN last). Real law is coded 1977-2021
-# (`lastat`) - 2022 is extrapolated via the shared CPI mechanism in
-# engine/state_extrapolation.py, not real 2022 statutory values.
+# flat-tax states first, CA/NY/MN last). Real law is coded through 2024 for
+# the rate and personal exemption below; the remaining state provisions still
+# use the existing historical formulas and need separate source review.
 #
 # `rate`/`personal_exemption_amount`/`eitc_match_rate` extracted via a
 # compiled driver calling `iltax` directly for every year 1977-2021 and
@@ -53,6 +53,10 @@ rate:
   2015: 0.0375
   2017: 0.043549
   2018: 0.0495
+  # PolicyEngine-US gov.states.il.tax.income.rate, queried 2026-09-29.
+  2022: 0.0495
+  2023: 0.0495
+  2024: 0.0495
 personal_exemption_amount:
   1977: 1000
   1998: 1300
@@ -67,16 +71,34 @@ personal_exemption_amount:
   2019: 2275
   2020: 2325
   2021: 2375
+  # PolicyEngine-US gov.states.il.tax.income.exemption.personal,
+  # queried 2026-09-29. The state income-limit rule is unchanged here.
+  2022: 2425
+  2023: 2425
+  2024: 2775
 eitc_match_rate:
   2000: 0.05
   2012: 0.075
   2013: 0.10
   2017: 0.14
   2018: 0.18
+  # PolicyEngine-US gov.states.il.tax.income.credits.eitc.match,
+  # queried 2026-09-29. 2022 stays at the 18% set in 2018.
+  2022: 0.18
+  2023: 0.20
+  2024: 0.20
+# Childless EITC minimum age from 2023, and the 2024 child tax credit rate
+# (share of the state EITC, children under 12), PolicyEngine-US
+# gov.states.il.tax.income.credits.{eitc.childless_min_age,ctc.rate}.
+eitc_childless_minimum_age: 18
+child_tax_credit_rate: 0.20
 property_tax_credit_rate:
   1991: 0.05
 property_tax_credit_income_cap:
   2017: 250000
+
+# 2017+: no exemption allowance when base income exceeds these amounts.
+exemption_income_limit: {joint: 500000, other: 250000}
 
 # 1990+: additional exemption per taxpayer 65 or older.
 aged_exemption_1990: 1000

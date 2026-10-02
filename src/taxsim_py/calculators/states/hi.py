@@ -12,7 +12,8 @@ from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, reso
 HI_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "hi" / "income_tax.yaml")
 
 def compute_hi_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
-    effective_year, flate = resolve_state_year(year)
+    state_year = "hi" if behavior.mode.value == "statutory" else None
+    effective_year, flate = resolve_state_year(year, state_year)
     p = YearParams(HI_PARAMS, effective_year)
 
     df = df.with_columns(
@@ -33,6 +34,10 @@ def compute_hi_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         )
     # TAXSIM's pension subtraction reads `data(72)`, a slot the input reader
     # never sets (pensions are `data(20)`), so pensions are not excluded.
+    # Statutory mode applies the exclusion TAXSIM intended: Hawaii exempts
+    # pensions, treating the single `pensions` input as the exempt kind.
+    if behavior.mode.value == "statutory" and behavior.exclude_hawaii_pensions:
+        df = df.with_columns(hi_agi=pl.col("hi_agi") - pl.col("pensions").clip(0, None))
 
     # --- Exemptions ---
     xmp = p.num("personal_exemption_amount")
@@ -161,6 +166,8 @@ def compute_hi_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         ((2016, 2017), "2016_2017"),
     ]
     key = "2018plus"
+    if behavior.mode.value == "statutory" and effective_year >= 2022:
+        key = "2022plus"
     for (lo, hi), k in year_table_map:
         if lo <= effective_year <= hi:
             key = k
@@ -272,8 +279,13 @@ def compute_hi_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         )
     elif effective_year >= 2016:
         fedagi = pl.col("agi").clip(0, None)
-        exc_non_single = (pl.col("depx") + pl.col("hi_taxpayers")) * interpolate_table(fedagi, p["food_excise_credit_table_2016plus_non_single"])
-        exc_single = (pl.col("depx") + pl.col("hi_taxpayers")) * interpolate_table(fedagi, p["food_excise_credit_table_2016plus_single"])
+        food_key = "food_excise_credit_table_2016plus_non_single"
+        food_single_key = "food_excise_credit_table_2016plus_single"
+        if behavior.mode.value == "statutory" and effective_year >= 2023:
+            food_key = "food_excise_credit_table_2023plus_non_single"
+            food_single_key = "food_excise_credit_table_2023plus_single"
+        exc_non_single = (pl.col("depx") + pl.col("hi_taxpayers")) * interpolate_table(fedagi, p[food_key])
+        exc_single = (pl.col("depx") + pl.col("hi_taxpayers")) * interpolate_table(fedagi, p[food_single_key])
         df = df.with_columns(hi_exc=pl.when(files_single()).then(exc_single).otherwise(exc_non_single))
     else:
         df = df.with_columns(hi_exc=pl.lit(0.0))
@@ -313,8 +325,11 @@ def compute_hi_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     )
     df = df.with_columns(hi_statax=pl.col("hi_statax") - pl.col("hi_credit"))
 
-    # --- State EITC (2018-2022, nonrefundable) ---
-    if 2018 <= effective_year <= 2022:
+    # --- State EITC ---
+    if behavior.mode.value == "statutory" and effective_year >= 2023:
+        rate = float(p["eitc_rate_2023plus"][2023])
+        df = df.with_columns(hi_earncr=rate * pl.col("eitc").clip(0, None))
+    elif 2018 <= effective_year <= 2022:
         rate = float(p["eitc_rate_2018_2022"][2018])
         raw = rate * pl.col("eitc").clip(0, None)
         df = df.with_columns(hi_earncr=pl.min_horizontal(raw, pl.col("hi_statax").clip(0, None)))

@@ -65,6 +65,17 @@ standard_deduction_2007_max_hoh:
 standard_deduction_2007_max_joint_or_separate:  # /sep
   2007: 7500
 
+# Alabama Act 2022-297 increased the standard deduction amounts and moved the
+# phaseout starting point for tax years beginning in 2022. The form tables
+# reduce the maximum by a fixed amount for each $500 of AGI above the threshold.
+# Source: Alabama Department of Revenue Form 40 instructions and
+# https://governor.alabama.gov/newsroom/2022/04/governor-ivey-continues-providing-tax-relief-to-hardworking-alabamians/
+standard_deduction_2022plus:
+  single: {minimum: 2500, maximum: 3000, threshold: 25500, increment: 500, reduction: 25}
+  head_of_household: {minimum: 2500, maximum: 5200, threshold: 25500, increment: 500, reduction: 135}
+  joint: {minimum: 5000, maximum: 8500, threshold: 25500, increment: 500, reduction: 175}
+  separate: {minimum: 2500, maximum: 4250, threshold: 12750, increment: 500, reduction: 88}
+
 # Personal exemption: flat by status (single = married_separate = $1,500;
 # married_joint = HoH = $3,000 - a real, replicated-as-found quirk that HoH
 # gets the JOINT amount, not single's). Dependent exemption: flat $300/dep
@@ -86,6 +97,9 @@ dependent_exemption_2007_breakpoint1:
   2007: 20000
 dependent_exemption_2007_breakpoint2:
   2007: 100000
+# Act 2022-297 raised the full-$1,000 dependent-exemption threshold.
+dependent_exemption_2022plus_breakpoint1:
+  2022: 50000
 
 # Solar energy credit (1981-1986 only) - confirmed inert (data(38)
 # unpopulated) but the year range is noted for completeness.
@@ -102,3 +116,7 @@ se_deduction_holiday:
 personal_exemption:
   joint_or_hoh: 3000
   other: 1500
+
+# Retirement income exemption for taxpayers 65 or older, 2022+ (PolicyEngine-US
+# gov.states.al.tax.income.exemptions.retirement, queried 2026-10-01).
+retirement_exemption_cap_2022plus: 6000

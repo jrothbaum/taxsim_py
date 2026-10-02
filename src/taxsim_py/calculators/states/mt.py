@@ -24,6 +24,8 @@ CAPITAL_GAINS_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "capital_gains.y
 
 def _brackets(y: int) -> list[list[float]]:
     p = YearParams(MT_PARAMS, y)
+    if y in (2022, 2023):
+        return MT_PARAMS["brackets_2022_2023"][y]
     bounds = resolve_year(MT_PARAMS["bracket_bounds"], y)
     if y <= 2004:
         rates = MT_PARAMS["rates_through_2004"]
@@ -37,7 +39,8 @@ def _brackets(y: int) -> list[list[float]]:
 
 def compute_mt_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
     """Calculate Montana income tax for each row."""
-    effective_year, flate = resolve_state_year(year)
+    state_year = "mt" if behavior.mode.value == "statutory" else None
+    effective_year, flate = resolve_state_year(year, state_year)
     y = effective_year
     p = YearParams(MT_PARAMS, effective_year)
 
@@ -73,7 +76,8 @@ def compute_mt_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     cg_exclusion = p.num("capital_gains_exclusion_rate") * capgn.clip(0, None)
     agi = agi - cg_exclusion
     subtr = cg_exclusion + pl.col("mt_ui")
-    if y >= 1981:
+    if 1981 <= y <= 2023:
+        # Repealed for 2024 (replaced by the flat age-65 subtraction below).
         excint = pl.min_horizontal(pl.col("intrec"), p.num("aged_interest_exclusion") * aged)
         agi = agi - excint
         subtr = subtr + excint
@@ -95,6 +99,9 @@ def compute_mt_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             .otherwise(retexc)
         )
         retexc = pl.when(aged > 0).then(retexc).otherwise(0.0)
+        if y >= 2024:
+            # A flat subtraction for each taxpayer 65 or older replaces the pension exclusion.
+            retexc = float(p["old_age_subtraction_2024plus"]) * aged
         agi = (agi - retexc).clip(0, None)
         subtr = subtr + retexc
     if y >= 1984:
@@ -139,6 +146,9 @@ def compute_mt_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
 
     std_taxpayers = pl.when(is_hoh).then(float(MT_PARAMS["head_of_household_standard_deduction_taxpayers"])).otherwise(ntp)
     stded = standard(agi, std_taxpayers)
+    if y >= 2024:
+        # Montana conforms to the federal standard deduction from 2024.
+        stded = pl.col("standard_deduction")
 
     # --- Itemized deductions ---
     agix = fed_agi.clip(0, None)
@@ -157,6 +167,8 @@ def compute_mt_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     fed_tax = fed_tax.clip(0, None)
     if y >= 2005:
         fed_tax = pl.min_horizontal(p.num("federal_tax_deduction_cap_per_taxpayer") * ntp, fed_tax)
+    if y >= 2024:
+        fed_tax = pl.lit(0.0)  # the federal income tax deduction ended in 2024
     xitded = (deducp - salt_ded).clip(0, None) + fed_tax
     if 1991 <= y <= 2017:
         if y >= 2013:
@@ -179,6 +191,8 @@ def compute_mt_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         pl.min_horizontal(pl.col("childcare"), care_cap)
         - p.num("child_care_phaseout_rate") * (agi - p.num("child_care_phaseout_start")).clip(0, None)
     ).clip(0, None)
+    if y >= 2024:
+        chexp = pl.lit(0.0)  # the child and dependent care expense deduction ended in 2024
     xitded = xitded + pl.when(depx > 0).then(chexp).otherwise(0.0)
     if y == 1999:
         xitded = pl.when(forced_standard()).then(0.0).otherwise(xitded)
@@ -189,8 +203,26 @@ def compute_mt_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     xmp = p.num("exemption")
     exemp = (ntp + depx + aged) * xmp
     df, (taxinc,) = checkpoint(df, mt_taxinc=(agi - deduc - exemp).clip(0, None))
-    brackets = _brackets(y)
-    df, (statax,) = checkpoint(df, mt_table_tax=bracket_tax(taxinc, brackets))
+    brackets = _brackets(y) if y < 2024 else [[0.0, 0.0]]
+    if y >= 2024:
+        # Two-rate schedule by filing status, with net long-term gains taxed on their own scale
+        # stacked above the ordinary income.
+        d = MT_PARAMS["schedule_2024plus"]
+        statuses = ("single", "married_separate", "head_of_household", "married_joint")
+        gains = (pl.col("ltcg") + pl.col("stcg")).clip(0, None)
+        gains = pl.min_horizontal(pl.col("ltcg").clip(0, None), gains)
+        gains_in = pl.min_horizontal(gains, taxinc)
+        ordinary = (taxinc - gains_in).clip(0, None)
+        tax = pl.lit(0.0)
+        for status in statuses:
+            row = d[status]
+            low, high = float(row["rate_low"]), float(row["rate_high"])
+            ordinary_tax = low * ordinary.clip(None, float(row["threshold"])) + high * (ordinary - float(row["threshold"])).clip(0, None)
+            room = (float(row["threshold"]) - ordinary).clip(0, None)
+            gains_tax = float(d["gains_rate_low"]) * pl.min_horizontal(gains_in, room) + float(d["gains_rate_high"]) * (gains_in - room).clip(0, None)
+            tax = pl.when(pl.col("filing_status") == status).then(ordinary_tax + gains_tax).otherwise(tax)
+        statutory_tax = tax
+    df, (statax,) = checkpoint(df, mt_table_tax=statutory_tax if y >= 2024 else bracket_tax(taxinc, brackets))
 
     # --- Married couples: tax as separate returns if lower ---
     wages_total = pl.col("pwages").clip(0, None) + pl.col("swages").clip(0, None)
@@ -214,7 +246,8 @@ def compute_mt_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     rate = pl.when(is_joint).then(
         bracket_rate((agiw - dedw - exempw).clip(0, None), brackets)
     ).otherwise(bracket_rate(taxinc, brackets))
-    statax = pl.when(is_joint).then(pl.min_horizontal(statax, split_tax)).otherwise(statax)
+    if y < 2024:
+        statax = pl.when(is_joint).then(pl.min_horizontal(statax, split_tax)).otherwise(statax)
     df, (statax,) = checkpoint(df, mt_tax=statax * p.num("surtax"))
 
     # --- Credits ---

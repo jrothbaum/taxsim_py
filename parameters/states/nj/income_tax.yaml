@@ -138,6 +138,21 @@ pension_exclusion:
   married_separate: {1977: 5000, 2000: 6250, 2001: 7500, 2002: 8750, 2003: 10000, 2017: 20000, 2018: 30000, 2019: 40000, 2020: 50000}
   head_of_household: {1977: 7500, 2000: 9375, 2001: 11250, 2002: 13125, 2003: 15000, 2017: 30000, 2018: 45000, 2019: 60000, 2020: 75000}
 pension_exclusion_household_income_limit: {2005: 100000}
+# 2022+: share of the exclusion allowed by household income, as
+# [upper income limit, share] steps.
+pension_exclusion_phaseout_2022plus:
+  single: [[100000, 1.0], [125000, 0.375], [150000, 0.1875], [1.0e+20, 0.0]]
+  married_joint: [[100000, 1.0], [125000, 0.5], [150000, 0.25], [1.0e+20, 0.0]]
+  married_separate: [[100000, 1.0], [125000, 0.25], [150000, 0.125], [1.0e+20, 0.0]]
+  head_of_household: [[100000, 1.0], [125000, 0.375], [150000, 0.1875], [1.0e+20, 0.0]]
 other_retirement_exclusion_earnings_limit: 3000
 # Exemption per taxpayer 65 or older.
 exemption_per_aged_taxpayer: {1977: 1000}
+
+# Child tax credit, 2022+ (PolicyEngine-US gov.states.nj.tax.income.credits.ctc.amount, queried
+# 2026-10-01): [NJ taxable income above, amount per child under six]; the tier at a threshold
+# belongs to the lower row.
+child_tax_credit_2022plus:
+  2022: [[0, 500], [30000, 400], [40000, 300], [50000, 200], [60000, 100], [80000, 0]]
+  2023: [[0, 1000], [30000, 800], [40000, 600], [50000, 400], [60000, 200], [80000, 0]]
+  2024: [[0, 1000], [30000, 800], [40000, 600], [50000, 400], [60000, 200], [80000, 0]]

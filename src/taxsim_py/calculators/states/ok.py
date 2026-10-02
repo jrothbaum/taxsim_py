@@ -3,6 +3,7 @@
 import polars as pl
 
 from taxsim_py.engine.brackets import bracket_rate, bracket_tax
+from taxsim_py.engine.eitc import eitc_age_eligible, eitc_filer_eligible, federal_eitc
 from taxsim_py.engine.inputs import aged_count, files_head_of_household, files_joint, files_separate, files_single, is_dependent_filer, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml, resolve_year
 from taxsim_py.engine.state import (
@@ -19,6 +20,8 @@ from taxsim_py.behavior import BehaviorProfile, TAXSIM_BEHAVIOR
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
 OK_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "ok" / "income_tax.yaml")
+FEDERAL_EITC_PARAMS = pl.read_csv(PARAMETERS_ROOT / "national" / "eitc.csv")
+FEDERAL_EITC_MISC = load_yaml(PARAMETERS_ROOT / "national" / "eitc_misc.yaml")
 
 
 def _table(kind: str, suffix: str) -> list[list[float]]:
@@ -34,7 +37,8 @@ def _by_table(income: pl.Expr, suffix: str, single_like: pl.Expr, lookup=bracket
 
 def compute_ok_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
     """Calculate Oklahoma income tax for each row."""
-    effective_year, flate = resolve_state_year(year)
+    state_year = "ok" if behavior.mode.value == "statutory" else None
+    effective_year, flate = resolve_state_year(year, state_year)
     y = effective_year
     p = YearParams(OK_PARAMS, effective_year)
     dividend_input_adjustment()
@@ -204,7 +208,20 @@ def compute_ok_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
 
     earncr = pl.lit(0.0)
     if y >= 2002:
-        earncr = pl.when(fed_agi > 0).then(p["eitc_rate"] * pl.col("eitc") * agi / fed_agi).otherwise(0.0)
+        eitc_base = pl.col("eitc")
+        if y >= 2022:
+            # 68 O.S. 2357.43: the federal credit is computed under the rules
+            # in effect for tax year 2020, whatever the current year.
+            nkids = pl.col("dep18").clip(0, 3)
+            disqy = (pl.col("stcg") + pl.col("ltcg")).clip(0, None) + pl.col("dividends") + pl.col("intrec") + pl.col("otherprop").clip(0, None)
+            childless = nkids == 0
+            eitc_base = pl.when(eitc_filer_eligible(childless, 2020) & eitc_age_eligible(childless, 2020)).then(
+                federal_eitc(
+                    pl.col("earned_income"), pl.col("agi"), disqy, pl.col("filing_status"), nkids,
+                    FEDERAL_EITC_PARAMS.filter(pl.col("year") == 2020), float(resolve_year(FEDERAL_EITC_MISC["dylim"], 2020)),
+                )
+            ).otherwise(0.0)
+        earncr = pl.when(fed_agi > 0).then(p["eitc_rate"] * eitc_base * agi / fed_agi).otherwise(0.0)
 
     # Property tax credit for taxpayers 65 or older.
     hhy_prop = pl.col("ok_household_income_undeflated") + pl.col("eitc")
@@ -225,7 +242,9 @@ def compute_ok_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         scred = pl.when(hhy <= limit).then(amount).otherwise(scred)
 
     scred = pl.when(dependent_filer).then(0.0).otherwise(scred)
-    if y <= 2015:
+    if y <= 2015 or y >= 2022:
+        # The EITC is refundable before the 2016 nonrefundable change and
+        # again from 2022 (dated statutory years only).
         statax = (statax - chcr).clip(0, None) - pcred - scred - earncr
     else:
         statax = (statax - chcr - earncr).clip(0, None) - pcred - scred

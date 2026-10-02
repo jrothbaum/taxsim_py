@@ -38,7 +38,8 @@ def _by_status4(vals: list[float]) -> pl.Expr:
 
 
 def compute_ca_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
-    effective_year, flate = resolve_state_year(year)
+    state_year = "ca" if behavior.mode.value == "statutory" else None
+    effective_year, flate = resolve_state_year(year, state_year)
     p = YearParams(CA_PARAMS, effective_year)
 
     # Self-employment tax (`comnew(175)`) and household income (`data(159)`)
@@ -245,8 +246,13 @@ def compute_ca_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         else:
             aif12 = p.num("bracket_aif12_2012plus")
             rates = p["brackets_2012plus_rates"]
-            ts = p["brackets_2012plus_single_thresholds"]
-            th = p["brackets_2012plus_hoh_thresholds"]
+            if behavior.mode.value == "statutory" and effective_year >= 2022:
+                ts = p["brackets_2012plus_single_thresholds_by_year"][effective_year]
+                th = p["brackets_2012plus_hoh_thresholds_by_year"][effective_year]
+                aif12 = 1.0
+            else:
+                ts = p["brackets_2012plus_single_thresholds"]
+                th = p["brackets_2012plus_hoh_thresholds"]
             raw_s = list(zip(ts + [1.0e20], rates))
             raw_h = list(zip(th + [1.0e20], rates))
             brackets_s = _raw_to_start_rate(raw_s, aif12)
@@ -278,6 +284,24 @@ def compute_ca_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             df = df.with_columns(
                 ca_excrd=float(credit_1978["per_taxpayer"]) * pl.col("ca_txp") + float(credit_1978["per_dependent"]) * dep_reduced
             )
+    elif effective_year >= 2022 and behavior.mode.value == "statutory":
+        recent = p["recent_exemption_credit"]
+        order = ["single", "married_joint", "head_of_household", "married_separate"]  # `_by_status4` order
+        personal = _by_status4([float(resolve_year(recent["personal"][s], effective_year)) for s in order])
+        phase_start = _by_status4([float(resolve_year(recent["phaseout_start"][s], effective_year)) for s in order])
+        phase_step = _by_status4([float(resolve_year(recent["phaseout_step"][s], effective_year)) for s in order])
+        credit_count = pl.col("ca_txp_raw") + aged_count() + dep_reduced
+        df = df.with_columns(
+            # Each taxpayer 65 or older adds a credit equal to the single personal credit.
+            ca_excrd=personal
+            + aged_count() * float(resolve_year(recent["personal"]["single"], effective_year))
+            + float(resolve_year(recent["dependent"], effective_year)) * dep_reduced,
+            ca_phaded2=phase_start,
+        )
+        reductions = credit_count * float(recent["phaseout_amount"]) * (
+            (pl.col("agi") - phase_start).clip(0, None) / phase_step
+        ).floor()
+        df = df.with_columns(ca_excrd=(pl.col("ca_excrd") - reductions).clip(0, None))
     elif effective_year <= 1997:
         xmpaif = p.num("exemption_credit_xmpaif")
         df = df.with_columns(ca_excrd=p["exemption_credit_base_1987plus"] * xmpaif * (pl.col("ca_txp_raw") + aged_count() + dep_reduced))
@@ -286,7 +310,7 @@ def compute_ca_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         xmpdep = p.num("exemption_credit_per_dependent_1998plus")
         df = df.with_columns(ca_excrd=p["exemption_credit_base_1987plus"] * xmpaif * (pl.col("ca_txp_raw") + aged_count()) + dep_reduced * xmpdep)
 
-    if effective_year >= 1991:
+    if effective_year >= 1991 and not (effective_year >= 2022 and behavior.mode.value == "statutory"):
         base = float(p["exemption_credit_phaseout_base_1991plus"])
         aifded = p.num("itemized_phaseout_aifded") if effective_year >= 1992 else 1.0
         phaded = pl.when(pl.col("ca_hoh")).then(base * float(p["exemption_credit_phaseout_base_hoh_multiplier"])).when(
@@ -437,7 +461,10 @@ def compute_ca_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             }
             excl = by_filing_status(excl_by_status)
         else:
-            vals = p["amt_exclusion_by_year"][effective_year]
+            vals = p["amt_exclusion_by_year"].get(
+                effective_year,
+                p["amt_exclusion_by_year"][2021],
+            )
             excl = _by_status4([float(v) for v in vals])
         if effective_year == 1987:
             phase_vals = p["amt_phase_by_year"][1987]
@@ -536,6 +563,36 @@ def compute_ca_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             base2 = (amax17_c - pl.max_horizontal(posagi, earned)).clip(0, None)
             earncr2 = pl.when(earned > 0).then(base2 * tgbeta).otherwise(pl.lit(0.0))
             earncr = pl.when((earned > ym1) | (posagi > ym1)).then(earncr2).otherwise(earncr)
+        if effective_year >= 2022:
+            # Dated statutory CalEITC (R&TC 17052): phase in to the earned
+            # income amount, a first phase-out down to `final_start`, then a
+            # second linear phase-out to `final_end`; the credit is the lesser
+            # of the earned-income and the higher of earned-income-or-AGI values.
+            ce = p["caleitc_2022plus"]
+            factor = float(ce["adjustment_factor"])
+
+            def by_children(values):
+                out = pl.lit(float(values[-1]))
+                for i in range(len(values) - 2, -1, -1):
+                    out = pl.when(ieic == i).then(float(values[i])).otherwise(out)
+                return out
+
+            rate_in = by_children(ce["phase_in_rate"]) * factor
+            amount = by_children(resolve_year(ce["earned_income_amount"], effective_year))
+            final_start = by_children(resolve_year(ce["final_start"], effective_year))
+            final_end = float(resolve_year(ce["final_end"], effective_year))
+            maximum = amount * rate_in
+            first_range = (maximum - final_start) / rate_in
+            second_start = amount + first_range
+
+            def caleitc_at(income):
+                after_first = income.clip(None, amount) * rate_in - (income - amount).clip(0, None).clip(None, first_range) * rate_in
+                second_share = ((income - second_start) / (final_end - second_start)).clip(None, 1.0)
+                return pl.when(income > second_start).then(after_first * (1 - second_share)).otherwise(after_first)
+
+            earned_now = pl.col("earned_income")
+            credit = pl.min_horizontal(caleitc_at(earned_now), caleitc_at(pl.max_horizontal(earned_now, pl.col("agi"))))
+            earncr = pl.when(pl.col("agi") < final_end).then(credit.clip(0, None)).otherwise(0.0)
         disqy = (
             (pl.col("stcg") + pl.col("ltcg")).clip(0, None) + pl.col("dividends") + dividend_input_adjustment() + pl.col("intrec")
             + pl.col("otherprop").clip(0, None)
@@ -548,10 +605,25 @@ def compute_ca_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         # `dep18`); the earnings test uses children under 6 (`data(210)`, `dep6`).
         if effective_year >= 2019:
             young_gate = (pl.col("ca_earncr") > 0) & (pl.col("dep18") > 0)
+            if effective_year >= 2022:
+                # From 2022 a filer with little or no earned income and no
+                # large gross-income loss also qualifies (R&TC 17052.1).
+                loss_threshold = float(resolve_year(p["young_child_credit"]["loss_threshold"], effective_year))
+                small_losses = (pl.col("agi") < float(resolve_year(p["caleitc_2022plus"]["final_end"], effective_year))) & (
+                    pl.col("earned_income") <= loss_threshold
+                )
+                young_gate = young_gate | ((pl.col("dep18") > 0) & small_losses)
+            if behavior.require_young_child_for_california_yctc:
+                young_gate = young_gate & (pl.col("dep6") > 0)
             yc = p["young_child_credit"]
-            young_low = yc["amount"] * pl.col("dep6")
-            young_high = (yc["amount"] - yc["phaseout_rate"] * (earned - yc["earnings_threshold"])).clip(0, None)
-            young = pl.when(earned <= yc["earnings_threshold"]).then(young_low).otherwise(young_high)
+            yc_amount = resolve_year(yc["amount"], effective_year)
+            yc_threshold = resolve_year(yc["earnings_threshold"], effective_year)
+            yc_rate = resolve_year(yc["phaseout_rate"], effective_year)
+            # YCTC is a per-return credit, even when several young children
+            # are present; `dep6` is only used as an eligibility signal here.
+            young_low = yc_amount * pl.col("dep6").clip(0, 1)
+            young_high = (yc_amount - yc_rate * (earned - yc_threshold)).clip(0, None)
+            young = pl.when(earned <= yc_threshold).then(young_low).otherwise(young_high)
             df = df.with_columns(ca_young=pl.when(young_gate).then(young).otherwise(0.0))
         else:
             df = df.with_columns(ca_young=pl.lit(0.0))

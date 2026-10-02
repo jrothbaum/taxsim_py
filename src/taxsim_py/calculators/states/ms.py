@@ -28,7 +28,8 @@ def _by_status_year(name: str, year: int) -> pl.Expr:
 
 def compute_ms_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
     """Calculate Mississippi income tax for each row."""
-    effective_year, flate = resolve_state_year(year)
+    state_year = "ms" if behavior.mode.value == "statutory" else None
+    effective_year, flate = resolve_state_year(year, state_year)
     y = effective_year
     p = YearParams(MS_PARAMS, effective_year)
 

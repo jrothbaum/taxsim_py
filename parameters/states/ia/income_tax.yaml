@@ -106,6 +106,9 @@ bracket_inflation_factor:
   2019: 1.638
   2020: 1.666
   2021: 1.676
+  2022: 1.743
+  2023: 1.743
+  2024: 1.743
 
 # Standard deduction: `stded=twn(stnd(law,1)*agi, 0, stnd(law,2 or 3))` -
 # a percentage-of-AGI formula (100% since 1987, meaning the cap alone
@@ -151,6 +154,7 @@ standard_deduction_cap_single:
   2019: 2080
   2020: 2110
   2021: 2130
+  2022: 2210
 standard_deduction_cap_married_joint:
   1977: 1000
   1979: 3000
@@ -187,6 +191,7 @@ standard_deduction_cap_married_joint:
   2019: 5120
   2020: 5210
   2021: 5240
+  2022: 5450
 
 # Itemized-deduction phaseout threshold (1991+), same aif92/aif13
 # CPI-adjustment tables other states already carry their own copy of -
@@ -253,6 +258,10 @@ alt_tax_rate_pre1998:
 alt_tax_rate_1998plus:
   1998: 0.0898
   2019: 0.0853
+  # 2022+: PolicyEngine-US gov.states.ia.tax.income.alternate_tax.rate, queried 2026-10-01.
+  2022: 0.0853
+  2023: 0.06
+  2024: 0.057
 
 # AMT (`alty`, Form 6251-style since 1985).
 amt_rate:
@@ -402,3 +411,19 @@ eitc_2009_joint:
   phaseout_start: {none: 10590, one_or_two: 19540, more: 16420}
   maximum: {none: 457, one: 3043, more: 5028}
   phaseout_rate: {none: 0.0765, one: 0.1598, more: 0.2106}
+
+# 2023+ rate schedules by filing status (PolicyEngine-US gov.states.ia.tax.income.rates.by_filing_status,
+# queried 2026-10-01): [taxable income above, rate]; `other` covers every non-joint status.
+brackets_2023plus:
+  2023:
+    other: [[0, 0.044], [6000, 0.0482], [30000, 0.057], [75000, 0.06]]
+    joint: [[0, 0.044], [12000, 0.0482], [60000, 0.057], [150000, 0.06]]
+  2024:
+    other: [[0, 0.044], [6210, 0.0482], [31050, 0.057]]
+    joint: [[0, 0.044], [12420, 0.0482], [62100, 0.057]]
+
+# Retirement income exclusion, 2022+ (PolicyEngine-US gov.states.ia.tax.income.pension_exclusion, queried
+# 2026-10-01): age 55 and over; capped per taxpayer in 2022, unlimited from 2023.
+pension_exclusion_2022plus:
+  minimum_age: 55
+  cap_per_taxpayer: {2022: 6000, 2023: 1.0e+12}

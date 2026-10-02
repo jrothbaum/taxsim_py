@@ -13,7 +13,8 @@ GA_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "ga" / "income_tax.yaml")
 PRE1987_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "pre1987.yaml")
 
 def compute_ga_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
-    effective_year, flate = resolve_state_year(year)
+    state_year = "ga" if behavior.mode.value == "statutory" else None
+    effective_year, flate = resolve_state_year(year, state_year)
     p = YearParams(GA_PARAMS, effective_year)
 
     df = df.with_columns(
@@ -124,6 +125,10 @@ def compute_ga_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         xmp = p.num("personal_exemption_amount_xmp")
         dep_flat = float(p["dependent_exemption_flat_2003plus"][2003])
         df = df.with_columns(ga_exemp=xmp * pl.col("ga_taxpayers") + pl.col("depx") * dep_flat)
+    elif behavior.mode.value == "statutory" and effective_year >= 2024:
+        # Georgia repealed the personal exemption with the flat-rate law but
+        # kept the (raised) dependent exemption.
+        df = df.with_columns(ga_exemp=pl.col("depx") * float(p["dependent_exemption_2024plus"]))
     else:
         xmp = p.num("personal_exemption_amount_xmp")
         dep_flat = float(p["dependent_exemption_flat_2003plus"][2003])
@@ -186,19 +191,24 @@ def compute_ga_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     # --- Bracket tax --- Only single returns (`nfile==1`) use the single
     # table; the others run `taxinc*sep` through the married table.
     is_married = pl.col("filing_status") != "single"
-    if effective_year <= 2018:
+    if behavior.mode.value == "statutory" and effective_year >= 2024:
+        statax = float(p["flat_rate_2024"]) * pl.col("ga_taxinc")
+        rate_expr = pl.lit(float(p["flat_rate_2024"]))
+        df = df.with_columns(ga_statax=statax)
+    elif effective_year <= 2018:
         brackets_single = p["brackets_single_thru_2018"]
         brackets_married = p["brackets_married_thru_2018"]
     else:
         brackets_single = p["brackets_single_2019plus"]
         brackets_married = p["brackets_married_2019plus"]
-    taxy = pl.col("ga_taxinc") * pl.col("ga_sep")
-    stat_married = bracket_tax(taxy, brackets_married) / pl.col("ga_sep")
-    stat_single = bracket_tax(pl.col("ga_taxinc"), brackets_single)
-    df = df.with_columns(ga_statax=pl.when(is_married).then(stat_married).otherwise(stat_single))
-    rate_expr = pl.when(is_married).then(
-        bracket_rate(taxy, brackets_married)
-    ).otherwise(bracket_rate(pl.col("ga_taxinc"), brackets_single))
+    if not (behavior.mode.value == "statutory" and effective_year >= 2024):
+        taxy = pl.col("ga_taxinc") * pl.col("ga_sep")
+        stat_married = bracket_tax(taxy, brackets_married) / pl.col("ga_sep")
+        stat_single = bracket_tax(pl.col("ga_taxinc"), brackets_single)
+        df = df.with_columns(ga_statax=pl.when(is_married).then(stat_married).otherwise(stat_single))
+        rate_expr = pl.when(is_married).then(
+            bracket_rate(taxy, brackets_married)
+        ).otherwise(bracket_rate(pl.col("ga_taxinc"), brackets_single))
 
     # --- Credits ---
     # Child/Dependent Care Credit: 1978-1986, and a share of the federal

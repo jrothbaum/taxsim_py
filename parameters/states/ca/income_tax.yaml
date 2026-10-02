@@ -79,6 +79,9 @@ standard_deduction_aif:
   2019: 4.537
   2020: 4.601
   2021: 4.803
+  2022: 5.202
+  2023: 5.363
+  2024: 5.540
 
 # Bracket-scaling CPI factor for the pre-1987 tables specifically
 # (`aiftab`, different table from `aif` above).
@@ -255,6 +258,14 @@ bracket_aif12_2012plus:  # `aif12`, 2012-2021
 brackets_2012plus_single_thresholds: [7455, 17676, 27897, 38726, 48942, 250000, 300000, 500000]
 brackets_2012plus_hoh_thresholds: [14920, 35351, 45571, 56400, 66618, 340000, 408000, 680000]
 brackets_2012plus_rates: [0.01, 0.02, 0.04, 0.06, 0.08, 0.093, 0.103, 0.113, 0.123]
+brackets_2012plus_single_thresholds_by_year:
+  2022: [10099, 23942, 37788, 52455, 66295, 338639, 406364, 677275]
+  2023: [10412, 24684, 38959, 54081, 68350, 349137, 418961, 698271]
+  2024: [10756, 25499, 40245, 55866, 70606, 360659, 432787, 721314]
+brackets_2012plus_hoh_thresholds_by_year:
+  2022: [20212, 47887, 61730, 76397, 90240, 460547, 552658, 921059]
+  2023: [20839, 49371, 63644, 78765, 93037, 474824, 569790, 949649]
+  2024: [21527, 51000, 65744, 81364, 96107, 490493, 588593, 980987]
 
 # --- Itemized deduction Pease-style phaseout, 1991+ (`aifded`) ---
 itemized_phaseout_aifded:
@@ -328,6 +339,24 @@ exemption_credit_xmpaif:
   2019: 2.44
   2020: 2.48
   2021: 2.58
+recent_exemption_credit:
+  personal:
+    single: {2022: 140, 2023: 144, 2024: 149}
+    married_joint: {2022: 280, 2023: 288, 2024: 298}
+    married_separate: {2022: 140, 2023: 144, 2024: 149}
+    head_of_household: {2022: 140, 2023: 144, 2024: 149}
+  dependent: {2019: 378, 2022: 433, 2023: 446, 2024: 461}
+  phaseout_amount: 6
+  phaseout_start:
+    single: {2022: 229908, 2023: 237035, 2024: 244857}
+    married_joint: {2022: 459821, 2023: 474075, 2024: 489719}
+    married_separate: {2022: 229908, 2023: 237035, 2024: 244857}
+    head_of_household: {2022: 344867, 2023: 355558, 2024: 367291}
+  phaseout_step:
+    single: {2022: 2500, 2023: 2500, 2024: 2500}
+    married_joint: {2022: 2500, 2023: 2500, 2024: 2500}
+    married_separate: {2022: 1250, 2023: 1250, 2024: 1250}
+    head_of_household: {2022: 2500, 2023: 2500, 2024: 2500}
 exemption_credit_per_dependent_1998plus:  # `xmpdep` - a real, one-time
   # ~68% cut in 2009-2010 (CA's recession-era budget crisis), not a typo.
   1998: 253
@@ -569,6 +598,9 @@ eitc_disqualified_income_limit:  # `dylim`, 2015-2021
   2019: 3828
   2020: 3882
   2021: 4053
+  2022: 4389
+  2023: 4525
+  2024: 4674
 eitc_max_credit_by_children:  # `crmax(law,ieic)`, ieic=0,1,2,3+ ; 2015-2021
   2015: [214, 1428, 2358, 2653]
   2016: [217, 1452, 2406, 2706]
@@ -577,6 +609,9 @@ eitc_max_credit_by_children:  # `crmax(law,ieic)`, ieic=0,1,2,3+ ; 2015-2021
   2019: [240, 1605, 2651, 2982]
   2020: [243, 1626, 2691, 3027]
   2021: [255, 1698, 2809, 3160]
+  2022: [275, 1843, 3037, 3417]
+  2023: [285, 1900, 3137, 3529]
+  2024: [294, 1958, 3239, 3644]
 eitc_max_earned_by_children:  # `amax(law,ieic)`, 2015-2021 (pre-2017 shape)
   2015: [6580, 9880, 13870, 13870]
   2016: [6718, 10088, 14162, 14162]
@@ -585,24 +620,36 @@ eitc_max_earned_by_children:  # `amax(law,ieic)`, 2015-2021 (pre-2017 shape)
   2019: [7510, 11128, 15622, 15622]
   2020: [7510, 11128, 15622, 15622]
   2021: [7510, 11128, 15622, 15622]
+  2022: [4248, 6379, 8954, 8954]
+  2023: [4380, 6577, 9232, 9232]
+  2024: [4525, 6794, 9537, 9537]
 eitc_2017plus_ym:  # `ym(ieic,law)`, 2017-2021
   2017: [5320, 9434, 13723, 13805]
   2018: [5625, 9875, 14375, 14425]
   2019: [4350, 9350, 14100, 14350]
   2020: [4350, 9350, 14100, 14350]
   2021: [4600, 8600, 14950, 15150]
+  2022: [4955, 10742, 17465, 16373]
+  2023: [5133, 11087, 16703, 16900]
+  2024: [5294, 11437, 17249, 17450]
 eitc_2017plus_em:  # `em(ieic,law)`
   2017: [100, 248, 249, 269]
   2018: [102, 256, 254, 255]
   2019: [200, 506, 509, 502]
   2020: [200, 506, 509, 502]
   2021: [212, 536, 535, 534]
+  2022: [229, 579, 579, 579]
+  2023: [236, 597, 597, 597]
+  2024: [244, 616, 616, 616]
 eitc_2017plus_amax:  # `amax17(ieic,law)`
   2017: [15008, 22322, 22309, 22302]
   2018: [16750, 24950, 24950, 24950]
   2019: [30000, 30000, 30000, 30000]
   2020: [30000, 30000, 30000, 30000]
   2021: [30000, 30000, 30000, 30000]
+  2022: [30000, 30000, 30000, 30000]
+  2023: [30950, 30950, 30950, 30950]
+  2024: [31950, 31950, 31950, 31950]
 
 # Renter's credit (for renters paying no property tax): single-filer and
 # other-filer amounts, 1977-1992; 1991-1992 only below the AGI limits
@@ -672,7 +719,24 @@ amt_exclusion_phaseout_rate: 0.25
 
 # Young Child Tax Credit (2019+): per child under 6, reduced above the
 # earnings threshold.
+# Dated statutory CalEITC, 2022+ (PolicyEngine-US
+# gov.states.ca.tax.income.credits.earned_income, queried 2026-09-29). Lists are
+# indexed by EITC-qualifying children 0, 1, 2, 3+.
+caleitc_2022plus:
+  adjustment_factor: 0.85
+  phase_in_rate: [0.0765, 0.34, 0.4, 0.45]
+  earned_income_amount:
+    2022: [4248, 6379, 8954, 8954]
+    2023: [4380, 6577, 9232, 9232]
+    2024: [4525, 6794, 9537, 9537]
+  final_start:
+    2022: [229, 579, 579, 579]
+    2023: [236, 597, 597, 597]
+    2024: [244, 616, 616, 616]
+  final_end: {2022: 30000, 2023: 30951, 2024: 31950}
+
 young_child_credit:
-  amount: 1000
-  earnings_threshold: 25000
-  phaseout_rate: 0.2
+  amount: {2019: 1000, 2022: 1083, 2023: 1117, 2024: 1154}
+  earnings_threshold: {2019: 25000, 2022: 25000, 2023: 25775, 2024: 26626}
+  phaseout_rate: {2019: 0.2, 2022: 0.2166, 2023: 0.2166, 2024: 0.2167}
+  loss_threshold: {2022: 32490, 2023: 33497, 2024: 34602}

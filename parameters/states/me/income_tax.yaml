@@ -267,6 +267,10 @@ personal_exemption_amount:
   2018: 4150
   2019: 4200
   2020: 4300
+  # 2022+: PolicyEngine-US gov.states.me.tax.income.deductions.personal_exemption, queried 2026-10-01.
+  2022: 4450
+  2023: 4700
+  2024: 5000
 # 2018+ exemption phaseout.
 exemption_phaseout_2018plus_threshold:
   single: 266700
@@ -391,6 +395,10 @@ itemized_deduction_phaseout_cap_2013_2021:
   2019: 29550
   2020: 30050
   2021: 30400
+  # 2022+: PolicyEngine-US gov.states.me.tax.income.deductions.itemized.cap, queried 2026-10-01.
+  2022: 31150
+  2023: 33200
+  2024: 35250
 
 # Sales Tax Fairness Credit (2016+, refundable) - real income-threshold
 # and per-exemption-count-tiered tables.
@@ -439,6 +447,10 @@ stfc_credit_amount:  # by exemption count (1-4) and year
 pension_deduction_per_taxpayer:
   2000: 6000
   2014: 10000
+  # 2022+: PolicyEngine-US gov.states.me.tax.income.agi.subtractions.pension_exclusion.cap, queried 2026-10-01.
+  2022: 25000
+  2023: 30000
+  2024: 45864
 
 # Credit for the elderly: share of the federal credit, 1978-2016.
 elderly_credit_share: 0.2
@@ -504,3 +516,47 @@ ptfc_income_share_2014plus: 0.06
 
 # Sales Tax Fairness Credit falls by $1 per this much income above the threshold.
 stfc_phaseout_step: 50
+
+# 2022+ statutory single brackets (PolicyEngine-US gov.states.me.tax.income.main, queried 2026-10-01).
+brackets_2022plus:
+  2022: [[0, 0.058], [23000, 0.0675], [54450, 0.0715]]
+  2023: [[0, 0.058], [24500, 0.0675], [58050, 0.0715]]
+  2024: [[0, 0.058], [26050, 0.0675], [61600, 0.0715]]
+
+# 2022+ exemption phase-out starts (PolicyEngine-US ...personal_exemption.phaseout.start; width 125,000).
+exemption_phaseout_2022plus:
+  2022: {single: 286200, married_joint: 343400, married_separate: 143100, head_of_household: 314800}
+  2023: {single: 305150, married_joint: 366100, married_separate: 152575, head_of_household: 335650}
+  2024: {single: 323900, married_joint: 388650, married_separate: 161950, head_of_household: 356300}
+
+# 2022+ standard/itemized deduction phase-out starts (PolicyEngine-US ...deductions.phase_out.start).
+deduction_phaseout_2022plus:
+  2022: {single: 85850, married_joint: 171700, married_separate: 85850, head_of_household: 128750}
+  2023: {single: 91500, married_joint: 183050, married_separate: 91500, head_of_household: 137300}
+  2024: {single: 97150, married_joint: 194300, married_separate: 97150, head_of_household: 145750}
+
+# 2022+ credits (PolicyEngine-US gov.states.me.tax.income.credits, queried 2026-10-01).
+eitc_rate_2022plus: {with_child: 0.25, childless: 0.5}
+dependent_exemption_credit_2022plus: {amount: 300, start_joint: 400000, start_other: 200000, increment: 1000, step: 7.5}
+
+# 2022+ sales tax fairness credit (PolicyEngine-US gov.states.me.tax.income.credits.fairness.sales_tax,
+# queried 2026-10-01): base plus additional by children, less `amount` per `increment` of income above `start`.
+stfc_2022plus:
+  2022:
+    single: {base: 130, start: 21850, increment: 500, step: 10}
+    married_joint: {base: 185, start: 43700, increment: 1000, step: 20}
+    married_separate: {base: 0, start: 0, increment: 0, step: 0}
+    head_of_household: {base: 185, start: 32800, increment: 750, step: 15}
+    additional: {joint: [[0, 0], [1, 25], [2, 55]], head_of_household: [[0, 0], [2, 25], [3, 55]]}
+  2023:
+    single: {base: 140, start: 23300, increment: 500, step: 10}
+    married_joint: {base: 200, start: 46600, increment: 1000, step: 20}
+    married_separate: {base: 0, start: 0, increment: 0, step: 0}
+    head_of_household: {base: 200, start: 34950, increment: 750, step: 15}
+    additional: {joint: [[0, 0], [1, 25], [2, 55]], head_of_household: [[0, 0], [2, 25], [3, 55]]}
+  2024:
+    single: {base: 150, start: 24750, increment: 500, step: 10}
+    married_joint: {base: 210, start: 49500, increment: 1000, step: 20}
+    married_separate: {base: 0, start: 0, increment: 0, step: 0}
+    head_of_household: {base: 210, start: 37100, increment: 750, step: 15}
+    additional: {joint: [[0, 0], [1, 30], [2, 60]], head_of_household: [[0, 0], [2, 30], [3, 60]]}

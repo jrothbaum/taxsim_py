@@ -252,6 +252,38 @@ brackets_hoh_2018plus:
   - [262500, 0.10]
   - [300000, 0.11]
 
+# Act 46 (2024) leaves the 2022-2024 rate thresholds unchanged. The bracket
+# increases begin in 2025; keeping a named statutory table makes that timing
+# explicit while preserving TAXSIM's separate historical table.
+brackets_single_2022plus:
+  - [0, 0.014]
+  - [2400, 0.032]
+  - [4800, 0.055]
+  - [9600, 0.064]
+  - [14400, 0.068]
+  - [19200, 0.072]
+  - [24000, 0.076]
+  - [36000, 0.079]
+  - [48000, 0.0825]
+  - [150000, 0.09]
+  - [175000, 0.10]
+  - [200000, 0.11]
+  - [300000, 0.11]
+brackets_hoh_2022plus:
+  - [0, 0.014]
+  - [3600, 0.032]
+  - [7200, 0.055]
+  - [14400, 0.064]
+  - [21600, 0.068]
+  - [28800, 0.072]
+  - [36000, 0.076]
+  - [54000, 0.079]
+  - [72000, 0.0825]
+  - [225000, 0.09]
+  - [262500, 0.10]
+  - [300000, 0.11]
+  - [450000, 0.11]
+
 # Standard deduction (`std(law,mst)`) - by status, sparse year keys.
 standard_deduction_single:
   1977: 1000
@@ -260,18 +292,21 @@ standard_deduction_single:
   1989: 1500
   2007: 2000
   2013: 2200
+  2024: 4400
 standard_deduction_married_joint:
   1977: 1000
   1987: 1700
   1989: 1900
   2007: 4000
   2013: 4400
+  2024: 8800
 standard_deduction_married_separate:
   1977: 500
   1987: 850
   1989: 950
   2007: 2000
   2013: 2200
+  2024: 4400
 standard_deduction_hoh:
   1977: 1000
   1982: 800
@@ -279,6 +314,7 @@ standard_deduction_hoh:
   1989: 1650
   2007: 2920
   2013: 3212
+  2024: 6424
 # 1983-1986 general-credit-era standard-deduction addback (`data(58)+
 # data(59)`, both confirmed inert - no charity/misc input this schema
 # populates - so this addback is always $0; documented, not implemented).
@@ -431,9 +467,30 @@ food_excise_credit_table_2016plus_single:
   - [29999, 55]
   - [100000000, 0]
 
+# 2023-2024 federal-AGI thresholds from the Department of Taxation's
+# Food/Excise Tax Credit schedule. The credit is per qualifying exemption.
+food_excise_credit_table_2023plus_non_single:
+  - [14999, 220]
+  - [19999, 200]
+  - [24999, 170]
+  - [29999, 140]
+  - [39999, 110]
+  - [49999, 90]
+  - [59999, 70]
+  - [100000000, 0]
+food_excise_credit_table_2023plus_single:
+  - [14999, 220]
+  - [19999, 200]
+  - [24999, 170]
+  - [29999, 140]
+  - [39999, 110]
+  - [100000000, 0]
+
 # State EITC (2018-2022 only, nonrefundable, 20% of federal EITC).
 eitc_rate_2018_2022:
   2018: 0.20
+eitc_rate_2023plus:
+  2023: 0.40
 
 # Renter credit per exemption (taxpayers, dependents and taxpayers 65 or
 # older) for rent of at least $1,000 and AGI under the limit, multiplied by

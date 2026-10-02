@@ -2,7 +2,22 @@
 # A flat rate on positive income classes (no capital losses, no unemployment
 # compensation), less the tax forgiveness credit.
 
-rate: {1977: 0.02, 1978: 0.022, 1983: 0.0245, 1984: 0.024, 1985: 0.0235, 1986: 0.0216, 1987: 0.021, 1991: 0.026, 1992: 0.0295, 1993: 0.028, 2004: 0.0307}
+rate:
+  1977: 0.02
+  1978: 0.022
+  1983: 0.0245
+  1984: 0.024
+  1985: 0.0235
+  1986: 0.0216
+  1987: 0.021
+  1991: 0.026
+  1992: 0.0295
+  1993: 0.028
+  2004: 0.0307
+  # PolicyEngine-US gov.states.pa.tax.income.rate, queried 2026-09-29.
+  2022: 0.0307
+  2023: 0.0307
+  2024: 0.0307
 
 # Tax forgiveness: the income allowance is `base` plus amounts for the first
 # and the other claimants (`dep1`, `dep2`, see the calculator); tax is
@@ -23,3 +38,5 @@ forgiveness_allowance:
   2002: {first: 6500.0, other: 9000.0}
   2004: {first: 6500.0, other: 9500.0}
 forgiveness_phaseout: {1977: 1000.0, 1998: 2500.0}
+# 2022+: forgiveness falls by this share for each increment of income (or part) over the allowance.
+forgiveness_step_2022plus: {income: 250, share: 0.1}

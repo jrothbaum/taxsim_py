@@ -56,7 +56,8 @@ def _amt_rate_tax(income: pl.Expr, sep: pl.Expr) -> pl.Expr:
 
 def compute_ri_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
     """Calculate Rhode Island income tax for each row."""
-    effective_year, flate = resolve_state_year(year)
+    state_year = "ri" if behavior.mode.value == "statutory" else None
+    effective_year, flate = resolve_state_year(year, state_year)
     y = effective_year
     p = YearParams(RI_PARAMS, effective_year)
     # Household income (`hy`) is read before TAXSIM's projected-year deflation.
@@ -91,7 +92,7 @@ def compute_ri_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         limits = p["retirement_exclusion_agi_limit"]
         fagi = pl.when(married).then(limits["married"] * index / sep).otherwise(limits["single"] * index)
         agi = agi - pl.when(fed_agi <= fagi).then(
-            pl.min_horizontal(aged * float(p["retirement_exclusion_per_aged_taxpayer"]), pl.col("pensions"))
+            pl.min_horizontal(aged * p.num("retirement_exclusion_per_aged_taxpayer"), pl.col("pensions"))
         ).otherwise(0.0)
     if y in (2009, 2020):
         # Unemployment compensation is taxed in full.
@@ -174,10 +175,17 @@ def compute_ri_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         ratio = (p["deduction_phaseout_smooth_rate"] * (agi - start).clip(0, None) / step).clip(None, 1)
         kept = perc * (1 - ratio)
         factor = pl.when(agi > end).then(0.0).when(agi > start).then(kept).otherwise(1.0)
+        if y >= 2022:
+            # Dated statutory phase-out: 20% of the standard deduction and exemption lost per
+            # increment (or part) of AGI above the start.
+            d = p["phaseout_2022plus"][y]
+            steps = ((agi - float(d["start"])).clip(0, None) / float(d["increment"])).ceil()
+            factor = (1 - float(d["share_per_step"]) * steps).clip(0, 1)
         taxinc = (agi - stded * factor / sep - exemp * factor).clip(0, None)
         df, (taxinc,) = checkpoint(df, ri_taxinc=taxinc)
-        statax = bracket_tax(taxinc, _scaled(p["brackets_2011"], index))
-        rate = bracket_rate(taxinc, _scaled(p["brackets_2011"], index))
+        table = _scaled(p["brackets_2011"], index) if y < 2022 else p["brackets_2022plus"][y]
+        statax = bracket_tax(taxinc, table)
+        rate = bracket_rate(taxinc, table)
         detail_stded = stded * factor
         detail_exemp = exemp * factor
         detail_taxinc = taxinc

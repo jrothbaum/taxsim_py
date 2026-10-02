@@ -94,6 +94,10 @@ flat_rate_by_year:
   2019: 0.045
   2020: 0.0455
   2021: 0.045
+  # PolicyEngine-US gov.states.co.tax.income.rate, queried 2026-09-29.
+  2022: 0.044
+  2023: 0.044
+  2024: 0.0425
 amt_rate_by_year:
   1987: 0.0375
   2000: 0.0347
@@ -110,6 +114,11 @@ sales_tax_refund_2001: [[27000, 144], [56000, 187], [83000, 220], [110000, 252],
 sales_tax_refund_2005: 15  # flat, not income-tiered
 sales_tax_refund_2015: [[36000, 13], [77000, 18], [120000, 21], [163000, 23], [204000, 24], [1.0e+20, 41]]
 sales_tax_refund_2021: [[44000, 37], [88000, 49], [139000, 56], [193000, 68], [246000, 74], [1.0e+20, 117]]
+# PolicyEngine-US gov.states.co.tax.income.credits.sales_tax_refund.amount.scale,
+# queried 2026-09-29. 2023 is explicitly zero in the current policy tree.
+sales_tax_refund_2022: [[-1.0e+99, 153], [48001, 208], [95001, 234], [151001, 285], [209001, 300], [268001, 486]]
+sales_tax_refund_2023: 0
+sales_tax_refund_2024: [[-1.0e+99, 177], [53001, 240], [105001, 277], [166001, 323], [233001, 350], [302001, 565]]
 
 # --- Child Care Credit (federal-credit-based, `comnew(53)`~=`ccc`) ---
 child_care_credit_table_1996plus:  # `tablki` lookup on federal AGI, used
@@ -126,6 +135,41 @@ child_care_credit_dependent_offset_2000_2001: 300  # subtracted per dependent
 # --- Earned Income Credit (flat % of federal EITC) ---
 eitc_rate_1999: 0.085
 eitc_rate_2000_2001_2015plus: 0.10
+# PolicyEngine-US gov.states.co.tax.income.credits.eitc.match, queried
+# 2026-09-29. Colorado increased the match in recent years.
+eitc_rate_actual:
+  2022: 0.20
+  2023: 0.50
+  2024: 0.50
+
+# gov.states.co.tax.income.credits.eitc.under_25_expansion.min_age (2022+):
+# childless filers aged 19-24 qualify. The homeless/foster-youth exception for
+# ages 18 is outside the TAXSIM inputs.
+eitc_under_25_minimum_age: 19
+
+# Refundable Colorado child tax credit for children under age six. The
+# thresholds and amounts are the PolicyEngine-US
+# gov.states.co.tax.income.credits.ctc.amount scale, queried 2026-09-29.
+child_tax_credit_amount:
+  single: [[-1.0e+99, 1200], [25000, 600], [50000, 200], [75000, 0]]
+  head_of_household: [[-1.0e+99, 1200], [25000, 600], [50000, 200], [75000, 0]]
+  married_joint: [[-1.0e+99, 1200], [35000, 600], [60000, 200], [85000, 0]]
+  married_separate: [[-1.0e+99, 1200], [25000, 600], [50000, 200], [75000, 0]]
+
+# Family Affordability Credit (HB24-1311, 2024+), refundable. PolicyEngine-US
+# gov.states.co.tax.income.credits.family_affordability, queried 2026-09-29:
+# $3,200 per child under 6 and 75% of that for ages 6-16, reduced by 6.875% of
+# the maximum for each $5,000 (or part) of federal AGI above the threshold.
+family_affordability_credit:
+  amount: {2024: 3200}
+  older_child_share: 0.75
+  reduction_rate: 0.06875
+  reduction_increment: 5000
+  reduction_threshold:
+    single: {2024: 15000}
+    head_of_household: {2024: 15000}
+    married_separate: {2024: 15000}
+    married_joint: {2024: 25000}
 
 # Pension and Social Security exclusion per taxpayer, for returns with a
 # taxpayer 65 or older (TAXSIM `pnsion`).
@@ -174,3 +218,14 @@ standard_deduction_pre1980:
   bonus_income_floor: 1000
   bonus_income_per_exemption: 750
   bonus_phaseout_rate: 0.5
+
+# 2022+: add-back of federal deductions above a limit when federal AGI exceeds
+# the threshold (2022: itemized deductions only; 2023+: standard or itemized),
+# and of the qualified business income deduction above the AGI limits.
+high_income_addback:
+  agi_threshold: {2022: 400000, 2023: 300000}
+  limit_joint: {2022: 60000, 2023: 16000}
+  limit_other: {2022: 30000, 2023: 12000}
+  itemized_only: {2022: true, 2023: false}
+  qbi_agi_limit_joint: 1000000
+  qbi_agi_limit_other: 500000

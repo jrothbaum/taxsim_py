@@ -30,7 +30,8 @@ _RAW_INPUT_COLUMNS = [
 
 
 def compute_ia_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
-    effective_year, flate = resolve_state_year(year)
+    state_year = "ia" if behavior.mode.value == "statutory" else None
+    effective_year, flate = resolve_state_year(year, state_year)
     p = YearParams(IA_PARAMS, effective_year)
 
     df = df.with_columns(
@@ -96,12 +97,22 @@ def compute_ia_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         penexc = pl.when(aged_count() > 0).then(pl.min_horizontal(pl.col("ia_taxpayers") * cap, pl.col("pensions"))).otherwise(0.0)
     else:
         penexc = pl.lit(0.0)
+    if effective_year >= 2022:
+        # Retirement income exclusion from age 55: $6,000 per taxpayer in 2022, unlimited from 2023.
+        pe = p["pension_exclusion_2022plus"]
+        eligible = (pl.col("page") >= float(pe["minimum_age"])) | (pl.col("sage") >= float(pe["minimum_age"]))
+        cap = float(resolve_year(pe["cap_per_taxpayer"], effective_year)) * pl.col("ia_taxpayers")
+        penexc = pl.when(eligible).then(pl.min_horizontal(cap, pl.col("pensions"))).otherwise(0.0)
     df = df.with_columns(ia_penexc=penexc, ia_agi=pl.col("ia_agi") - penexc)
     ui_total = unemployment_total()
     if effective_year == 2009:
         df = df.with_columns(ia_agi=pl.col("ia_agi") + pl.min_horizontal(ui_total, p["unemployment_addback_2009_per_taxpayer"] * pl.col("ia_taxpayers")))
 
     fedded = pl.col("fiitax").clip(0, None)
+    if effective_year >= 2022:
+        fedded = (pl.col("fiitax") - pl.col("addmed")).clip(0, None)  # Additional Medicare tax is not income tax
+    if effective_year >= 2023:
+        fedded = pl.lit(0.0)  # the federal tax deduction ended with 2022
     dedbus = p.num("qbi_deduction_share") * pl.col("qbi_deduction") if effective_year >= 2019 else pl.lit(0.0)
 
     # --- Standard deduction ---
@@ -115,6 +126,8 @@ def compute_ia_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     stded = pl.when(gets_single_cap).then(
         (pct * pl.col("ia_agi")).clip(0, cap_single)
     ).otherwise((pct * pl.col("ia_agi")).clip(0, cap_joint))
+    if effective_year >= 2023:
+        stded = pl.col("standard_deduction")  # conforms to the federal standard deduction
     df = df.with_columns(ia_stded=stded)
 
     # --- Itemized deduction ---
@@ -190,6 +203,11 @@ def compute_ia_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         table = p["brackets_2019plus"]
 
     statax = bracket_tax(pl.col("ia_taxinc") / aif, table) * aif
+    if effective_year >= 2023:
+        schedules = p["brackets_2023plus"][effective_year]
+        statax = pl.when(is_joint).then(bracket_tax(pl.col("ia_taxinc"), schedules["joint"])).otherwise(
+            bracket_tax(pl.col("ia_taxinc"), schedules["other"])
+        )
     df = df.with_columns(ia_statax=statax)
 
     if effective_year <= 1986:
@@ -252,7 +270,7 @@ def compute_ia_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     df = df.with_columns(ia_statax=(pl.col("ia_statax") - pl.col("ia_gcred")).clip(0, None))
 
     # --- AMT ---
-    if effective_year >= 1982:
+    if 1982 <= effective_year <= 2022:  # the Iowa minimum tax ended after 2022
         amt_federal = pl.col("amt")
         if effective_year <= 1984:
             alty = amt_federal * float(resolve_year(p["amt_share_of_federal"], effective_year))
@@ -306,7 +324,11 @@ def compute_ia_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     if effective_year >= 1990:
         rate_eitc = p.num("eitc_rate")
         cap_eitc = p.num("eitc_agi_cap")
-        earncr = pl.when(pl.col("agi") < cap_eitc).then(rate_eitc * pl.col("eitc")).otherwise(0.0)
+        # Iowa's eligibility test uses Iowa AGI (`comnew(2)` in iatax),
+        # after Iowa's Social Security and pension adjustments. Comparing
+        # the caps with federal AGI incorrectly removed credits from CPS
+        # households whose federal AGI was above the Iowa cap.
+        earncr = pl.when(pl.col("ia_agi") < cap_eitc).then(rate_eitc * pl.col("eitc")).otherwise(0.0)
 
         if effective_year == 2009:
             nkid = pl.col("depx")
@@ -328,24 +350,24 @@ def compute_ia_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         if effective_year == 2010:
             cap1 = float(p["eitc_2010_married_joint_eligibility_cap_1kid"][1960])
             cap2 = float(p["eitc_2010_married_joint_eligibility_cap_2kids"][1960])
-            over_1kid = (pl.col("depx") == 1) & ((pl.col("earned_income") > cap1) | (pl.col("agi") > cap1))
-            over_2kid = (pl.col("depx") == 2) & ((pl.col("earned_income") > cap2) | (pl.col("agi") > cap2))
+            over_1kid = (pl.col("depx") == 1) & ((pl.col("earned_income") > cap1) | (pl.col("ia_agi") > cap1))
+            over_2kid = (pl.col("depx") == 2) & ((pl.col("earned_income") > cap2) | (pl.col("ia_agi") > cap2))
             in_2010_branch = is_joint & (earncr > 0)
             earncr = pl.when(in_2010_branch & (over_1kid | over_2kid)).then(0.0).otherwise(earncr)
             cap0 = float(p["eitc_flat_eligibility_cap_0kids"][1960])
             cap1_flat = float(p["eitc_flat_eligibility_cap_1kid"][1960])
             cap2p_flat = float(p["eitc_flat_eligibility_cap_2plus_kids"][1960])
-            over_0_flat = (pl.col("depx") == 0) & ((pl.col("earned_income") > cap0) | (pl.col("agi") > cap0))
-            over_1_flat = (pl.col("depx") == 1) & ((pl.col("earned_income") > cap1_flat) | (pl.col("agi") > cap1_flat))
-            over_2p_flat = (pl.col("depx") >= 2) & ((pl.col("earned_income") > cap2p_flat) | (pl.col("agi") > cap2p_flat))
+            over_0_flat = (pl.col("depx") == 0) & ((pl.col("earned_income") > cap0) | (pl.col("ia_agi") > cap0))
+            over_1_flat = (pl.col("depx") == 1) & ((pl.col("earned_income") > cap1_flat) | (pl.col("ia_agi") > cap1_flat))
+            over_2p_flat = (pl.col("depx") >= 2) & ((pl.col("earned_income") > cap2p_flat) | (pl.col("ia_agi") > cap2p_flat))
             earncr = pl.when(~in_2010_branch & (over_0_flat | over_1_flat | over_2p_flat)).then(0.0).otherwise(earncr)
-        elif effective_year >= 1990:
+        elif 1990 <= effective_year < 2022:  # later years rely on the federal credit's own limits
             cap0 = float(p["eitc_flat_eligibility_cap_0kids"][1960])
             cap1_flat = float(p["eitc_flat_eligibility_cap_1kid"][1960])
             cap2p_flat = float(p["eitc_flat_eligibility_cap_2plus_kids"][1960])
-            over_0_flat = (pl.col("depx") == 0) & ((pl.col("earned_income") > cap0) | (pl.col("agi") > cap0))
-            over_1_flat = (pl.col("depx") == 1) & ((pl.col("earned_income") > cap1_flat) | (pl.col("agi") > cap1_flat))
-            over_2p_flat = (pl.col("depx") >= 2) & ((pl.col("earned_income") > cap2p_flat) | (pl.col("agi") > cap2p_flat))
+            over_0_flat = (pl.col("depx") == 0) & ((pl.col("earned_income") > cap0) | (pl.col("ia_agi") > cap0))
+            over_1_flat = (pl.col("depx") == 1) & ((pl.col("earned_income") > cap1_flat) | (pl.col("ia_agi") > cap1_flat))
+            over_2p_flat = (pl.col("depx") >= 2) & ((pl.col("earned_income") > cap2p_flat) | (pl.col("ia_agi") > cap2p_flat))
             earncr = pl.when(over_0_flat | over_1_flat | over_2p_flat).then(0.0).otherwise(earncr)
     df = df.with_columns(ia_earncr=earncr)
 
@@ -368,6 +390,14 @@ def compute_ia_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     if effective_year >= 1992:
         exy_other = p.num("exy_other")
         low_income = pl.when(is_single).then(pl.col("agi") <= exy_single).otherwise(pl.col("agi") <= exy_other)
+        if effective_year >= 2022:
+            # Actual-law years: a return with a taxpayer 65 or older owes no tax
+            # at or below $24,000 (single) or $32,000 (other).
+            aged_limit = p["amt_aged_exempt_income"]
+            low_income = low_income | (
+                (aged_count() > 0)
+                & pl.when(is_single).then(pl.col("agi") <= aged_limit["single"]).otherwise(pl.col("agi") <= aged_limit["other"])
+            )
         df = df.with_columns(
             ia_statax=pl.when((pl.col("ia_statax") > 0) & low_income).then(0.0).otherwise(pl.col("ia_statax"))
         )

@@ -4,7 +4,7 @@ import polars as pl
 
 from taxsim_py.calculators.payroll import payroll_parts
 from taxsim_py.engine.brackets import bracket_rate, bracket_tax
-from taxsim_py.engine.inputs import files_head_of_household, files_joint, files_single, separate_divisor, taxpayer_count
+from taxsim_py.engine.inputs import aged_count, files_head_of_household, files_joint, files_single, separate_divisor, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml, resolve_year
 from taxsim_py.engine.state import dividend_exclusion_addback, federal_capital_gain_in_agi, with_state_detail
 from taxsim_py.behavior import BehaviorProfile, TAXSIM_BEHAVIOR
@@ -15,7 +15,8 @@ PRE1987_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "pre1987.yaml")
 
 
 def compute_al_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
-    effective_year, flate = resolve_state_year(year)
+    state_year = "al" if behavior.mode.value == "statutory" else None
+    effective_year, flate = resolve_state_year(year, state_year)
     p = YearParams(AL_PARAMS, effective_year)
 
     df = df.with_columns(
@@ -100,6 +101,10 @@ def compute_al_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         # Social Security benefits are exempt from 1984.
         - (pl.col("taxable_social_security") if effective_year >= 1984 else 0.0)
     )
+    if effective_year >= 2022:
+        # Retirement income exemption: up to the cap for each taxpayer 65 or older.
+        cap = float(p["retirement_exemption_cap_2022plus"])
+        df = df.with_columns(al_agi=pl.col("al_agi") - pl.min_horizontal(pl.col("pensions"), cap * aged_count()))
 
     # --- Standard vs. itemized deduction ---
     if effective_year <= 2006:
@@ -107,6 +112,16 @@ def compute_al_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         cap_per_exemption = p.num("standard_deduction_cap_per_exemption")
         df = df.with_columns(
             al_stded=(pct * pl.col("al_agi")).clip(0, cap_per_exemption * pl.col("al_taxpayers"))
+        )
+    elif behavior.mode.value == "statutory" and effective_year >= 2022:
+        recent = p["standard_deduction_2022plus"]
+        max_deduction = pl.when(files_joint()).then(float(recent["joint"]["maximum"])).when(files_head_of_household()).then(float(recent["head_of_household"]["maximum"])).when(files_single()).then(float(recent["single"]["maximum"])).otherwise(float(recent["separate"]["maximum"]))
+        min_deduction = pl.when(files_joint()).then(float(recent["joint"]["minimum"])).when(files_head_of_household()).then(float(recent["head_of_household"]["minimum"])).when(files_single()).then(float(recent["single"]["minimum"])).otherwise(float(recent["separate"]["minimum"]))
+        threshold = pl.when(files_joint()).then(float(recent["joint"]["threshold"])).when(files_head_of_household()).then(float(recent["head_of_household"]["threshold"])).when(files_single()).then(float(recent["single"]["threshold"])).otherwise(float(recent["separate"]["threshold"]))
+        increment = pl.when(files_joint()).then(float(recent["joint"]["increment"])).when(files_head_of_household()).then(float(recent["head_of_household"]["increment"])).when(files_single()).then(float(recent["single"]["increment"])).otherwise(float(recent["separate"]["increment"]))
+        reduction = pl.when(files_joint()).then(float(recent["joint"]["reduction"])).when(files_head_of_household()).then(float(recent["head_of_household"]["reduction"])).when(files_single()).then(float(recent["single"]["reduction"])).otherwise(float(recent["separate"]["reduction"]))
+        df = df.with_columns(
+            al_stded=(max_deduction - reduction * ((pl.col("al_agi") - threshold).clip(0, None) / increment).floor()).clip(min_deduction, max_deduction)
         )
     else:
         income_floor = p.num("standard_deduction_2007_income_floor")
@@ -142,7 +157,14 @@ def compute_al_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         df = df.with_columns(al_xitded_base=pl.col("mortgage") + pl.col("proptax") + pl.col("otheritem"))
 
     if effective_year >= 1982:
-        df = df.with_columns(al_fica_addback=0.5 * (pl.col("fica") - pl.col("al_setax")) + pl.col("addmed"))
+        if behavior.mode.value == "statutory":
+            # Additional Medicare tax is employee-only and already in `fica` once;
+            # TAXSIM halves it and then adds it again.
+            df = df.with_columns(
+                al_fica_addback=0.5 * (pl.col("fica") - pl.col("al_setax") - pl.col("addmed")) + pl.col("addmed")
+            )
+        else:
+            df = df.with_columns(al_fica_addback=0.5 * (pl.col("fica") - pl.col("al_setax")) + pl.col("addmed"))
         df = df.with_columns(al_xitded=(pl.col("al_xitded_base") + pl.col("al_fica_addback") + pl.col("al_setax")).clip(0, None))
     else:
         df = df.with_columns(al_xitded=pl.col("al_xitded_base"))
@@ -181,13 +203,23 @@ def compute_al_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         high = p.num("dependent_exemption_2007_high")
         mid = p.num("dependent_exemption_2007_mid")
         low = p.num("dependent_exemption_2007_low")
-        bp1 = p.num("dependent_exemption_2007_breakpoint1")
+        bp1 = p.num(
+            "dependent_exemption_2022plus_breakpoint1"
+            if behavior.mode.value == "statutory" and effective_year >= 2022
+            else "dependent_exemption_2007_breakpoint1"
+        )
         bp2 = p.num("dependent_exemption_2007_breakpoint2")
         tga = (high - mid) / bp1
         tgb = (mid - low) / (bp2 - bp1)
         excesa = pl.col("al_agi").clip(0, bp1)
         excesb = (pl.col("al_agi") - bp1).clip(0, bp2 - bp1)
-        df = df.with_columns(al_dep_exemp=(high - excesa * tga - excesb * tgb) * pl.col("depx"))
+        if effective_year >= 2022:
+            # Actual-law years use the statutory step schedule, not TAXSIM's
+            # linear interpolation between the breakpoints.
+            step = pl.when(pl.col("al_agi") >= bp2).then(low).when(pl.col("al_agi") >= bp1).then(mid).otherwise(high)
+            df = df.with_columns(al_dep_exemp=step * pl.col("depx"))
+        else:
+            df = df.with_columns(al_dep_exemp=(high - excesa * tga - excesb * tgb) * pl.col("depx"))
     df = df.with_columns(al_exemp=pl.col("al_exemp_base") + pl.col("al_dep_exemp"))
 
     df = df.with_columns(al_taxinc=(pl.col("al_agi") - pl.col("al_deduc") - pl.col("al_exemp")).clip(0, None))
