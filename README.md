@@ -1,3 +1,5 @@
+THIS IS STILL IN DEVELOPMENT AND NOT ON PYPI YET
+
 # taxsim-py
 
 `taxsim-py` is a dataframe-oriented Python implementation of NBER TAXSIM.
