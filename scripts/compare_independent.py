@@ -40,6 +40,13 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--filers-only", action="store_true")
     parser.add_argument(
+        "--state",
+        type=int,
+        action="append",
+        dest="states",
+        help="restrict the CPS sample to one or more TAXSIM state codes",
+    )
+    parser.add_argument(
         "--calculation-mode",
         choices=("taxsim", "statutory"),
         default="taxsim",
@@ -99,6 +106,10 @@ def main() -> None:
         files["hhld"],
         include_nonfilers=not args.filers_only,
     )
+    if args.states:
+        units = units.filter(pl.col("state").is_in(args.states))
+        if units.is_empty():
+            raise ValueError(f"No CPS units found for TAXSIM states {args.states}")
     if args.sample_size <= 0:
         raise ValueError("--sample-size must be positive")
     if units.height > args.sample_size:

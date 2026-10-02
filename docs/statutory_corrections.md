@@ -6,16 +6,22 @@ an implementation reference, and tests for corrected and compatible behavior.
 
 ## Calculation modes
 
-`calculate_taxes(..., calculation_mode="taxsim")` is the default. It preserves
-the compiled model's behavior for backward replication, including known bugs.
+`calculate_taxes(..., calculation_mode="statutory")` is the default. The YAML
+and CSV parameter tables are the canonical law-oriented inputs, and this mode
+enables the independently verified corrections listed here. It is not yet a
+claim that every federal and state formula has been re-audited against law. So
+far this covers federal payroll tax, one federal income-tax credit total, and
+one state's (California's) income tax; every other state calculator can still
+contain uncorrected TAXSIM-specific rules or independently recompute a
+TAXSIM-compatible self-employment-tax deduction.
 
-`calculate_taxes(..., calculation_mode="statutory")` starts from the same model
-but enables only the independently verified corrections listed here. It is not
-yet a claim that every federal and state formula has been re-audited against
-law. So far this covers federal payroll tax, one federal income-tax credit
-total, and one state's (California's) income tax; every other state calculator
-can still contain uncorrected TAXSIM-specific rules or independently
-recompute a TAXSIM-compatible self-employment-tax deduction.
+`calculate_taxes(..., calculation_mode="taxsim")` is the explicit compatibility
+override. It preserves the compiled model's behavior, including known bugs,
+for replication tests and comparisons with the TAXSIM executable. The
+differences documented below are currently implemented as behavior overrides
+because most are formula or sequencing differences rather than alternate
+parameter values; a future numerical TAXSIM override belongs alongside the
+canonical parameter when one is identified.
 
 The behavior switches are centralized in `src/taxsim_py/behavior.py`. Formula
 code must use that profile rather than testing mode strings directly. State
@@ -122,6 +128,24 @@ accepts it even when, like nearly all of them today, it just ignores it.
   `count_pre_1998_nonrefundable_credits_correctly`.
 - **Tests:** `test_fed_income_001_statutory_mode_reports_the_real_pre1998_elderly_credit`.
 
+## FED-INCOME-002: Credit for Other Dependents dropped after 2021
+
+- **Status:** corrected in statutory mode; retained in TAXSIM mode.
+- **Affected years:** 2022 onward.
+- **TAXSIM behavior:** `taxsim_2024_09_21.f` computes `odcred = 500*max(0,
+  data(8)-ideps)` for 2018+, but adds it to the credit total (`precrd`) only
+  when `lawyr.le.2020` (2021 rebuilds `precrd` from ARPA amounts). For 2022
+  and later it is computed and then never used, so a filer with an adult or
+  age-17 dependent gets no credit.
+- **Corrected behavior:** $500 per dependent who is not a CTC-qualifying
+  child, sharing the CTC phaseout (IRC 24(h)(4)-(5)).
+- **Reason:** the credit is permanent law. Tax-Calculator and PolicyEngine both
+  apply it; on a 3,000-unit CPS sample this was about 100 federal differences
+  per year (exact $500 multiples).
+- **Implementation:** `taxsim_py.calculators.federal._credits`, controlled by
+  `allow_other_dependent_credit_after_2021`.
+- **Tests:** `test_other_dependent_credit_applies_after_2021`.
+
 ## CA-001: 1979-1986 unemployment compensation removed from AGI twice
 
 - **Status:** corrected in statutory mode; retained in TAXSIM mode.
@@ -198,3 +222,246 @@ Run the focused checks with:
 ```bash
 uv run --group test pytest tests/test_calculation_modes.py tests/test_independent_models.py -q
 ```
+
+## CA-004: Young Child Tax Credit paid without a child under six
+
+- **Status:** corrected in statutory mode; retained in TAXSIM mode.
+- **Affected years:** 2019 onward.
+- **TAXSIM behavior:** `catax` (lines 2911-2919) computes the credit above the
+  $25,000 earnings threshold as `max(0, 1000 - .2*(earned-25000))` without
+  testing `data(210)`, the number of children under 6. A California EITC
+  recipient whose only child is 10 gets the credit until it phases out.
+- **Corrected behavior:** the credit requires a child under six.
+- **Reason:** R&TC 17052.1 limits the credit to a qualifying child under six.
+- **Implementation:** `taxsim_py.calculators.states.ca.compute_ca_tax`,
+  controlled by `require_young_child_for_california_yctc`.
+- **Tests:** `tests/test_law_based_checks.py::test_california_yctc_needs_a_young_child`.
+
+## CT-001: Recent personal-credit worksheets use discrete tiers
+
+- **Status:** corrected in statutory mode; retained in TAXSIM mode.
+- **Affected years:** 2022 onward.
+- **Affected records:** Connecticut filers whose AGI is between personal-credit
+  worksheet thresholds, including filers exactly at a threshold.
+- **TAXSIM behavior:** the historical calculator linearly interpolates the
+  personal-credit percentage between worksheet rows.
+- **Corrected behavior:** the statutory path selects the rate for the first
+  threshold reached. For example, the 2022 single-filer worksheet gives a 15%
+  rate in the $26,500-$31,300 band; it does not interpolate that band with the
+  preceding row.
+- **Reason:** the official [2022 Connecticut Form CT-1040 instructions](https://portal.ct.gov/-/media/drs/forms/2022/income/2022-ct-1040-instructions_1222.pdf)
+  publish discrete AGI bands and rates for the personal credit.
+- **Implementation:** `taxsim_py.calculators.states.ct.compute_ct_tax`, using
+  `tier_values` for recent statutory years.
+- **Tests:** `test_connecticut_statutory_personal_credit_uses_discrete_recent_rates`.
+
+## DC-001: Recent Schedule H limits are dated
+
+- **Status:** corrected in statutory mode; retained in TAXSIM mode.
+- **Affected years:** 2022-2024.
+- **Affected records:** District of Columbia filers eligible for the property
+  tax credit, especially near the AGI phaseout thresholds or credit maximum.
+- **TAXSIM behavior:** the historical path forward-fills its last dated
+  Schedule H row, leaving 2022+ on 2021's `$1,225` maximum and thresholds.
+- **Corrected behavior:** statutory mode uses dated PolicyEngine values for the
+  maximum, AGI tiers, elderly threshold, and rent share in each recent year.
+- **Reason:** the installed PolicyEngine DC parameter tree publishes the
+  year-specific 2022-2024 Schedule H values; the local table had stopped at
+  2021.
+- **Formula note:** recent statutory mode also follows PolicyEngine's Schedule
+  H housing-cost formula, adding 20% of rent to property tax. The historical
+  TAXSIM path retains its `max(property tax, rent share)` approximation.
+- **Implementation:** `parameters/states/dc/income_tax.yaml` and
+  `taxsim_py.calculators.states.dc.compute_dc_tax`.
+- **Tests:** `test_dc_statutory_property_credit_uses_dated_recent_limits`.
+
+## OH-001: Recent Ohio brackets replace the projected 2021 schedule
+
+- **Status:** corrected in statutory mode; retained in TAXSIM mode.
+- **Affected years:** 2022-2024.
+- **Affected records:** Ohio filers above the zero bracket, especially those
+  near the 2023 bracket consolidation and 2024 top-rate change.
+- **TAXSIM behavior:** the compatibility path continues to use the historical
+  2021 schedule, with the existing extrapolation behavior for later years.
+- **Corrected behavior:** statutory mode uses dated Ohio brackets, zero-bracket
+  thresholds, exemption amounts, and the 30% EITC match for 2022-2024.
+- **Reason:** PolicyEngine's dated Ohio tree supplies the recent schedules, and
+  Ohio's official [2024 IT-1040 booklet](https://dam.assets.ohio.gov/image/upload/tax.ohio.gov/forms/ohio_individual/individual/2024/it1040-booklet.pdf)
+  confirms 0% through `$26,050`, 2.75% through `$100,000`, and 3.5% above
+  `$100,000` for 2024.
+- **Implementation:** `parameters/states/oh/income_tax.yaml` and
+  `taxsim_py.calculators.states.oh.compute_oh_tax`.
+- **Tests:** `test_ohio_statutory_uses_recent_brackets_without_changing_taxsim`.
+
+## OK-001: Recent Oklahoma rate tables are dated
+
+- **Status:** corrected in statutory mode; retained in TAXSIM mode.
+- **Affected years:** 2022-2024.
+- **Affected records:** Oklahoma filers with positive taxable income.
+- **TAXSIM behavior:** the compatibility path continues to use the historical
+  schedule and projected-year behavior.
+- **Corrected behavior:** statutory mode uses the dated single/separate and
+  joint/head-of-household tables with rates from 0.25% through 4.75%.
+- **Reason:** the installed PolicyEngine-US Oklahoma parameter tree publishes
+  these rate tables for all three recent years; the local model stopped at its
+  older 2016 table.
+- **Implementation:** `parameters/states/ok/income_tax.yaml` and
+  `taxsim_py.calculators.states.ok.compute_ok_tax`.
+- **Tests:** `test_oklahoma_statutory_uses_recent_rate_tables`.
+
+## OR-001: Recent Oregon brackets and deductions are dated
+
+- **Status:** corrected in statutory mode; retained in TAXSIM mode.
+- **Affected years:** 2022-2024.
+- **Affected records:** Oregon filers using the standard deduction or recent
+  marginal-rate thresholds.
+- **TAXSIM behavior:** the compatibility path continues to use the historical
+  schedule and projected-year behavior.
+- **Corrected behavior:** statutory mode uses dated single, separate, joint,
+  and head-of-household brackets; standard deductions; federal-tax-subtraction
+  limits; and exemption-credit amounts.
+- **Reason:** the installed PolicyEngine-US Oregon parameter tree publishes
+  year-specific values that were absent from the local table.
+- **Implementation:** `parameters/states/or/income_tax.yaml` and
+  `taxsim_py.calculators.states.or_.compute_or_tax`.
+- **Tests:** `test_oregon_statutory_uses_recent_brackets_and_standard_deduction`.
+
+## OR-002: Recent age and child-count credit inputs are used
+
+- **Status:** corrected in statutory mode; retained in TAXSIM mode.
+- **Affected years:** 2022-2024.
+- **Affected records:** Oregon returns with an explicitly supplied child under
+  age three or with dependents not all eligible for the working-family care
+  credit.
+- **Corrected behavior:** statutory mode applies the 12% EITC match when an
+  `children_under_3` is positive, and uses `dep13` rather than total
+  dependents to cap working-family care-credit recipients. The optional
+  semantic count is normally populated by survey preparation; explicit child
+  ages remain supported for ordinary callers.
+- **Reason:** Oregon's recent rules distinguish a young child and define care
+  eligibility by qualifying-child age; both signals are available in the
+  TAXSIM-shaped input schema.
+- **Implementation:** `taxsim_py.calculators.states.or_.compute_or_tax`.
+- **Tests:** `test_oregon_statutory_uses_young_child_eitc_match` and
+  `test_optional_child_age_counts_are_not_taxsim_inputs`.
+
+## DC-002: Recent EITC uses qualifying-child counts
+
+- **Status:** corrected in statutory mode; retained in TAXSIM mode.
+- **Affected years:** 2015 onward, including 2022-2024.
+- **Affected records:** DC returns with dependents who are not qualifying EITC
+  children, such as older dependents.
+- **TAXSIM behavior:** the historical implementation switches to the
+  with-child EITC whenever `depx > 0`.
+- **Corrected behavior:** statutory mode uses `dep18`, the age-qualified EITC
+  child count, for the with-child versus childless EITC track.
+- **Reason:** having a dependent on the return does not by itself establish a
+  qualifying child for the earned income credit.
+- **Implementation:** `taxsim_py.calculators.states.dc.compute_dc_tax`.
+- **Test:** `test_dc_statutory_uses_qualifying_child_count_for_eitc`.
+
+## AR-001: Recent Arkansas schedules and credits are dated
+
+- **Status:** corrected in statutory mode; retained as historical behavior in
+  TAXSIM mode.
+- **Affected years:** 2022-2024.
+- **Corrected behavior:** statutory mode uses the dated Arkansas standard
+  deduction and rate/subtraction schedules, the 2022-2023 inflationary-relief
+  credit, and the age-representable portion of the qualified-individual credit.
+- **Reason:** the recent schedules and credits were absent from the older
+  TAXSIM parameter horizon. The inflationary-relief credit is documented in
+  Arkansas's 2022 and 2023 individual-return instructions.
+- **Boundary:** Arkansas's resident-only worksheet rules and detailed
+  low-income tax scales are not fully representable by the TAXSIM 35 inputs;
+  they remain an explicit comparison item rather than being silently folded
+  into the ordinary brackets. The high-income terminal formulas are now
+  represented directly from the official tax tables.
+- **Implementation:** `parameters/states/ar/income_tax.yaml` and
+  `taxsim_py.calculators.states.ar.compute_ar_tax`.
+- **Test:** `test_arkansas_statutory_uses_recent_deductions_rates_and_credits`.
+
+## NH-001: New Hampshire interest-and-dividends rates are dated
+
+- **Status:** corrected in statutory mode; retained as 5% in TAXSIM mode.
+- **Affected years:** 2023-2024.
+- **Corrected behavior:** statutory mode uses a 4% rate for 2023 and 3% for
+  2024; the $2,400 taxpayer and $1,200 age-65 exemption amounts remain in
+  force.
+- **Reason:** the compiled model's parameter table stops at the historical
+  5% rate, while the recent statutory schedule phases the rate down.
+- **Implementation:** `parameters/states/nh/income_tax.yaml` and
+  `taxsim_py.calculators.states.nh.compute_nh_tax`.
+- **Boundary:** New Hampshire education credits and disability/blind inputs
+  are outside the current TAXSIM-shaped contract.
+
+## CA-003: Recent California schedules and young-child credits are dated
+
+- **Status:** corrected in statutory mode; retained as historical behavior in
+  TAXSIM mode.
+- **Affected years:** 2022-2024.
+- **Corrected behavior:** statutory mode uses dated California standard
+  deductions, rate thresholds, personal/dependent exemption credits, CalEITC
+  maximums, and Young Child Tax Credit amounts. YCTC is capped at one credit
+  per return even when multiple children under six are present.
+- **Reason:** the older California table stopped at 2021 and would either
+  project old values or fail when asked for a recent actual-law year.
+- **Boundary:** foster-youth eligibility, residency, and detailed FTB
+  worksheet identity/status tests are not represented by the TAXSIM 35 inputs;
+  California AMT values still use the latest existing shared table where no
+  recent TAXSIM-shaped input is available.
+- **Implementation:** `parameters/states/ca/income_tax.yaml` and
+  `taxsim_py.calculators.states.ca.compute_ca_tax`.
+- **Test:** `test_california_statutory_uses_recent_tables_and_caps_yctc_per_return`.
+
+## HI-002: Hawaii recent standard deductions, food credit, and EITC
+
+- **Status:** corrected in statutory mode; TAXSIM mode retains the historical
+  2018-2022 behavior.
+- **Affected years:** 2023-2024, with the doubled standard deduction beginning
+  in 2024.
+- **Corrected behavior:** statutory mode uses the 2024 standard deductions,
+  the 2023-2024 Food/Excise Tax Credit tables, and a refundable state EITC at
+  40% of federal EITC beginning in 2023. The 2022 EITC remains 20% and
+  nonrefundable.
+- **Reason:** Act 114 and Act 163 changed the Hawaii EITC, while Act 46 raised
+  the standard deduction for 2024. The bracket expansion in Act 46 begins in
+  2025, so it is not applied to 2022-2024.
+- **Implementation:** `parameters/states/hi/income_tax.yaml` and
+  `taxsim_py.calculators.states.hi.compute_hi_tax`.
+- **Test:** `test_hawaii_recent.py`.
+- **Boundary:** Act 115 was a one-time refund for 2021 returns and is not an
+  ordinary 2022-2024 tax provision. Detailed residency/status worksheets and
+  credits needing additional inputs remain outside the TAXSIM 35 contract.
+
+## STATE-2022-AGED: age-65+ rules in actual-law years
+
+- **Affected years:** 2022-2024, statutory mode only.
+- **Corrected behavior:** AZ senior property-tax credit limited to taxes paid; IN
+  elderly credit as a step schedule; NM low-income rebate tables for 2022-2024; KY
+  pension cap per spouse, combined filing, poverty-guideline family-size credit;
+  OH joint-filing credit for pension income; NJ pension exclusion phase-down; CA
+  credit for age 65+; MN subtraction for the elderly or disabled; ND marriage credit
+  with shared pensions; MI tier-three standard deduction and phased-in retirement subtraction; CO high-income add-backs (federal deductions above $12,000/$16,000, QBI deduction); IA/GA/MT/LA/AR/IL/AL/UT items in the comparison doc's third pass; RI $20,000 retirement exclusion from 2023 and indexed
+  limits; WV family credit tested on federal AGI.
+- **Reason:** each follows the state's form instructions or statute; TAXSIM's frozen
+  2021 tables and interpolation do not.
+- **Assumption:** TAXSIM has one household `pensions` total, so per-spouse caps (KY)
+  and spouse-income tests (OH, ND) treat it as split evenly between joint spouses.
+- **Implementation:** the state calculators under `taxsim_py.calculators.states` and
+  their `parameters/states/<st>/income_tax.yaml` files.
+
+## HI-003: Pensions never excluded
+
+- **Affected years:** all years in statutory mode.
+- **Corrected behavior:** Hawaii's AGI excludes `pensions`, as the state exempts them.
+- **Reason:** TAXSIM's pension subtraction reads `data(72)`, which the input reader never sets (pensions are `data(20)`), so no pension is ever excluded.
+- **Implementation:** `compute_hi_tax`, behavior flag `exclude_hawaii_pensions`.
+
+## WA-001: Washington credit and capital gains tax (extension, not a correction)
+
+- **Affected years:** 2022-2024, statutory mode only.
+- **What TAXSIM does:** nothing. In `taxsim_2022_10_21.f` (state dispatch, `48 continue` / `goto 80`) Washington calls no tax routine, so state tax is 0 in every year, like Texas and Wyoming.
+- **Added in statutory mode:** the Working Families Tax Credit (RCW 82.08.0206), a refundable credit of $300-$1,290 by number of children (2022-2024 amounts), phased out below the federal EITC income ceiling with a $50 floor, reported as negative state tax. This is a household benefit TAXSIM never modelled, so statutory mode can return a nonzero Washington result where TAXSIM mode returns 0.
+- **Not modelled (decision 2026-10-01: leave as is for now):** the 7% capital gains excise tax on long-term gains over $250,000 (2022; $262,000 in 2023, $270,000 in 2024). TAXSIM's `ltcg` cannot separate the real estate and retirement-account gains the tax exempts, and TAXSIM itself never taxed them. PolicyEngine taxes all `ltcg`, so a household with large gains differs from PolicyEngine by about 7% of the gain above the threshold. Revisit if a high-gain Washington case matters.
+- **Implementation:** `taxsim_py.calculators.states.wa.compute_wa_tax`, `parameters/states/wa/income_tax.yaml`.
+- **Test:** `test_washington_working_families_credit_only_in_statutory_mode`.

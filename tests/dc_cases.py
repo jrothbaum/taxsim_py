@@ -53,6 +53,9 @@ def case(year: int, description: str, **overrides: Any) -> dict[str, Any]:
 def build_dc_test_cases() -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for year in YEARS:
+        if year == 2021:
+            rows.append(case(year, "DC childless EITC, age 21", mstat=1, page=21, pwages=3000))
+            rows.append(case(year, "DC childless EITC, age 19", mstat=1, page=19, pwages=12000))
         for wages in (1, 5000, 15000, 30000, 50000, 120000, 260000, 500000):
             rows.append(case(year, f"DC wages, single, wages={wages}", mstat=1, pwages=wages))
             rows.append(case(year, f"DC wages, married_joint, wages={wages}", mstat=2, pwages=wages))

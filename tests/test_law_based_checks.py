@@ -36,6 +36,32 @@ def _wage_case(year: int, mstat: int, wages: float, **extra) -> dict:
 # both TAXSIM and the port's own parameter files.
 CASES = [
     (
+        "2022 single standard deduction ($12,950, Rev. Proc. 2021-45 p.4):"
+        " wages at exactly the deduction leave zero taxable income",
+        _wage_case(2022, 1, 12_950),
+        "taxable_income",
+        0.0,
+    ),
+    (
+        "2023 single standard deduction ($13,850, Rev. Proc. 2022-38 p.4):"
+        " wages at exactly the deduction leave zero taxable income",
+        _wage_case(2023, 1, 13_850),
+        "taxable_income",
+        0.0,
+    ),
+    (
+        "2022 single 10% bracket top ($10,275, Rev. Proc. 2021-45 p.4)",
+        _wage_case(2022, 1, 12_950 + 10_275),
+        "fiitax",
+        1_027.50,
+    ),
+    (
+        "2023 single 10% bracket top ($11,000, Rev. Proc. 2022-38 p.4)",
+        _wage_case(2023, 1, 13_850 + 11_000),
+        "fiitax",
+        1_100.0,
+    ),
+    (
         "2024 single standard deduction ($14,600, Rev. Proc. 2023-34 p.14):"
         " wages at exactly the deduction leave zero taxable income",
         _wage_case(2024, 1, 14_600),
@@ -96,6 +122,36 @@ def test_2024_oasdi_wage_base_caps_payroll_tax() -> None:
     assert fica[1] - fica[0] == pytest.approx(0.029, abs=0.0005)
 
 
+@pytest.mark.parametrize(
+    "year,wage_base",
+    [(2022, 147_000), (2023, 160_200)],
+)
+def test_recent_oasdi_wage_bases_cap_payroll_tax(year: int, wage_base: int) -> None:
+    """SSA Contribution and Benefit Base for TY2022 and TY2023."""
+    cases = pl.DataFrame(
+        [
+            _wage_case(year, 1, wage_base),
+            _wage_case(year, 1, wage_base + 1),
+        ]
+    )
+    result = calculate_taxes(cases, calculation_mode="statutory")
+    fica = result.get_column("fica").to_list()
+    assert fica[1] - fica[0] == pytest.approx(0.029, abs=0.0005)
+
+
+@pytest.mark.parametrize(
+    "year,expected",
+    [(2022, 4_800.0), (2023, 4_800.0), (2024, 4_800.0)],
+)
+def test_recent_eitc_two_children_matches_published_phase_in(year: int, expected: float) -> None:
+    """Two qualifying children at $12,000 earned income are in the 40% phase-in."""
+    case = _wage_case(year, 1, 12_000, page=30, depx=2, dep17=2, dep18=2, age1=4, age2=8)
+    result = calculate_taxes(
+        pl.DataFrame([case]), calculation_mode="statutory", keep_intermediate=True
+    )
+    assert result.get_column("eitc").item() == pytest.approx(expected, abs=0.01)
+
+
 def test_2025_oasdi_wage_base_caps_payroll_tax() -> None:
     """$176,100 (SSA Contribution and Benefit Base, ssa.gov/oact/cola/cbb.html)."""
     cases = pl.DataFrame(
@@ -137,3 +193,27 @@ def test_2025_additional_medicare_threshold_unchanged_by_statute() -> None:
     addmed = result.get_column("addmed").to_list()
     assert addmed[0] == pytest.approx(0.0, abs=0.01)
     assert addmed[1] == pytest.approx(0.009, abs=0.001)
+
+
+@pytest.mark.parametrize("year", [2022, 2023, 2024, 2025])
+def test_other_dependent_credit_applies_after_2021(year: int) -> None:
+    """IRC 24(h)(4): $500 nonrefundable credit per dependent who is not a
+    CTC-qualifying child. TAXSIM's source computes it for 2022+ but drops it
+    from the credit total (see FED-INCOME-002)."""
+    base = _wage_case(year, 2, 90_000)
+    cases = pl.DataFrame([base, {**base, "depx": 1, "dep17": 0, "dep18": 0}])
+    statutory = calculate_taxes(cases, calculation_mode="statutory").get_column("fiitax")
+    compat = calculate_taxes(cases, calculation_mode="taxsim").get_column("fiitax")
+    assert statutory[0] - statutory[1] == pytest.approx(500.0, abs=0.01)
+    assert compat[0] - compat[1] == pytest.approx(0.0, abs=0.01)
+
+
+def test_california_yctc_needs_a_young_child() -> None:
+    """R&TC 17052.1: the Young Child Tax Credit needs a child under six.
+    TAXSIM pays it above the earnings threshold without that test
+    (FED/CA-004 in docs/statutory_corrections.md)."""
+    base = {**_wage_case(2019, 1, 26_000), "state": 5, "depx": 1, "dep17": 1, "dep18": 1, "dep13": 1}
+    older_child = pl.DataFrame([base])
+    statutory = calculate_taxes(older_child, calculation_mode="statutory").get_column("siitax").item()
+    compat = calculate_taxes(older_child, calculation_mode="taxsim").get_column("siitax").item()
+    assert compat < statutory

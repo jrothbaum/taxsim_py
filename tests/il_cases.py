@@ -1,9 +1,8 @@
 """Illinois state-tax test cases - the first state this project has built.
 Mirrors tests/federal_cases.py's table-driven pattern (one growing table,
 one runner) but scoped to a single state, across its full real range
-(1977-2021, plus 2022 which exercises the shared CPI-extrapolation
-mechanism in engine/state_extrapolation.py - real IL law is only ever coded
-through 2021, see parameters/states/il/income_tax.yaml).
+(1977-2021, plus projected years for the TAXSIM compatibility path; statutory
+2022-2024 values are covered separately by parameter provenance tests).
 """
 
 from pathlib import Path
@@ -11,7 +10,7 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 
-YEARS = list(range(1977, 2024))  # real IL law 1977-2021; 2022-2023 CPI-extrapolated (see il.py)
+YEARS = list(range(1977, 2024))  # TAXSIM oracle range used by this validator.
 STATE_IL = 14
 
 _DEFAULTS: dict[str, Any] = {

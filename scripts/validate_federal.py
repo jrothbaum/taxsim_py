@@ -57,7 +57,9 @@ def main() -> None:
     expected = run_oracle(cases, mtr=85, idtl=2).select(
         "taxsimid", *[pl.col(c).alias(f"{c}_expected") for c in COMPARED_COLUMNS]
     )
-    actual = calculate_taxes(cases, mtr=85, idtl=2, taxsim_names=True).select(
+    actual = calculate_taxes(
+        cases, mtr=85, idtl=2, taxsim_names=True, calculation_mode="taxsim"
+    ).select(
         "taxsimid", "description", "year", *COMPARED_COLUMNS
     )
 
@@ -84,7 +86,7 @@ def main() -> None:
     )
     knife_edges = knife_edge_ids(
         cases.join(mismatches.filter(levels_match).select("taxsimid"), on="taxsimid"),
-        lambda frame: calculate_taxes(frame, mtr=85),
+        lambda frame: calculate_taxes(frame, mtr=85, calculation_mode="taxsim"),
         RATE_COLUMNS,
     )
     knife = mismatches.filter(pl.col("taxsimid").is_in(list(knife_edges)))

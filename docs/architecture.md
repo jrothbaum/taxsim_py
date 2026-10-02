@@ -57,10 +57,17 @@ runner sends rows with ages as a separate batch. The result is the input frame,
 unchanged, plus `api.OUTPUT_COLUMNS`; `keep_intermediate=True` adds every
 intermediate federal and state column.
 
+Survey adapters may also provide `children_under_3` and `children_under_4` as
+semantic extensions for state provisions that need an age cutoff not represented
+by TAXSIM's standard dependent counts. They default to zero and are not part of
+the 35-variable TAXSIM input set.
+
 The public `calculation_mode` resolves once to an immutable behavior profile
-before rows are partitioned. `"taxsim"` is the backward-compatible default;
-`"statutory"` enables only the reviewed corrections listed in
-`docs/statutory_corrections.md`. Calculators receive the profile explicitly so
+before rows are partitioned. `"statutory"` is the default: the YAML and CSV
+parameter tables are the canonical law-oriented inputs, and the reviewed
+corrections listed in `docs/statutory_corrections.md` are enabled. Explicit
+`"taxsim"` is a compatibility mode for reproducing the compiled model and
+testing against its executable. Calculators receive the profile explicitly so
 formula code does not depend on ambient state or opaque string checks.
 
 When marginal rates are requested, the base and upward-perturbed rows are

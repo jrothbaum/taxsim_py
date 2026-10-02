@@ -43,7 +43,7 @@ def _wage_cases(years: tuple[int, ...]) -> pl.DataFrame:
 def test_taxcalc_matches_wage_only_cases_across_supported_history() -> None:
     cases = _wage_cases((2013, 2017, 2018, 2020, 2021, 2023))
 
-    ours = calculate_taxes(cases).select("taxsimid", "year", "fiitax", "fica")
+    ours = calculate_taxes(cases, calculation_mode="statutory").select("taxsimid", "year", "fiitax", "fica")
     independent = run_taxcalc(cases)
 
     assert_frame_equal(ours, independent, check_dtypes=False, abs_tol=0.01)
@@ -85,7 +85,7 @@ def test_taxcalc_matches_households_with_children() -> None:
         ]
     )
 
-    ours = calculate_taxes(cases).select("taxsimid", "year", "fiitax", "fica")
+    ours = calculate_taxes(cases, calculation_mode="statutory").select("taxsimid", "year", "fiitax", "fica")
     independent = run_taxcalc(cases)
 
     assert_frame_equal(ours, independent, check_dtypes=False, abs_tol=0.01)
@@ -121,7 +121,7 @@ def test_statutory_payroll_matches_taxcalc_self_employment_edge_cases() -> None:
 def test_taxcalc_matches_2018_childless_eitc() -> None:
     cases = _wage_cases((2018,)).head(1).with_columns(pwages=pl.lit(12_000))
 
-    ours = calculate_taxes(cases).select("taxsimid", "year", "fiitax", "fica")
+    ours = calculate_taxes(cases, calculation_mode="statutory").select("taxsimid", "year", "fiitax", "fica")
     independent = run_taxcalc(cases)
 
     assert_frame_equal(ours, independent, check_dtypes=False, abs_tol=0.01)
@@ -169,7 +169,7 @@ def policyengine_comparison() -> tuple[pl.DataFrame, pl.DataFrame]:
         ]
     )
 
-    ours = calculate_taxes(cases).select(
+    ours = calculate_taxes(cases, calculation_mode="statutory").select(
         "taxsimid", "year", "state", "fiitax", "siitax", "fica"
     )
     independent = run_policyengine(cases)
@@ -190,10 +190,6 @@ def test_policyengine_taxsim_api_matches_recent_federal_and_payroll_tax(
     )
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="PolicyEngine state liabilities do not yet match TAXSIM-compatible results",
-)
 def test_policyengine_taxsim_api_matches_recent_state_tax(
     policyengine_comparison: tuple[pl.DataFrame, pl.DataFrame],
 ) -> None:

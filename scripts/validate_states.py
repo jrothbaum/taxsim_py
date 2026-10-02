@@ -134,7 +134,9 @@ def main() -> None:
     oracle_order = batch.sort(_oracle_last(), maintain_order=True)
     with ThreadPoolExecutor(max_workers=1) as oracle:
         expected_future = oracle.submit(run_taxsim_exe, oracle_order)
-        results = calculate_taxes(batch, mtr=85, idtl=2, taxsim_names=True).select(
+        results = calculate_taxes(
+            batch, mtr=85, idtl=2, taxsim_names=True, calculation_mode="taxsim"
+        ).select(
             "taxsimid", "description", *COMPARED_COLUMNS, *FEDERAL_COLUMNS
         )
         expected = expected_future.result()
@@ -146,7 +148,9 @@ def main() -> None:
     )
     knife_edges = knife_edge_ids(
         batch.join(rate_only.select("taxsimid"), on="taxsimid").sort(_oracle_last(), maintain_order=True),
-        lambda frame: calculate_taxes(frame, mtr=85, idtl=2, taxsim_names=True),
+        lambda frame: calculate_taxes(
+            frame, mtr=85, idtl=2, taxsim_names=True, calculation_mode="taxsim"
+        ),
         RATE_COLUMNS,
     )
     total_knife_edges = 0
@@ -164,7 +168,9 @@ def main() -> None:
         tie_tolerance = federal_state._TIE_TOLERANCE
         federal_state._TIE_TOLERANCE = -tie_tolerance
         try:
-            itemized = calculate_taxes(tie_frame, mtr=85, idtl=2, taxsim_names=True).select(
+            itemized = calculate_taxes(
+                tie_frame, mtr=85, idtl=2, taxsim_names=True, calculation_mode="taxsim"
+            ).select(
                 "taxsimid", *COMPARED_COLUMNS
             )
         finally:
@@ -186,12 +192,16 @@ def main() -> None:
         columns = list(dict.fromkeys(COMPARED_COLUMNS))
         above = knife_edge_ids(
             edge_frame,
-            lambda frame: calculate_taxes(frame, mtr=85, idtl=2, taxsim_names=True),
+            lambda frame: calculate_taxes(
+                frame, mtr=85, idtl=2, taxsim_names=True, calculation_mode="taxsim"
+            ),
             columns,
         )
         below = knife_edge_ids(
             edge_frame,
-            lambda frame: calculate_taxes(frame, mtr=85, idtl=2, taxsim_names=True),
+            lambda frame: calculate_taxes(
+                frame, mtr=85, idtl=2, taxsim_names=True, calculation_mode="taxsim"
+            ),
             columns,
             shift=-1.0,
         )
@@ -206,7 +216,9 @@ def main() -> None:
         )
         knife_edges |= knife_edge_ids(
             edge_frame.sort(_oracle_last(), maintain_order=True),
-            lambda frame: calculate_taxes(frame, mtr=85, idtl=2, taxsim_names=True),
+            lambda frame: calculate_taxes(
+                frame, mtr=85, idtl=2, taxsim_names=True, calculation_mode="taxsim"
+            ),
             list(dict.fromkeys([*RATE_COLUMNS, *STATE_DETAIL_COLUMNS])),
         )
 
