@@ -3,7 +3,7 @@
 import polars as pl
 
 from taxsim_py.behavior import BehaviorProfile, TAXSIM_BEHAVIOR
-from taxsim_py.engine.payroll_tax import PAYROLL_ITEMS, taxsim_payroll
+from taxsim_py.engine.payroll_tax import PAYROLL_ITEMS, allocated_self_employment_items, taxsim_payroll
 from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml, resolve_year
 from taxsim_py.engine.state import by_filing_status, with_defaults
 
@@ -33,6 +33,11 @@ def payroll_parts(year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> dic
     )
 
 
+def payroll_prerequisites(year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> dict[str, pl.Expr]:
+    """Columns to add before `payroll_parts(year, behavior)` expressions are evaluated."""
+    return allocated_self_employment_items(YearParams(PAYROLL_TAX_PARAMS, year).num("se_net_earnings_factor"), behavior)
+
+
 def compute_payroll_tax(
     df: pl.DataFrame | pl.LazyFrame,
     year: int,
@@ -42,10 +47,12 @@ def compute_payroll_tax(
     parts = payroll_parts(year, behavior)
     # Reuse the figures the federal calculation already computed.
     present = set(df.collect_schema().names())
+    prerequisites = {} if all(f"__payroll_{name}" in present for name in parts) else payroll_prerequisites(year, behavior)
+    df = df.with_columns(**prerequisites)
     parts = {name: pl.col(f"__payroll_{name}") if f"__payroll_{name}" in present else expr for name, expr in parts.items()}
     return df.with_columns(
         fica=parts["fica"],
         tfica=parts["tfica"],
         addmed=parts["addmed"],
         ficar=((parts["oasdi_rate_primary"] + parts["hi_rate_primary"]) * 100).round(2),
-    ).drop([f"__payroll_{name}" for name in parts if f"__payroll_{name}" in present])
+    ).drop([f"__payroll_{name}" for name in parts if f"__payroll_{name}" in present], *prerequisites)

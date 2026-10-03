@@ -151,6 +151,35 @@ def _capped_items(
     return taxes, capped_before
 
 
+def allocated_name(item: str) -> str:
+    """Column holding `item` after the Schedule SE allocation."""
+    return f"__se_{item}"
+
+
+def allocated_self_employment_items(net_earnings_factor: float, behavior: BehaviorProfile) -> dict[str, pl.Expr]:
+    """Schedule SE allocation of each earner's net business income, as columns to add first.
+
+    Schedule SE combines each taxpayer's businesses before applying its floor
+    and minimum. The net amount is allocated over positive sources so the
+    downstream QBI categories remain meaningful. Empty in compatibility mode.
+    The payroll expressions reuse these items many times, so they are
+    materialized rather than inlined.
+    """
+    if not behavior.prevent_negative_self_employment_tax:
+        return {}
+    columns = {}
+    for names in PAYROLL_ITEMS:
+        items = [pl.col(name) for name in names[1:]]
+        taxable = pl.sum_horizontal(items).clip(0, None)
+        if behavior.enforce_schedule_se_minimum:
+            taxable = pl.when(net_earnings_factor * taxable >= 400).then(taxable).otherwise(0.0)
+        positive = [item.clip(0, None) for item in items]
+        total = pl.sum_horizontal(positive)
+        for name, item in zip(names[1:], positive):
+            columns[allocated_name(name)] = pl.when(total > 0).then(taxable * item / total).otherwise(0.0)
+    return columns
+
+
 def taxsim_payroll(
     wage_base: float,
     hi_wage_base: float,
@@ -179,33 +208,7 @@ def taxsim_payroll(
     for names in PAYROLL_ITEMS:
         self_employment_items = [pl.col(name) for name in names[1:]]
         if behavior.prevent_negative_self_employment_tax:
-            # Schedule SE combines each taxpayer's businesses before applying
-            # its floor and minimum. Allocate the net amount over positive
-            # sources so the downstream QBI categories remain meaningful.
-            net_self_employment_income = pl.sum_horizontal(self_employment_items)
-            taxable_self_employment_income = net_self_employment_income.clip(0, None)
-            if behavior.enforce_schedule_se_minimum:
-                taxable_self_employment_income = (
-                    pl.when(net_earnings_factor * taxable_self_employment_income >= 400)
-                    .then(taxable_self_employment_income)
-                    .otherwise(0.0)
-                )
-            positive_self_employment_items = [
-                item.clip(0, None) for item in self_employment_items
-            ]
-            positive_self_employment_total = pl.sum_horizontal(
-                positive_self_employment_items
-            )
-            self_employment_items = [
-                pl.when(positive_self_employment_total > 0)
-                .then(
-                    taxable_self_employment_income
-                    * item
-                    / positive_self_employment_total
-                )
-                .otherwise(0.0)
-                for item in positive_self_employment_items
-            ]
+            self_employment_items = [pl.col(allocated_name(name)) for name in names[1:]]
         # Compatibility mode retains TAXSIM's item order and loss treatment.
         items = [pl.col(names[0]).clip(0, None), *self_employment_items]
         oasdi, oasdi_capped = _capped_items(

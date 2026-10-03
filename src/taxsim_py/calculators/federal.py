@@ -3,7 +3,7 @@
 import polars as pl
 
 from taxsim_py.behavior import BehaviorProfile, TAXSIM_BEHAVIOR
-from taxsim_py.calculators.payroll import payroll_parts
+from taxsim_py.calculators.payroll import payroll_parts, payroll_prerequisites
 from taxsim_py.engine.amt import alternative_minimum_tax, separate_return_amt_income
 from taxsim_py.engine.brackets import bracket_rate, bracket_rate_by_status, bracket_tax, bracket_tax_by_status
 from taxsim_py.engine.capital_gains import preferential_rate_tax
@@ -351,9 +351,13 @@ def _income(
     # applicable share of self-employment tax.
     pt_p = YearParams(PAYROLL_TAX_PARAMS, year)
     payroll = payroll_parts(year, behavior)
-    setax_total = payroll["setax"]
     gross_se_income = _gross_se_income()
 
+    # The payroll figures are kept for the payroll step.
+    prerequisites = payroll_prerequisites(year, behavior)
+    df = df.with_columns(**prerequisites).with_columns(**{f"__payroll_{name}": expr for name, expr in payroll.items()}).drop(*prerequisites)
+    payroll = {name: pl.col(f"__payroll_{name}") for name in payroll}
+    setax_total = payroll["setax"]
     # The 2011-2012 payroll-tax holiday uses a special SE-tax deduction.
     if year in (2011, 2012):
         wage_base = pt_p.num("oasdi_wage_base")
@@ -369,10 +373,6 @@ def _income(
         se_agi_deduction = 0.5 * setax_total
 
     # EITC earned income always deducts the SE-tax share calculated above.
-    # The payroll figures are kept for the payroll step.
-    df = df.with_columns(**{f"__payroll_{name}": expr for name, expr in payroll.items()})
-    payroll = {name: pl.col(f"__payroll_{name}") for name in payroll}
-    setax_total = payroll["setax"]
     df = df.with_columns(
         setax=setax_total,
         setax_qbi=payroll["setax_qbi"],
