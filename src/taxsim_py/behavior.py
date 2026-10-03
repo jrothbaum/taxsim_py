@@ -26,6 +26,7 @@ class BehaviorProfile:
     allow_other_dependent_credit_after_2021: bool
     require_young_child_for_california_yctc: bool
     exclude_hawaii_pensions: bool
+    pay_california_yctc_per_young_child: bool
 
 
 TAXSIM_BEHAVIOR = BehaviorProfile(
@@ -40,6 +41,7 @@ TAXSIM_BEHAVIOR = BehaviorProfile(
     allow_other_dependent_credit_after_2021=False,
     require_young_child_for_california_yctc=False,
     exclude_hawaii_pensions=False,
+    pay_california_yctc_per_young_child=True,
 )
 
 STATUTORY_BEHAVIOR = BehaviorProfile(
@@ -54,6 +56,7 @@ STATUTORY_BEHAVIOR = BehaviorProfile(
     allow_other_dependent_credit_after_2021=True,
     require_young_child_for_california_yctc=True,
     exclude_hawaii_pensions=True,
+    pay_california_yctc_per_young_child=False,
 )
 
 

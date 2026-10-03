@@ -137,6 +137,12 @@ def parse_args() -> argparse.Namespace:
         default=[100, 1_000, 10_000, 100_000, 250_000],
     )
     parser.add_argument("--repeats", type=int, default=3)
+    parser.add_argument(
+        "--calculation-mode",
+        choices=("taxsim", "statutory"),
+        default="taxsim",
+        help="Mode timed for the Python API (taxsim is the like-for-like comparison with the Fortran)",
+    )
     return parser.parse_args()
 
 
@@ -147,7 +153,7 @@ def main() -> None:
     smallest = min(args.rows)
 
     warmup = build_cases(states, args.years, smallest)
-    calculate_taxes(warmup)
+    calculate_taxes(warmup, calculation_mode=args.calculation_mode)
     run_fortran(encode_fortran_input(warmup))
 
     print(
@@ -159,7 +165,7 @@ def main() -> None:
         payload = encode_fortran_input(cases)
 
         python_seconds, python_result = median_seconds(
-            lambda: calculate_taxes(cases), args.repeats
+            lambda: calculate_taxes(cases, calculation_mode=args.calculation_mode), args.repeats
         )
         fortran_seconds, fortran_output = median_seconds(
             lambda: run_fortran(payload), args.repeats

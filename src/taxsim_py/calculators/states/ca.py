@@ -622,9 +622,9 @@ def compute_ca_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             yc_amount = resolve_year(yc["amount"], effective_year)
             yc_threshold = resolve_year(yc["earnings_threshold"], effective_year)
             yc_rate = resolve_year(yc["phaseout_rate"], effective_year)
-            # YCTC is a per-return credit, even when several young children
-            # are present; `dep6` is only used as an eligibility signal here.
-            young_low = yc_amount * pl.col("dep6").clip(0, 1)
+            # YCTC is a per-return credit; compiled TAXSIM multiplies by `dep6`.
+            young_count = pl.col("dep6") if behavior.pay_california_yctc_per_young_child else pl.col("dep6").clip(0, 1)
+            young_low = yc_amount * young_count
             young_high = (yc_amount - yc_rate * (earned - yc_threshold)).clip(0, None)
             young = pl.when(earned <= yc_threshold).then(young_low).otherwise(young_high)
             df = df.with_columns(ca_young=pl.when(young_gate).then(young).otherwise(0.0))

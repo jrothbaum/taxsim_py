@@ -24,41 +24,31 @@ It reports the Python dataframe API, raw Fortran execution with pre-serialized
 input, and Fortran end-to-end time including dataframe serialization and output
 parsing. Each timing is the median after a warmup.
 
-### Mixed API versus Fortran (September 2026)
+### Mixed API versus Fortran
 
 Eight states (AL, CA, CT, MA, MI, MN, NY, OH), four years (1990, 2000,
-2010, 2020), 32 state-year partitions, and three repeats per measurement:
+2010, 2020), 32 state-year partitions, and three repeats per measurement.
+`Python API` is the default call; `--calculation-mode` selects the mode timed.
 
-| Rows | Python API | Fortran execution | Fortran dataframe | Python rows/s | Fortran execution rows/s |
-| ---: | ---: | ---: | ---: | ---: | ---: |
-| 100 | 0.313 s | 0.003 s | 0.004 s | 319 | 33,894 |
-| 1,000 | 0.316 s | 0.020 s | 0.023 s | 3,160 | 50,576 |
-| 10,000 | 0.347 s | 0.176 s | 0.200 s | 28,781 | 56,974 |
-| 25,000 | 0.399 s | 0.455 s | 0.500 s | 62,683 | 54,901 |
-| 50,000 | 0.440 s | 0.888 s | 0.989 s | 113,608 | 56,333 |
-| 100,000 | 0.618 s | 1.814 s | 1.942 s | 161,708 | 55,128 |
-| 250,000 | 1.312 s | 4.365 s | 5.041 s | 190,607 | 57,269 |
+| Rows | Python (taxsim mode) | Python (statutory mode) | Fortran execution | Fortran dataframe |
+| ---: | ---: | ---: | ---: | ---: |
+| 100 | 0.778 s | 2.731 s | 0.003 s | 0.004 s |
+| 1,000 | 0.773 s | 2.840 s | 0.020 s | 0.022 s |
+| 10,000 | 0.827 s | 2.947 s | 0.178 s | 0.196 s |
+| 25,000 | 0.882 s | 3.112 s | 0.441 s | 0.486 s |
+| 50,000 | 0.997 s | 3.375 s | 0.862 s | 0.971 s |
+| 100,000 | 1.196 s | 3.974 s | 1.756 s | 1.926 s |
+| 250,000 | 1.984 s | 6.574 s | 4.351 s | 4.850 s |
 
-The Python path has about 0.3 seconds of fixed plan construction and feedback
-cost for these 32 partitions when four independent years run concurrently.
-Raw Fortran is faster below roughly 22,000 rows; the dataframe-to-dataframe
-crossover, including Fortran text serialization and parsing, is roughly 19,000
-rows. Above the crossover the Polars pipeline has higher throughput on this
-workload.
+Python's fixed cost per call (building the federal and state expressions) is
+about 0.75 s in `taxsim` mode and 2.7 s in `statutory` mode. In `taxsim` mode
+the API overtakes the Fortran at roughly 50,000 rows and reaches about 126,000
+rows/s at 250,000 rows; in `statutory` mode it does not overtake within 250,000
+rows (38,000 rows/s there). The Fortran runs at about 57,000 rows/s.
 
-After every state gained the remaining TAXSIM inputs (ages, pensions,
-Social Security, rent, business income, dependent filers), the same benchmark
-takes 0.60 s at 100 rows, 0.66 s at 10,000 rows and 1.81 s at 250,000 rows
-(137,905 rows/s). The added fixed cost is Polars optimizing the larger
-federal and state plans (each federal feedback pass collect takes about
-0.05 s at 100 rows), not Python expression building.
-
-With the state detail outputs and TAXSIM's analytic federal rate for
-1987-2000 (September 2026) it takes 0.74 s at 100 rows, 0.78 s at 10,000 rows
-and 1.99 s at 250,000 rows (125,440 rows/s). Measured directly, the analytic
-rate adds about 0.03 s per call and the state detail expressions about 0.01 s;
-the rest of the difference from the figures above came with other calculator
-changes in between.
+Memory: about 290 MB fixed plus 1.3-2.7 KB per row (250,000 rows about 2.1 GB;
+2,000,000 rows about 5.4 GB). Split files of very many rows (such as 100
+million) into chunks before calling.
 
 Before year-level concurrency, the same Python measurements were 0.818 seconds
 at 100 rows, 0.898 seconds at 10,000 rows, and 1.389 seconds at 100,000 rows.
