@@ -91,6 +91,13 @@ The `taxsim` mode is for replication and comparison with the compiled TAXSIM
 model. It preserves known compatibility behavior. It is not the recommended
 default for new analysis.
 
+In `taxsim` mode the results match the compiled TAXSIM on the repository's
+validation matrix (`scripts/validate_federal.py` and `scripts/validate_states.py`);
+differences that remain are logged in [Statutory corrections](docs/statutory_corrections.md).
+Speed against the compiled model is in [Performance](docs/performance.md)
+(`scripts/benchmark_multistate.py`, `scripts/benchmark_execution.py`); the
+API is faster than the Fortran above roughly 20,000 rows.
+
 ## Tests
 
 Run the normal test suite with:
@@ -115,5 +122,6 @@ Start with the short [documentation index](docs/README.md).
 
 - [Architecture](docs/architecture.md): how the calculators and parameters fit together
 - [Statutory corrections](docs/statutory_corrections.md): reviewed differences from compiled TAXSIM
+- [Performance](docs/performance.md): benchmarks against the compiled model, memory and scaling
 - [Pending issues](docs/pending_issues.md): current project status and remaining work
 - [Parameter tables](parameters/README.md): how law-oriented YAML and CSV data are maintained
