@@ -606,12 +606,11 @@ yet entered (years past 2025 still run 2025 law unindexed).
 
 ### Large inputs
 
-`calculate_taxes_to_parquet(source, destination, chunk_rows=250_000)` runs a parquet file in slices and writes
-each result to disk. Measured peak memory of one call (one year, 45 states): 250,000 rows 2.1 GB, 500,000 rows
-2.8 GB, 1,000,000 rows 4.1 GB, 2,000,000 rows 5.4 GB (about 1.3-2.7 KB per added row, falling as batches grow because
-per-state temporaries are freed; about 1.5 GB fixed at 250,000 rows); 3,000,000 rows took 52 s with a 2.0 GB peak at 250,000-row chunks (about 57,000 rows per
-second, so 100,000,000 rows is about 30 minutes). Peak memory follows `chunk_rows`, not the file size. PolicyEngine
-comparisons need far more (about 0.3 MB per row) and must be run in chunks of a few thousand rows.
+There is no chunking in the API; for very large files, split the input into row chunks and call
+`calculate_taxes` on each (rows are independent). Measured peak memory of one call (one year, 45 states): 250,000
+rows 2.1 GB, 500,000 rows 2.8 GB, 1,000,000 rows 4.1 GB, 2,000,000 rows 5.4 GB; about 70,000 rows per second; each
+call also spends about 2 s rebuilding its expressions, so use chunks of 250,000 rows or more. PolicyEngine
+comparisons need far more memory (about 0.3 MB per row) and must be run in chunks of a few thousand rows.
 
 ### Uncommitted work
 - This repo is now committed and pushed through `5dc8faf` (2026-09-29), including the chunked-worker changes in `api.py`, the 2024/2025 federal parameter work, the oracle-generation archive, and the AL/CA/CT/IL/HI negative-capital-gains fixes.
