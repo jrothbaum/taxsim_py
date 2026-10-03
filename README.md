@@ -96,9 +96,11 @@ default for new analysis.
 In `taxsim` mode the results match the compiled TAXSIM on the repository's
 validation matrix (`scripts/validate_federal.py` and `scripts/validate_states.py`);
 differences that remain are logged in [Statutory corrections](docs/statutory_corrections.md).
-Speed against the compiled model is in [Performance](docs/performance.md)
-(`scripts/benchmark_comparison.py`); the
-API is faster than the Fortran above roughly 100,000 rows.
+
+**Benchmark** ([details](docs/performance.md), `scripts/benchmark_comparison.py`):
+on a mixed 42-state batch, 1,000,000 rows take about 9 s and 4 GB with
+taxsim_py versus 17 s and 4 MB with the compiled TAXSIM; taxsim_py is faster
+above roughly 100,000 rows. PolicyEngine takes about 40 s and 6 GB for 10,000.
 
 The default `statutory` mode is also compared with PolicyEngine-US (all states,
 tax years 2022-2025) and Tax-Calculator (federal): see
