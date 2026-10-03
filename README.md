@@ -96,7 +96,7 @@ validation matrix (`scripts/validate_federal.py` and `scripts/validate_states.py
 differences that remain are logged in [Statutory corrections](docs/statutory_corrections.md).
 Speed against the compiled model is in [Performance](docs/performance.md)
 (`scripts/benchmark_multistate.py`, `scripts/benchmark_execution.py`); the
-API in `taxsim` mode is faster than the Fortran above roughly 50,000 rows
+API in `taxsim` mode is faster than the Fortran above roughly 150,000 rows
 (the default `statutory` mode carries a larger fixed cost per call).
 
 The default `statutory` mode is also compared with PolicyEngine-US (all states,
