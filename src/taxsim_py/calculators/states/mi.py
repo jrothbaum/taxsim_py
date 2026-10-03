@@ -2,7 +2,6 @@
 
 import polars as pl
 
-from taxsim_py.calculators.payroll import payroll_parts
 from taxsim_py.engine.inputs import aged_count, files_joint, files_separate, is_dependent_filer, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml, resolve_year
 from taxsim_py.engine.state import (
@@ -31,7 +30,7 @@ def compute_mi_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
 
     # `comnew(175)`: household SE tax, outside the dispatcher's deflation
     # range - computed at the real year on real (undeflated) earnings.
-    setax = payroll_parts(year)["setax"]  # `comnew(175)`, real-year and undeflated
+    setax = pl.col("setax")  # `comnew(175)`, real-year and undeflated
     ui_total = unemployment_total()
     hh_income = household_income()
     df = df.with_columns(mi_setax=setax, mi_household_income_undeflated=hh_income, mi_household_income=hh_income)

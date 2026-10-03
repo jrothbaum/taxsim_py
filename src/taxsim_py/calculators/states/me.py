@@ -2,7 +2,6 @@
 
 import polars as pl
 
-from taxsim_py.calculators.payroll import payroll_parts
 from taxsim_py.calculators.federal_pre1987 import PRE1987_PARAMS
 from taxsim_py.engine.brackets import bracket_rate, bracket_tax
 from taxsim_py.engine.inputs import aged_count, federal_exemption_count, files_head_of_household, files_joint, files_separate, files_single, is_dependent_filer, taxpayer_count
@@ -50,7 +49,7 @@ def compute_me_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         pl.when(is_hoh).then(float(divisor["head_of_household"])).otherwise(float(divisor["other"]))
     )
 
-    setax = payroll_parts(year)["setax"]  # `comnew(175)`, real-year and undeflated
+    setax = pl.col("setax")  # `comnew(175)`, real-year and undeflated
     # Federal total income (`comnew(65)`), which TAXSIM does not deflate.
     df = df.with_columns(me_setax=setax, me_total_income=pl.col("agi") + 0.5 * setax)
 

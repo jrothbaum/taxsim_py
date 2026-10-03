@@ -3,7 +3,6 @@
 import polars as pl
 
 from taxsim_py.engine.brackets import bracket_rate, bracket_tax
-from taxsim_py.calculators.payroll import payroll_parts
 from taxsim_py.engine.inputs import aged_count, federal_exemption_count, files_head_of_household, files_joint, files_separate, is_dependent_filer, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml
 from taxsim_py.engine.state import checkpoint, pre1987_federal_itemizing, tier_values, with_state_detail
@@ -20,7 +19,7 @@ def compute_wv_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     y = effective_year
     p = YearParams(WV_PARAMS, effective_year)
     # Federal total income (`comnew(65)`) is not deflated in projected years.
-    df = df.with_columns(wv_total_income=pl.col("agi") + 0.5 * payroll_parts(year)["setax"])
+    df = df.with_columns(wv_total_income=pl.col("agi") + 0.5 * pl.col("setax"))
     df = deflate_for_extrapolation(df, flate)
 
     is_joint = files_joint()

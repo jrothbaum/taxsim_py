@@ -4,7 +4,6 @@ import math
 
 import polars as pl
 
-from taxsim_py.calculators.payroll import payroll_parts
 from taxsim_py.engine.brackets import bracket_rate, bracket_tax
 from taxsim_py.engine.inputs import aged_count, files_head_of_household, files_joint, files_separate, files_single, is_dependent_filer, separate_divisor, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml, resolve_year
@@ -45,7 +44,7 @@ def compute_ca_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     # Self-employment tax (`comnew(175)`) and household income (`data(159)`)
     # before projected-year deflation.
     df = df.with_columns(
-        ca_setax=payroll_parts(year)["setax"],
+        ca_setax=pl.col("setax"),
         ca_household_income=household_income(),
     )
     df = deflate_for_extrapolation(df, flate, extra=("ca_household_income",))

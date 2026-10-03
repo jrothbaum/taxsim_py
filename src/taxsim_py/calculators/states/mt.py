@@ -3,7 +3,6 @@
 import polars as pl
 
 from taxsim_py.engine.brackets import bracket_rate, bracket_tax
-from taxsim_py.calculators.payroll import payroll_parts
 from taxsim_py.engine.inputs import aged_count, files_head_of_household, files_joint, files_separate, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml, resolve_year
 from taxsim_py.engine.state import (
@@ -48,7 +47,7 @@ def compute_mt_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     df = df.with_columns(
         mt_ui=unemployment_total(),
         mt_household_income_undeflated=household_income(),
-        mt_half_setax=0.5 * payroll_parts(year)["setax"],
+        mt_half_setax=0.5 * pl.col("setax"),
     )
     df = deflate_for_extrapolation(df, flate, extra=("mt_ui", "mt_half_setax"))
 

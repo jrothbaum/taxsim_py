@@ -54,5 +54,7 @@ def compute_payroll_tax(
         fica=parts["fica"],
         tfica=parts["tfica"],
         addmed=parts["addmed"],
+        own_fica_primary=parts["own_fica_primary"],
+        own_wage_fica_primary=parts["own_wage_fica_primary"],
         ficar=((parts["oasdi_rate_primary"] + parts["hi_rate_primary"]) * 100).round(2),
     ).drop([f"__payroll_{name}" for name in parts if f"__payroll_{name}" in present], *prerequisites)

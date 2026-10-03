@@ -2,7 +2,6 @@
 
 import polars as pl
 
-from taxsim_py.calculators.payroll import payroll_parts
 from taxsim_py.calculators.federal_pre1987 import PRE1987_PARAMS
 from taxsim_py.engine.brackets import bracket_rate, bracket_tax
 from taxsim_py.engine.inputs import aged_count, federal_exemption_count, files_joint, files_separate, is_dependent_filer, taxpayer_count
@@ -587,7 +586,7 @@ def compute_mn_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     y = effective_year
     p = YearParams(MN_PARAMS, effective_year)
 
-    setax = payroll_parts(year)["setax"]  # `comnew(175)`, real-year and undeflated
+    setax = pl.col("setax")  # `comnew(175)`, real-year and undeflated
     hh_income = household_income()
     # Business and S corporation income are not deflated in projected years.
     business = pl.col("pbusinc") + pl.col("pprofinc") + pl.col("sbusinc") + pl.col("sprofinc") + pl.col("scorp")

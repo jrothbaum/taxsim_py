@@ -2,7 +2,6 @@
 
 import polars as pl
 
-from taxsim_py.calculators.payroll import payroll_parts
 from taxsim_py.engine.brackets import bracket_rate, bracket_tax
 from taxsim_py.engine.credits import child_care_credit_rate_pre2021
 from taxsim_py.engine.inputs import aged_count, files_head_of_household, files_joint, is_dependent_filer, separate_divisor, taxpayer_count
@@ -34,7 +33,7 @@ def compute_ks_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     is_joint = files_joint()
     is_hoh = files_head_of_household()
 
-    setax = payroll_parts(year)["setax"]  # `comnew(175)`, real-year and undeflated
+    setax = pl.col("setax")  # `comnew(175)`, real-year and undeflated
     df = df.with_columns(
         ks_setax=setax,
         ks_household_income=household_income(),

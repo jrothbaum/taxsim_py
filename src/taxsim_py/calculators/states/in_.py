@@ -3,7 +3,6 @@
 import polars as pl
 
 from taxsim_py.calculators.federal_pre1987 import PRE1987_PARAMS
-from taxsim_py.calculators.payroll import payroll_parts
 from taxsim_py.engine.eitc import trapezoid_credit
 from taxsim_py.engine.inputs import aged_count, files_joint, is_dependent_filer, separate_divisor, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml, resolve_year
@@ -143,7 +142,7 @@ def compute_in_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         rate_cr = float(p["eitc_1999_2002_rate"][1960])
         cap = float(p["eitc_1999_2002_income_cap"][1960])
         # Tested against federal total income (`comnew(65)`).
-        total_income = pl.col("agi") + 0.5 * payroll_parts(year)["setax"]
+        total_income = pl.col("agi") + 0.5 * pl.col("setax")
         eligible = (
             (pl.col("depx") > 0)
             & ((pl.col("earned_income") >= p["eitc_1999_2002_earnings_share"] * total_income) | (total_income < 1.0))

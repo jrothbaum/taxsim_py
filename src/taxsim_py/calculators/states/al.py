@@ -2,7 +2,6 @@
 
 import polars as pl
 
-from taxsim_py.calculators.payroll import payroll_parts
 from taxsim_py.engine.brackets import bracket_rate, bracket_tax
 from taxsim_py.engine.inputs import aged_count, files_head_of_household, files_joint, files_single, separate_divisor, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml, resolve_year
@@ -25,7 +24,7 @@ def compute_al_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         # deduction; the exemption below gives head of household the joint amount.
         al_taxpayers=taxpayer_count(),
         # Self-employment tax (`comnew(175)`) is never deflated.
-        al_setax=payroll_parts(year)["setax"],
+        al_setax=pl.col("setax"),
         # Unemployment compensation in federal AGI is exempt.
         al_taxable_ui=pl.col("taxable_unemployment"),
     )

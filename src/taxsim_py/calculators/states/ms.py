@@ -2,7 +2,6 @@
 
 import polars as pl
 
-from taxsim_py.calculators.payroll import payroll_parts
 from taxsim_py.engine.brackets import bracket_rate, bracket_tax
 from taxsim_py.engine.inputs import aged_count, files_joint, files_separate, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml, resolve_year
@@ -33,7 +32,7 @@ def compute_ms_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     y = effective_year
     p = YearParams(MS_PARAMS, effective_year)
 
-    setax = payroll_parts(year)["setax"]  # `comnew(175)`, real-year and undeflated
+    setax = pl.col("setax")  # `comnew(175)`, real-year and undeflated
     dividend_input_adjustment()
     df = df.with_columns(ms_setax=setax, ms_divexc=dividend_exclusion_addback(y))
     df = deflate_for_extrapolation(df, flate, extra=("ms_divexc",))

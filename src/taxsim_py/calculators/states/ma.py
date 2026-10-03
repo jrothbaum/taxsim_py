@@ -2,7 +2,6 @@
 
 import polars as pl
 
-from taxsim_py.calculators.payroll import payroll_parts
 from taxsim_py.engine.inputs import aged_count, files_head_of_household, files_joint, files_separate, files_single, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml
 from taxsim_py.engine.state import unemployment_total, with_state_detail
@@ -23,15 +22,14 @@ def compute_ma_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     # Payroll figures come from the federal run: the real year's wages and
     # rates, never deflated (TAXSIM's `sstax` call here writes the shared
     # federal block, not the state's deflated copy).
-    payroll = payroll_parts(year)
     # `comnew(183)`: the primary earner's payroll tax as TAXSIM credits the
     # taxpayer.
-    own_fica = payroll["own_fica_primary"]
+    own_fica = pl.col("own_fica_primary")
     if behavior.mode.value == "statutory":
         # The statute allows only the employee half of the wage payroll tax;
         # TAXSIM credits both halves.
-        own_fica = own_fica - 0.5 * payroll["own_wage_fica_primary"]
-    df = df.with_columns(ma_c183=own_fica, ma_setax=payroll["setax"])
+        own_fica = own_fica - 0.5 * pl.col("own_wage_fica_primary")
+    df = df.with_columns(ma_c183=own_fica, ma_setax=pl.col("setax"))
     # Federal Schedule E income (`comnew(8)`): other property income, plus S
     # corporation income from 1987.
     schede = pl.col("otherprop") + (pl.col("scorp") if y >= 1987 else 0.0)

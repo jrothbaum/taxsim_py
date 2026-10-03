@@ -2,7 +2,6 @@
 
 import polars as pl
 
-from taxsim_py.calculators.payroll import payroll_parts
 from taxsim_py.calculators.federal_pre1987 import PRE1987_PARAMS
 from taxsim_py.engine.brackets import bracket_rate, bracket_tax
 from taxsim_py.engine.inputs import aged_count, files_joint, separate_divisor, taxpayer_count
@@ -31,7 +30,7 @@ def compute_ky_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     )
     is_joint = files_joint()
 
-    setax = payroll_parts(year)["setax"]  # `comnew(175)`, real-year and undeflated
+    setax = pl.col("setax")  # `comnew(175)`, real-year and undeflated
     # The federal child care credit before the liability limit (`comnew(176)`)
     # is likewise read undeflated.
     df = df.with_columns(ky_setax=setax, ky_ccc=pl.col("ccc_uncapped"))

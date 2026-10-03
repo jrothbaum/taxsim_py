@@ -3,7 +3,6 @@
 import polars as pl
 
 from taxsim_py.engine.brackets import bracket_rate, bracket_tax, scale_brackets
-from taxsim_py.calculators.payroll import payroll_parts
 from taxsim_py.engine.inputs import aged_count, federal_exemption_count, files_head_of_household, files_joint, files_separate, files_single, is_dependent_filer
 from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml, resolve_year
 from taxsim_py.engine.state import (
@@ -26,14 +25,13 @@ def compute_vt_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     effective_year, flate = resolve_state_year(year, state_year)
     y = effective_year
     p = YearParams(VT_PARAMS, effective_year)
-    payroll = payroll_parts(year)
     df = df.with_columns(
         vt_household_income=household_income(),
         vt_ui=unemployment_total(),
         # Federal Schedule E income (`comnew(8)`).
         vt_schede=pl.col("otherprop") + (pl.col("scorp") if year >= 1987 else 0.0),
         # Self-employment and additional Medicare tax are not deflated.
-        vt_setax=payroll["setax"],
+        vt_setax=pl.col("setax"),
     )
     df = deflate_for_extrapolation(df, flate, extra=("vt_household_income", "vt_ui", "vt_schede"))
 
