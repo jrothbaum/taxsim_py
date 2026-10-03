@@ -108,7 +108,8 @@ def compute_ks_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     else:
         salt_plus_mortgage = pl.col("salt_capped") + pl.col("mortgage")
         itemized_deduction_local = pl.col("itemized_deduction")
-        itemizing = pl.col("itemizes") & (effective_year <= 2020)
+        # TAXSIM stops letting Kansas filers itemize after 2020; Kansas law still allows it.
+        itemizing = pl.col("itemizes") if (behavior.mode.value == "statutory" or effective_year <= 2020) else pl.lit(False)
 
     xitded = pl.lit(0.0)
     if effective_year <= 1987:

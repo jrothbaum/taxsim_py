@@ -43,7 +43,7 @@ charity_nonitemizer_2020: 300.0
 # 1985-1986 exemption subtracted before the tax table.
 exemption_1985: {1985: {single: 2400.0, married: 3550.0}, 1986: {single: 2550.0, married: 3700.0}}
 # 2018 on: exemption per dependent and per child under six.
-dependent_exemption: {2018: 4110.0, 2019: 4190.0, 2020: 4260.0, 2021: 4300.0, 2022: 4430.0, 2023: 4610.0, 2024: 4790.0}
+dependent_exemption: {2018: 4110.0, 2019: 4190.0, 2020: 4260.0, 2021: 4300.0, 2022: 4430.0, 2023: 4610.0, 2024: 4790.0, 2025: 4930}
 
 brackets:
   1977: [[0, 0.02], [2000, 0.03], [4000, 0.04], [6000, 0.05], [8000, 0.06], [10000, 0.07]]
@@ -59,6 +59,13 @@ brackets:
   2022: [[0, 0.0], [3200, 0.03], [16040, 0.065]]
   2023: [[0, 0.0], [3330, 0.03], [16680, 0.064]]
   2024: [[0, 0.0], [3460, 0.03], [17330, 0.062]]
+  2025: [[0, 0.0], [3560, 0.03], [17830, 0.06]]
+
+# 2025 on: South Carolina has not adopted the July 2025 federal law (SC1040 instructions). Filers who
+# took the federal standard deduction add back the part of it added by that law (federal amount less
+# the pre-law amount), and every filer adds back the federal senior deduction.
+obbba_standard_deduction_increase:
+  2025: {single: 750, married_joint: 1500, head_of_household: 1125, married_separate: 750}
 
 # --- Credits ---
 child_care_rate: 0.07

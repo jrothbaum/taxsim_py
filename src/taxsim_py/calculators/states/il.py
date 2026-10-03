@@ -133,7 +133,7 @@ def compute_il_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     if effective_year >= 2024:
         # Child tax credit (P.A. 103-0592): a share of the state EITC for a
         # return with a child under 12 (`dep13` is the closest input count).
-        il_ctc = pl.when(pl.col("dep13") > 0).then(float(p["child_tax_credit_rate"]) * pl.col("il_eitc")).otherwise(0.0)
+        il_ctc = pl.when(pl.col("dep13") > 0).then(p.num("child_tax_credit_rate") * pl.col("il_eitc")).otherwise(0.0)
     else:
         il_ctc = pl.lit(0.0)
     df = df.with_columns(il_tax_after_eitc=pl.col("il_tax_after_property_credit") - pl.col("il_eitc") - il_ctc)

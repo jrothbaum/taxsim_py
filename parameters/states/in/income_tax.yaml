@@ -23,6 +23,7 @@ rate_by_year:  # rate(law) - Indiana's flat tax rate
   2022: 0.0323
   2023: 0.0315
   2024: 0.0305
+  2025: 0.03
 
 # Renter's deduction cap (`dedr`, real; divided by `sep` for
 # married_separate).

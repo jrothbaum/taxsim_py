@@ -145,6 +145,9 @@ def compute_md_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             (std_rate * pl.col("md_agi")).clip(floor_ss, ceil_ss)
         )
 
+    if effective_year >= 2025 and behavior.mode.value == "statutory":
+        flat = resolve_year(p["standard_deduction_flat_2025plus"], effective_year)
+        stded = by_filing_status({k: float(v) for k, v in flat.items()})
     df = df.with_columns(md_stded=stded)
 
     # --- Itemized deduction ---
@@ -169,6 +172,10 @@ def compute_md_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
                 phas92 = aif13 * p["itemized_phaseout_threshold_base_2013_2017"] * mult
             xitded_high = (pl.col("itemized_deduction") - pl.col("state_sales_or_income_tax_ded") * pl.col("itemized_deduction") / salt_plus_mortgage.clip(1e-9, None)).clip(0, None)
             xitded_base = pl.when((pl.col("md_agi") > phas92) & (salt_plus_mortgage > 0)).then(xitded_high).otherwise(xitded_base)
+        if effective_year >= 2025 and behavior.mode.value == "statutory":
+            ph = resolve_year(p["itemized_phaseout_2025plus"], effective_year)
+            threshold = by_filing_status({k: float(v) for k, v in ph.items() if k != "rate"})
+            xitded_base = (xitded_base - float(ph["rate"]) * (pl.col("agi") - threshold).clip(0, None)).clip(0, None)
         xitded = pl.when(itemizing_gate).then(xitded_base).otherwise(0.0)
 
     df = df.with_columns(
@@ -233,12 +240,17 @@ def compute_md_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             bracket_rate(pl.col("md_taxinc"), p["brackets_2008_2011_single_separate"])
         ).otherwise(bracket_rate(pl.col("md_taxinc"), p["brackets_2008_2011_joint_hoh"]))
     else:
+        suffix = "2025plus" if effective_year >= 2025 and behavior.mode.value == "statutory" else "2012plus"
         statax = pl.when(is_single_or_separate).then(
-            bracket_tax(pl.col("md_taxinc"), p["brackets_2012plus_single_separate"])
-        ).otherwise(bracket_tax(pl.col("md_taxinc"), p["brackets_2012plus_joint_hoh"]))
+            bracket_tax(pl.col("md_taxinc"), p[f"brackets_{suffix}_single_separate"])
+        ).otherwise(bracket_tax(pl.col("md_taxinc"), p[f"brackets_{suffix}_joint_hoh"]))
         rate_expr = pl.when(is_single_or_separate).then(
-            bracket_rate(pl.col("md_taxinc"), p["brackets_2012plus_single_separate"])
-        ).otherwise(bracket_rate(pl.col("md_taxinc"), p["brackets_2012plus_joint_hoh"]))
+            bracket_rate(pl.col("md_taxinc"), p[f"brackets_{suffix}_single_separate"])
+        ).otherwise(bracket_rate(pl.col("md_taxinc"), p[f"brackets_{suffix}_joint_hoh"]))
+        if suffix == "2025plus":
+            sur = resolve_year(p["capital_gains_surtax_2025plus"], effective_year)
+            net_gain = (pl.col("stcg") + pl.col("ltcg")).clip(0, None)
+            statax = statax + pl.when(pl.col("md_agi") > float(sur["threshold"])).then(float(sur["rate"]) * net_gain).otherwise(0.0)
 
     df = df.with_columns(md_taxbc=statax)
 
@@ -344,6 +356,10 @@ def compute_md_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         # Refundable child tax credit for children under six at low AGI.
         credit = p["child_tax_credit_2023plus"]
         ctc = pl.when(pl.col("agi") <= float(credit["agi_cap"])).then(float(credit["amount"]) * pl.col("dep6")).otherwise(0.0)
+        if effective_year >= 2025 and behavior.mode.value == "statutory":
+            po = resolve_year(p["child_tax_credit_phaseout_2025plus"], effective_year)
+            steps = ((pl.col("agi") - float(po["threshold"])).clip(0, None) / float(po["increment"])).ceil()
+            ctc = (float(credit["amount"]) * pl.col("dep6") - float(po["rate"]) * steps).clip(0, None)
         df = df.with_columns(md_statax=pl.col("md_statax") - ctc)
 
     df = df.with_columns(siitax=pl.col("md_statax") * flate)

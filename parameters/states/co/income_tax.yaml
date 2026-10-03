@@ -98,6 +98,7 @@ flat_rate_by_year:
   2022: 0.044
   2023: 0.044
   2024: 0.0425
+  2025: 0.044
 amt_rate_by_year:
   1987: 0.0375
   2000: 0.0347
@@ -119,6 +120,7 @@ sales_tax_refund_2021: [[44000, 37], [88000, 49], [139000, 56], [193000, 68], [2
 sales_tax_refund_2022: [[-1.0e+99, 153], [48001, 208], [95001, 234], [151001, 285], [209001, 300], [268001, 486]]
 sales_tax_refund_2023: 0
 sales_tax_refund_2024: [[-1.0e+99, 177], [53001, 240], [105001, 277], [166001, 323], [233001, 350], [302001, 565]]
+sales_tax_refund_2025: [[-1.0e+99, 19], [52001, 25], [105001, 29], [168001, 35], [233001, 37], [299001, 59]]
 
 # --- Child Care Credit (federal-credit-based, `comnew(53)`~=`ccc`) ---
 child_care_credit_table_1996plus:  # `tablki` lookup on federal AGI, used
@@ -141,6 +143,7 @@ eitc_rate_actual:
   2022: 0.20
   2023: 0.50
   2024: 0.50
+  2025: 0.50
 
 # gov.states.co.tax.income.credits.eitc.under_25_expansion.min_age (2022+):
 # childless filers aged 19-24 qualify. The homeless/foster-youth exception for
@@ -151,17 +154,23 @@ eitc_under_25_minimum_age: 19
 # thresholds and amounts are the PolicyEngine-US
 # gov.states.co.tax.income.credits.ctc.amount scale, queried 2026-09-29.
 child_tax_credit_amount:
-  single: [[-1.0e+99, 1200], [25000, 600], [50000, 200], [75000, 0]]
-  head_of_household: [[-1.0e+99, 1200], [25000, 600], [50000, 200], [75000, 0]]
-  married_joint: [[-1.0e+99, 1200], [35000, 600], [60000, 200], [85000, 0]]
-  married_separate: [[-1.0e+99, 1200], [25000, 600], [50000, 200], [75000, 0]]
+  2022:
+    single: [[-1.0e+99, 1200], [25000, 600], [50000, 200], [75000, 0]]
+    head_of_household: [[-1.0e+99, 1200], [25000, 600], [50000, 200], [75000, 0]]
+    married_joint: [[-1.0e+99, 1200], [35000, 600], [60000, 200], [85000, 0]]
+    married_separate: [[-1.0e+99, 1200], [25000, 600], [50000, 200], [75000, 0]]
+  2025:
+    single: [[-1.0e+99, 1200], [26000, 600], [51000, 200], [77000, 0]]
+    head_of_household: [[-1.0e+99, 1200], [26000, 600], [51000, 200], [77000, 0]]
+    married_joint: [[-1.0e+99, 1200], [36000, 600], [61000, 200], [87000, 0]]
+    married_separate: [[-1.0e+99, 1200], [26000, 600], [51000, 200], [77000, 0]]
 
 # Family Affordability Credit (HB24-1311, 2024+), refundable. PolicyEngine-US
 # gov.states.co.tax.income.credits.family_affordability, queried 2026-09-29:
 # $3,200 per child under 6 and 75% of that for ages 6-16, reduced by 6.875% of
 # the maximum for each $5,000 (or part) of federal AGI above the threshold.
 family_affordability_credit:
-  amount: {2024: 3200}
+  amount: {2024: 3200, 2025: 3273}
   older_child_share: 0.75
   reduction_rate: 0.06875
   reduction_increment: 5000
@@ -169,7 +178,7 @@ family_affordability_credit:
     single: {2024: 15000}
     head_of_household: {2024: 15000}
     married_separate: {2024: 15000}
-    married_joint: {2024: 25000}
+    married_joint: {2024: 25000, 2025: 26000}
 
 # Pension and Social Security exclusion per taxpayer, for returns with a
 # taxpayer 65 or older (TAXSIM `pnsion`).

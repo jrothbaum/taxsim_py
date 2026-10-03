@@ -192,8 +192,8 @@ def compute_ga_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     # table; the others run `taxinc*sep` through the married table.
     is_married = pl.col("filing_status") != "single"
     if behavior.mode.value == "statutory" and effective_year >= 2024:
-        statax = float(p["flat_rate_2024"]) * pl.col("ga_taxinc")
-        rate_expr = pl.lit(float(p["flat_rate_2024"]))
+        statax = p.num("flat_rate_2024plus") * pl.col("ga_taxinc")
+        rate_expr = pl.lit(p.num("flat_rate_2024plus"))
         df = df.with_columns(ga_statax=statax)
     elif effective_year <= 2018:
         brackets_single = p["brackets_single_thru_2018"]

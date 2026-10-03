@@ -41,9 +41,10 @@ def compute_wv_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     if 1984 <= y <= 1986:
         agi = agi - ss
     if y >= 2020:
+        above_limit = p.num("social_security_above_limit_share") if y >= 2022 and behavior.mode.value == "statutory" else 0.0
         agi = agi - pl.when(fed_agi <= p["social_security_subtraction_agi_per_taxpayer"] * txp).then(
             p.num("social_security_subtraction_share") * ss
-        ).otherwise(0.0)
+        ).otherwise(above_limit * ss)
     # Senior citizen deduction.
     cap = float(p["senior_deduction"])
     total_income = pl.col("wv_total_income")
@@ -93,7 +94,7 @@ def compute_wv_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         else:
             statax = split
     else:
-        table = brackets[2023] if y >= 2023 else brackets[1987]
+        table = brackets[2025 if y >= 2025 else 2023] if y >= 2023 else brackets[1987]
         statax = bracket_tax(taxinc * sep, table) / sep
         rate = bracket_rate(taxinc * sep, table)
     if 1983 <= y <= 1985:

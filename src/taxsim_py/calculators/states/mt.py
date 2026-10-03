@@ -101,7 +101,7 @@ def compute_mt_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         retexc = pl.when(aged > 0).then(retexc).otherwise(0.0)
         if y >= 2024:
             # A flat subtraction for each taxpayer 65 or older replaces the pension exclusion.
-            retexc = float(p["old_age_subtraction_2024plus"]) * aged
+            retexc = p.num("old_age_subtraction_2024plus") * aged
         agi = (agi - retexc).clip(0, None)
         subtr = subtr + retexc
     if y >= 1984:
@@ -202,12 +202,14 @@ def compute_mt_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     # --- Exemptions and tax ---
     xmp = p.num("exemption")
     exemp = (ntp + depx + aged) * xmp
-    df, (taxinc,) = checkpoint(df, mt_taxinc=(agi - deduc - exemp).clip(0, None))
+    # 2025 on: Montana lets filers subtract the federal senior deduction (like the federal return).
+    federal_schedule_1a = pl.col("senior_deduction") if y >= 2025 and behavior.mode.value == "statutory" else pl.lit(0.0)
+    df, (taxinc,) = checkpoint(df, mt_taxinc=(agi - deduc - exemp - federal_schedule_1a).clip(0, None))
     brackets = _brackets(y) if y < 2024 else [[0.0, 0.0]]
     if y >= 2024:
         # Two-rate schedule by filing status, with net long-term gains taxed on their own scale
         # stacked above the ordinary income.
-        d = MT_PARAMS["schedule_2024plus"]
+        d = resolve_year(MT_PARAMS["schedule_2024plus"], y)
         statuses = ("single", "married_separate", "head_of_household", "married_joint")
         gains = (pl.col("ltcg") + pl.col("stcg")).clip(0, None)
         gains = pl.min_horizontal(pl.col("ltcg").clip(0, None), gains)

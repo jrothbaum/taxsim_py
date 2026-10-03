@@ -234,7 +234,7 @@ def compute_co_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
                 0.0 if bool(resolve_year(hi["itemized_only"], effective_year)) else pl.col("standard_deduction")
             )
             taxinc = taxinc + pl.when(pl.col("agi") > threshold).then((claimed - limit).clip(0, None)).otherwise(0.0)
-            if "qbi_deduction" in df.columns:
+            if "qbi_deduction" in df.collect_schema().names():
                 qbi_limit = pl.when(joint).then(float(hi["qbi_agi_limit_joint"])).otherwise(float(hi["qbi_agi_limit_other"]))
                 taxinc = taxinc + pl.when(pl.col("agi") > qbi_limit).then(pl.col("qbi_deduction")).otherwise(0.0)
 
@@ -293,9 +293,9 @@ def compute_co_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         1999: p["sales_tax_refund_1999"], 2000: p["sales_tax_refund_2000"],
         2001: p["sales_tax_refund_2001"], 2015: p["sales_tax_refund_2015"],
         2021: p["sales_tax_refund_2021"], 2022: p["sales_tax_refund_2022"],
-        2024: p["sales_tax_refund_2024"],
+        2024: p["sales_tax_refund_2024"], 2025: p["sales_tax_refund_2025"],
     }
-    if effective_year in (2022, 2024):
+    if effective_year in (2022, 2024, 2025):
         # Dated statutory schedule: a step function, not TAXSIM's tablki.
         df = df.with_columns(co_salesrefund=bracket_rate(coagi, refund_tables[effective_year]) * pl.col("co_taxpayers"))
     elif effective_year in refund_tables:
@@ -330,7 +330,7 @@ def compute_co_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     eitc_fed = pl.col("eitc").clip(0, None)
     if effective_year == 1999:
         df = df.with_columns(co_earncr=float(p["eitc_rate_1999"]) * eitc_fed)
-    elif effective_year in (2022, 2023, 2024):
+    elif effective_year >= 2022:
         # C.R.S. 39-22-123.5 drops the federal childless minimum age of 25 to
         # 19 (the under-25 expansion), so start from the pre-age-test credit.
         older = pl.max_horizontal(pl.col("page"), pl.col("sage"))
@@ -347,11 +347,12 @@ def compute_co_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     # MAGI scale. In 2022-2023 it is a share of the federal child credit; 2024
     # law replaces that with flat amounts and adds the Family Affordability
     # Credit.
-    if effective_year in (2022, 2023, 2024):
+    if effective_year >= 2022:
         ctc_rate = pl.lit(0.0)
+        ctc_scales = resolve_year(p["child_tax_credit_amount"], effective_year)
         for status in _STATUSES:
             ctc_rate = pl.when(pl.col("filing_status") == status).then(
-                bracket_rate(pl.col("co_agi"), p["child_tax_credit_amount"][status])
+                bracket_rate(pl.col("co_agi"), ctc_scales[status])
             ).otherwise(ctc_rate)
         if effective_year <= 2023:
             # DR 0104CN worksheet: the federal credit recomputed for children

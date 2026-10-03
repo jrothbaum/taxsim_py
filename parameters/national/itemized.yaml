@@ -101,3 +101,12 @@ cash_charity_agi_limit_share:
   1987: 0.5
   2020: 1.0e+20
   2022: 0.5
+
+# 2025 on (OBBBA, P.L. 119-21 sec. 70120): the SALT cap falls by this share of
+# adjusted gross income over the threshold, but not below the floor. The cap
+# itself is `salt_cap` above (halved for married separate, like the threshold
+# and floor). Scheduled to revert to $10,000 with no phase-out after 2029.
+salt_phaseout:
+  rate: {2025: 0.3, 2030: 0.0}
+  threshold: {2025: 500000, 2030: 0}
+  floor: {2025: 10000, 2030: 0}

@@ -71,9 +71,17 @@ def compute_me_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     # Pension deduction (2000+), per taxpayer, reduced by Social Security benefits.
     if effective_year >= 2000:
         pended = p.num("pension_deduction_per_taxpayer")
-        me_agi = me_agi - pl.min_horizontal(
+        pension_deduction = pl.min_horizontal(
             pl.col("pensions"), (pended * pl.col("me_txp") - pl.col("gssi")).clip(0, None)
         )
+        if effective_year >= 2025 and behavior.mode.value == "statutory":
+            # Phased out against federal AGI above a start, over a width (no deduction beyond it).
+            po = resolve_year(p["pension_deduction_phaseout_2025plus"], effective_year)
+            start = by_filing_status({k: float(v) for k, v in po["start"].items()})
+            width = by_filing_status({k: float(v) for k, v in po["width"].items()})
+            share = ((pl.col("agi") - start).clip(0, None) / width).clip(None, 1.0)
+            pension_deduction = pension_deduction * (1.0 - share)
+        me_agi = me_agi - pension_deduction
     df = df.with_columns(me_agi=me_agi)
 
     # --- Standard deduction ---
@@ -126,6 +134,11 @@ def compute_me_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             single_val = float(p["standard_deduction_single_2016_2017"][1960]) + olds
             stded = pl.when(is_hoh).then(hoh_val).when(files_single()).then(single_val).otherwise(stded)
 
+    if effective_year >= 2025 and behavior.mode.value == "statutory":
+        sd = resolve_year(p["standard_deduction_2025plus"], effective_year)
+        base = pl.when(files_single() | is_sep).then(float(sd["single"])).when(is_hoh).then(float(sd["head_of_household"])).otherwise(float(sd["married_joint"]))
+        aged_amount = pl.when(files_single() | is_hoh).then(float(sd["aged_single"])).otherwise(float(sd["aged_married"]))
+        stded = pl.when(pl.col("itemizes")).then(0.0).otherwise(base + aged_amount * aged_count())
     df = df.with_columns(me_stded=stded)
 
     # --- Itemized deduction --- (when the federal return itemizes a
@@ -288,10 +301,18 @@ def compute_me_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         depcrd = pl.min_horizontal(per_child * pl.col("dep17"), pl.col("me_statax"))
         if effective_year >= 2022:
             # Every dependent, reduced $7.50 per $1,000 (or part) of AGI above the start.
-            dep = p["dependent_exemption_credit_2022plus"]
-            start = pl.when(is_joint).then(float(dep["start_joint"])).otherwise(float(dep["start_other"]))
+            dep = resolve_year(p["dependent_exemption_credit_2022plus"], effective_year)
+            if "start_joint" in dep and "start_hoh" in dep:
+                start = (
+                    pl.when(is_joint).then(float(dep["start_joint"])).when(is_hoh).then(float(dep["start_hoh"]))
+                    .when(is_sep).then(float(dep["start_separate"])).otherwise(float(dep["start_single"]))
+                )
+            else:
+                start = pl.when(is_joint).then(float(dep["start_joint"])).otherwise(float(dep["start_other"]))
             steps = ((pl.col("me_agi") - start).clip(0, None) / float(dep["increment"])).ceil()
-            statutory = (float(dep["amount"]) * pl.col("depx") - float(dep["step"]) * steps).clip(0, None)
+            # A dependent under 6 counts `young_multiplier` times.
+            dependents = pl.col("depx") + (float(dep["young_multiplier"]) - 1.0) * pl.col("dep6").clip(None, pl.col("depx"))
+            statutory = (float(dep["amount"]) * dependents - float(dep["step"]) * steps).clip(0, None)
             depcrd = pl.min_horizontal(statutory, pl.col("me_statax"))
             if effective_year >= 2024:
                 # Refundable from 2024: applied with the other refundable credits below.
@@ -439,6 +460,28 @@ def compute_me_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         ptfc = pl.when(eligible).then(pl.min_horizontal(cap_out, (base - p["ptfc_income_share_2014plus"] * tix).clip(0, None))).otherwise(0.0)
     if effective_year >= 2017:
         ptfc = pl.when(is_sep).then(0.0).otherwise(ptfc)
+    if effective_year >= 2022 and behavior.mode.value == "statutory":
+        # Current statute: a benefit base set by filing status and children (a higher one for a
+        # taxpayer 65 or older), limited to property tax plus part of rent, less 4% of income.
+        d = resolve_year(p["ptfc_2022plus"], effective_year)
+        kids = pl.col("dep17")
+        base = (
+            pl.when(files_single()).then(float(d["single"]))
+            .when(is_joint & (kids < 1) | is_hoh & (kids <= 1)).then(float(d["hoh_one_child"]))
+            .otherwise(float(d["joint_or_multi"]))
+        )
+        older = pl.max_horizontal(pl.col("page"), pl.col("sage"))
+        senior = (older >= 65) & (float(d["senior"]) > 0)
+        base = pl.when(senior).then(float(d["senior"])).otherwise(base)
+        countable = pl.col("proptax") + float(d["rent_share"]) * pl.col("rentpaid")
+        capgn = pl.col("stcg") + pl.col("ltcg")
+        fair_income = (
+            pl.col("agi") + pl.col("me_setax") * 0.5 / flate + pl.col("gssi") - pl.col("taxable_social_security")
+            - pl.min_horizontal(capgn, 0.0)
+        )
+        credit = (pl.min_horizontal(base, countable) - float(d["income_rate"]) * fair_income).clip(0, None)
+        credit = pl.min_horizontal(credit, pl.when(senior).then(float(d["cap_senior"])).otherwise(float(d["cap"])))
+        ptfc = pl.when(is_sep).then(0.0).otherwise(credit)
 
     # --- Sales Tax Fairness Credit (2016+, refundable) ---
     stfc = pl.lit(0.0)

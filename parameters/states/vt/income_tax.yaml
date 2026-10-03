@@ -43,6 +43,10 @@ brackets:
     single: [[0, 0.0335], [47900, 0.066], [116000, 0.076], [242000, 0.0875]]
     head_of_household: [[0, 0.0335], [64200, 0.066], [165700, 0.076], [268300, 0.0875]]
     married: [[0, 0.0335], [79950, 0.066], [193300, 0.076], [294600, 0.0875]]
+  2025:
+    single: [[0, 0.0335], [49400, 0.066], [119700, 0.076], [249700, 0.0875]]
+    head_of_household: [[0, 0.0335], [66200, 0.066], [171000, 0.076], [276850, 0.0875]]
+    married: [[0, 0.0335], [82500, 0.066], [199450, 0.076], [304000, 0.0875]]
 # Thresholds scaled by year (2009 unscaled).
 bracket_index: {2022: 1.0, 2023: 1.0, 2024: 1.0, 2001: 1.0, 2002: 1.0, 2003: 1.016, 2004: 1.04, 2005: 1.063, 2006: 1.0966, 2007: 1.1395348830, 2008: 1.16457960, 2009: 1.0, 2010: 1.0, 2011: 1.015, 2012: 1.04, 2013: 1.066, 2014: 1.085, 2015: 1.1015, 2016: 1.107, 2017: 1.115, 2018: 1.0, 2019: 1.024, 2020: 1.043, 2021: 1.058}
 # Capital gain exclusion: 40% of net gain (2002-2007), limited to 40% of
@@ -57,7 +61,7 @@ itemized_addback_multiple: 2.5
 # 2018 on: tax at least this share of federal AGI above the threshold.
 minimum_tax_share: 0.03
 minimum_tax_agi: 150000.0
-exemption_2018: {2018: 4150.0, 2019: 4250.0, 2020: 4350.0, 2022: 4500.0, 2023: 4850.0, 2024: 5100.0}
+exemption_2018: {2018: 4150.0, 2019: 4250.0, 2020: 4350.0, 2022: 4500.0, 2023: 4850.0, 2024: 5100.0, 2025: 5300}
 standard_deduction_2018: {2018: 6000.0, 2019: 6200.0, 2020: 6250.0, 2021: 6350.0}
 standard_deduction_factor: {head_of_household: 1.5, married_joint: 2.0}
 
@@ -85,7 +89,7 @@ telephone_credit_aged_income_limit: {1986: 13000, 1990: 14735, 1991: 15096, 1993
 # household income below this.
 low_income_credit_aged_income_1977: 6000.0
 # 2018+: additional standard deduction per taxpayer 65 or older.
-standard_deduction_aged_addition_2018: {2018: 1000.0, 2021: 1050.0, 2022: 1050.0, 2023: 1150.0, 2024: 1200.0}
+standard_deduction_aged_addition_2018: {2018: 1000.0, 2021: 1050.0, 2022: 1050.0, 2023: 1150.0, 2024: 1200.0, 2025: 1250}
 # 2018+: taxable Social Security is exempt, phased out over $10,000 of
 # federal AGI above the start.
 social_security_exemption_start: {married_joint: 60000.0, other: 45000.0}
@@ -122,6 +126,14 @@ standard_deduction_2022plus:
   2022: {single: 6500.0, head_of_household: 9800.0, married_joint: 13050.0}
   2023: {single: 7000.0, head_of_household: 10550.0, married_joint: 14050.0}
   2024: {single: 7400.0, head_of_household: 11100.0, married_joint: 14850.0}
-social_security_exemption_start_2022plus: {married_joint: 65000.0, other: 50000.0}
+  2025: {single: 7650.0, head_of_household: 11450.0, married_joint: 15300.0}
+# Taxable Social Security is exempt in full below the start and phased out over `social_security_exemption_range`.
+social_security_exemption_start_2022plus:
+  2022: {married_joint: 65000.0, other: 50000.0}
+  2025: {married_joint: 70000.0, other: 55000.0}
 child_care_credit_rate_2022plus: 0.72
+# 2025: children aged six or younger (under 7) qualify; earlier years under 6.
+child_tax_credit_age_limit_2022plus: {2022: 6, 2025: 7}
+# 2025 on: the state EITC is this share of the federal credit for a filer with no child dependents.
+eitc_childless_rate_2025plus: {2025: 1.0}
 child_tax_credit_2022plus: {amount: 1000.0, reduction_start: 125000.0, reduction_amount: 20.0, reduction_increment: 1000.0}

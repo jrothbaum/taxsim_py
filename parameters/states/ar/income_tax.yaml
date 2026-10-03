@@ -303,6 +303,42 @@ rate_lookup_table:
     - [95501, 3.9, 87.4]
     # Over $100,000 the official table states $3,811 plus 3.9% of the excess.
     - [1.0e+20, 3.9, 89.0]
+  2025:
+    - [5600, 0, 0]
+    - [11200, 2, 112]
+    - [16000, 3, 224]
+    - [26400, 3.4, 288]
+    - [95001, 3.9, 420]
+    - [95101, 3.9, 369]
+    - [95201, 3.9, 359]
+    - [95301, 3.9, 349]
+    - [95401, 3.9, 339]
+    - [95501, 3.9, 329]
+    - [95601, 3.9, 319]
+    - [95701, 3.9, 309]
+    - [95801, 3.9, 299]
+    - [95901, 3.9, 289]
+    - [96001, 3.9, 279]
+    - [96101, 3.9, 269]
+    - [96201, 3.9, 259]
+    - [96301, 3.9, 249]
+    - [96401, 3.9, 239]
+    - [96501, 3.9, 229]
+    - [96601, 3.9, 219]
+    - [96701, 3.9, 209]
+    - [96801, 3.9, 199]
+    - [96901, 3.9, 189]
+    - [97001, 3.9, 179]
+    - [97101, 3.9, 169]
+    - [97201, 3.9, 159]
+    - [97301, 3.9, 149]
+    - [97401, 3.9, 139]
+    - [97501, 3.9, 129]
+    - [97601, 3.9, 119]
+    - [97701, 3.9, 109]
+    - [97801, 3.9, 99]
+    - [97901, 3.9, 89]
+    - [1.0e+20, 3.9, 91.0]
 
 # Standard deduction: 3 eras.
 pre1987_brackets_primary:
@@ -338,6 +374,7 @@ standard_deduction_flat_1998plus:  # per exemption unit (`data(7)`)
   2022: 2270
   2023: 2340
   2024: 2410
+  2025: 2470
 
 # Statutory credits not represented in the legacy TAXSIM input slots.
 inflationary_relief:
@@ -363,7 +400,7 @@ inflationary_relief:
     head_of_household: {2022: 1000, 2023: 1000, 2024: 1000}
 qualified_individual_credit_amount: {2022: 60, 2023: 60, 2024: 60}
 qualified_individual_credit_reduction: {2022: 5, 2023: 5, 2024: 5}
-qualified_individual_credit_start: {2022: 24300, 2023: 25000, 2024: 25800}
+qualified_individual_credit_start: {2022: 24300, 2023: 25000, 2024: 25800, 2025: 26500}
 qualified_individual_credit_increment: {2022: 100, 2023: 100, 2024: 100}
 
 # Itemized-deduction Pease-style phaseout (1991-2017, AR's OWN, mirrors

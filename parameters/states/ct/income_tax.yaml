@@ -381,6 +381,9 @@ pension_deduction_rates:
   2024:
     non_joint: [[0, 1.0], [75000, 0.85], [77500, 0.70], [80000, 0.55], [82500, 0.40], [85000, 0.25], [87500, 0.10], [90000, 0.05], [95000, 0.025], [100000, 0.0]]
     joint: [[0, 1.0], [100000, 0.85], [105000, 0.70], [110000, 0.55], [115000, 0.40], [120000, 0.25], [125000, 0.10], [130000, 0.05], [140000, 0.025], [150000, 0.0]]
+  2025:
+    non_joint: [[0, 1.0], [75000, 0.85], [77500, 0.70], [80000, 0.55], [82500, 0.40], [85000, 0.25], [87500, 0.10], [90000, 0.05], [95000, 0.025], [100000, 0.0]]
+    joint: [[0, 1.0], [100000, 0.85], [105000, 0.70], [110000, 0.55], [115000, 0.40], [120000, 0.25], [125000, 0.10], [130000, 0.05], [140000, 0.025], [150000, 0.0]]
 
 # 2000+ Social Security: the share of benefits (up to the exclusion) kept
 # taxable when income exceeds the full-exemption limit.
@@ -475,6 +478,23 @@ recapture_2022plus:
       married_joint: [1000000, 100, 10000, 900]
       married_separate: [500000, 50, 5000, 450]
       head_of_household: [800000, 80, 8000, 720]
+  2025:
+    low:
+      in_effect: true
+      single: [105000, 25, 5000, 250]
+      married_joint: [210000, 50, 10000, 500]
+      married_separate: [105000, 25, 5000, 250]
+      head_of_household: [168000, 40, 8000, 400]
+    middle:
+      single: [200000, 90, 5000, 2700]
+      married_joint: [400000, 180, 10000, 5400]
+      married_separate: [200000, 90, 5000, 2700]
+      head_of_household: [320000, 140, 8000, 4200]
+    high:
+      single: [500000, 50, 5000, 450]
+      married_joint: [1000000, 100, 10000, 900]
+      married_separate: [500000, 50, 5000, 450]
+      head_of_household: [800000, 80, 8000, 720]
 
 # Dated statutory phase-out add-back, 2022+ (PolicyEngine-US
 # gov.states.ct.tax.income.add_back, queried 2026-10-01): per filing status
@@ -495,3 +515,11 @@ add_back_2022plus:
     married_joint: [100500, 50, 5000, 500]
     married_separate: [50250, 25, 2500, 250]
     head_of_household: [78500, 40, 4000, 400]
+  2025:
+    single: [56500, 25, 5000, 250]
+    married_joint: [100500, 50, 5000, 500]
+    married_separate: [50250, 25, 2500, 250]
+    head_of_household: [78500, 40, 4000, 400]
+
+# 2025 on: added to the state EITC of a return with at least one qualifying child.
+eitc_child_bonus: {1960: 0, 2025: 250}

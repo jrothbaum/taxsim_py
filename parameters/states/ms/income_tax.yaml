@@ -16,6 +16,7 @@ brackets:
   2022: [[0, 0.0], [5000, 0.04], [10000, 0.05]]
   2023: [[0, 0.0], [10000, 0.05]]
   2024: [[0, 0.0], [10000, 0.047]]
+  2025: [[0, 0.0], [10000, 0.044]]
 
 # --- Income ---
 # Mississippi adds back the federal deduction for half of self-employment

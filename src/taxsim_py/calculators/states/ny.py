@@ -382,6 +382,9 @@ def compute_ny_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         ).otherwise(0.0)
     else:
         sttax = pl.min_horizontal(p.num("salt_cap") / sep, pl.col("proptax") + salt_ded + pl.col("otheritem"))
+        if y >= 2025 and behavior.mode.value == "statutory":
+            # Back out whatever SALT the federal return actually deducted (its cap is no longer $10,000).
+            sttax = pl.col("salt_capped")
         xitded = deducp + pl.col("proptax") + pl.col("otheritem") - sttax
         limits = p["itemized_limit_threshold"]
         phase = (
@@ -650,6 +653,14 @@ def compute_ny_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         ).otherwise(dep17 * per_child)
         eschcr = pl.when((kids > 0) & (precrd > 0) & (dep17 > 0)).then(credit).otherwise(0.0)
 
+    if y >= 2025 and behavior.mode.value == "statutory":
+        # Decoupled from the federal credit: flat amounts by child age, phased out on the total.
+        c25 = resolve_year(p["empire_child_credit_2025plus"], y)
+        young = pl.col("children_under_4").clip(None, pl.col("dep17"))
+        base = float(c25["under_4_amount"]) * young + float(c25["amount"]) * (pl.col("dep17") - young)
+        thr = by_filing_status({k: float(v) for k, v in c25["threshold"].items()})
+        reduction = float(c25["phaseout_per_1000"]) * ((pl.col("agi") - thr).clip(0, None) / 1000.0).floor()
+        eschcr = (base - reduction).clip(0, None)
     df, (statax,) = checkpoint(df, ny_before_relief=statax - earncr - eschcr - pcred)
     f = p["family_tax_relief"]
     relief = _p_nested(f["amount"], y)

@@ -446,3 +446,14 @@ unemployment_exclusion_2020:
 exemption_surtax_rate: 0.05
 exemption_surtax_cap_share: 0.28
 bubble_surtax_rate: 0.05
+
+# Senior deduction for each taxpayer 65 or older (OBBBA, P.L. 119-21 sec.
+# 70103), tax years 2025-2028: the amount less this share of modified AGI over
+# the threshold, applied to each person's amount separately. Not allowed on
+# married-separate returns; claimed below the line, so it does not lower AGI.
+senior_deduction:
+  amount: {2018: 0, 2025: 6000, 2029: 0}
+  phaseout_rate: 0.06
+  phaseout_threshold:
+    joint: 150000
+    other: 75000

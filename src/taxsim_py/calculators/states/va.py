@@ -230,7 +230,7 @@ def compute_va_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             # The EITC may instead be claimed as 15% refundable; the larger
             # benefit applies, and then no nonrefundable credit is used. The
             # 2023+ rebate is a nonrefundable credit.
-            refundable_claim = float(p["eitc_refundable_rate_2022plus"]) * pl.col("eitc")
+            refundable_claim = p.num("eitc_refundable_rate_2022plus") * pl.col("eitc")
             elect = (refundable_claim > crlow) & (elder <= 0)
             refundable_extra = pl.when(elect).then(refundable_claim).otherwise(0.0)
             crlow = pl.when(elect).then(0.0).otherwise(crlow)

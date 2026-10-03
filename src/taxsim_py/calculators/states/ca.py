@@ -152,9 +152,12 @@ def compute_ca_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     else:
         # `xitded=max(0,comnew(30)-data(50)+data(27))`: federal gross
         # itemized deductions less the state income or sales tax deduction.
-        df = df.with_columns(
-            ca_xitded_base=(pl.col("salt_capped") - pl.col("state_sales_or_income_tax_ded") + pl.col("mortgage")).clip(0, None)
-        )
+        xitded_base = (pl.col("salt_capped") - pl.col("state_sales_or_income_tax_ded") + pl.col("mortgage")).clip(0, None)
+        if behavior.mode.value == "statutory" and effective_year >= 2018:
+            # California never adopted the federal $10,000 SALT cap: real estate tax
+            # is deductible in full, and its own income tax is not deductible at all.
+            xitded_base = (pl.col("proptax") + pl.col("otheritem") + pl.col("mortgage")).clip(0, None)
+        df = df.with_columns(ca_xitded_base=xitded_base)
         base = float(p["exemption_credit_phaseout_base_1991plus"])
         phaded = pl.when(pl.col("ca_hoh")).then(base * float(p["exemption_credit_phaseout_base_hoh_multiplier"])).when(
             files_joint()
@@ -287,21 +290,19 @@ def compute_ca_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     elif effective_year >= 2022 and behavior.mode.value == "statutory":
         recent = p["recent_exemption_credit"]
         order = ["single", "married_joint", "head_of_household", "married_separate"]  # `_by_status4` order
-        personal = _by_status4([float(resolve_year(recent["personal"][s], effective_year)) for s in order])
         phase_start = _by_status4([float(resolve_year(recent["phaseout_start"][s], effective_year)) for s in order])
         phase_step = _by_status4([float(resolve_year(recent["phaseout_step"][s], effective_year)) for s in order])
-        credit_count = pl.col("ca_txp_raw") + aged_count() + dep_reduced
+        # Each credit (every taxpayer, each taxpayer 65 or older, each dependent) falls by
+        # $6 for each $2,500 (or part) of AGI over the threshold, and not below zero.
+        per_person = float(resolve_year(recent["personal"]["single"], effective_year))
+        per_dependent = float(resolve_year(recent["dependent"], effective_year))
+        steps = ((pl.col("agi") - phase_start).clip(0, None) / phase_step).ceil()
+        reduction = steps * float(recent["phaseout_amount"])
         df = df.with_columns(
-            # Each taxpayer 65 or older adds a credit equal to the single personal credit.
-            ca_excrd=personal
-            + aged_count() * float(resolve_year(recent["personal"]["single"], effective_year))
-            + float(resolve_year(recent["dependent"], effective_year)) * dep_reduced,
             ca_phaded2=phase_start,
+            ca_excrd=(pl.col("ca_txp_raw") + aged_count()) * (per_person - reduction).clip(0, None)
+            + dep_reduced * (per_dependent - reduction).clip(0, None),
         )
-        reductions = credit_count * float(recent["phaseout_amount"]) * (
-            (pl.col("agi") - phase_start).clip(0, None) / phase_step
-        ).floor()
-        df = df.with_columns(ca_excrd=(pl.col("ca_excrd") - reductions).clip(0, None))
     elif effective_year <= 1997:
         xmpaif = p.num("exemption_credit_xmpaif")
         df = df.with_columns(ca_excrd=p["exemption_credit_base_1987plus"] * xmpaif * (pl.col("ca_txp_raw") + aged_count() + dep_reduced))
@@ -536,8 +537,10 @@ def compute_ca_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         dylim = p.num("eitc_disqualified_income_limit")
         ieic = pl.col("dep18").clip(0, 3).cast(pl.Int64)
         earned = pl.col("wages") if effective_year <= 2016 else pl.col("earned_income")
-        crmax_vals = p["eitc_max_credit_by_children"][effective_year]
-        amax_vals = p["eitc_max_earned_by_children"][effective_year]
+        # These legacy tables end in 2024; 2022+ statutory results come from `caleitc_2022plus`.
+        table_year = min(effective_year, 2024)
+        crmax_vals = p["eitc_max_credit_by_children"][table_year]
+        amax_vals = p["eitc_max_earned_by_children"][table_year]
         cr = pl.lit(0.0)
         am = pl.lit(0.0)
         for i, (c, a) in enumerate(zip(crmax_vals, amax_vals)):
@@ -549,9 +552,9 @@ def compute_ca_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         base_agi = (am - posagi).clip(0, None)
         earncr = pl.when(posagi >= 0.5 * am).then(pl.min_horizontal(earncr, base_agi * cr / (0.5 * am))).otherwise(earncr)
         if effective_year >= 2017:
-            ym_vals = p["eitc_2017plus_ym"][effective_year]
-            em_vals = p["eitc_2017plus_em"][effective_year]
-            amax17_vals = p["eitc_2017plus_amax"][effective_year]
+            ym_vals = p["eitc_2017plus_ym"][table_year]
+            em_vals = p["eitc_2017plus_em"][table_year]
+            amax17_vals = p["eitc_2017plus_amax"][table_year]
             ym1 = pl.lit(0.0)
             em1 = pl.lit(0.0)
             amax17_c = pl.lit(0.0)

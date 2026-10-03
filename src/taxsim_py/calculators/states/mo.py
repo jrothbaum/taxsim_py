@@ -192,7 +192,12 @@ def compute_mo_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         fedtax = share * fedtax
 
     df, (fedtax, exemp) = checkpoint(df, mo_fedtax=fedtax, mo_exemp=exemp)
-    df, (taxinc,) = checkpoint(df, mo_taxinc=(agi - deduc - fedtax - exemp).clip(0, None))
+    cg_subtraction = pl.lit(0.0)
+    if y >= 2025 and behavior.mode.value == "statutory":
+        cg_subtraction = float(resolve_year(MO_PARAMS["capital_gains_subtraction_2025plus"], y)) * (
+            pl.col("stcg") + pl.col("ltcg")
+        ).clip(0, None)
+    df, (taxinc,) = checkpoint(df, mo_taxinc=(agi - deduc - fedtax - exemp - cg_subtraction).clip(0, None))
     aif = p.num("bracket_inflation")
     brackets = scale_brackets(resolve_year(MO_PARAMS["brackets"], y), aif)
     df, (taxh, taxw) = checkpoint(df, mo_taxinc_h=taxinc * agih / agi, mo_taxinc_w=taxinc * agiw / agi)

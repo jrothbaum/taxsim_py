@@ -92,6 +92,8 @@ child_tax_credit:
     2009: 1000
     2018: 2000
     2019: 2000
+    # 2025: $2,200 (OBBBA, P.L. 119-21 sec. 70104; indexed from 2026).
+    2025: 2200
   # earlim: $8,500 for 2008 specifically (the pre-ARRA level - confirmed
   # via the source's own `ealim` array, taxsim_2022_10_21.f, genuinely
   # different from every other year checked so far, not a typo), ARRA

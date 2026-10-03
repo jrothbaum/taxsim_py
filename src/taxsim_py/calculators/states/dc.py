@@ -110,6 +110,9 @@ def compute_dc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         single_sd = float(resolve_year(FEDERAL_INCOME_TAX_PARAMS["standard_deduction"]["single"], effective_year))
         joint_sd = float(resolve_year(FEDERAL_INCOME_TAX_PARAMS["standard_deduction"]["married_joint"], effective_year))
         hoh_sd = float(resolve_year(FEDERAL_INCOME_TAX_PARAMS["standard_deduction"]["head_of_household"], effective_year))
+        if effective_year >= 2025 and behavior.mode.value == "statutory":
+            nonconforming = resolve_year(p["standard_deduction_nonconforming"], effective_year)
+            single_sd, joint_sd, hoh_sd = (float(nonconforming[k]) for k in ("single", "married_joint", "head_of_household"))
         df = df.with_columns(
             dc_stded=pl.when(files_single())
             .then(single_sd)
@@ -334,6 +337,11 @@ def compute_dc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
                 float(recent_p["max"]),
                 (ptax - pl.when(elderly).then(elderly_rate).otherwise(nonelderly_rate) * agix).clip(0, None),
             )
+            # Above the last income bound there is no credit (not a 0% rate).
+            limit = pl.when(elderly).then(float(recent_p["elderly_upper_bounds"][-2])).otherwise(
+                float(recent_p["nonelderly_upper_bounds"][-2])
+            )
+            pcred = pl.when(agix >= limit).then(0.0).otherwise(pcred)
         else:
             table_years = p["property_credit_by_year_2014plus"]
             lookup_year = effective_year if effective_year in table_years else max(y for y in table_years if y <= effective_year)

@@ -262,6 +262,7 @@ alt_tax_rate_1998plus:
   2022: 0.0853
   2023: 0.06
   2024: 0.057
+  2025: 0.043
 
 # AMT (`alty`, Form 6251-style since 1985).
 amt_rate:
@@ -421,6 +422,10 @@ brackets_2023plus:
   2024:
     other: [[0, 0.044], [6210, 0.0482], [31050, 0.057]]
     joint: [[0, 0.044], [12420, 0.0482], [62100, 0.057]]
+  # 2025: a flat 3.8% rate (S.F. 2442).
+  2025:
+    other: [[0, 0.038]]
+    joint: [[0, 0.038]]
 
 # Retirement income exclusion, 2022+ (PolicyEngine-US gov.states.ia.tax.income.pension_exclusion, queried
 # 2026-10-01): age 55 and over; capped per taxpayer in 2022, unlimited from 2023.

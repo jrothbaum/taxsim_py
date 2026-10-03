@@ -220,7 +220,7 @@ def compute_ne_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         # expenses are paid, otherwise income at or below the federal poverty guideline.
         c = p["child_tax_credit_2024plus"]
         household = taxpayer_count() + pl.col("depx")
-        poverty = float(c["poverty_first_person"]) + float(c["poverty_additional_person"]) * (household - 1)
+        poverty = float(resolve_year(c["poverty_first_person"], effective_year)) + float(resolve_year(c["poverty_additional_person"], effective_year)) * (household - 1)
         eligible = (pl.col("childcare") > 0) | (pl.col("agi") <= poverty)
         amount = bracket_rate(pl.col("agi"), c["amount"])
         ctc = pl.when(eligible).then(amount * pl.col("dep6")).otherwise(0.0)

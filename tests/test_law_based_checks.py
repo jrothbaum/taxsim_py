@@ -217,3 +217,25 @@ def test_california_yctc_needs_a_young_child() -> None:
     statutory = calculate_taxes(older_child, calculation_mode="statutory").get_column("siitax").item()
     compat = calculate_taxes(older_child, calculation_mode="taxsim").get_column("siitax").item()
     assert compat < statutory
+
+
+def test_2025_federal_obbba_provisions() -> None:
+    """2025: $2,200 child credit, $6,000 senior deduction, and the SALT cap that phases down above $500,000."""
+    base = {"year": 2025, "state": 44, "mstat": 1}
+    cases = pl.DataFrame(
+        [
+            {**base, "pwages": 40_000.5, "depx": 1, "dep17": 1, "dep18": 1},
+            {**base, "pwages": 40_000.5, "depx": 0},
+            {**base, "pwages": 40_000.5, "depx": 0, "page": 70},
+            {**base, "pwages": 600_000.5, "depx": 0, "proptax": 50_000.0, "mortgage": 30_000.0},
+        ]
+    )
+    result = calculate_taxes(cases, calculation_mode="statutory", keep_intermediate=True)
+    no_child_tax = result["fiitax"][1]
+
+    # Child credit: the 2025 amount is $2,200 per child (2024: $2,000).
+    assert result["actc"][0] + result["odc"][0] > 2_000
+    # Senior deduction: $6,000 less 6% of income over $75,000, at the 12% bracket here.
+    assert abs((no_child_tax - result["fiitax"][2]) - 0.12 * 6_000 - 0.12 * 2_000) < 5
+    # SALT cap: $40,000 less 30% of AGI over $500,000, but never below $10,000.
+    assert result["salt_capped"][3] == 10_000.0

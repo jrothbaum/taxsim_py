@@ -337,6 +337,8 @@ food_sales_tax_credit_amount:  # `food(law)`, used 1998-2021 (formula
   2011: 45.0
   2012: 47.0
   2013: 125.0
+  # Repealed for tax year 2025 (PolicyEngine-US credits.food_sales_tax.amount).
+  2025: 0.0
 food_sales_tax_refund_agi_ceiling:  # `agimax(law)`
   1998: 12500
   2003: 13150

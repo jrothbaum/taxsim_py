@@ -271,6 +271,7 @@ personal_exemption_amount:
   2022: 4450
   2023: 4700
   2024: 5000
+  2025: 5150
 # 2018+ exemption phaseout.
 exemption_phaseout_2018plus_threshold:
   single: 266700
@@ -399,6 +400,7 @@ itemized_deduction_phaseout_cap_2013_2021:
   2022: 31150
   2023: 33200
   2024: 35250
+  2025: 36300
 
 # Sales Tax Fairness Credit (2016+, refundable) - real income-threshold
 # and per-exemption-count-tiered tables.
@@ -451,6 +453,7 @@ pension_deduction_per_taxpayer:
   2022: 25000
   2023: 30000
   2024: 45864
+  2025: 48216
 
 # Credit for the elderly: share of the federal credit, 1978-2016.
 elderly_credit_share: 0.2
@@ -522,22 +525,49 @@ brackets_2022plus:
   2022: [[0, 0.058], [23000, 0.0675], [54450, 0.0715]]
   2023: [[0, 0.058], [24500, 0.0675], [58050, 0.0715]]
   2024: [[0, 0.058], [26050, 0.0675], [61600, 0.0715]]
+  2025: [[0, 0.058], [26800, 0.0675], [63450, 0.0715]]
 
 # 2022+ exemption phase-out starts (PolicyEngine-US ...personal_exemption.phaseout.start; width 125,000).
 exemption_phaseout_2022plus:
-  2022: {single: 286200, married_joint: 343400, married_separate: 143100, head_of_household: 314800}
-  2023: {single: 305150, married_joint: 366100, married_separate: 152575, head_of_household: 335650}
-  2024: {single: 323900, married_joint: 388650, married_separate: 161950, head_of_household: 356300}
+  2022: {single: 286200, married_joint: 343400, married_separate: 171700, head_of_household: 314800}
+  2023: {single: 305150, married_joint: 366100, married_separate: 183050, head_of_household: 335650}
+  2024: {single: 323900, married_joint: 388650, married_separate: 194325, head_of_household: 356300}
+  2025: {single: 333450, married_joint: 400100, married_separate: 200050, head_of_household: 366750}
 
 # 2022+ standard/itemized deduction phase-out starts (PolicyEngine-US ...deductions.phase_out.start).
 deduction_phaseout_2022plus:
   2022: {single: 85850, married_joint: 171700, married_separate: 85850, head_of_household: 128750}
   2023: {single: 91500, married_joint: 183050, married_separate: 91500, head_of_household: 137300}
   2024: {single: 97150, married_joint: 194300, married_separate: 97150, head_of_household: 145750}
+  2025: {single: 100000, married_joint: 200050, married_separate: 100000, head_of_household: 150000}
 
 # 2022+ credits (PolicyEngine-US gov.states.me.tax.income.credits, queried 2026-10-01).
 eitc_rate_2022plus: {with_child: 0.25, childless: 0.5}
-dependent_exemption_credit_2022plus: {amount: 300, start_joint: 400000, start_other: 200000, increment: 1000, step: 7.5}
+# Dependent exemption credit (PolicyEngine-US ...credits.dependent_exemption): `amount` per dependent, doubled
+# for a dependent under 6 from 2025, reduced by `step` per `increment` (or part) of Maine AGI over the start.
+dependent_exemption_credit_2022plus:
+  2022: {amount: 300, young_multiplier: 1, start_joint: 400000, start_other: 200000, increment: 1000, step: 7.5}
+  2025: {amount: 305, young_multiplier: 2, start_joint: 150000, start_hoh: 125000, start_single: 100000, start_separate: 75000, increment: 500, step: 20}
+
+# 2025 on: Maine keeps the pre-2025-law federal standard deduction amounts (it did not adopt the
+# 2025 increase), plus an additional amount per taxpayer 65 or older.
+standard_deduction_2025plus:
+  2025: {single: 15000, married_joint: 30000, head_of_household: 22500, married_separate: 15000, aged_single: 2000, aged_married: 1600}
+
+# 2025 on: the pension income deduction phases out above these Maine-return AGI starts over `width`
+# (36 M.R.S. 5122(2)(M-3)).
+pension_deduction_phaseout_2025plus:
+  2025:
+    start: {single: 125000, married_joint: 250000, head_of_household: 187500, married_separate: 125000}
+    width: {single: 100000, married_joint: 100000, head_of_household: 100000, married_separate: 50000}
+
+# 2022+ property tax fairness credit (PolicyEngine-US ...credits.fairness.property_tax): the benefit base
+# less `income_rate` of income, at most `cap`; rent counts at `rent_share`.
+ptfc_2022plus:
+  2022: {single: 2200, hoh_one_child: 2800, joint_or_multi: 3450, senior: 0, cap: 1000, cap_senior: 1500, income_rate: 0.04, rent_share: 0.15}
+  2023: {single: 2300, hoh_one_child: 3000, joint_or_multi: 3700, senior: 0, cap: 1000, cap_senior: 1500, income_rate: 0.04, rent_share: 0.15}
+  2024: {single: 2450, hoh_one_child: 3200, joint_or_multi: 3900, senior: 4000, cap: 1000, cap_senior: 2000, income_rate: 0.04, rent_share: 0.15}
+  2025: {single: 2550, hoh_one_child: 3300, joint_or_multi: 4050, senior: 4100, cap: 1000, cap_senior: 2000, income_rate: 0.04, rent_share: 0.15}
 
 # 2022+ sales tax fairness credit (PolicyEngine-US gov.states.me.tax.income.credits.fairness.sales_tax,
 # queried 2026-10-01): base plus additional by children, less `amount` per `increment` of income above `start`.
@@ -560,3 +590,9 @@ stfc_2022plus:
     married_separate: {base: 0, start: 0, increment: 0, step: 0}
     head_of_household: {base: 210, start: 37100, increment: 750, step: 15}
     additional: {joint: [[0, 0], [1, 30], [2, 60]], head_of_household: [[0, 0], [2, 30], [3, 60]]}
+  2025:
+    single: {base: 155, start: 25450, increment: 500, step: 10}
+    married_joint: {base: 215, start: 50950, increment: 1000, step: 20}
+    married_separate: {base: 0, start: 0, increment: 0, step: 0}
+    head_of_household: {base: 215, start: 38200, increment: 750, step: 15}
+    additional: {joint: [[0, 0], [1, 35], [2, 65]], head_of_household: [[0, 0], [2, 35], [3, 65]]}

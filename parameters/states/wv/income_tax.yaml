@@ -20,6 +20,7 @@ brackets:
   1987: [[0, 0.03], [10000, 0.04], [25000, 0.045], [40000, 0.06], [60000, 0.065]]
   # 2023+: the 21.5% cut (PolicyEngine-US gov.states.wv.tax.income.rates, queried 2026-10-01); same thresholds.
   2023: [[0, 0.0236], [10000, 0.0315], [25000, 0.0354], [40000, 0.0472], [60000, 0.0512]]
+  2025: [[0, 0.0222], [10000, 0.0296], [25000, 0.0333], [40000, 0.0444], [60000, 0.0482]]
 surtax: {1983: 1.09, 1984: 1.12, 1985: 1.06}
 surtax_income_per_taxpayer: 10000.0
 
@@ -44,6 +45,7 @@ family_credit_limit:
   2022: [13590, 18310, 23030, 27750, 32470, 37190, 41910, 46630]
   2023: [14580, 19720, 24860, 30000, 35140, 40280, 45420, 50560]
   2024: [15060, 20440, 25820, 31200, 36580, 41960, 47340, 52720]
+  2025: [15650, 21150, 26650, 32150, 37650, 43150, 48650, 54150]
 family_credit_full_share: {2007: 0.5, 2008: 1.0}
 family_credit_phaseout_points: {2007: 5.0, 2008: 10.0}
 family_credit_phaseout_step: 300.0
@@ -58,7 +60,10 @@ property_credit_per_person: {2008: 5400.0, 2009: 5610.0, 2011: 5730.0, 2012: 118
 
 # 2020+: share of taxable Social Security subtracted when federal AGI is at
 # most the limit per taxpayer.
-social_security_subtraction_share: {2020: 0.35, 2021: 0.65}
+# 2022+: the whole benefit is exempt below the AGI limit; above it the exempt share phases in (35% in
+# 2024, 65% in 2025, all in 2026) - PolicyEngine-US subtractions.social_security_benefits.
+social_security_subtraction_share: {2020: 0.35, 2021: 0.65, 2022: 1.0}
+social_security_above_limit_share: {2022: 0.0, 2024: 0.35, 2025: 0.65}
 social_security_subtraction_agi_per_taxpayer: 50000
 # Senior citizen deduction: up to this per taxpayer 65 or older, from total
 # income (federal total income plus taxable Social Security) split between

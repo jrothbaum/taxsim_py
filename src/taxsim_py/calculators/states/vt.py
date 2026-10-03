@@ -5,7 +5,7 @@ import polars as pl
 from taxsim_py.engine.brackets import bracket_rate, bracket_tax, scale_brackets
 from taxsim_py.calculators.payroll import payroll_parts
 from taxsim_py.engine.inputs import aged_count, federal_exemption_count, files_head_of_household, files_joint, files_separate, files_single, is_dependent_filer
-from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml
+from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml, resolve_year
 from taxsim_py.engine.state import (
     checkpoint,
     household_income,
@@ -108,7 +108,7 @@ def compute_vt_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             ss = pl.col("taxable_social_security")
             starts = p["social_security_exemption_start"]
             if y >= 2022:
-                starts = p["social_security_exemption_start_2022plus"]
+                starts = resolve_year(p["social_security_exemption_start_2022plus"], y)
             phb = pl.when(is_joint).then(float(starts["married_joint"])).otherwise(float(starts["other"]))
             exssb = ss - ((fed_agi - phb).clip(0, None) / p["social_security_exemption_range"]).clip(None, 1.0) * ss
             agi = fed_agi - dedg - exssb
@@ -177,6 +177,10 @@ def compute_vt_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
 
     # --- Refundable credits ---
     earncr = p.num("eitc_rate") * pl.col("eitc") if y >= 1988 else pl.lit(0.0)
+    if y >= 2025 and behavior.mode.value == "statutory":
+        # Enhanced structure: the full federal credit for a filer with no child dependents.
+        childless = float(resolve_year(p["eitc_childless_rate_2025plus"], y))
+        earncr = pl.when(pl.col("dep17") < 1).then(childless * pl.col("eitc")).otherwise(earncr)
     telcr = pl.lit(0.0)
     if y >= 1986:
         aged_tel = pl.when(hh < p.num("telephone_credit_aged_income_limit")).then(p.num("telephone_credit")).otherwise(0.0)
@@ -224,7 +228,9 @@ def compute_vt_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         credit = p["child_tax_credit_2022plus"]
         excess = (fed_agi - float(credit["reduction_start"])).clip(0, None)
         reduction = float(credit["reduction_amount"]) * (excess / float(credit["reduction_increment"])).ceil()
-        ctc = (float(credit["amount"]) * pl.col("dep6") - reduction).clip(0, None)
+        # (counts without ages fall back to the under-6 count)
+        young = pl.max_horizontal(pl.col("children_under_7"), pl.col("dep6")) if resolve_year(p["child_tax_credit_age_limit_2022plus"], y) >= 7 else pl.col("dep6")
+        ctc = (float(credit["amount"]) * young - reduction).clip(0, None)
     statax = statax - pcred - earncr - telcr - chcref - ctc
 
     df = df.with_columns(siitax=statax * flate)

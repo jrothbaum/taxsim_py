@@ -227,6 +227,14 @@ property_credit_recent:
     elderly_rates: [0.03, 0.0]
     elderly_age: 70
     rent_share: 0.20
+  2025:
+    max: 1425
+    nonelderly_upper_bounds: [25000, 52000, 66000, .inf]
+    nonelderly_rates: [0.03, 0.04, 0.05, 0.0]
+    elderly_upper_bounds: [90000, .inf]
+    elderly_rates: [0.03, 0.0]
+    elderly_age: 70
+    rent_share: 0.20
 
 # Low Income Credit (1987-2017, expired thereafter) - the source's own
 # 2D interpolation tables are indexed by an "elderly+blind dependent"
@@ -373,12 +381,17 @@ eitc_rate_2001_2004:
   2001: 0.25
 eitc_rate_2005_2007:
   2005: 0.35
+# 2025 on: DC has not adopted the larger federal standard deduction (PolicyEngine-US
+# gov.states.dc.tax.income.deductions.standard); these are the amounts before that law.
+standard_deduction_nonconforming:
+  2025: {single: 15000, married_joint: 30000, head_of_household: 22500}
 eitc_rate_2008plus:
   2008: 0.40
   # PolicyEngine-US: gov.states.dc.tax.income.credits.eitc.with_children.match.
   2022: 0.70
   2023: 0.70
   2024: 0.70
+  2025: 1.0
 eitc_childless_max_credit_by_year:  # `crmaxd(law)`
   2015: 503
   2016: 506
@@ -393,6 +406,7 @@ eitc_childless_max_credit_by_year:  # `crmaxd(law)`
   2022: 560
   2023: 600
   2024: 632
+  2025: 649
 eitc_childless_max_earned_by_year:  # `amaxd(law)`
   2015: 24040
   2016: 24254
@@ -405,6 +419,7 @@ eitc_childless_max_earned_by_year:  # `amaxd(law)`
   2022: 27136
   2023: 28964
   2024: 30019
+  2025: 30941
 eitc_childless_phaseout_start_by_year:  # `ymaxd(law)`
   2015: 18111
   2016: 18292
@@ -416,6 +431,7 @@ eitc_childless_phaseout_start_by_year:  # `ymaxd(law)`
   2022: 20532
   2023: 21888
   2024: 22566
+  2025: 23288
 eitc_disqualified_income_limit_by_year:  # `dyd(law)`
   2015: 3400
   2017: 3450

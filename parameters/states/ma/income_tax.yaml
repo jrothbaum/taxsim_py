@@ -338,5 +338,5 @@ personal_credit_pre1984:
   per_dependent: 4
 
 # 2023+ statutory additions (PolicyEngine-US gov.states.ma.tax.income, queried 2026-10-01).
-additional_tax_2023plus: {rate: 0.04, threshold: {2023: 1000000, 2024: 1053750}}
-child_and_family_credit_2023plus: {2023: 310, 2024: 440}
+additional_tax_2023plus: {rate: 0.04, threshold: {2023: 1000000, 2024: 1053750, 2025: 1083150}}
+child_and_family_credit_2023plus: {2023: 310, 2024: 440, 2025: 440}

@@ -465,3 +465,11 @@ uv run --group test pytest tests/test_calculation_modes.py tests/test_independen
 - **Not modelled (decision 2026-10-01: leave as is for now):** the 7% capital gains excise tax on long-term gains over $250,000 (2022; $262,000 in 2023, $270,000 in 2024). TAXSIM's `ltcg` cannot separate the real estate and retirement-account gains the tax exempts, and TAXSIM itself never taxed them. PolicyEngine taxes all `ltcg`, so a household with large gains differs from PolicyEngine by about 7% of the gain above the threshold. Revisit if a high-gain Washington case matters.
 - **Implementation:** `taxsim_py.calculators.states.wa.compute_wa_tax`, `parameters/states/wa/income_tax.yaml`.
 - **Test:** `test_washington_working_families_credit_only_in_statutory_mode`.
+
+## 2025-LAW: provisions added for tax year 2025
+
+Federal: child credit $2,200, senior deduction, SALT cap phase-down (`parameters/national/*`). States: see "Tax year
+2025" in policyengine_recent_state_comparison.md. Statutory mode only for provisions that differ from TAXSIM's
+conventions (for example Maine's and DC's refusal of the larger federal standard deduction, South Carolina's
+non-conformity addbacks); parameter-only updates apply in every mode. Washington's Working Families credit
+extends to 2025 (see WA-001).

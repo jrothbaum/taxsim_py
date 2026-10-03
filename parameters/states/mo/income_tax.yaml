@@ -13,6 +13,7 @@ brackets:
   2022: [[0, 0.015], [1121, 0.02], [2242, 0.025], [3363, 0.03], [4484, 0.035], [5605, 0.04], [6726, 0.045], [7847, 0.05], [8968, 0.053]]
   2023: [[0, 0.0], [1207, 0.02], [2414, 0.025], [3621, 0.03], [4828, 0.035], [6035, 0.04], [7242, 0.045], [8449, 0.0495]]
   2024: [[0, 0.0], [1273, 0.02], [2546, 0.025], [3819, 0.03], [5092, 0.035], [6365, 0.04], [7638, 0.045], [8911, 0.048]]
+  2025: [[0, 0.0], [1313, 0.02], [2626, 0.025], [3939, 0.03], [5252, 0.035], [6565, 0.04], [7878, 0.045], [9191, 0.047]]
 bracket_inflation:
   1977: 1.0
   2017: 1.008
@@ -23,6 +24,7 @@ bracket_inflation:
   2022: 1.0
   2023: 1.0
   2024: 1.0
+  2025: 1.0
 # No tax when taxable income is below this amount (times the inflation factor).
 minimum_taxable_income: {1977: 100}
 
@@ -236,5 +238,9 @@ property_credit_rate_step: 0.000625
 # Working Family Tax Credit (2023+; PolicyEngine-US gov.states.mo.tax.income.credits.wftc): a share of the
 # federal EITC, nonrefundable, unavailable above the investment income limit.
 working_family_credit_2023plus:
-  match: {2023: 0.1, 2024: 0.2}
-  investment_income_limit: {2023: 4050, 2024: 4300}
+  match: {2023: 0.1, 2024: 0.2, 2025: 0.2}
+  investment_income_limit: {2023: 4050, 2024: 4300, 2025: 4400}
+
+# 2025 on (PolicyEngine-US gov.states.mo.tax.income.subtractions.net_capital_gain.rate): share of net capital
+# gain subtracted from Missouri taxable income.
+capital_gains_subtraction_2025plus: {2025: 1.0}

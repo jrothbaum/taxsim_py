@@ -128,7 +128,7 @@ def compute_ut_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             stt = pl.min_horizontal(salt, sttax - other)
             itemized = pl.col("itemized_before_limit") - stt
         deduc = pl.when(fed_itemizes).then(itemized).otherwise(pl.col("standard_deduction"))
-        if y in (2022, 2023, 2024):
+        if y >= 2022:
             actual_thresholds = p["taxpayer_credit_phaseout_threshold_actual"][y]
             threshold = by_filing_status(actual_thresholds)
             credit_base = deduc + p.num("taxpayer_credit_personal_exemption") * pl.col("depx")
@@ -148,7 +148,7 @@ def compute_ut_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         # Utah law. PolicyEngine applies the larger potential credit, rather
         # than adding both as the old TAXSIM-era implementation did.
         ss = pl.col("taxable_social_security")
-        if y in (2022, 2023, 2024):
+        if y >= 2022:
             retirement_age = p["retirement_credit_age"][y]
             retirement_taxpayers = (
                 (pl.col("page") >= retirement_age).cast(pl.Float64)
@@ -174,10 +174,13 @@ def compute_ut_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
                 )
             ).otherwise(0.0)
 
-        if y in (2022, 2023, 2024):
+        if y >= 2022:
             # Survey adapters may provide this semantic extension directly;
             # it is deliberately outside TAXSIM's 35 inputs.
             ctc_children = pl.col("children_under_4").cast(pl.Float64)
+            if y >= 2025:
+                # From 2025 every child under 6 (including a newborn) qualifies.
+                ctc_children = pl.col("dep6").cast(pl.Float64)
             ctc_threshold = by_filing_status(p["child_tax_credit_phaseout_start"][y])
             # The credit starts with tax year 2024 (UC 59-10-1047).
             ctc = (

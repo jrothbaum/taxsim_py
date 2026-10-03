@@ -325,8 +325,8 @@ def calculate_taxes(
     state FIPS codes when ``state_id_type="fips"``; 0 means no state. Input
     columns other than the year, state and ``mstat`` default to 0 when absent
     or null (``dep13``, ``dep17`` and ``dep18`` default to ``depx``). Optional
-    semantic survey extensions ``children_under_3`` and ``children_under_4``
-    also default to 0; they are not part of TAXSIM's 35-input contract. The returned
+    semantic survey extensions ``children_under_3``, ``children_under_4`` and
+    ``children_under_7`` also default to 0; they are not part of TAXSIM's 35-input contract. The returned
     eager frame is the input, unchanged and in order, plus ``OUTPUT_COLUMNS``;
     ``keep_intermediate=True`` also returns every intermediate federal and
     state column. Mixed-year calls resolve years concurrently; large

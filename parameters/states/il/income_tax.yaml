@@ -76,6 +76,7 @@ personal_exemption_amount:
   2022: 2425
   2023: 2425
   2024: 2775
+  2025: 2850
 eitc_match_rate:
   2000: 0.05
   2012: 0.075
@@ -91,7 +92,7 @@ eitc_match_rate:
 # (share of the state EITC, children under 12), PolicyEngine-US
 # gov.states.il.tax.income.credits.{eitc.childless_min_age,ctc.rate}.
 eitc_childless_minimum_age: 18
-child_tax_credit_rate: 0.20
+child_tax_credit_rate: {2024: 0.20, 2025: 0.40}
 property_tax_credit_rate:
   1991: 0.05
 property_tax_credit_income_cap:

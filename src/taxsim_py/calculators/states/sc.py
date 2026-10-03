@@ -155,6 +155,9 @@ def compute_sc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             tx = pl.min_horizontal(tx, itemized)
     else:
         room = (p["salt_cap_2018"] / sep - pl.col("proptax") - pl.col("otheritem")).clip(0, None)
+        if y >= 2025 and behavior.mode.value == "statutory":
+            # The federal cap is no longer $10,000; use what the federal return actually deducted.
+            room = (pl.col("salt_capped") - pl.col("proptax") - pl.col("otheritem")).clip(0, None)
         tx = pl.min_horizontal(salt, pl.min_horizontal(itemized.clip(0, None), room))
     tx = pl.when(fed_itemizes).then(tx).otherwise(0.0)
 
@@ -178,6 +181,9 @@ def compute_sc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         reduced = itemized + pl.col("personal_exemptions")
         adjust = pl.when(fed_itemizes).then((unreduced - reduced).clip(0, None)).otherwise(0.0)
 
+    if y >= 2025 and behavior.mode.value == "statutory":
+        increase = by_filing_status({k: float(v) for k, v in resolve_year(p["obbba_standard_deduction_increase"], y).items()})
+        add = add + pl.when(fed_itemizes).then(0.0).otherwise(increase) + pl.col("senior_deduction")
     exemp = pl.lit(0.0)
     if y >= 2018:
         exemp = p.num("dependent_exemption") * (depx + pl.col("dep6"))

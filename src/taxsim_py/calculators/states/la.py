@@ -4,7 +4,7 @@ import polars as pl
 
 from taxsim_py.engine.brackets import bracket_rate, bracket_tax
 from taxsim_py.engine.inputs import aged_count, files_head_of_household, files_joint, files_single, separate_divisor, taxpayer_count
-from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml
+from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml, resolve_year
 from taxsim_py.engine.state import with_state_detail
 from taxsim_py.behavior import BehaviorProfile, TAXSIM_BEHAVIOR
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
@@ -31,7 +31,7 @@ def compute_la_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     # --- AGI --- less exempt retirement income and Social Security, net of
     # the federal tax attributable to them.
     penexc = (
-        pl.col("pensions").clip(0, p["aged_pension_exemption"] * aged_count()) if effective_year >= 1981 else pl.lit(0.0)
+        pl.col("pensions").clip(0, p.num("aged_pension_exemption") * aged_count()) if effective_year >= 1981 else pl.lit(0.0)
     )
     ssi = pl.col("taxable_social_security") if effective_year >= 1985 else pl.lit(0.0)
     subtr = penexc + ssi
@@ -112,7 +112,15 @@ def compute_la_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         # Exemptions: dependents and each taxpayer 65 or older add $1,000.
         stxmp = stxmp + float(p["additional_exemption_2022plus"]) * (pl.col("depx") + aged_count())
     exemption_credit = pl.lit(0.0)
-    if effective_year >= 2022:
+    flat_2025 = effective_year >= 2025 and behavior.mode.value == "statutory"
+    if flat_2025:
+        sd = resolve_year(p["standard_deduction_2025plus"], effective_year)
+        stxmp = (
+            pl.when(files_single() | (pl.col("filing_status") == "married_separate")).then(float(sd["single"]))
+            .when(is_hoh).then(float(sd["head_of_household"])).otherwise(float(sd["married_joint"]))
+        )
+        df = df.with_columns(la_taxinc=(pl.col("la_taxinc") - stxmp).clip(0, None), la_exemp=stxmp)
+    elif effective_year >= 2022:
         # Exemptions reduce tax at the lowest rate instead of reducing taxable income.
         exemption_credit = float(p["brackets_2022plus_single"][0][1]) * stxmp
         df = df.with_columns(la_taxinc=pl.col("la_taxinc"), la_exemp=stxmp)
@@ -174,7 +182,10 @@ def compute_la_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             .otherwise(bracket_rate(pl.col("la_taxinc"), hoh_table))
         )
 
-    if effective_year >= 2022:
+    if flat_2025:
+        statax = resolve_year(p["flat_rate_2025plus"], effective_year) * pl.col("la_taxinc")
+        rate_expr = pl.lit(float(resolve_year(p["flat_rate_2025plus"], effective_year)))
+    elif effective_year >= 2022:
         statax = (statax - exemption_credit).clip(0, None)
     df = df.with_columns(la_statax=statax)
 

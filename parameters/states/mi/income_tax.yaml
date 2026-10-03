@@ -63,6 +63,7 @@ personal_exemption:
   2022: 5000
   2023: 5400
   2024: 5600
+  2025: 5800
 special_exemption:
   1977: 0
   1987: 1400
@@ -115,6 +116,7 @@ property_credit_phaseout_start:
   2022: 54000
   2023: 58300
   2024: 60700
+  2025: 62500
 property_credit_income_share:
   1977: 0.035
   2018: 0.032
@@ -129,6 +131,7 @@ property_credit_cap:
   2022: 1600
   2023: 1700
   2024: 1800
+  2025: 1900
 property_credit_phaseout_rate:
   1977: 0.1
 property_credit_phaseout_step:
@@ -207,6 +210,7 @@ heating_credit_base_2006plus:  # `fuelc3`, first exemption
   2022: 524
   2023: 562
   2024: 581
+  2025: 597.751
 heating_credit_per_extra_exemption:  # `cin2` (1985+)
   1985: 70
   1986: 73
@@ -246,6 +250,7 @@ heating_credit_per_extra_exemption:  # `cin2` (1985+)
   2022: 182
   2023: 198
   2024: 208
+  2025: 213.997
 
 # Refundable EITC, share of federal (`reic`, 2008+).
 eitc_rate:
@@ -333,10 +338,10 @@ senior_standard_deduction:
 
 # 2023+: retirement subtraction phased in for taxpayers born 1946-1958 as a
 # share of the maximum for private pensions (Public Act 4 of 2023).
-expanded_retirement_share: {2022: 0.0, 2023: 0.25, 2024: 0.5}
+expanded_retirement_share: {2022: 0.0, 2023: 0.25, 2024: 0.5, 2025: 0.75}
 expanded_retirement_maximum:
-  single: {2022: 56961, 2023: 61518, 2024: 64040}
-  joint: {2022: 113922, 2023: 123036, 2024: 128080}
+  single: {2022: 56961, 2023: 61518, 2024: 64040, 2025: 65897}
+  joint: {2022: 113922, 2023: 123036, 2024: 128080, 2025: 131794}
 
 # A dependent filer's exemption; no tax when AGI is below it.
 dependent_filer_exemption:

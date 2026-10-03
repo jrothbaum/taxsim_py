@@ -48,6 +48,7 @@ def test_utah_recent_policyengine_parameters_are_loaded() -> None:
         2023: 0.0465,
         2024: 0.0455,
     }
-    assert params["earned_income_credit_rate"] == {2022: 0.15, 2023: 0.20, 2024: 0.20}
-    assert params["child_tax_credit_amount"] == {2022: 1000, 2023: 1000, 2024: 1000}
-    assert params["taxpayer_credit_personal_exemption"] == {2022: 1802, 2023: 1941, 2024: 2046}
+    recent = (2022, 2023, 2024)
+    assert {y: params["earned_income_credit_rate"][y] for y in recent} == {2022: 0.15, 2023: 0.20, 2024: 0.20}
+    assert {y: params["child_tax_credit_amount"][y] for y in recent} == {2022: 1000, 2023: 1000, 2024: 1000}
+    assert {y: params["taxpayer_credit_personal_exemption"][y] for y in recent} == {2022: 1802, 2023: 1941, 2024: 2046}

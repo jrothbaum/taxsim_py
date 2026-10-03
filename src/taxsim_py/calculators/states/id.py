@@ -168,6 +168,9 @@ def compute_id_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     df = df.with_columns(id_taxinc=(pl.col("id_agi") - pl.col("id_deduc") - pl.col("id_exemp")).clip(0, None))
     if effective_year >= 2018:
         df = df.with_columns(id_taxinc=(pl.col("id_taxinc") - pl.col("qbi_deduction")).clip(0, None))
+    if effective_year >= 2025 and behavior.mode.value == "statutory":
+        # Idaho conforms to the federal senior deduction (H.B. 559, 2026 session).
+        df = df.with_columns(id_taxinc=(pl.col("id_taxinc") - pl.col("senior_deduction")).clip(0, None))
 
     # --- Bracket tax ---
     year_table_map = [

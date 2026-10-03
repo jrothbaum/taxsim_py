@@ -597,6 +597,21 @@ MN joint at $750,000.  Aged interest-only rows were rechecked: CT is at an exemp
 
 Working-age: WA capital gains excise tax deliberately not modelled (see WA-001 in statutory_corrections.md); CA joint at $600,000 with children ($91-$280); IN 2024 joint with two children ($57); NY 2023 two-child low-income rows ($66-$291). Settled as PolicyEngine differences: VA (both credits), NY child credit (2017 federal rules). Age 65+: MD high income ($115), NM small, AR joint interest-only (income attribution between spouses), MN joint $750,000. Test grids should pass children's ages to the port as well as to PolicyEngine (`synm2`-style), or age-keyed credits (UT, NY) look wrong.
 
+### 2025 (2026-10-02)
+
+Added for federal and all states; see "Tax year 2025" in policyengine_recent_state_comparison.md. Open: tips,
+overtime and car-loan deductions (no TAXSIM input); Washington capital gains tax; Minnesota homeowner/renter
+refund tables are TAXSIM-era approximations not validated against PolicyEngine; state parameters for 2026 are not
+yet entered (years past 2025 still run 2025 law unindexed).
+
+### Large inputs
+
+`calculate_taxes_to_parquet(source, destination, chunk_rows=250_000)` runs a parquet file in slices and writes
+each result to disk. Measured: about 5 KB of memory per row in a call, so a call on N rows needs roughly
+0.3 GB + 5 KB x N; 3,000,000 rows took 52 s with a 2.0 GB peak at 250,000-row chunks (about 57,000 rows per
+second, so 100,000,000 rows is about 30 minutes). Peak memory follows `chunk_rows`, not the file size. PolicyEngine
+comparisons need far more (about 0.3 MB per row) and must be run in chunks of a few thousand rows.
+
 ### Uncommitted work
 - This repo is now committed and pushed through `5dc8faf` (2026-09-29), including the chunked-worker changes in `api.py`, the 2024/2025 federal parameter work, the oracle-generation archive, and the AL/CA/CT/IL/HI negative-capital-gains fixes.
 - Outside this repo, `survey_kit_data/src/survey_kit_data/census/cps_asec.py` (line 278) opens the data dictionary with `encoding='latin-1'`. That fix's commit status wasn't checked as part of this pass - it lives in a separate repository.

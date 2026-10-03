@@ -539,7 +539,17 @@ def _deductions(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorPr
     salt_uncapped_expr = pl.col("proptax") + pl.col("otheritem") + pl.col("state_sales_or_income_tax_ded")
     if year >= 2018:
         salt_cap = float(resolve_year(FEDERAL_ITEMIZED_PARAMS["salt_cap"], year))
-        salt_capped = salt_uncapped_expr.clip(0, None).clip(0, salt_cap / sepret_expr)
+        salt_cap_expr = pl.lit(salt_cap) / sepret_expr
+        phaseout_rate = float(resolve_year(FEDERAL_ITEMIZED_PARAMS["salt_phaseout"]["rate"], year)) if year >= 2025 else 0.0
+        if phaseout_rate > 0:
+            # The cap shrinks with income but never below the floor.
+            threshold = float(resolve_year(FEDERAL_ITEMIZED_PARAMS["salt_phaseout"]["threshold"], year))
+            floor = float(resolve_year(FEDERAL_ITEMIZED_PARAMS["salt_phaseout"]["floor"], year))
+            salt_cap_expr = pl.max_horizontal(
+                pl.lit(floor) / sepret_expr,
+                salt_cap_expr - phaseout_rate * (pl.col("agi") - threshold / sepret_expr).clip(0, None),
+            )
+        salt_capped = salt_uncapped_expr.clip(0, None).clip(None, salt_cap_expr)
     else:
         salt_capped = salt_uncapped_expr.clip(0, None)
 
@@ -652,10 +662,21 @@ def _deductions(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorPr
             within = pl.col("agi") - pep_threshold_expr <= ANALYTIC_RATE_PARAMS["exemption_phaseout_range"] / sepret_expr
             pexem = (amex > 0) & (amex_base - amex > 0) & within
         df = df.with_columns(analytic_pexem=pexem, analytic_exemptions_base=amex_base)
+    senior = pl.lit(0.0)
+    if year >= 2025:
+        sen_p = FEDERAL_INCOME_TAX_PARAMS["senior_deduction"]
+        sen_amount = float(resolve_year(sen_p["amount"], year))
+        if sen_amount > 0:
+            sen_threshold = pl.when(files_joint()).then(float(sen_p["phaseout_threshold"]["joint"])).otherwise(
+                float(sen_p["phaseout_threshold"]["other"])
+            )
+            per_person = (sen_amount - float(sen_p["phaseout_rate"]) * (pl.col("agi") - sen_threshold).clip(0, None)).clip(0, None)
+            senior = pl.when(files_separate() | dependent).then(0.0).otherwise(per_person * aged_count())
     df = df.with_columns(
         personal_exemptions=amex,
         exemption_phaseout=amex_base - amex,
-        taxable_income=(pl.col("agi") - deduction - amex).clip(0, None),
+        senior_deduction=senior,
+        taxable_income=(pl.col("agi") - deduction - amex - senior).clip(0, None),
     )
     if year >= 2018:
         df = df.with_columns(qbi_deduction=_qbi_deduction(year, _dividends(), _capital_gain(year)))

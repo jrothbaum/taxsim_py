@@ -17,7 +17,7 @@ standard_deduction_1987: {joint: 2000.0, other: 1000.0}
 standard_deduction_1988: {joint: 2700.0, other: 1350.0}
 # 1989-2004: single-type / married (halved for married filing separately).
 standard_deduction_1989: {single: 3000.0, married: 5000.0}
-standard_deduction_per_taxpayer: {2005: 3000.0, 2019: 4500.0, 2022: 8000.0, 2023: 8000.0, 2024: 8500.0}  # 2022+: PolicyEngine-US gov.states.va.tax.income.deductions.standard
+standard_deduction_per_taxpayer: {2005: 3000.0, 2019: 4500.0, 2022: 8000.0, 2023: 8000.0, 2024: 8500.0, 2025: 8750.0}  # 2022+: PolicyEngine-US gov.states.va.tax.income.deductions.standard
 
 # State income tax deduction limit (1991-2017): the federal-style limit
 # threshold and rates.
@@ -79,7 +79,7 @@ old_age_credit_base: {1977: 4952, 1978: 5518, 1979: 6640, 1980: 6864, 1981: 8124
 
 # 2022+ (PolicyEngine-US gov.states.va.tax.income.credits.eitc.match and .rebate, queried
 # 2026-10-01): refundable EITC election and the 2023-24 rebate (nonrefundable).
-eitc_refundable_rate_2022plus: 0.15
+eitc_refundable_rate_2022plus: {2022: 0.15, 2025: 0.20}
 rebate_2023plus:
-  married_joint: {2023: 400, 2024: 400}
-  other: {2023: 200, 2024: 200}
+  married_joint: {2023: 400, 2024: 400, 2025: 0}
+  other: {2023: 200, 2024: 200, 2025: 0}

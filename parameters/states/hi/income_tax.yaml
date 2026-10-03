@@ -284,6 +284,35 @@ brackets_hoh_2022plus:
   - [300000, 0.11]
   - [450000, 0.11]
 
+# 2025 on (Act 46 of 2024, PolicyEngine-US gov.states.hi.tax.income.rates): wider brackets; joint
+# returns use the single table on half the income.
+brackets_single_2025plus:
+  - [0, 0.014]
+  - [9600, 0.032]
+  - [14400, 0.055]
+  - [19200, 0.064]
+  - [24000, 0.068]
+  - [36000, 0.072]
+  - [48000, 0.076]
+  - [125000, 0.079]
+  - [175000, 0.0825]
+  - [225000, 0.09]
+  - [275000, 0.10]
+  - [325000, 0.11]
+brackets_hoh_2025plus:
+  - [0, 0.014]
+  - [14400, 0.032]
+  - [21600, 0.055]
+  - [28800, 0.064]
+  - [36000, 0.068]
+  - [54000, 0.072]
+  - [72000, 0.076]
+  - [187500, 0.079]
+  - [262500, 0.0825]
+  - [337500, 0.09]
+  - [412500, 0.10]
+  - [487500, 0.11]
+
 # Standard deduction (`std(law,mst)`) - by status, sparse year keys.
 standard_deduction_single:
   1977: 1000

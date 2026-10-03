@@ -40,3 +40,7 @@ forgiveness_allowance:
 forgiveness_phaseout: {1977: 1000.0, 1998: 2500.0}
 # 2022+: forgiveness falls by this share for each increment of income (or part) over the allowance.
 forgiveness_step_2022plus: {income: 250, share: 0.1}
+
+# 2025 on (Working Pennsylvanians Tax Credit, Act 56 of 2025; PolicyEngine-US credits.eitc.match): a refundable
+# share of the federal earned income credit.
+eitc_match_2025plus: {2025: 0.10}

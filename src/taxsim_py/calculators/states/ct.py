@@ -291,7 +291,7 @@ def compute_ct_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             year_table_map = {
                 1996: "brackets_1996", 1997: "brackets_1997", 1998: "brackets_1998",
             }
-            if effective_year == 2024:
+            if effective_year >= 2024:
                 prefix = "brackets_2024"
             elif effective_year in year_table_map:
                 prefix = year_table_map[effective_year]
@@ -527,7 +527,9 @@ def compute_ct_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
                 rows.append(tuple(p["property_credit_phaseout_final"]))
                 pct = interpolate_table(agix - phse, rows)
                 pcred = pcred - pct * pcred
-        if effective_year >= 2017:
+        # From 2022 the credit is open to every filer; 2017-2021 required a
+        # dependent or a taxpayer 65 or older (kept in TAXSIM mode).
+        if 2017 <= effective_year and not (behavior.mode.value == "statutory" and effective_year >= 2022):
             no_dep_or_elderly = (pl.col("depx") < 1) & (aged_count() < 1)
             pcred = pl.when(no_dep_or_elderly).then(0.0).otherwise(pcred)
         df = df.with_columns(ct_pcred=pcred.clip(0, None))
@@ -539,7 +541,11 @@ def compute_ct_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     if effective_year >= 2011:
         rate = p.num("eitc_rate_by_year")
         eitc_fed = pl.col("eitc").clip(0, None)
-        df = df.with_columns(ct_earncr=rate * eitc_fed)
+        earncr = rate * eitc_fed
+        if effective_year >= 2025:
+            # A flat bonus for a return with the credit and at least one qualifying child.
+            earncr = earncr + pl.when((eitc_fed > 0) & (pl.col("dep18") > 0)).then(p.num("eitc_child_bonus")).otherwise(0.0)
+        df = df.with_columns(ct_earncr=earncr)
     else:
         df = df.with_columns(ct_earncr=pl.lit(0.0))
 

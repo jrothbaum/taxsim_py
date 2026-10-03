@@ -431,3 +431,11 @@ def test_washington_working_families_credit_only_in_statutory_mode() -> None:
 
     assert taxsim == 0
     assert 0 > statutory >= -625
+
+
+def test_louisiana_2025_flat_tax_with_standard_deduction() -> None:
+    """Louisiana's 2025 flat 3% on income after a $12,500 deduction (Act 11 of 2024)."""
+    cases = pl.DataFrame([{"year": 2025, "state": 19, "mstat": 1, "pwages": 62_500.0}])
+    tax = calculate_taxes(cases, calculation_mode="statutory").get_column("siitax").item()
+
+    assert abs(tax - 0.03 * (62_500 - 12_500)) < 1.0

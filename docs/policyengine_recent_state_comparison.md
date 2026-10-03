@@ -270,6 +270,40 @@ Working-age results after the third pass (all 45 income-tax states, 2022-2024, $
 - **Traced and settled:** OK, CA, IN, PA, MA and NY 2022 as above. VA: PolicyEngine pays both the low-income credit and the refundable EITC; the 2023 Form 760 instructions allow only one, and the port follows them. NY: the small $16-$33 child-credit residuals are PolicyEngine using the current federal child credit, while Form IT-213 uses 2017 federal rules, which the port follows. Still open and small: CA joint at $600,000 with children ($91-$280) and single childless at $250,000 ($6), IN 2024 joint with two children ($57), NY 2023 two children at low income.
 - **ID:** the $10 fee.
 
+## Tax year 2025 (2026-10-02)
+
+All 45 income-tax states and the federal return were extended to 2025 from PolicyEngine's 2025 parameters, read
+against state forms where unclear. The same single-batch grid (working-age with child ages, aged pension /
+Social Security / interest, itemizers, renters) was run for 2022-2025.
+
+**Federal (2025 budget law, P.L. 119-21):** child credit $2,200; senior deduction ($6,000 per person 65+, less 6%
+of income over $75,000 / $150,000, not for married-separate); SALT cap $40,000 reduced 30% of AGI over $500,000
+to a $10,000 floor. Not modelled because TAXSIM has no input for them: deductions for tips, overtime and car
+loan interest. All federal grid rows match PolicyEngine.
+
+**State changes made for 2025:** AR new tables; CA indexing and the exemption-credit phase-out; CO rate 4.4% and
+credits; CT $250 EITC child bonus and property credit open to all; DC 100% EITC match and the pre-2025 standard
+deduction; GA 5.19% rate; HI Act 46 brackets; IA flat 3.8%; ID 5.3% rate and $155 food credit; IL CTC 40%; IN 3%;
+KS food credit repealed; KY indexing; LA flat 3% with a $12,500 / $25,000 deduction; MD new 6.25% / 6.5% rates, flat
+deduction, itemized phase-out, 2% capital gains surtax; ME pension phase-out, dependent credit, standard
+deduction and property tax credit rebuilt; MI, MN, MO (4.7% and no tax on capital gains), MS 4.4%, MT, NC 4.25%,
+ND, NE (5.2% top), NH interest and dividends tax repealed, NJ, NM (new schedule, $2,500 gains deduction),
+NY ($1,000 / $330 child credit), OH, OR, PA new 10% earned income credit, RI ($50,000 retirement exclusion), SC 6%
+top rate and non-conformity addbacks, UT 4.5% and child credit for ages 0-5, VA 20% refundable EITC, VT enhanced
+EITC and child credit through age 6, WA Working Families credit, WI new brackets and the 67+ retirement
+exclusion, WV new rates and Social Security phase-in, AZ senior deduction subtraction.
+
+Real-law corrections found while doing this (also apply to 2022-2024): CA itemized deduction no longer capped
+at $10,000 SALT and the exemption credit phases out per credit; DC property tax credit ends above its income
+limit; KS filers can itemize after 2020; MN, ME, NM and others had stale or missing tables; MA payroll deduction
+counts the employee half only; NY under-4 credit excluded in 2022.
+
+**Left as differences from PolicyEngine:** Delaware and Hawaii (imputed sales-tax itemized deduction, larger in
+2025 with the $40,000 SALT cap); Missouri / Montana pensions (pension-type convention); Maine rent assumed to
+exclude utilities; Maine affordability payment, Colorado TABOR rebates and Oregon kicker (one-time payments);
+Minnesota, Massachusetts, Vermont and Wisconsin renter / homeowner refund tables (PolicyEngine differs or lacks
+inputs); Indiana EITC (PolicyEngine gates on frozen 2023 rules); Kansas and Mississippi high-income itemizers.
+
 ## What is explained
 
 - **Arkansas:** The 2022-2024 standard deductions, ordinary rate tables, and

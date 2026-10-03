@@ -162,7 +162,11 @@ def compute_ia_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     # AGI, and the whole amount is added again.
     df = df.with_columns(
         ia_yad=pl.col("ia_agi") + pl.col("ia_setax") - fedded - dedbus,
-        ia_taxinc=(pl.col("ia_agi") + pl.col("ia_setax") - fedded - dedbus - pl.col("ia_deduc")).clip(0, None),
+        ia_taxinc=(pl.col("ia_agi") + pl.col("ia_setax") - fedded - dedbus - pl.col("ia_deduc")
+                   # 2025 on: Iowa starts from federal taxable income, which is already
+                   # net of the federal senior deduction.
+                   - (pl.col("senior_deduction") if effective_year >= 2025 and behavior.mode.value == "statutory" else 0.0)
+                   ).clip(0, None),
     )
 
     # --- Joint returns may file combined: each spouse on their own share ---

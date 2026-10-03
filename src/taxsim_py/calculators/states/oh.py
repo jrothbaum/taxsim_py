@@ -83,6 +83,8 @@ def compute_oh_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
                 .when(agi <= p["exemption_middle_income_agi"]).then(p.num("exemption_middle_income"))
                 .otherwise(amount)
             )
+            if y >= 2025:
+                amount = pl.when(agi > p.num("income_limit_2025plus")).then(0.0).otherwise(amount)
         exemp = amount * exemptions
     exemp = pl.when(is_dependent_filer()).then(0.0).otherwise(exemp)
     df, (taxinc,) = checkpoint(df, oh_taxinc=(agi - businc - exemp).clip(0, None))
@@ -174,7 +176,10 @@ def compute_oh_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
                 earncr = pl.when(taxinc + businc > p["eitc_income_limit"]).then(
                     pl.min_horizontal(earncr, p["eitc_tax_share_limit"] * statax)
                 ).otherwise(earncr)
-        statax = _joint_credit(statax, taxinc, businc, y, is_joint & joint_eligible)
+        joint_ok = is_joint & joint_eligible
+        if y >= 2025:
+            joint_ok = joint_ok & ((taxinc + businc) <= p.num("income_limit_2025plus"))
+        statax = _joint_credit(statax, taxinc, businc, y, joint_ok)
         statax = (statax - earncr).clip(0, None)
 
     credits = regcr + excred + earncr

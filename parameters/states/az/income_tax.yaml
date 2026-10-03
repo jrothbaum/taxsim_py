@@ -185,6 +185,7 @@ standard_deduction_flat:  # 2019+, multiplied by the status coefficient
   2022: 12950
   2023: 13850
   2024: 14600
+  2025: 15750
 
 # Personal/dependent exemption: 5 genuinely different formula eras - see
 # calculators/states/az.py. All $0 for 2019+ (confirmed above).

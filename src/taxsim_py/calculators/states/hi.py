@@ -167,7 +167,7 @@ def compute_hi_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     ]
     key = "2018plus"
     if behavior.mode.value == "statutory" and effective_year >= 2022:
-        key = "2022plus"
+        key = "2025plus" if effective_year >= 2025 else "2022plus"
     for (lo, hi), k in year_table_map:
         if lo <= effective_year <= hi:
             key = k

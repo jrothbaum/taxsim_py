@@ -4,9 +4,11 @@
 rate:
   1977: 0.05
   # New Hampshire's interest-and-dividends rate fell to 4% in 2023 and 3% in
-  # 2024. The statutory path uses these dated values; TAXSIM retains 5%.
+  # 2024, and the tax was repealed for tax years beginning in 2025. The statutory path uses
+  # these dated values; TAXSIM retains 5%.
   2023: 0.04
   2024: 0.03
+  2025: 0.0
 exemption_per_taxpayer:
   1977: 600
   1981: 1200

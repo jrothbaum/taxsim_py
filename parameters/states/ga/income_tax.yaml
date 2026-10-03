@@ -53,7 +53,7 @@ brackets_married_2019plus:
 
 # PolicyEngine-US: gov.states.ga.tax.income.main. Georgia's 2024 law is a
 # single 5.39% rate; the 2022-2023 schedule remains the 5.75% top rate.
-flat_rate_2024: 0.0539
+flat_rate_2024plus: {2024: 0.0539, 2025: 0.0519}
 # PolicyEngine-US gov.states.ga.tax.income.exemptions.dependent, 2024.
 dependent_exemption_2024plus: 4000
 
@@ -118,6 +118,7 @@ child_care_credit_rate_2006plus:  # `perch(law)`
   2006: 0.10
   2007: 0.20
   2008: 0.30
+  2025: 0.5
 
 # Low Income Credit: real flat-formula <=1986, does NOT exist 1987-1991,
 # a real per-exemption-unit interpolation table 1992+ (`lic`/`tablki`).

@@ -372,6 +372,27 @@ def compute_wi_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     statax = statax - pcred
     if y >= 1989:
         statax = statax - earncr
+    if y >= 2025 and behavior.mode.value == "statutory":
+        rx = resolve_year(p["retirement_exclusion_2025plus"], y)
+        elderly = (
+            (pl.col("page") >= int(rx["min_age"])).cast(pl.Int64)
+            + (is_joint & (pl.col("sage") >= int(rx["min_age"]))).cast(pl.Int64)
+        )
+        cap = pl.when((elderly >= 2) & is_joint).then(float(rx["joint"])).otherwise(float(rx["single"]) * elderly)
+        line16 = pl.min_horizontal(pl.col("pensions").clip(0, None), cap)
+        reduced_agi = (agi - line16).clip(0, None)
+        reduced_std = (
+            pl.when(files_single()).then(_standard_deduction(tables["single"], reduced_agi, 1.0))
+            .when(files_head_of_household()).then(_standard_deduction(tables["head_of_household"], reduced_agi, 1.0))
+            .when(is_joint).then(_standard_deduction(tables["married_joint"], reduced_agi, 1.0))
+            .otherwise(_standard_deduction(tables["married_separate"], reduced_agi, 1.0))
+        )
+        alt_income = (reduced_agi - reduced_std - exemp).clip(0, None)
+        alt_tax = (
+            pl.when(single_like).then(bracket_tax(alt_income, single)).when(is_joint).then(bracket_tax(alt_income, joint))
+            .otherwise(bracket_tax(alt_income, separate))
+        )
+        statax = pl.when(line16 > 0).then(pl.min_horizontal(statax, alt_tax)).otherwise(statax)
 
     df = df.with_columns(siitax=statax * flate)
     return with_state_detail(

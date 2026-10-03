@@ -330,13 +330,21 @@ brackets_2022_2023:
   2023: [[0, 0.01], [3600, 0.02], [6300, 0.03], [9700, 0.04], [13000, 0.05], [16800, 0.06], [21600, 0.0675]]
 # 2024+: two ordinary rates and a separate gains scale below/above `threshold` (same thresholds).
 schedule_2024plus:
-  single: {threshold: 20500, rate_low: 0.047, rate_high: 0.059}
-  married_separate: {threshold: 20500, rate_low: 0.047, rate_high: 0.059}
-  head_of_household: {threshold: 30750, rate_low: 0.047, rate_high: 0.059}
-  married_joint: {threshold: 41000, rate_low: 0.047, rate_high: 0.059}
-  gains_rate_low: 0.03
-  gains_rate_high: 0.041
+  2024:
+    single: {threshold: 20500, rate_low: 0.047, rate_high: 0.059}
+    married_separate: {threshold: 20500, rate_low: 0.047, rate_high: 0.059}
+    head_of_household: {threshold: 30750, rate_low: 0.047, rate_high: 0.059}
+    married_joint: {threshold: 41000, rate_low: 0.047, rate_high: 0.059}
+    gains_rate_low: 0.03
+    gains_rate_high: 0.041
+  2025:
+    single: {threshold: 21100, rate_low: 0.047, rate_high: 0.059}
+    married_separate: {threshold: 21100, rate_low: 0.047, rate_high: 0.059}
+    head_of_household: {threshold: 31700, rate_low: 0.047, rate_high: 0.059}
+    married_joint: {threshold: 42200, rate_low: 0.047, rate_high: 0.059}
+    gains_rate_low: 0.03
+    gains_rate_high: 0.041
 
 # Subtraction for each taxpayer 65 or older, 2024+ (PolicyEngine-US gov.states.mt.tax.income.subtractions.old_age,
 # queried 2026-10-01).
-old_age_subtraction_2024plus: 5500
+old_age_subtraction_2024plus: {2024: 5500, 2025: 5660}

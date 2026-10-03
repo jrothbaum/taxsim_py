@@ -66,6 +66,8 @@ def compute_az_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     exempt_ss = pl.col("taxable_social_security") if effective_year >= 1984 else pl.lit(0.0)
     df = df.with_columns(
         az_agi_1=pl.col("agi") + pl.col("az_div_addback") + pl.col("az_twoded_addback") - exempt_ss
+        # 2025 on: Arizona subtracts the federal senior deduction from its income.
+        - (pl.col("senior_deduction") if effective_year >= 2025 and behavior.mode.value == "statutory" else 0.0)
     )
     # Through 1989 federal tax is subtracted from AGI:
     # `fedtax=max(0,comnew(1)+comnew(59)+comnew(58))`, federal income tax

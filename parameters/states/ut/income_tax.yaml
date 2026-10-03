@@ -31,7 +31,7 @@ small_tax_credit_1988: {tax_limit: 80.0, rate: 0.125, cap: 10.0}
 
 # --- 2008 on: flat tax with a taxpayer credit ---
 # PolicyEngine-US gov.states.ut.tax.income.rate, queried 2026-09-29.
-flat_rate: {2008: 0.05, 2018: 0.0495, 2022: 0.0485, 2023: 0.0465, 2024: 0.0455}
+flat_rate: {2008: 0.05, 2018: 0.0495, 2022: 0.0485, 2023: 0.0465, 2024: 0.0455, 2025: 0.045}
 # 2018 on: exemption per dependent.
 dependent_exemption: {2018: 565.0, 2019: 579.0, 2020: 590.0, 2021: 1750.0}
 taxpayer_credit_rate: 0.06
@@ -46,30 +46,35 @@ taxpayer_credit_personal_exemption:
   2022: 1802
   2023: 1941
   2024: 2046
+  2025: 2111
 taxpayer_credit_phaseout_threshold_actual:
   2022: {single: 15548, married_joint: 31096, married_separate: 15548, head_of_household: 23322}
   2023: {single: 16742, married_joint: 33484, married_separate: 16742, head_of_household: 25114}
   2024: {single: 17652, married_joint: 35304, married_separate: 17652, head_of_household: 26478}
+  2025: {single: 18213, married_joint: 36426, married_separate: 18213, head_of_household: 27320}
 
 # PolicyEngine-US gov.states.ut.tax.income.credits.earned_income, ctc,
 # retirement, and ss_benefits, queried 2026-09-29.
-earned_income_credit_rate: {2022: 0.15, 2023: 0.20, 2024: 0.20}
-child_tax_credit_amount: {2022: 1000, 2023: 1000, 2024: 1000}
-child_tax_credit_reduction_rate: {2022: 0.10, 2023: 0.10, 2024: 0.10}
+earned_income_credit_rate: {2022: 0.15, 2023: 0.20, 2024: 0.20, 2025: 0.20}
+child_tax_credit_amount: {2022: 1000, 2023: 1000, 2024: 1000, 2025: 1000}
+child_tax_credit_reduction_rate: {2022: 0.10, 2023: 0.10, 2024: 0.10, 2025: 0.10}
 child_tax_credit_phaseout_start:
   2022: {single: 43000, married_joint: 54000, married_separate: 27000, head_of_household: 43000}
   2023: {single: 43000, married_joint: 54000, married_separate: 27000, head_of_household: 43000}
   2024: {single: 43000, married_joint: 54000, married_separate: 27000, head_of_household: 43000}
-retirement_credit_age: {2022: 70, 2023: 71, 2024: 72}
-retirement_credit_max_actual: {2022: 450, 2023: 450, 2024: 450}
+  2025: {single: 43000, married_joint: 54000, married_separate: 27000, head_of_household: 43000}
+retirement_credit_age: {2022: 70, 2023: 71, 2024: 72, 2025: 73}
+retirement_credit_max_actual: {2022: 450, 2023: 450, 2024: 450, 2025: 450}
 retirement_credit_phaseout_start_actual:
   2022: {single: 25000, married_joint: 32000, married_separate: 16000, head_of_household: 32000}
   2023: {single: 25000, married_joint: 32000, married_separate: 16000, head_of_household: 32000}
   2024: {single: 25000, married_joint: 32000, married_separate: 16000, head_of_household: 32000}
+  2025: {single: 25000, married_joint: 32000, married_separate: 16000, head_of_household: 32000}
 social_security_credit_phaseout_start:
   2022: {single: 37000, married_joint: 62000, married_separate: 31000, head_of_household: 62000}
   2023: {single: 45000, married_joint: 75000, married_separate: 37500, head_of_household: 75000}
   2024: {single: 45000, married_joint: 75000, married_separate: 37500, head_of_household: 75000}
+  2025: {single: 54000, married_joint: 90000, married_separate: 45000, head_of_household: 90000}
 salt_cap_2018: 10000.0
 
 # Retirement income deduction (through 2007). Retirement income is pensions

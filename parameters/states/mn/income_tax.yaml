@@ -236,6 +236,7 @@ standard_deduction_table:
     2022: 12900
     2023: 13825
     2024: 14575
+    2025: 14950
   married_joint:
     1988: 5000
     1989: 5200
@@ -272,6 +273,7 @@ standard_deduction_table:
     2022: 25800
     2023: 27650
     2024: 29150
+    2025: 29900
   head_of_household:
     1988: 4400
     1989: 4550
@@ -311,6 +313,7 @@ standard_deduction_table:
     2022: 19400
     2023: 20800
     2024: 21900
+    2025: 22500
 
 # --- Exemptions (2013+) ---
 # TAXSIM's `/fed/` exemption table (`exem`), which continues past 2017.
@@ -351,6 +354,7 @@ exemption_amount:
   2022: 4450
   2023: 4800
   2024: 5050
+  2025: 5200
 # TAXSIM's `/fed/` married-joint standard deduction (`zbrack(2,law)`).
 federal_joint_standard_deduction:
   1987: 3760
@@ -403,6 +407,7 @@ phaseout_inflation:
   2022: 2.0605
   2023: 2.2065
   2024: 2.3255
+  2025: 2.3905
 phaseout_multiplier:
   single: 1.0
   married_joint: 1.5
@@ -1151,6 +1156,7 @@ standard_deduction_aged_addition:
     2022: 1700
     2023: 1850
     2024: 1950
+    2025: 2000
   married:
     1988: 600
     1990: 650
@@ -1170,6 +1176,7 @@ standard_deduction_aged_addition:
     2022: 1350
     2023: 1450
     2024: 1550
+    2025: 1600
 standard_deduction_2018_aged_addition:
   single: 1600
   married_joint: 1300
@@ -1354,6 +1361,10 @@ brackets_2022plus:
     single: [[0, 0.0535], [31690, 0.068], [104690, 0.0785], [193240, 0.0985]]
     joint: [[0, 0.0535], [46330, 0.068], [184040, 0.0785], [321450, 0.0985]]
     head_of_household: [[0, 0.0535], [39690, 0.068], [156760, 0.0785], [256880, 0.0985]]
+  2025:
+    single: [[0, 0.0535], [32570, 0.068], [106990, 0.0785], [198630, 0.0985]]
+    joint: [[0, 0.0535], [47620, 0.068], [189180, 0.0785], [330410, 0.0985]]
+    head_of_household: [[0, 0.0535], [40100, 0.068], [161130, 0.0785], [264050, 0.0985]]
 
 # 2022+ working family and child credits (PolicyEngine-US gov.states.mn.tax.income.credits.cwfc,
 # queried 2026-10-01). Lists are indexed by EITC-qualifying children 0, 1, 2, 3+.
@@ -1370,6 +1381,7 @@ cwfc_2022plus:
   by_year:
     2023: {phase_in_end: 8750, phase_out_joint: 35000, phase_out_other: 29500}
     2024: {phase_in_end: 9220, phase_out_joint: 36880, phase_out_other: 31090}
+    2025: {phase_in_end: 9480, phase_out_joint: 37910, phase_out_other: 31950}
 
 # 2022+ phase-outs (PolicyEngine-US gov.states.mn.tax.income.{deductions,exemptions}, queried 2026-10-01).
 # Standard and itemized deductions fall by `low_rate` of AGI above the low threshold up to the high
@@ -1410,5 +1422,17 @@ phaseouts_2022plus:
     low: {single: 232500, married_joint: 232500, married_separate: 116250, head_of_household: 232500}
     high: {single: 321350, married_joint: 321350, married_separate: 160675, head_of_household: 321350}
     exemption_start: {single: 232550, married_joint: 348850, married_separate: 174425, head_of_household: 290700}
+    exemption_step: {single: 2500, married_joint: 2500, married_separate: 1250, head_of_household: 2500}
+    itemized_low_equals_standard: true
+  2025:
+    low_rate: 0.03
+    high_rate: 0.1
+    alternate_rate: 0.8
+    alternate_applies: true
+    alternate_income: 1083150
+    step_fraction: 0.02
+    low: {single: 238950, married_joint: 238950, married_separate: 119475, head_of_household: 238950}
+    high: {single: 330300, married_joint: 330300, married_separate: 165150, head_of_household: 330300}
+    exemption_start: {single: 239050, married_joint: 358550, married_separate: 179275, head_of_household: 298800}
     exemption_step: {single: 2500, married_joint: 2500, married_separate: 1250, head_of_household: 2500}
     itemized_low_equals_standard: true

@@ -90,6 +90,29 @@ brackets_2012plus_joint_hoh:
   - [175000, 0.0525]
   - [225000, 0.055]
   - [300000, 0.0575]
+# 2025 on (Budget Reconciliation and Financing Act of 2025): two new top rates.
+brackets_2025plus_joint_hoh:
+  - [0, 0.02]
+  - [1000, 0.03]
+  - [2000, 0.04]
+  - [3000, 0.0475]
+  - [150000, 0.05]
+  - [175000, 0.0525]
+  - [225000, 0.055]
+  - [300000, 0.0575]
+  - [600000, 0.0625]
+  - [1200000, 0.065]
+brackets_2025plus_single_separate:
+  - [0, 0.02]
+  - [1000, 0.03]
+  - [2000, 0.04]
+  - [3000, 0.0475]
+  - [100000, 0.05]
+  - [125000, 0.0525]
+  - [150000, 0.055]
+  - [250000, 0.0575]
+  - [500000, 0.0625]
+  - [1000000, 0.065]
 brackets_2012plus_single_separate:
   - [0, 0.02]
   - [1000, 0.03]
@@ -361,6 +384,7 @@ pension_exclusion:
   2022: 34300
   2023: 36200
   2024: 39500
+  2025: 41200
 # 1987-1989 additional standard deduction per taxpayer 65 or older.
 standard_deduction_aged_addition_1987_1989: 800
 # 1990+ exemption per taxpayer 65 or older (`blage`).
@@ -441,8 +465,23 @@ poverty_credit_rate: 0.05
 # Child tax credit, 2023+ (PolicyEngine-US gov.states.md.tax.income.credits.ctc, queried 2026-10-01):
 # refundable, per child under six, for federal AGI up to the cap. (2022 covers only disabled
 # children, which have no TAXSIM input.)
+# 2025: the credit phases out by `phaseout_rate` per `phaseout_increment` (or part) of federal AGI over
+# `phaseout_threshold`, instead of ending at `agi_cap` (PolicyEngine-US ...credits.ctc.phase_out).
 child_tax_credit_2023plus: {amount: 500, agi_cap: 15000}
+child_tax_credit_phaseout_2025plus:
+  2025: {threshold: 15000, increment: 1000, rate: 50}
 
 # Senior tax credit, 2022+ (PolicyEngine-US gov.states.md.tax.income.credits.senior_tax): nonrefundable,
 # taxpayer 65 or older, federal AGI below the limit.
 senior_tax_credit_2022plus: {single: 1000, head_of_household: 1750, joint_one: 1000, joint_two: 1750, limit_other: 100000, limit_joint_or_hoh: 150000}
+
+# 2025 on (PolicyEngine-US gov.states.md.tax.income.deductions.standard.flat_deduction, ...itemized.phase_out,
+# ...capital_gains.surtax): a flat standard deduction in place of the percentage of income, itemized
+# deductions reduced by `rate` of federal AGI over the threshold, and a surtax on net capital gains when
+# federal AGI exceeds the threshold.
+standard_deduction_flat_2025plus:
+  2025: {single: 3350, married_separate: 3350, married_joint: 6700, head_of_household: 6700}
+itemized_phaseout_2025plus:
+  2025: {rate: 0.075, single: 200000, married_separate: 100000, married_joint: 200000, head_of_household: 200000}
+capital_gains_surtax_2025plus:
+  2025: {rate: 0.02, threshold: 350000}

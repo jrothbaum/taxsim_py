@@ -73,6 +73,10 @@ def compute_pa_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         forgiven_share = (1.0 - float(step["share"]) * (remain / float(step["income"])).ceil()).clip(0, None)
     credit = statax * forgiven_share
     statax = statax - credit
+    if y >= 2025 and behavior.mode.value == "statutory":
+        eitc_credit = float(resolve_year(PA_PARAMS["eitc_match_2025plus"], y)) * pl.col("eitc")
+        statax = statax - eitc_credit
+        credit = credit + eitc_credit
 
     df = df.with_columns(pa_taxinc=taxinc, siitax=statax * flate)
     return with_state_detail(
