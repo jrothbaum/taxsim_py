@@ -98,6 +98,11 @@ Speed against the compiled model is in [Performance](docs/performance.md)
 (`scripts/benchmark_multistate.py`, `scripts/benchmark_execution.py`); the
 API is faster than the Fortran above roughly 20,000 rows.
 
+The default `statutory` mode is also compared with PolicyEngine-US (all states,
+tax years 2022-2025) and Tax-Calculator (federal): see
+[PolicyEngine comparison](docs/policyengine_recent_state_comparison.md) and
+`scripts/compare_independent.py`.
+
 ## Tests
 
 Run the normal test suite with:
@@ -123,5 +128,6 @@ Start with the short [documentation index](docs/README.md).
 - [Architecture](docs/architecture.md): how the calculators and parameters fit together
 - [Statutory corrections](docs/statutory_corrections.md): reviewed differences from compiled TAXSIM
 - [Performance](docs/performance.md): benchmarks against the compiled model, memory and scaling
+- [PolicyEngine comparison](docs/policyengine_recent_state_comparison.md): 2022-2025 state results and known differences
 - [Pending issues](docs/pending_issues.md): current project status and remaining work
 - [Parameter tables](parameters/README.md): how law-oriented YAML and CSV data are maintained
