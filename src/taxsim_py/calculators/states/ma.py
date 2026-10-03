@@ -29,7 +29,7 @@ def compute_ma_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         # The statute allows only the employee half of the wage payroll tax;
         # TAXSIM credits both halves.
         own_fica = own_fica - 0.5 * pl.col("own_wage_fica_primary")
-    df = df.with_columns(ma_c183=own_fica, ma_setax=pl.col("setax"))
+    df = df.with_columns(ma_c183=own_fica, ma_setax=pl.col("payroll_setax"))
     # Federal Schedule E income (`comnew(8)`): other property income, plus S
     # corporation income from 1987.
     schede = pl.col("otherprop") + (pl.col("scorp") if y >= 1987 else 0.0)

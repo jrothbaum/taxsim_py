@@ -29,7 +29,7 @@ def compute_mo_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     y = effective_year
     p = YearParams(MO_PARAMS, effective_year)
 
-    setax = pl.col("setax")  # `comnew(175)`, real-year and undeflated
+    setax = pl.col("payroll_setax")  # `comnew(175)`, real-year and undeflated
     df = df.with_columns(
         mo_setax=setax,
         mo_household_income=household_income(),

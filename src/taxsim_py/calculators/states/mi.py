@@ -30,7 +30,7 @@ def compute_mi_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
 
     # `comnew(175)`: household SE tax, outside the dispatcher's deflation
     # range - computed at the real year on real (undeflated) earnings.
-    setax = pl.col("setax")  # `comnew(175)`, real-year and undeflated
+    setax = pl.col("payroll_setax")  # `comnew(175)`, real-year and undeflated
     ui_total = unemployment_total()
     hh_income = household_income()
     df = df.with_columns(mi_setax=setax, mi_household_income_undeflated=hh_income, mi_household_income=hh_income)

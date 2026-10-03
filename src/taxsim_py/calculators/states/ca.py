@@ -44,7 +44,7 @@ def compute_ca_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     # Self-employment tax (`comnew(175)`) and household income (`data(159)`)
     # before projected-year deflation.
     df = df.with_columns(
-        ca_setax=pl.col("setax"),
+        ca_setax=pl.col("payroll_setax"),
         ca_household_income=household_income(),
     )
     df = deflate_for_extrapolation(df, flate, extra=("ca_household_income",))

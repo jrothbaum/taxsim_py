@@ -32,7 +32,7 @@ def compute_ms_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     y = effective_year
     p = YearParams(MS_PARAMS, effective_year)
 
-    setax = pl.col("setax")  # `comnew(175)`, real-year and undeflated
+    setax = pl.col("payroll_setax")  # `comnew(175)`, real-year and undeflated
     dividend_input_adjustment()
     df = df.with_columns(ms_setax=setax, ms_divexc=dividend_exclusion_addback(y))
     df = deflate_for_extrapolation(df, flate, extra=("ms_divexc",))

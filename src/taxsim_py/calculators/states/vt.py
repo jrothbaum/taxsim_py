@@ -31,7 +31,7 @@ def compute_vt_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         # Federal Schedule E income (`comnew(8)`).
         vt_schede=pl.col("otherprop") + (pl.col("scorp") if year >= 1987 else 0.0),
         # Self-employment and additional Medicare tax are not deflated.
-        vt_setax=pl.col("setax"),
+        vt_setax=pl.col("payroll_setax"),
     )
     df = deflate_for_extrapolation(df, flate, extra=("vt_household_income", "vt_ui", "vt_schede"))
 

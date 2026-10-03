@@ -49,7 +49,7 @@ def compute_me_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         pl.when(is_hoh).then(float(divisor["head_of_household"])).otherwise(float(divisor["other"]))
     )
 
-    setax = pl.col("setax")  # `comnew(175)`, real-year and undeflated
+    setax = pl.col("payroll_setax")  # `comnew(175)`, real-year and undeflated
     # Federal total income (`comnew(65)`), which TAXSIM does not deflate.
     df = df.with_columns(me_setax=setax, me_total_income=pl.col("agi") + 0.5 * setax)
 

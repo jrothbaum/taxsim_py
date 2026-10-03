@@ -54,6 +54,7 @@ def compute_payroll_tax(
         fica=parts["fica"],
         tfica=parts["tfica"],
         addmed=parts["addmed"],
+        payroll_setax=parts["setax"],
         own_fica_primary=parts["own_fica_primary"],
         own_wage_fica_primary=parts["own_wage_fica_primary"],
         ficar=((parts["oasdi_rate_primary"] + parts["hi_rate_primary"]) * 100).round(2),

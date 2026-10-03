@@ -24,7 +24,7 @@ def compute_al_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         # deduction; the exemption below gives head of household the joint amount.
         al_taxpayers=taxpayer_count(),
         # Self-employment tax (`comnew(175)`) is never deflated.
-        al_setax=pl.col("setax"),
+        al_setax=pl.col("payroll_setax"),
         # Unemployment compensation in federal AGI is exempt.
         al_taxable_ui=pl.col("taxable_unemployment"),
     )

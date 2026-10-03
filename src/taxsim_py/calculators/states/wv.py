@@ -19,7 +19,7 @@ def compute_wv_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     y = effective_year
     p = YearParams(WV_PARAMS, effective_year)
     # Federal total income (`comnew(65)`) is not deflated in projected years.
-    df = df.with_columns(wv_total_income=pl.col("agi") + 0.5 * pl.col("setax"))
+    df = df.with_columns(wv_total_income=pl.col("agi") + 0.5 * pl.col("payroll_setax"))
     df = deflate_for_extrapolation(df, flate)
 
     is_joint = files_joint()

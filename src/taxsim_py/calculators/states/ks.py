@@ -33,7 +33,7 @@ def compute_ks_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     is_joint = files_joint()
     is_hoh = files_head_of_household()
 
-    setax = pl.col("setax")  # `comnew(175)`, real-year and undeflated
+    setax = pl.col("payroll_setax")  # `comnew(175)`, real-year and undeflated
     df = df.with_columns(
         ks_setax=setax,
         ks_household_income=household_income(),

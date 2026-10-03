@@ -586,7 +586,7 @@ def compute_mn_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     y = effective_year
     p = YearParams(MN_PARAMS, effective_year)
 
-    setax = pl.col("setax")  # `comnew(175)`, real-year and undeflated
+    setax = pl.col("payroll_setax")  # `comnew(175)`, real-year and undeflated
     hh_income = household_income()
     # Business and S corporation income are not deflated in projected years.
     business = pl.col("pbusinc") + pl.col("pprofinc") + pl.col("sbusinc") + pl.col("sprofinc") + pl.col("scorp")

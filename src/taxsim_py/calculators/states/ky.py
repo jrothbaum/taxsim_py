@@ -30,7 +30,7 @@ def compute_ky_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     )
     is_joint = files_joint()
 
-    setax = pl.col("setax")  # `comnew(175)`, real-year and undeflated
+    setax = pl.col("payroll_setax")  # `comnew(175)`, real-year and undeflated
     # The federal child care credit before the liability limit (`comnew(176)`)
     # is likewise read undeflated.
     df = df.with_columns(ky_setax=setax, ky_ccc=pl.col("ccc_uncapped"))

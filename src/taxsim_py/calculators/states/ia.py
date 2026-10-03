@@ -38,7 +38,7 @@ def compute_ia_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         ia_taxpayers=taxpayer_count(),
     )
 
-    setax = pl.col("setax")  # `comnew(175)`, real-year and undeflated
+    setax = pl.col("payroll_setax")  # `comnew(175)`, real-year and undeflated
     df = df.with_columns(ia_setax=setax)
 
     df = deflate_for_extrapolation(df, flate)

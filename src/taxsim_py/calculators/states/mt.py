@@ -47,7 +47,7 @@ def compute_mt_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     df = df.with_columns(
         mt_ui=unemployment_total(),
         mt_household_income_undeflated=household_income(),
-        mt_half_setax=0.5 * pl.col("setax"),
+        mt_half_setax=0.5 * pl.col("payroll_setax"),
     )
     df = deflate_for_extrapolation(df, flate, extra=("mt_ui", "mt_half_setax"))
 

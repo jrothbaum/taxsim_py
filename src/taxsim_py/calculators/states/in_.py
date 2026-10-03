@@ -142,7 +142,7 @@ def compute_in_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         rate_cr = float(p["eitc_1999_2002_rate"][1960])
         cap = float(p["eitc_1999_2002_income_cap"][1960])
         # Tested against federal total income (`comnew(65)`).
-        total_income = pl.col("agi") + 0.5 * pl.col("setax")
+        total_income = pl.col("agi") + 0.5 * pl.col("payroll_setax")
         eligible = (
             (pl.col("depx") > 0)
             & ((pl.col("earned_income") >= p["eitc_1999_2002_earnings_share"] * total_income) | (total_income < 1.0))
