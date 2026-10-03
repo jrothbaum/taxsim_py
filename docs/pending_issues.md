@@ -599,7 +599,7 @@ Working-age: WA capital gains excise tax deliberately not modelled (see WA-001 i
 
 ### 2025 (2026-10-02)
 
-Added for federal and all states; see "Tax year 2025" in policyengine_recent_state_comparison.md. Open: tips,
+Added for federal and all states; see policyengine_recent_state_comparison.md. Open: tips,
 overtime and car-loan deductions (no TAXSIM input); Washington capital gains tax; Minnesota homeowner/renter
 refund tables are TAXSIM-era approximations not validated against PolicyEngine; state parameters for 2026 are not
 yet entered (years past 2025 still run 2025 law unindexed).

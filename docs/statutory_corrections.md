@@ -441,7 +441,7 @@ uv run --group test pytest tests/test_calculation_modes.py tests/test_independen
   pension cap per spouse, combined filing, poverty-guideline family-size credit;
   OH joint-filing credit for pension income; NJ pension exclusion phase-down; CA
   credit for age 65+; MN subtraction for the elderly or disabled; ND marriage credit
-  with shared pensions; MI tier-three standard deduction and phased-in retirement subtraction; CO high-income add-backs (federal deductions above $12,000/$16,000, QBI deduction); IA/GA/MT/LA/AR/IL/AL/UT items in the comparison doc's third pass; RI $20,000 retirement exclusion from 2023 and indexed
+  with shared pensions; MI tier-three standard deduction and phased-in retirement subtraction; CO high-income add-backs (federal deductions above $12,000/$16,000, QBI deduction); IA/GA/MT/LA/AR/IL/AL/UT age-65+ items (see git history of the PolicyEngine comparison doc); RI $20,000 retirement exclusion from 2023 and indexed
   limits; WV family credit tested on federal AGI.
 - **Reason:** each follows the state's form instructions or statute; TAXSIM's frozen
   2021 tables and interpolation do not.
@@ -468,8 +468,8 @@ uv run --group test pytest tests/test_calculation_modes.py tests/test_independen
 
 ## 2025-LAW: provisions added for tax year 2025
 
-Federal: child credit $2,200, senior deduction, SALT cap phase-down (`parameters/national/*`). States: see "Tax year
-2025" in policyengine_recent_state_comparison.md. Statutory mode only for provisions that differ from TAXSIM's
+Federal: child credit $2,200, senior deduction, SALT cap phase-down (`parameters/national/*`). States: see
+policyengine_recent_state_comparison.md. Statutory mode only for provisions that differ from TAXSIM's
 conventions (for example Maine's and DC's refusal of the larger federal standard deduction, South Carolina's
 non-conformity addbacks); parameter-only updates apply in every mode. Washington's Working Families credit
 extends to 2025 (see WA-001).
