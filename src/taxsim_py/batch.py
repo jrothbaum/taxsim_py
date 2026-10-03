@@ -18,8 +18,8 @@ def calculate_taxes_to_parquet(
 
     Rows are independent, so each slice is calculated on its own and written to
     `destination/part-00000.parquet`, `part-00001.parquet`, and so on, in input
-    order. Peak memory depends on `chunk_rows` (about 5 KB per row) and not on
-    the file size. `calculate_options` are passed to `calculate_taxes`.
+    order. Peak memory depends on `chunk_rows` (about 2 GB at 250,000 rows, 4 GB at
+    1,000,000) and not on the file size. `calculate_options` are passed to `calculate_taxes`.
     Returns the number of rows written.
     """
     if chunk_rows < 1:
