@@ -201,5 +201,5 @@ errors are documented and allowed explicitly; real published parameters remain
 the source of truth. Test cases stay in the dataframe-driven case tables under
 `tests/` and run through the shared validation scripts.
 
-See [Performance](performance.md) for the execution model, benchmark command,
+See [Performance](internal/performance_notes.md) for the execution model, benchmark command,
 and guidance on lazy collection boundaries.
