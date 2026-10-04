@@ -90,23 +90,23 @@ optional reader (`pip install "taxsim-py[readstat]"`, which adds
   `pbusinc`/`pprofinc`), and `pensions` is the kind of pension each state exempts.
 - **Accuracy:** in `taxsim` mode, to the cent against the compiled TAXSIM on the
   validation matrix, apart from logged TAXSIM errors. `statutory` mode follows the law where TAXSIM is
-  wrong ([Statutory corrections](docs/statutory_corrections.md)); its remaining
+  wrong ([Statutory corrections](https://jrothbaum.github.io/taxsim_py/statutory_corrections/)); its remaining
   differences from PolicyEngine-US (2022-2025) are in the
-  [PolicyEngine comparison](docs/policyengine_recent_state_comparison.md).
+  [PolicyEngine comparison](https://jrothbaum.github.io/taxsim_py/policyengine_recent_state_comparison/).
 - **Not modelled:** items TAXSIM has no input for, such as 2025 deductions for tips,
   overtime and car-loan interest, and Washington's capital gains tax.
 - **Speed:** on a mixed 42-state batch, 1,000,000 rows including marginal rates
   take about 7.4 s and 2.8 GiB. The compiled TAXSIM takes 17.2 s for the same
   calculation.
-  `batch_rows` and `max_year_workers` limit memory. See [Performance](docs/performance.md).
+  `batch_rows` and `max_year_workers` limit memory. See [Performance](https://jrothbaum.github.io/taxsim_py/performance/).
 
 ## Documentation
 
 Start with the [user guide](https://jrothbaum.github.io/taxsim_py/). Also:
-[Statutory corrections](docs/statutory_corrections.md),
-[Performance](docs/performance.md) and
-[PolicyEngine comparison](docs/policyengine_recent_state_comparison.md).
+[Statutory corrections](https://jrothbaum.github.io/taxsim_py/statutory_corrections/),
+[Performance](https://jrothbaum.github.io/taxsim_py/performance/) and
+[PolicyEngine comparison](https://jrothbaum.github.io/taxsim_py/policyengine_recent_state_comparison/).
 
 ## License
 
-MIT; see [LICENSE](LICENSE).
+MIT; see [LICENSE](https://github.com/jrothbaum/taxsim_py/blob/main/LICENSE).
