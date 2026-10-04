@@ -88,6 +88,7 @@ src/taxsim_py/prep/cps_asec.py
 src/taxsim_py/validation/__init__.py
 src/taxsim_py/validation/independent.py
 tests/test_api.py
+tests/test_benchmark_comparison.py
 tests/test_calculation_modes.py
 tests/test_cli.py
 tests/test_hawaii_recent.py

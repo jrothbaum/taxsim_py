@@ -4,3 +4,7 @@ __pycache__/
 *.py[cod]
 *.pyc
 oracle_artifacts/
+web/*.whl
+web/wheel.txt
+site/
+docs/calculator/

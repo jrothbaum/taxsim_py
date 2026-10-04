@@ -52,6 +52,19 @@ worksheets, `taxsim_names=True` renames them to TAXSIM's labels, and
 corrections to TAXSIM. `calculation_mode="taxsim"` reproduces the compiled
 TAXSIM, for replication and comparison; it is not recommended for new analysis.
 
+## In the browser
+
+`web/index.html` is a calculator that runs taxsim-py in the browser through Pyodide:
+a form for one household, and a CSV upload for many. Nothing is sent to a server.
+
+```bash
+uv run python scripts/build_web.py      # builds the wheel into web/
+python -m http.server -d web            # then open http://localhost:8000
+```
+
+From JavaScript or Python, `taxsim_py.calculate_row({...})` takes a dict of TAXSIM
+inputs and returns a dict of inputs plus results.
+
 ## Command line
 
 ```bash
@@ -101,7 +114,7 @@ test dependency).
 
 ## Documentation
 
-See the [documentation index](docs/README.md): [Architecture](docs/architecture.md),
+Start with the [user guide](docs/index.md) (build it with `uvx --with mkdocs-material mkdocs serve`). Reference and working notes: [Architecture](docs/architecture.md),
 [Statutory corrections](docs/statutory_corrections.md),
 [Performance](docs/performance.md),
 [PolicyEngine comparison](docs/policyengine_recent_state_comparison.md),

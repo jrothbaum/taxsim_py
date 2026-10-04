@@ -1,0 +1,46 @@
+site_name: taxsim-py
+site_description: Dataframe-oriented Python implementation of NBER TAXSIM.
+repo_url: https://github.com/jrothbaum/taxsim_py
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: cyan
+    - scheme: slate
+      primary: indigo
+      accent: cyan
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - search.highlight
+    - search.suggest
+
+nav:
+  - Home: index.md
+  - Calculating: calculate.md
+  - Inputs: inputs.md
+  - Outputs: outputs.md
+  - Files and command line: files.md
+  - Browser: browser.md
+  - Reference:
+      - Statutory corrections: statutory_corrections.md
+      - Performance: performance.md
+      - Architecture: architecture.md
+      - Shared functions: shared_functions.md
+      - PolicyEngine comparison: policyengine_recent_state_comparison.md
+
+# The rest of docs/ is internal working notes, not part of the site.
+exclude_docs: |
+  internal/
+  oracle_archive/
+  pending_issues.md
+  policyengine_state_parameter_audit.md
+  README.md
+
+# The calculator is copied into site/calculator/ after the build (scripts/build_docs.py).
+validation:
+  links:
+    not_found: info

@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>taxsim-py calculator</title>
+<style>
+  :root {
+    --bg: #f7f7f5; --panel: #fff; --text: #1d2125; --muted: #5f6b76; --line: #dcdfe3;
+    --accent: #1f5fa8; --accent-text: #fff; --good: #1b6e3c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #14171a; --panel: #1c2024; --text: #e6e8ea; --muted: #9aa5b0; --line: #333a41;
+            --accent: #5b9be0; --accent-text: #0c1116; --good: #5cc98a; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 980px; margin: 0 auto; padding: 24px 16px 64px; }
+  h1 { font-size: 1.4rem; margin: 0 0 4px; }
+  .sub { color: var(--muted); margin: 0 0 20px; }
+  .sub a { color: var(--accent); }
+  #status { font-size: .9rem; color: var(--muted); margin-bottom: 12px; min-height: 1.3em; }
+  #status.error { color: #c0392b; }
+  nav { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 16px; }
+  nav button { background: none; border: 0; padding: 8px 14px; font: inherit; color: var(--muted);
+               border-bottom: 2px solid transparent; cursor: pointer; }
+  nav button[aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent); }
+  fieldset { background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+             margin: 0 0 14px; padding: 12px 16px 16px; }
+  legend { padding: 0 6px; font-weight: 600; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px 14px; }
+  label { display: flex; flex-direction: column; font-size: .85rem; color: var(--muted); gap: 3px; }
+  input, select { font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--line);
+                  border-radius: 6px; padding: 6px 8px; width: 100%; }
+  input:focus, select:focus, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 4px; }
+  button.primary { background: var(--accent); color: var(--accent-text); border: 0; border-radius: 6px;
+                   padding: 9px 20px; font: inherit; font-weight: 600; cursor: pointer; }
+  button.primary:disabled { opacity: .5; cursor: default; }
+  button.secondary { background: var(--panel); color: var(--text); border: 1px solid var(--line);
+                     border-radius: 6px; padding: 8px 14px; font: inherit; cursor: pointer; }
+  table { border-collapse: collapse; width: 100%; background: var(--panel); border: 1px solid var(--line);
+          border-radius: 8px; overflow: hidden; }
+  th, td { text-align: left; padding: 7px 12px; border-bottom: 1px solid var(--line); }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  tr:last-child td { border-bottom: 0; }
+  th { font-weight: 500; color: var(--muted); width: 55%; }
+  h2 { font-size: 1.05rem; margin: 22px 0 8px; }
+  .hint { color: var(--muted); font-size: .85rem; }
+  .preview { overflow-x: auto; }
+  .preview table { font-size: .85rem; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <h1>taxsim-py calculator</h1>
+  <p class="sub">Federal, payroll and state income tax, calculated in your browser with
+    <a href="https://github.com/jrothbaum/taxsim_py">taxsim-py</a>. Nothing you enter is uploaded.
+    Independent of, and not affiliated with, NBER.</p>
+  <div id="status">Loading the calculator (about 30 MB the first time)…</div>
+
+  <nav role="tablist">
+    <button role="tab" aria-selected="true" data-tab="single">One household</button>
+    <button role="tab" aria-selected="false" data-tab="file">Upload a file</button>
+  </nav>
+
+  <section id="single">
+    <form id="form">
+      <fieldset><legend>Basics</legend><div class="grid" id="basics"></div></fieldset>
+      <fieldset><legend>People</legend><div class="grid" id="people"></div></fieldset>
+      <fieldset><legend>Income</legend><div class="grid" id="income"></div></fieldset>
+      <fieldset><legend>Business income (TCJA / QBI)</legend><div class="grid" id="business"></div></fieldset>
+      <fieldset><legend>Deductions and expenses</legend><div class="grid" id="deductions"></div></fieldset>
+      <fieldset><legend>Options</legend><div class="grid" id="options"></div></fieldset>
+      <div class="actions">
+        <button class="primary" id="run" type="submit" disabled>Calculate</button>
+        <button class="secondary" id="reset" type="button">Reset</button>
+      </div>
+    </form>
+    <div id="results" hidden>
+      <h2>Results</h2>
+      <table id="summary"></table>
+      <div id="detail-wrap" hidden><h2>Detail</h2><table id="detail"></table></div>
+    </div>
+  </section>
+
+  <section id="file" hidden>
+    <fieldset><legend>Input file</legend>
+      <p class="hint" style="margin-top:0">A CSV with one household per row. Needs <code>year</code> (or set it below),
+        <code>state</code> and <code>mstat</code>; other TAXSIM variables default to zero. Runs entirely on this device,
+        so very large files are better handled by the command line tool.</p>
+      <div class="grid">
+        <label>CSV file<input type="file" id="csv" accept=".csv,.tsv,.txt"></label>
+        <label>Tax year (overrides the year column)<input type="number" id="file-year" min="1960" max="2025" placeholder="use the year column"></label>
+        <label>Calculation mode
+          <select id="file-mode"><option value="statutory">Statutory (current law)</option><option value="taxsim">Match TAXSIM</option></select></label>
+      </div>
+    </fieldset>
+    <div class="actions">
+      <button class="primary" id="run-file" disabled>Calculate file</button>
+      <button class="secondary" id="download" hidden>Download results (CSV)</button>
+    </div>
+    <div id="file-result" hidden>
+      <h2 id="file-summary"></h2>
+      <div class="preview"><table id="file-preview"></table></div>
+    </div>
+  </section>
+</main>
+
+<script type="module">
+const STATES = "Alabama,Alaska,Arizona,Arkansas,California,Colorado,Connecticut,Delaware,District of Columbia,Florida,Georgia,Hawaii,Idaho,Illinois,Indiana,Iowa,Kansas,Kentucky,Louisiana,Maine,Maryland,Massachusetts,Michigan,Minnesota,Mississippi,Missouri,Montana,Nebraska,Nevada,New Hampshire,New Jersey,New Mexico,New York,North Carolina,North Dakota,Ohio,Oklahoma,Oregon,Pennsylvania,Rhode Island,South Carolina,South Dakota,Tennessee,Texas,Utah,Vermont,Virginia,Washington,West Virginia,Wisconsin,Wyoming".split(",");
+const MSTAT = [[1, "Single or head of household"], [2, "Married filing jointly"], [6, "Married filing separately"], [8, "Dependent filer"]];
+const MTR = [[0, "None"], [85, "Primary wages"], [86, "Spouse wages"], [11, "Both wages"], [70, "Long-term capital gains"],
+  [68, "Short-term capital gains"], [12, "Dividends"], [14, "Interest received"], [20, "Pensions"], [91, "Social Security benefits"],
+  [82, "Primary unemployment"], [180, "Spouse unemployment"], [30, "Other non-property income"], [79, "Other property income"],
+  [17, "Primary self-employment income"], [41, "Transfers"], [51, "Property tax"], [54, "Other itemized deductions"],
+  [56, "Mortgage interest"], [64, "Child care expenses"], [160, "Rent paid"]];
+
+// [name, label, default] per group; money fields are dollars, count fields are whole numbers.
+const FIELDS = {
+  people: [["page", "Your age", 40, "count"], ["sage", "Spouse's age (0 if none)", 0, "count"],
+           ["depx", "Dependents", 0, "count"], ["age1", "Child 1 age", 0, "count"],
+           ["age2", "Child 2 age", 0, "count"], ["age3", "Child 3 age", 0, "count"]],
+  income: [["pwages", "Your wages", 0], ["swages", "Spouse's wages", 0], ["psemp", "Your self-employment income", 0],
+           ["ssemp", "Spouse's self-employment income", 0], ["dividends", "Dividends", 0], ["intrec", "Interest received", 0],
+           ["stcg", "Short-term capital gains", 0], ["ltcg", "Long-term capital gains", 0],
+           ["otherprop", "Other property income", 0], ["nonprop", "Other non-property income", 0],
+           ["pensions", "Pensions and IRA distributions", 0], ["gssi", "Gross Social Security", 0],
+           ["pui", "Your unemployment compensation", 0], ["sui", "Spouse's unemployment compensation", 0],
+           ["transfers", "Non-taxable transfers", 0]],
+  business: [["scorp", "S-corporation income", 0], ["pbusinc", "Your QBI", 0], ["pprofinc", "Your specified service QBI", 0],
+             ["sbusinc", "Spouse's QBI", 0], ["sprofinc", "Spouse's specified service QBI", 0]],
+  deductions: [["rentpaid", "Rent paid", 0], ["proptax", "Real estate taxes", 0], ["otheritem", "Other itemized deductions", 0],
+               ["childcare", "Child care expenses", 0], ["mortgage", "Mortgage interest and other deductions", 0]],
+};
+const LABELS = {
+  fiitax: "Federal income tax", siitax: "State income tax", fica: "Payroll tax (employee + employer)",
+  tfica: "Payroll tax (taxpayer only)", ficar: "Payroll tax rate", addmed: "Additional Medicare tax", agi: "Federal AGI",
+  taxable_income: "Federal taxable income", taxable_unemployment: "Taxable unemployment", earned_income: "Earned income",
+  regular_tax: "Federal regular tax", frate: "Federal marginal rate (%)", srate: "State marginal rate (%)",
+};
+const SUMMARY = ["fiitax", "siitax", "fica", "tfica", "frate", "srate", "ficar"];
+const RATES = new Set(["ficar", "frate", "srate"]);
+
+const $ = (id) => document.getElementById(id);
+const status = (msg, error = false) => { $("status").textContent = msg; $("status").classList.toggle("error", error); };
+
+function field(host, name, label, value, kind) {
+  const l = document.createElement("label");
+  l.append(label);
+  const i = document.createElement("input");
+  Object.assign(i, { type: "number", name, value, step: kind === "count" ? "1" : "any" });
+  if (kind === "count") i.min = 0;
+  l.append(i); $(host).append(l);
+}
+function select(host, name, label, options, value) {
+  const l = document.createElement("label");
+  l.append(label);
+  const s = document.createElement("select"); s.name = name;
+  for (const [v, text] of options) s.add(new Option(text, v, false, String(v) === String(value)));
+  l.append(s); $(host).append(l);
+}
+function build() {
+  const y = document.createElement("label"); y.append("Tax year");
+  const yi = document.createElement("input");
+  Object.assign(yi, { type: "number", name: "year", value: 2025, min: 1960, max: 2025, step: 1, required: true });
+  y.append(yi); $("basics").append(y);
+  select("basics", "state", "State", [[0, "No state calculation"], ...STATES.map((s, i) => [i + 1, s])], 5);
+  select("basics", "mstat", "Marital status", MSTAT, 1);
+  field("basics", "taxsimid", "Case ID", 1, "count");
+  for (const [group, list] of Object.entries(FIELDS))
+    for (const [name, label, value, kind] of list) field(group, name, label, value, kind);
+  select("options", "mtr", "Marginal rates with respect to", MTR, 85);
+  select("options", "idtl", "Detailed worksheets", [[0, "Off"], [2, "On"]], 0);
+  select("options", "mode", "Calculation mode", [["statutory", "Statutory (current law)"], ["taxsim", "Match TAXSIM"]], "statutory");
+}
+build();
+
+for (const b of document.querySelectorAll("nav button")) b.onclick = () => {
+  for (const o of document.querySelectorAll("nav button")) o.setAttribute("aria-selected", o === b);
+  $("single").hidden = b.dataset.tab !== "single"; $("file").hidden = b.dataset.tab !== "file";
+};
+
+const fmt = (name, v) => {
+  if (typeof v !== "number") return v ?? "";
+  if (RATES.has(name)) return v.toLocaleString(undefined, { maximumFractionDigits: 2 });
+  return v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
+const label = (name) => LABELS[name] ?? name.replaceAll("_", " ");
+function rows(table, entries) {
+  table.replaceChildren(...entries.map(([k, v]) => {
+    const tr = document.createElement("tr"), th = document.createElement("th"), td = document.createElement("td");
+    th.textContent = label(k); td.textContent = fmt(k, v); td.className = "num"; tr.append(th, td); return tr;
+  }));
+}
+
+const worker = new Worker("worker.js", { type: "module" });
+const pending = new Map();
+let nextId = 0;
+const call = (message, transfer = []) => new Promise((resolve, reject) => {
+  const id = nextId++;
+  pending.set(id, { resolve, reject });
+  worker.postMessage({ id, ...message }, transfer);
+});
+worker.onmessage = ({ data }) => {
+  if (data.type === "status") return status(data.message);
+  if (data.type === "ready") { status("Ready."); $("run").disabled = false; $("run-file").disabled = false; return; }
+  if (data.type === "error")
+    return status("Could not load the calculator: " + data.message + ". Serve this folder over http (not file://) after running scripts/build_web.py.", true);
+  const { resolve, reject } = pending.get(data.id);
+  pending.delete(data.id);
+  data.error ? reject(new Error(data.error)) : resolve(data.result);
+};
+worker.onerror = (e) => status("The calculator stopped: " + e.message, true);
+
+$("form").onsubmit = async (ev) => {
+  ev.preventDefault();
+  const record = {};
+  const data = new FormData($("form"));
+  for (const [k, v] of data) if (!["mtr", "idtl", "mode"].includes(k)) record[k] = Number(v) || 0;
+  status("Calculating…");
+  try {
+    const out = await call({ op: "row", record, mode: data.get("mode"), idtl: Number(data.get("idtl")), mtr: Number(data.get("mtr")) });
+    const entries = Object.entries(out).filter(([k]) => !(k in record));
+    const byName = Object.fromEntries(entries);
+    rows($("summary"), SUMMARY.filter((k) => k in byName).map((k) => [k, byName[k]]));
+    const rest = entries.filter(([k]) => !SUMMARY.includes(k));
+    rows($("detail"), rest);
+    $("detail-wrap").hidden = rest.length === 0;
+    $("results").hidden = false;
+    $("results").scrollIntoView({ behavior: "smooth", block: "start" });
+    status("Ready.");
+  } catch (e) { status(e.message, true); }
+};
+$("reset").onclick = () => { $("form").reset(); $("results").hidden = true; };
+
+let csvOut = "";
+$("run-file").onclick = async () => {
+  const file = $("csv").files[0];
+  if (!file) return status("Choose a CSV file first.", true);
+  status("Calculating…");
+  $("run-file").disabled = true;
+  try {
+    const bytes = await file.arrayBuffer();
+    const year = Number($("file-year").value) || 0;
+    const [csv, height, head, columns] = await call({ op: "file", bytes, year, mode: $("file-mode").value }, [bytes]);
+    csvOut = csv;
+    $("file-summary").textContent = `${height.toLocaleString()} rows calculated` + (height > head.length ? ` (first ${head.length} shown)` : "");
+    const table = $("file-preview"), thead = document.createElement("tr");
+    for (const c of columns) { const th = document.createElement("th"); th.textContent = c; th.style.width = "auto"; thead.append(th); }
+    table.replaceChildren(thead, ...head.map((r) => {
+      const tr = document.createElement("tr");
+      for (const c of columns) { const td = document.createElement("td"); td.className = "num"; td.textContent = fmt(c, r[c]); tr.append(td); }
+      return tr;
+    }));
+    $("file-result").hidden = false; $("download").hidden = false;
+    $("file-result").scrollIntoView({ behavior: "smooth", block: "start" });
+    status("Ready.");
+  } catch (e) { status(e.message, true); }
+  $("run-file").disabled = false;
+};
+$("download").onclick = () => {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([csvOut], { type: "text/csv" }));
+  a.download = "taxsim-py-results.csv"; a.click(); URL.revokeObjectURL(a.href);
+};
+</script>
+</body>
+</html>

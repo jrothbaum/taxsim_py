@@ -1,8 +1,9 @@
 """Public dataframe API."""
 
+from collections.abc import Mapping
 from concurrent.futures import ThreadPoolExecutor
 from enum import IntEnum
-from typing import Literal
+from typing import Any, Literal
 
 import polars as pl
 
@@ -490,3 +491,13 @@ def calculate_taxes(
             c for c in (*OUTPUT_COLUMNS, "frate", "srate", *detail_columns) if c in result.columns and c not in columns
         ]
     return frame.hstack(result.select(added))
+
+
+def calculate_row(record: Mapping[str, Any], **options: Any) -> dict[str, Any]:
+    """Calculate taxes for one household given as a mapping of TAXSIM input names to values.
+
+    `options` are the keyword options of `calculate_taxes`. Returns a plain dict (the input
+    plus the output columns), so it can cross a JavaScript/Pyodide boundary as JSON.
+    """
+    frame = pl.DataFrame({name: [value] for name, value in record.items()})
+    return calculate_taxes(frame, **options).row(0, named=True)
