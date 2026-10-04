@@ -595,6 +595,11 @@ def compute_ca_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             earned_now = pl.col("earned_income")
             credit = pl.min_horizontal(caleitc_at(earned_now), caleitc_at(pl.max_horizontal(earned_now, pl.col("agi"))))
             earncr = pl.when(pl.col("agi") < final_end).then(credit.clip(0, None)).otherwise(0.0)
+        if behavior.apply_state_childless_eitc_minimum_age and effective_year >= 2018:
+            # TAXSIM pays the credit at any age; the statute requires 18.
+            older = pl.max_horizontal(pl.col("page"), pl.col("sage"))
+            too_young = (pl.col("num_children") == 0) & (older > 0) & (older < float(p["eitc_childless_minimum_age_2018plus"]))
+            earncr = pl.when(too_young).then(0.0).otherwise(earncr)
         disqy = (
             (pl.col("stcg") + pl.col("ltcg")).clip(0, None) + pl.col("dividends") + dividend_input_adjustment() + pl.col("intrec")
             + pl.col("otherprop").clip(0, None)

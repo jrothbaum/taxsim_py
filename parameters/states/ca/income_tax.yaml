@@ -597,6 +597,9 @@ mental_health_surtax_rate: 0.01
 mental_health_surtax_threshold: 1000000
 
 # --- California EITC + Young Child Tax Credit (2015+/2019+) ---
+# R&TC 17052 replaces the federal minimum age of 25 with 18 for tax years
+# from 2018 (no maximum age).
+eitc_childless_minimum_age_2018plus: 18
 eitc_disqualified_income_limit:  # `dylim`, 2015-2021
   2015: 3400
   2016: 3471

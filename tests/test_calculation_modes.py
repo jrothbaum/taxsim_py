@@ -439,3 +439,38 @@ def test_louisiana_2025_flat_tax_with_standard_deduction() -> None:
     tax = calculate_taxes(cases, calculation_mode="statutory").get_column("siitax").item()
 
     assert abs(tax - 0.03 * (62_500 - 12_500)) < 1.0
+
+
+def test_state_childless_eitc_minimum_age_is_18_in_california_and_new_jersey() -> None:
+    # CalEITC (R&TC 17052, 2018+) and the NJEITC (2021+) start at 18 with no
+    # maximum age; the NJEITC was 21 and under 65 in 2020. TAXSIM keeps the
+    # federal age test (and pays California at any age).
+    cases = pl.DataFrame(
+        [
+            {"case": f"{state}_{year}_{age}", "state": state, "year": year, "mstat": 1, "pwages": 5_000.0, "page": age}
+            for state, year in ((5, 2022), (31, 2022), (31, 2021), (31, 2020))
+            for age in (15, 17, 18, 24, 25, 66)
+        ]
+    )
+
+    statutory = calculate_taxes(cases, calculation_mode="statutory").with_columns(cases.get_column("case"))
+    paid = {row["case"]: row["siitax"] < 0 for row in statutory.iter_rows(named=True)}
+    # State, year, then the youngest age that is paid, and whether age 66 is.
+    for state, year, first_paid_age, aged_paid in ((5, 2022, 18, True), (31, 2022, 18, True), (31, 2021, 18, True), (31, 2020, 24, False)):
+        for age in (15, 17, 18, 24, 25, 66):
+            expected = age >= first_paid_age and (aged_paid or age < 65)
+            assert paid[f"{state}_{year}_{age}"] == expected, (state, year, age)
+
+    # New Jersey pays filers who miss only the federal age test a flat amount
+    # (NJ-1040 line 58: $224 for 2022, $601 for 2021) and the rest 40% of
+    # the federal credit ($382.50 of phase-in at $5,000 of wages).
+    amounts = {row["case"]: round(row["siitax"], 2) for row in statutory.iter_rows(named=True)}
+    assert amounts["31_2022_24"] == -224.0
+    assert amounts["31_2022_66"] == -224.0
+    assert amounts["31_2022_25"] == pytest.approx(-153.0, abs=0.01)
+    assert amounts["31_2021_18"] == -601.0
+
+    taxsim = calculate_taxes(cases, calculation_mode="taxsim").with_columns(cases.get_column("case"))
+    taxsim_paid = {row["case"]: row["siitax"] < 0 for row in taxsim.iter_rows(named=True)}
+    assert taxsim_paid["5_2022_15"]
+    assert not taxsim_paid["31_2022_18"]

@@ -126,6 +126,16 @@ eitc_match_rate:
   2018: 0.37
   2019: 0.39
   2020: 0.4
+# Minimum age for the childless credit (N.J.S.A. 54A:4-7; NJ-1040 instructions,
+# line 58): 25 through 2019, 21 for 2020, 18 from 2021. Through 2020 filers
+# 65 and older are excluded; the maximum age was removed for 2021.
+eitc_childless_minimum_age:
+  1977: 25
+  2020: 21
+  2021: 18
+eitc_childless_maximum_age_applies:
+  1977: true
+  2021: false
 eitc_income_limit_2000_2006: 20000
 
 # Pension exclusion for taxpayers 65 or older, by filing status; from 2005

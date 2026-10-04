@@ -3,7 +3,7 @@
 import polars as pl
 
 from taxsim_py.engine.brackets import bracket_rate, bracket_tax
-from taxsim_py.engine.inputs import aged_count, federal_exemption_count, files_head_of_household, files_joint, files_separate, files_single, taxpayer_count
+from taxsim_py.engine.inputs import is_dependent_filer, aged_count, federal_exemption_count, files_head_of_household, files_joint, files_separate, files_single, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml, resolve_year
 from taxsim_py.engine.state import by_filing_status, checkpoint, household_income, interpolate_table, with_state_detail, dividend_input_adjustment
 from taxsim_py.behavior import BehaviorProfile, TAXSIM_BEHAVIOR
@@ -238,6 +238,26 @@ def compute_nj_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
 
     # --- Earned income credit ---
     earncr = p.num("eitc_match_rate") * pl.col("eitc")
+    if behavior.apply_state_childless_eitc_minimum_age and y >= 2020:
+        # A childless filer who meets every federal requirement except the
+        # age test, and is old enough for New Jersey, gets the flat amount
+        # printed on NJ-1040 line 58: the match rate times the federal
+        # childless maximum, rounded to dollars ($224 for 2022).
+        older = pl.max_horizontal(pl.col("page"), pl.col("sage"))
+        childless = pl.col("num_children") == 0
+        too_young = (older > 0) & (older < float(resolve_year(NJ_PARAMS["eitc_childless_minimum_age"], y)))
+        too_old = pl.lit(bool(resolve_year(NJ_PARAMS["eitc_childless_maximum_age_applies"], y))) & (older >= 65)
+        # Federal also bars childless returns on which everyone is 65 or older;
+        # New Jersey removed that limit from 2021 and still bars dependents.
+        meets_other_rules = pl.col("eitc_before_filer_test" if y >= 2021 else "eitc_before_age_test") > 0
+        flat = (p.num("eitc_match_rate") * pl.col("max_credit")).round(0)
+        earncr = (
+            pl.when(childless & ~is_dependent_filer() & ~too_young & ~too_old & meets_other_rules & (pl.col("eitc") <= 0))
+            .then(flat)
+            .when(childless & (too_young | too_old))
+            .then(0.0)
+            .otherwise(earncr)
+        )
     if 2000 <= y <= 2006:
         earncr = pl.when(
             (agi <= float(NJ_PARAMS["eitc_income_limit_2000_2006"])) & (depx > 0)

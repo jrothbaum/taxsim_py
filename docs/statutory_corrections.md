@@ -450,6 +450,28 @@ uv run --group test pytest tests/test_calculation_modes.py tests/test_independen
 - **Implementation:** the state calculators under `taxsim_py.calculators.states` and
   their `parameters/states/<st>/income_tax.yaml` files.
 
+## CA-005 / NJ-001: State childless EITC minimum age is 18
+
+- **Status:** corrected in statutory mode; retained in TAXSIM mode.
+- **Affected years:** California 2018 onward; New Jersey 2020 onward.
+- **TAXSIM behavior:** California pays the credit at any age (a 15-year-old with
+  $5,000 of wages gets $208.66 in 2021). New Jersey uses the federal credit, so
+  the federal age test (25 through 64) applies.
+- **Corrected behavior:** California requires age 18 for filers without a
+  qualifying child, with no maximum age. New Jersey requires 21 and under 65
+  for 2020, and 18 with no maximum age from 2021. An unreported age passes.
+  New Jersey pays a childless filer who meets every federal requirement
+  except the age test a flat amount, 40% of the federal childless maximum
+  rounded to dollars ($224 for 2022, $601 for 2021; NJ-1040 line 58); other
+  filers get 40% of their federal credit.
+- **Reason:** R&TC 17052 replaces the federal "25 but not 65" with "18" from
+  2018. N.J.S.A. 54A:4-7 and the NJ-1040 instructions (line 58) set the New
+  Jersey ages and the flat amount.
+- **Implementation:** `taxsim_py.calculators.states.ca` and `.nj`, controlled by
+  `apply_state_childless_eitc_minimum_age`; New Jersey reads the federal
+  `eitc_before_age_test` / `eitc_before_filer_test` columns.
+- **Tests:** `tests/test_calculation_modes.py::test_state_childless_eitc_minimum_age_is_18_in_california_and_new_jersey`.
+
 ## HI-003: Pensions never excluded
 
 - **Affected years:** all years in statutory mode.

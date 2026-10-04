@@ -27,6 +27,7 @@ class BehaviorProfile:
     require_young_child_for_california_yctc: bool
     exclude_hawaii_pensions: bool
     pay_california_yctc_per_young_child: bool
+    apply_state_childless_eitc_minimum_age: bool
 
 
 TAXSIM_BEHAVIOR = BehaviorProfile(
@@ -42,6 +43,7 @@ TAXSIM_BEHAVIOR = BehaviorProfile(
     require_young_child_for_california_yctc=False,
     exclude_hawaii_pensions=False,
     pay_california_yctc_per_young_child=True,
+    apply_state_childless_eitc_minimum_age=False,
 )
 
 STATUTORY_BEHAVIOR = BehaviorProfile(
@@ -57,6 +59,7 @@ STATUTORY_BEHAVIOR = BehaviorProfile(
     require_young_child_for_california_yctc=True,
     exclude_hawaii_pensions=True,
     pay_california_yctc_per_young_child=False,
+    apply_state_childless_eitc_minimum_age=True,
 )
 
 

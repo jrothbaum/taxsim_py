@@ -32,6 +32,7 @@ grid in all four years; the rest differ only for the reasons below.
 | State | Difference | Cause (who is right) |
 |:--|:--|:--|
 | DE, HI | Port itemizes at middle incomes | TAXSIM imputes a sales-tax itemized deduction; PolicyEngine's run has none. The gap is the deduction times the rate (larger in 2025 with the $40,000 SALT cap). |
+| Federal | Self-employment income (`psemp`) gets no 20% business deduction | TAXSIM applies the qualified-business-income deduction only to the business-income inputs (`pbusinc`, `pprofinc`); PolicyEngine also applies it to self-employment income. The port keeps TAXSIM's convention. |
 | ID | Exactly $10 | The port includes the Permanent Building Fund tax (2024 Form 40, line 32); PolicyEngine omits it. |
 | CO | Rebate amounts | PolicyEngine includes the TABOR cash-back rebate; one-time payments are deliberately left out. |
 | ME, OR | Rebate amounts | Maine affordability payment and Oregon kicker are one-time payments, left out. Maine rent is assumed to exclude utilities. |
