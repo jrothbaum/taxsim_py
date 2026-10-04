@@ -3,7 +3,7 @@
 TAXSIM executable generation available on this machine.
 
 TAXSIM's maintainer has retired and the service is being sunset (see
-`docs/pending_issues.md`, "TAXSIM executable generations"), so each compiled
+`docs/oracle_archive/README.md`), so each compiled
 build is a finite snapshot rather than a rolling dependency. This script
 records what a build *is* (path, sha256, self-reported build stamp, output
 schema) and what it *does* (outputs on a small deterministic case matrix, and
@@ -12,7 +12,7 @@ evidence survives even if a binary later becomes unreachable.
 
 This intentionally does not require a cached CPS ASEC directory: it uses a
 small synthetic matrix so the archive can be regenerated anywhere. Large-N
-CPS-based diff counts already recorded in `docs/pending_issues.md` are a
+CPS-based diff counts recorded in `docs/pending_issues.md` are a
 separate, complementary form of evidence and are not reproduced here.
 
 Usage:
@@ -38,7 +38,7 @@ from oracle import run_oracle  # noqa: E402
 
 TOLERANCE = 0.015
 
-# Every generation named in docs/pending_issues.md's "TAXSIM executable
+# Every generation named in docs/oracle_archive/README.md's "TAXSIM executable
 # generations" section that has a binary present in this checkout. Labels
 # match that section's prose so the archive and the doc stay cross-referable.
 CANDIDATE_GENERATIONS = {
@@ -157,7 +157,7 @@ def main() -> None:
         "synthetic_matrix_comparisons": comparisons,
         "note": (
             "Large-N CPS-based diff counts are recorded separately in "
-            "docs/pending_issues.md (\"TAXSIM executable generations\"); this "
+            "docs/oracle_archive/README.md; this "
             "archive does not reproduce them."
         ),
     }
