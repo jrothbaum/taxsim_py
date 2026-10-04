@@ -151,21 +151,23 @@ function field(host, name, label, value, kind) {
   const l = document.createElement("label");
   l.append(label);
   const i = document.createElement("input");
-  Object.assign(i, { type: "number", name, value, step: kind === "count" ? "1" : "any" });
-  if (kind === "count") i.min = 0;
+  // Text, not type=number, so amounts like 1,250,000 or $80,000 are accepted.
+  Object.assign(i, { type: "text", name, value, defaultValue: value, inputMode: kind === "count" ? "numeric" : "decimal", autocomplete: "off" });
+  i.pattern = kind === "count" ? "[0-9,\\s]*" : "[\\-\\$0-9,.\\s]*";
+  i.title = kind === "count" ? "A whole number" : "A number; commas and $ are fine";
   l.append(i); $(host).append(l);
 }
 function select(host, name, label, options, value) {
   const l = document.createElement("label");
   l.append(label);
   const s = document.createElement("select"); s.name = name;
-  for (const [v, text] of options) s.add(new Option(text, v, false, String(v) === String(value)));
+  for (const [v, text] of options) s.add(new Option(text, v, String(v) === String(value), String(v) === String(value)));
   l.append(s); $(host).append(l);
 }
 function build() {
   const y = document.createElement("label"); y.append("Tax year");
   const yi = document.createElement("input");
-  Object.assign(yi, { type: "number", name: "year", value: 2025, min: 1960, max: 2025, step: 1, required: true });
+  Object.assign(yi, { type: "number", name: "year", value: 2025, defaultValue: 2025, min: 1960, max: 2025, step: 1, required: true });
   y.append(yi); $("basics").append(y);
   select("basics", "state", "State", [[0, "No state calculation"], ...STATES.map((s, i) => [i + 1, s])], 5);
   select("basics", "mstat", "Marital status", MSTAT, 1);
@@ -183,6 +185,11 @@ for (const b of document.querySelectorAll("nav button")) b.onclick = () => {
   $("single").hidden = b.dataset.tab !== "single"; $("file").hidden = b.dataset.tab !== "file";
 };
 
+// "1,250,000", "$80,000" and "" (= 0) all parse; anything else is NaN.
+const parseAmount = (text) => {
+  const cleaned = String(text).replace(/[,$\s]/g, "");
+  return cleaned === "" ? 0 : /^-?(\d+\.?\d*|\.\d+)$/.test(cleaned) ? Number(cleaned) : NaN;
+};
 const fmt = (name, v) => {
   if (typeof v !== "number") return v ?? "";
   if (RATES.has(name)) return v.toLocaleString(undefined, { maximumFractionDigits: 2 });
@@ -219,7 +226,12 @@ $("form").onsubmit = async (ev) => {
   ev.preventDefault();
   const record = {};
   const data = new FormData($("form"));
-  for (const [k, v] of data) if (!["mtr", "idtl", "mode"].includes(k)) record[k] = Number(v) || 0;
+  for (const [k, v] of data) {
+    if (["mtr", "idtl", "mode"].includes(k)) continue;
+    const n = parseAmount(v);
+    if (Number.isNaN(n)) return status(`"${v}" is not a number (${label(k)}).`, true);
+    record[k] = n;
+  }
   status("Calculating…");
   try {
     const out = await call({ op: "row", record, mode: data.get("mode"), idtl: Number(data.get("idtl")), mtr: Number(data.get("mtr")) });
@@ -234,7 +246,15 @@ $("form").onsubmit = async (ev) => {
     status("Ready.");
   } catch (e) { status(e.message, true); }
 };
-$("reset").onclick = () => { $("form").reset(); $("results").hidden = true; };
+$("reset").onclick = () => {
+  for (const el of $("form").elements) {
+    if (el.tagName === "INPUT") el.value = el.defaultValue;
+    else if (el.tagName === "SELECT") el.selectedIndex = Math.max(0, [...el.options].findIndex((o) => o.defaultSelected));
+  }
+  $("results").hidden = true;
+  status("Ready.");
+  window.scrollTo({ top: 0, behavior: "smooth" });
+};
 
 let csvOut = "";
 $("run-file").onclick = async () => {
