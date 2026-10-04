@@ -2,9 +2,9 @@ THIS IS STILL IN DEVELOPMENT AND NOT ON PYPI YET
 
 # taxsim-py
 
-`taxsim-py` is a dataframe-oriented Python implementation of NBER TAXSIM.
-It calculates federal income tax, payroll tax, and state income tax for
-realistic household records.
+`taxsim-py` is a dataframe-oriented Python implementation of NBER TAXSIM,
+independent of and not affiliated with NBER. It calculates federal income tax,
+payroll tax, and state income tax for realistic household records.
 
 The public API uses clear internal variable names and accepts Polars
 `DataFrame` or `LazyFrame` objects. TAXSIM's older `v1`-style detail names are
