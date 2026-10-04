@@ -230,6 +230,7 @@ $("form").onsubmit = async (ev) => {
     rows($("detail"), rest);
     $("detail-wrap").hidden = rest.length === 0;
     $("results").hidden = false;
+    $("results").scrollIntoView({ behavior: "smooth", block: "start" });
     status("Ready.");
   } catch (e) { status(e.message, true); }
 };
@@ -255,6 +256,7 @@ $("run-file").onclick = async () => {
       return tr;
     }));
     $("file-result").hidden = false; $("download").hidden = false;
+    $("file-result").scrollIntoView({ behavior: "smooth", block: "start" });
     status("Ready.");
   } catch (e) { status(e.message, true); }
   $("run-file").disabled = false;
