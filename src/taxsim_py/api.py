@@ -1,5 +1,7 @@
 """Public dataframe API."""
 
+
+from __future__ import annotations
 from collections.abc import Mapping
 from concurrent.futures import ThreadPoolExecutor
 from enum import IntEnum

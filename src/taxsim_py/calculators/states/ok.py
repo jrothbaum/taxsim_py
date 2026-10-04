@@ -1,5 +1,7 @@
 """Oklahoma individual income tax calculator."""
 
+
+from __future__ import annotations
 import polars as pl
 
 from taxsim_py.engine.brackets import bracket_rate, bracket_tax

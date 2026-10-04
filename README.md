@@ -13,7 +13,7 @@ names only on request).
 
 ## Install
 
-Python 3.10 or newer: `pip install taxsim-py` or `uv add taxsim-py`. From a
+Python 3.9 or newer: `pip install taxsim-py` or `uv add taxsim-py`. From a
 checkout: `uv sync --group dev --group test`.
 
 ## Basic use

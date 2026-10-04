@@ -1,5 +1,7 @@
 """Alternative minimum tax calculations."""
 
+
+from __future__ import annotations
 import polars as pl
 
 

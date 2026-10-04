@@ -1,5 +1,7 @@
 """Arkansas individual income tax calculator."""
 
+
+from __future__ import annotations
 import polars as pl
 
 from taxsim_py.engine.inputs import aged_count, files_head_of_household, files_joint, files_separate, files_single, separate_divisor, taxpayer_count

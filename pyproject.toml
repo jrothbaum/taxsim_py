@@ -5,7 +5,7 @@ description = "A dataframe-oriented Python implementation of NBER TAXSIM"
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
-requires-python = ">=3.10"
+requires-python = ">=3.9"
 dependencies = [
     "polars>=1.28.1",
     "pyyaml>=6.0.3",
@@ -17,7 +17,7 @@ Documentation = "https://jrothbaum.github.io/taxsim_py/"
 
 [project.optional-dependencies]
 readstat = [
-    "polars-readstat>=0.24",
+    "polars-readstat>=0.20.2",
 ]
 
 [project.scripts]
@@ -35,16 +35,16 @@ dev = [
     "ruff>=0.16.10",
 ]
 test = [
-    "policyengine-taxsim>=2.31.1",
+    "policyengine-taxsim>=2.31.1; python_version >= '3.10'",
     "pytest>=8.4.2",
-    "taxcalc>=6.2.1",
+    "taxcalc>=6.2.1; python_version >= '3.10'",
 ]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 
 [tool.ruff]
-target-version = "py310"
+target-version = "py39"
 
 [tool.ruff.lint]
 select = ["E4", "E7", "E9", "F"]

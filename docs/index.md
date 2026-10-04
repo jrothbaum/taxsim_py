@@ -7,7 +7,7 @@ inputs and meanings but is independent of, and not affiliated with, NBER.
 ## Install
 
 ```bash
-pip install taxsim-py                    # Python 3.10 or newer
+pip install taxsim-py                    # Python 3.9 or newer
 pip install "taxsim-py[readstat]"        # also read and write Stata, SPSS and SAS files
 ```
 

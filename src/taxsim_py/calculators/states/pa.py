@@ -1,5 +1,7 @@
 """Pennsylvania personal income tax calculator."""
 
+
+from __future__ import annotations
 import polars as pl
 
 from taxsim_py.engine.inputs import aged_count, files_joint, taxpayer_count

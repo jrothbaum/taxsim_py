@@ -1,5 +1,7 @@
 """Michigan individual income tax calculator."""
 
+
+from __future__ import annotations
 import polars as pl
 
 from taxsim_py.engine.inputs import aged_count, files_joint, files_separate, is_dependent_filer, taxpayer_count

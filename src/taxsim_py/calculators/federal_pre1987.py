@@ -1,5 +1,7 @@
 """Federal individual income tax calculator for 1977 through 1986."""
 
+
+from __future__ import annotations
 import polars as pl
 
 from taxsim_py.engine.brackets import bracket_rate_by_status, bracket_tax_by_status

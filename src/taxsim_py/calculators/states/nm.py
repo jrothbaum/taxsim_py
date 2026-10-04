@@ -1,5 +1,7 @@
 """New Mexico personal income tax calculator."""
 
+
+from __future__ import annotations
 import math
 
 import polars as pl

@@ -1,5 +1,7 @@
 """State tax year extrapolation."""
 
+
+from __future__ import annotations
 import polars as pl
 
 from taxsim_py.engine.schema import PARAMETERS_ROOT, load_yaml

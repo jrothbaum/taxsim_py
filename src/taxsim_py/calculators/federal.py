@@ -1,5 +1,7 @@
 """Federal individual income tax calculator."""
 
+
+from __future__ import annotations
 import polars as pl
 
 from taxsim_py.behavior import BehaviorProfile, TAXSIM_BEHAVIOR

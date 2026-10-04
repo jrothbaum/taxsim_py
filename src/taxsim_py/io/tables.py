@@ -5,6 +5,8 @@ Stata, SAS and SPSS files need the optional `readstat` extra
 (`pip install taxsim-py[readstat]`), which installs polars-readstat.
 """
 
+
+from __future__ import annotations
 from pathlib import Path
 
 import polars as pl

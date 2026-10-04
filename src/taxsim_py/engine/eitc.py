@@ -1,5 +1,7 @@
 """Earned Income Tax Credit calculations."""
 
+
+from __future__ import annotations
 import polars as pl
 
 from taxsim_py.engine.inputs import aged_count, is_dependent_filer, taxpayer_count

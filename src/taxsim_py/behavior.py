@@ -1,5 +1,7 @@
 """Calculation modes and the deliberate behavioral differences between them."""
 
+
+from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 
