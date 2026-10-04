@@ -111,8 +111,7 @@ tax years 2022-2025) and Tax-Calculator (federal): see
 ## What is supported
 
 - **Years:** federal tax for 1960-2025 and state tax for 1977-2025, all actual
-  law. Years after 2025 run on 2025 law with no indexing, so treat them as
-  rough. Earlier years raise an error.
+  law. Years outside these ranges raise an error.
 - **States:** all 50 states and DC (TAXSIM codes 1-51; 0 means no state). States
   without an income tax return 0, except Washington's Working Families credit
   in statutory mode.

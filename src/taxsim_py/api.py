@@ -129,6 +129,8 @@ MARGINAL_INPUTS: dict[MarginalInput, tuple[str, float]] = {
     MarginalInput.SPOUSE_PROFESSIONAL_INCOME: ("sprofinc", 1.0),
 }
 _MARGINAL_STEP = 0.01
+# The last tax year with coded federal and state law; later years raise an error.
+LAST_SUPPORTED_YEAR = 2025
 # TAXSIM retries with a decrease when an increase gives a rate outside these.
 _FEDERAL_RATE_LIMIT = 100.0
 _STATE_RATE_LIMIT = 25.0
@@ -356,6 +358,9 @@ def calculate_taxes(
         raise ValueError("Years cannot be null")
     if frame.is_empty():
         raise ValueError("Cannot calculate taxes for an empty dataframe")
+    latest_year = int(year) if year is not None else frame.get_column(year_column).max()
+    if latest_year > LAST_SUPPORTED_YEAR:
+        raise ValueError(f"Tax years after {LAST_SUPPORTED_YEAR} are not implemented (got {latest_year})")
     if max_year_workers is not None and max_year_workers < 1:
         raise ValueError("max_year_workers must be at least 1")
     if batch_rows is not None and batch_rows < 1:

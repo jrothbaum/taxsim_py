@@ -7,7 +7,7 @@ import polars as pl
 from polars.testing import assert_frame_equal
 
 from taxsim_py import MarginalInput, calculate_taxes
-from taxsim_py.api import OUTPUT_COLUMNS, _default_year_workers
+from taxsim_py.api import LAST_SUPPORTED_YEAR, OUTPUT_COLUMNS, _default_year_workers
 from taxsim_py.engine.detail import (
     FEDERAL_DETAIL_COLUMNS,
     STATE_DETAIL_COLUMNS,
@@ -82,6 +82,14 @@ class CalculateTaxesTests(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             calculate_taxes(cases, batch_rows=0)
+
+    def test_years_after_the_last_implemented_year_raise(self) -> None:
+        last = LAST_SUPPORTED_YEAR
+        calculate_taxes(pl.DataFrame([_case(1, last, 5)]))
+        with self.assertRaisesRegex(ValueError, "not implemented"):
+            calculate_taxes(pl.DataFrame([_case(1, last, 5), _case(2, last + 1, 5)]))
+        with self.assertRaisesRegex(ValueError, "not implemented"):
+            calculate_taxes(pl.DataFrame([_case(1, last, 5)]), year=last + 1)
 
     def test_no_state_and_no_income_tax_states(self) -> None:
         # taxsim2024.exe: 2020 single, $50,000 of wages -> fiitax 2514.50, siitax 0.
