@@ -8,6 +8,9 @@ payroll tax, and state income tax for household records, using Polars
 `DataFrame` or `LazyFrame` inputs and clear variable names (TAXSIM's `v1`-style
 names only on request).
 
+**[Documentation](https://jrothbaum.github.io/taxsim_py/)** ·
+**[Try the calculator in your browser](https://jrothbaum.github.io/taxsim_py/calculator/)**
+
 ## Install
 
 Python 3.10 or newer: `pip install taxsim-py` or `uv add taxsim-py`. From a
