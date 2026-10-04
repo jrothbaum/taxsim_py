@@ -55,6 +55,19 @@ year are required.
 
 ### A file
 
+From Python, scan the file with Polars and pass it in. A `LazyFrame` works as well as a
+`DataFrame`; the result is an eager `DataFrame`.
+
+```python
+import polars as pl
+from taxsim_py import calculate_taxes
+
+taxes = calculate_taxes(pl.scan_parquet("households.parquet"))
+taxes.write_parquet("taxes.parquet")
+```
+
+From the command line, with any of the [supported file types](files.md):
+
 ```bash
 taxsim-py households.csv taxes.csv
 ```
