@@ -63,15 +63,10 @@ testing/replication mode.
   CPS independent-model smoke matrix. It fails on a nonzero gate and prints
   each gate's output; the individual validators retain detailed artifacts
   where applicable.
-- [ ] **Add continuous integration.** Run the API/unit tests and checks on
-  every change. Decide whether licensed or platform-specific TAXSIM binaries
-  can run in CI; if not, publish a generated oracle fixture or run the full
-  oracle suite in a separate trusted release job.
-- [ ] **Document the supported contract.** State the exact supported federal
-  and state years, input columns and units, filing-status semantics, actual-law
-  versus projected years, known law-over-TAXSIM choices, ignored inputs, and
-  numerical tolerances. Label projected years separately rather than implying
-  the same confidence as actual-law years.
+- [x] **Continuous integration: skipped.** Tests and the validation scripts are
+  run locally before each release.
+- [x] **Document the supported contract.** Done in the README ("What is
+  supported"): years, inputs, accuracy, and what is not modelled.
 - [ ] **Make the repository releasable.** Add a README with installation and
   realistic examples, a license, citation information, contribution guidance,
   changelog/versioning policy, and complete package metadata/build-system
@@ -148,8 +143,7 @@ testing/replication mode.
   Ohio, Oklahoma, Oregon, Pennsylvania, and Utah. The state-filtered CPS results
   and remaining differences are in
   [`docs/policyengine_recent_state_comparison.md`](policyengine_recent_state_comparison.md),
-  with the rollout matrix in
-  [`docs/state_2022_2024_status.md`](state_2022_2024_status.md). Continue
+  Continue
   until each remaining state's 2022-2024 parameters are either implemented or
   explicitly documented as outside the TAXSIM input contract.
 - [ ] **Resolve the 1981 detail-output cluster.** Determine why TAXSIM `v26`

@@ -108,6 +108,28 @@ tax years 2022-2025) and Tax-Calculator (federal): see
 [PolicyEngine comparison](docs/policyengine_recent_state_comparison.md) and
 `scripts/compare_independent.py`.
 
+## What is supported
+
+- **Years:** federal tax for 1960-2025 and state tax for 1977-2025, all actual
+  law. Years after 2025 run on 2025 law with no indexing, so treat them as
+  rough. Earlier years raise an error.
+- **States:** all 50 states and DC (TAXSIM codes 1-51; 0 means no state). States
+  without an income tax return 0, except Washington's Working Families credit
+  in statutory mode.
+- **Inputs:** TAXSIM's 35 inputs, with the same meanings and units (dollars per
+  year, filing status `mstat`). Missing inputs are 0. Optional extras that are
+  not TAXSIM inputs: `children_under_3`, `children_under_4` and
+  `children_under_7`. Two conventions to know: `psemp`/`ssemp` get no
+  qualified business income deduction (use `pbusinc`/`pprofinc`), and `pensions`
+  is the kind of pension each state exempts.
+- **Accuracy:** in `taxsim` mode, to the cent against the compiled TAXSIM on the
+  validation matrix, apart from logged TAXSIM errors. `statutory` mode follows
+  the law where TAXSIM is wrong ([Statutory corrections](docs/statutory_corrections.md));
+  against PolicyEngine the remaining differences are listed in
+  [PolicyEngine comparison](docs/policyengine_recent_state_comparison.md).
+- **Not modelled:** items TAXSIM has no input for, such as 2025 deductions for
+  tips, overtime and car-loan interest, and Washington's capital gains tax.
+
 ## Tests
 
 Run the normal test suite with:
