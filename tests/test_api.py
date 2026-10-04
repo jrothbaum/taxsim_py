@@ -76,7 +76,7 @@ class CalculateTaxesTests(unittest.TestCase):
         cases = pl.DataFrame([_case(i, 2020, state) for i, state in enumerate((1, 5, 33, 36))])
         serial = calculate_taxes(cases, max_year_workers=1)
 
-        with patch("taxsim_py.api._MIN_ROWS_PER_WORKER", 1):
+        with patch("taxsim_py.api._BATCH_ROWS", 1):
             parallel = calculate_taxes(cases, max_year_workers=2)
 
         assert_frame_equal(parallel, serial)
