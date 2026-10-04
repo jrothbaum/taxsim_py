@@ -25,11 +25,14 @@ def compute_ma_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     # `comnew(183)`: the primary earner's payroll tax as TAXSIM credits the
     # taxpayer.
     own_fica = pl.col("own_fica_primary")
+    own_fica_spouse = pl.lit(0.0)
     if behavior.mode.value == "statutory":
-        # The statute allows only the employee half of the wage payroll tax;
-        # TAXSIM credits both halves.
+        # The statute allows only the employee half of the wage payroll tax,
+        # and each spouse on a joint return their own, up to the cap;
+        # TAXSIM credits both halves and only the primary earner's.
         own_fica = own_fica - 0.5 * pl.col("own_wage_fica_primary")
-    df = df.with_columns(ma_c183=own_fica, ma_setax=pl.col("payroll_setax"))
+        own_fica_spouse = pl.col("own_fica_secondary") - 0.5 * pl.col("own_wage_fica_secondary")
+    df = df.with_columns(ma_c183=own_fica, ma_c183_spouse=own_fica_spouse, ma_setax=pl.col("payroll_setax"))
     # Federal Schedule E income (`comnew(8)`): other property income, plus S
     # corporation income from 1987.
     schede = pl.col("otherprop") + (pl.col("scorp") if y >= 1987 else 0.0)
@@ -99,7 +102,11 @@ def compute_ma_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     # --- Part B deductions ---
     # Payroll tax and Social Security benefits (`comnew(84)`), each up to $2,000.
     fica_cap = pl.lit(float(p["payroll_tax_deduction_cap"]))
-    fica = pl.min_horizontal(pl.col("ma_c183"), fica_cap) + pl.min_horizontal(pl.col("gssi").clip(0, None), fica_cap)
+    fica = (
+        pl.min_horizontal(pl.col("ma_c183"), fica_cap)
+        + pl.min_horizontal(pl.col("ma_c183_spouse"), fica_cap)
+        + pl.min_horizontal(pl.col("gssi").clip(0, None), fica_cap)
+    )
     setax = pl.col("ma_setax")
 
     ndep13 = pl.col("dep13").clip(None, 2.0).floor()

@@ -200,6 +200,7 @@ rent_deduction_share: 0.5
 rent_deduction_cap:
   1982: 2500
   2001: 3000
+  2023: 4000  # 2023 tax relief law
 rent_deduction_cap_separate_1997_2000: 1250
 
 # Senior circuit breaker credit (2001+, refundable): property tax (rent
@@ -228,6 +229,11 @@ circuit_breaker_max:
   2019: 1130
   2020: 1150
   2021: 1170
+  # 2022+: PolicyEngine-US gov.states.ma.tax.income.credits.senior_circuit_breaker (2023 tax relief law).
+  2022: 1200
+  2023: 2590
+  2024: 2730
+  2025: 2820
 circuit_breaker_income_limit:
   single:
     2001: 41000
@@ -248,6 +254,10 @@ circuit_breaker_income_limit:
     2019: 60000
     2020: 61000
     2021: 62000
+    2022: 64000
+    2023: 69000
+    2024: 72000
+    2025: 75000
   head_of_household:
     2001: 51000
     2002: 53000
@@ -268,6 +278,10 @@ circuit_breaker_income_limit:
     2019: 75000
     2020: 76000
     2021: 78000
+    2022: 80000
+    2023: 86000
+    2024: 91000
+    2025: 94000
   married_joint:
     2001: 61000
     2002: 63000
@@ -288,6 +302,10 @@ circuit_breaker_income_limit:
     2019: 90000
     2020: 92000
     2021: 93000
+    2022: 96000
+    2023: 103000
+    2024: 109000
+    2025: 112000
 
 # Interest exclusion per taxpayer.
 interest_exclusion_per_taxpayer: 100

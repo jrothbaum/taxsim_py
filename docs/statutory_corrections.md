@@ -472,6 +472,21 @@ uv run --group test pytest tests/test_calculation_modes.py tests/test_independen
   `eitc_before_age_test` / `eitc_before_filer_test` columns.
 - **Tests:** `tests/test_calculation_modes.py::test_state_childless_eitc_minimum_age_is_18_in_california_and_new_jersey`.
 
+## MA-001: Payroll tax deduction is per spouse
+
+- **Status:** corrected in statutory mode; retained in TAXSIM mode.
+- **Affected years:** all years with the deduction.
+- **TAXSIM behavior:** the Social Security and Medicare deduction uses only the
+  primary earner's payroll tax (`comnew(183)`), capped at $2,000 for the return.
+- **Corrected behavior:** each spouse on a joint return deducts their own
+  employee payroll tax, up to $2,000 each. A couple earning $50,000 and
+  $75,000 gets the second $2,000 ($100 of tax at 5%).
+- **Reason:** Form 1 lines 11a and 11b; amounts may not be combined or
+  transferred between spouses.
+- **Implementation:** `taxsim_py.calculators.states.ma`, with the spouse's
+  figures from `engine.payroll_tax.taxsim_payroll`.
+- **Tests:** `tests/test_calculation_modes.py::test_massachusetts_statutory_payroll_deduction_is_per_spouse`.
+
 ## HI-003: Pensions never excluded
 
 - **Affected years:** all years in statutory mode.

@@ -474,3 +474,18 @@ def test_state_childless_eitc_minimum_age_is_18_in_california_and_new_jersey() -
     taxsim_paid = {row["case"]: row["siitax"] < 0 for row in taxsim.iter_rows(named=True)}
     assert taxsim_paid["5_2022_15"]
     assert not taxsim_paid["31_2022_18"]
+
+
+def test_massachusetts_statutory_payroll_deduction_is_per_spouse() -> None:
+    # Form 1 lines 11a/11b: each spouse deducts their own payroll tax, up to
+    # $2,000 each. TAXSIM credits only the primary earner's.
+    cases = pl.DataFrame(
+        [
+            {"state": 22, "year": 2023, "mstat": 2, "pwages": 50_000.0, "swages": 75_000.0, "page": 29, "sage": 29},
+            {"state": 22, "year": 2023, "mstat": 2, "pwages": 125_000.0, "swages": 0.0, "page": 29, "sage": 29},
+        ]
+    )
+
+    two_earners, one_earner = calculate_taxes(cases, calculation_mode="statutory").get_column("siitax").to_list()
+
+    assert one_earner - two_earners == pytest.approx(100.0, abs=0.01)  # 5% of a second $2,000
