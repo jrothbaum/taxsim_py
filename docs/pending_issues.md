@@ -95,10 +95,9 @@ testing/replication mode.
 
 ### P1: confidence and maintainability after the beta
 
-- [ ] **Test every actual-law year with realistic data.** Run the CPS units
-  through every year from 1977 through 2021, not only policy-boundary years,
-  and retain per-year counts by tax and semantic worksheet output. This is
-  mainly a regression grid; projected years can remain out of scope for now.
+- [x] **Test every actual-law year with realistic data.** The CPS units were run
+  through every year from 1977 through 2021 against the compiled TAXSIM and
+  through 2022-2025 against PolicyEngine (October 2026; results below).
 - [ ] **Add boundary and property tests.** Generate cases immediately below,
   at, and above brackets, phaseouts, caps, filing thresholds, age cutoffs, and
   itemization ties. Add invariants such as row-order preservation, serial and
@@ -324,6 +323,37 @@ Taxes now match on the 2005 and 2011 files, except for the known age errors abov
 Rerun with `uv run scripts/compare_cps.py <cps dir> --out mismatches.parquet`. Pass
 `--tax-year YEAR` to use the CPS households and incomes as realistic test inputs
 under a different year's tax law.
+
+### Full-year CPS sweep (October 2026)
+
+All 104,404 units of the 2011 CPS sample, taxsim mode, against the compiled
+TAXSIM, tax years 1977-2021. Units differing for no classified reason:
+
+| Years | Units per year |
+|:--|--:|
+| 1977-1986 | 31-59 |
+| 1987-1989 | 8-10 |
+| 1990-1999 | 1-2 |
+| 2000-2002 | 18-29 |
+| 2003-2006 | 1-2 |
+| 2007-2010 | 0 |
+| 2011-2020 | 6-14 |
+| 2021 | 0 |
+
+Known and left alone: in 1977, 14 Connecticut units differ in federal tax by
+$2,000-$19,000 because TAXSIM itemizes Connecticut filers with property tax
+(and so loses the 50% cap on earned income) for reasons not yet identified.
+
+Tax years 2022-2025 (statutory mode, 1,500 sampled units, PolicyEngine). Federal
+tax differs on about 6% of units each year, nearly all of it self-employment
+income, where TAXSIM gives no 20% business deduction on `psemp` and the port
+keeps that convention. State tax differs on 10-11% of units, and what remains is
+the list in [PolicyEngine comparison](policyengine_recent_state_comparison.md).
+The sweep found and fixed: the California and New Jersey childless EITC minimum
+age (CA-005/NJ-001), the Massachusetts per-spouse payroll deduction (MA-001),
+stale Massachusetts circuit-breaker limits and rent cap for 2022-2025, and the
+Colorado per-taxpayer pension subtraction (CO-001). Tax-year 2022-2025 results
+for TAXSIM's own projected years are not investigated.
 
 A cross-year sweep using the 2011 CPS households now covers tax years 1977,
 1978, 1981, 1986, 1987, 1991, 1994, 1998, 2000, 2001, 2005, 2009, 2010,
