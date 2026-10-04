@@ -98,9 +98,10 @@ validation matrix (`scripts/validate_federal.py` and `scripts/validate_states.py
 differences that remain are logged in [Statutory corrections](docs/statutory_corrections.md).
 
 **Benchmark** ([details](docs/performance.md), `scripts/benchmark_comparison.py`):
-on a mixed 42-state batch, 1,000,000 rows take about 10 s and 2.8 GB with
-taxsim_py versus 17 s and 4 MB with the compiled TAXSIM; taxsim_py is faster
-above roughly 150,000 rows. PolicyEngine takes about 40 s and 6 GB for 10,000.
+on a mixed 42-state batch, 1,000,000 rows take about 9 s and 4.4 GB with
+taxsim_py (11 s and 2 GB with `batch_rows=50_000, max_year_workers=4`) versus
+17 s and 4 MB with the compiled TAXSIM; taxsim_py is faster above roughly
+100,000 rows. PolicyEngine takes about 40 s and 6 GB for 10,000.
 
 The default `statutory` mode is also compared with PolicyEngine-US (all states,
 tax years 2022-2025) and Tax-Calculator (federal): see

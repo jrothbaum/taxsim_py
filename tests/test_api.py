@@ -76,10 +76,12 @@ class CalculateTaxesTests(unittest.TestCase):
         cases = pl.DataFrame([_case(i, 2020, state) for i, state in enumerate((1, 5, 33, 36))])
         serial = calculate_taxes(cases, max_year_workers=1)
 
-        with patch("taxsim_py.api._BATCH_ROWS", 1):
-            parallel = calculate_taxes(cases, max_year_workers=2)
+        for batch_rows in (1, 3, None):
+            with self.subTest(batch_rows=batch_rows):
+                assert_frame_equal(calculate_taxes(cases, max_year_workers=2, batch_rows=batch_rows), serial)
 
-        assert_frame_equal(parallel, serial)
+        with self.assertRaises(ValueError):
+            calculate_taxes(cases, batch_rows=0)
 
     def test_no_state_and_no_income_tax_states(self) -> None:
         # taxsim2024.exe: 2020 single, $50,000 of wages -> fiitax 2514.50, siitax 0.

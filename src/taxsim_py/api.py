@@ -132,10 +132,8 @@ _MARGINAL_STEP = 0.01
 # TAXSIM retries with a decrease when an increase gives a rate outside these.
 _FEDERAL_RATE_LIMIT = 100.0
 _STATE_RATE_LIMIT = 25.0
-# Four batches of 100,000 rows in flight matched the speed of larger slices at
-# about two thirds of the peak memory (1,000,000 rows, 42 states).
-_BATCH_ROWS = 100_000
-_BATCH_WORKERS = 4
+_MIN_BATCH_ROWS = 25_000
+_MAX_BATCH_WORKERS = 8
 
 
 def _resolve(
@@ -144,15 +142,17 @@ def _resolve(
     year_column: str,
     calculators: dict,
     max_year_workers: int | None,
+    batch_rows: int | None,
     keep_intermediate: bool,
     behavior: BehaviorProfile,
     keep_columns: tuple[str, ...] = (),
     result_columns: tuple[str, ...] | None = None,
 ) -> pl.DataFrame:
-    """Resolve each year's rows in batches, a few batches at a time.
+    """Resolve each year's rows in batches, several batches at a time.
 
-    Peak memory follows the batch size and the number of batches in flight,
-    not the number of rows.
+    Peak memory follows the batch size times the number of batches in flight.
+    Without `batch_rows` each year is cut into at most eight batches of at
+    least `_MIN_BATCH_ROWS` rows, which is fastest.
     """
     if year is not None:
         partitions = [((int(year),), rows)]
@@ -161,7 +161,9 @@ def _resolve(
     tasks = [
         (int(partition_year), batch)
         for (partition_year,), part in partitions
-        for batch in part.iter_slices(n_rows=_BATCH_ROWS)
+        for batch in part.iter_slices(
+            n_rows=batch_rows or max(_MIN_BATCH_ROWS, -(-part.height // _MAX_BATCH_WORKERS))
+        )
     ]
 
     def resolve_batch(task: tuple[int, pl.DataFrame]) -> pl.DataFrame:
@@ -177,7 +179,7 @@ def _resolve(
         )
 
     worker_limit = _default_year_workers() if max_year_workers is None else max_year_workers
-    workers = min(worker_limit, _BATCH_WORKERS, len(tasks))
+    workers = min(worker_limit, _MAX_BATCH_WORKERS, len(tasks))
     if workers == 1:
         parts = [resolve_batch(task) for task in tasks]
     else:
@@ -297,6 +299,7 @@ def calculate_taxes(
     state_column: str = "state",
     state_id_type: StateIdType = "taxsim",
     max_year_workers: int | None = None,
+    batch_rows: int | None = None,
     keep_intermediate: bool = False,
     mtr: int | MarginalInput | None = None,
     idtl: int | None = None,
@@ -355,6 +358,8 @@ def calculate_taxes(
         raise ValueError("Cannot calculate taxes for an empty dataframe")
     if max_year_workers is not None and max_year_workers < 1:
         raise ValueError("max_year_workers must be at least 1")
+    if batch_rows is not None and batch_rows < 1:
+        raise ValueError("batch_rows must be at least 1")
     detail_levels = {int(idtl)} if idtl is not None else set()
     if "idtl" in columns:
         detail_levels |= set(frame.get_column("idtl").fill_null(0).cast(pl.Int64).unique().to_list())
@@ -386,6 +391,7 @@ def calculate_taxes(
             year_column,
             calculators,
             max_year_workers,
+            batch_rows,
             keep_intermediate,
             behavior,
             keep_columns=tuple(STATE_DETAIL_SOURCES.values()) if 2 in detail_levels else (),
