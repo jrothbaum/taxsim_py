@@ -68,12 +68,9 @@ testing/replication mode.
   run locally before each release.
 - [x] **Document the supported contract.** Done in the README ("What is
   supported"): years, inputs, accuracy, and what is not modelled.
-- [ ] **Make the repository releasable.** The README has installation,
-  examples and the supported contract. Still missing: a license, citation
-  information, contribution guidance, changelog/versioning policy, and complete
-  package metadata. Do not package the TAXSIM executable: the test-only
-  `policyengine-taxsim` dependency provides cross-platform binaries for oracle
-  validation.
+- [x] **Make the repository releasable.** The README has installation, examples
+  and the supported contract, and the project is MIT licensed. No contribution
+  guidance or versioning policy is planned.
 - [ ] **Tag the validated baseline.** Work is committed in reviewable steps;
   no beta tag exists yet.
 - [x] **Archive the final upstream oracle metadata.** TAXSIM is being sunset

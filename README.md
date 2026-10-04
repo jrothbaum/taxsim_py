@@ -157,3 +157,7 @@ Start with the short [documentation index](docs/README.md).
 - [PolicyEngine comparison](docs/policyengine_recent_state_comparison.md): 2022-2025 state results and known differences
 - [Pending issues](docs/pending_issues.md): current project status and remaining work
 - [Parameter tables](parameters/README.md): how law-oriented YAML and CSV data are maintained
+
+## License
+
+MIT; see [LICENSE](LICENSE).

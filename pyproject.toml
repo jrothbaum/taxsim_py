@@ -2,6 +2,8 @@
 name = "taxsim-py"
 version = "0.1.0"
 description = "A dataframe-oriented Python implementation of NBER TAXSIM"
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.10"
 dependencies = [
     "polars>=1.28.1",
