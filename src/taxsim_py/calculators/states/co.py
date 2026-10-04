@@ -35,11 +35,46 @@ def compute_co_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         co_exemps=taxpayer_count() + pl.col("depx") + aged_count(),
     )
     pension_cap = p.num("pension_exclusion")
-    df = df.with_columns(
-        co_pension_exclusion=pl.when(aged_count() > 0).then(
-            pl.min_horizontal(pl.col("pensions") + pl.col("taxable_social_security"), pension_cap * pl.col("co_taxpayers")).clip(0, None)
-        ).otherwise(0.0)
-    )
+    if effective_year >= 2022:
+        ps = p["pension_subtraction_2022plus"]
+        cap_older, cap_younger = float(ps["cap_older"]), float(ps["cap_younger"])
+        agi_limits = ps["social_security_cap_increase_agi_limit"]
+        agi_limit = pl.when(files_joint()).then(float(resolve_year(agi_limits["joint"], effective_year))).otherwise(
+            float(resolve_year(agi_limits["single"], effective_year))
+        )
+        # Each taxpayer takes an equal share of the pension and Social Security
+        # inputs, as for the other states that cap pensions per person.
+        pension_each = pl.col("pensions") / pl.col("co_taxpayers")
+        social_security_each = pl.col("taxable_social_security") / pl.col("co_taxpayers")
+
+        def subtraction(age: pl.Expr, present: pl.Expr) -> pl.Expr:
+            older = present & (age >= float(ps["age_older"]))
+            middle = present & ~older & (age >= float(ps["age_younger"]))
+            social_security = (
+                pl.when(older)
+                .then(social_security_each)
+                .when(middle)
+                .then(
+                    pl.when((social_security_each > cap_younger) & (pl.col("agi") <= agi_limit))
+                    .then(social_security_each)
+                    .otherwise(pl.min_horizontal(social_security_each, cap_younger))
+                )
+                .otherwise(0.0)
+            )
+            cap = pl.when(older).then(cap_older).otherwise(cap_younger)
+            pension = pl.when(older | middle).then(pl.min_horizontal((cap - social_security).clip(0, None), pension_each)).otherwise(0.0)
+            return pension.clip(0, None) + social_security
+
+        df = df.with_columns(
+            co_pension_exclusion=subtraction(pl.col("page"), pl.lit(True))
+            + subtraction(pl.col("sage"), pl.col("co_taxpayers") > 1)
+        )
+    else:
+        df = df.with_columns(
+            co_pension_exclusion=pl.when(aged_count() > 0).then(
+                pl.min_horizontal(pl.col("pensions") + pl.col("taxable_social_security"), pension_cap * pl.col("co_taxpayers")).clip(0, None)
+            ).otherwise(0.0)
+        )
     # Pre-1987 property tax and heating credits for taxpayers 65 or older.
     if effective_year <= 1986:
         single_like = pl.col("filing_status").is_in(["single", "head_of_household"])

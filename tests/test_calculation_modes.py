@@ -489,3 +489,21 @@ def test_massachusetts_statutory_payroll_deduction_is_per_spouse() -> None:
     two_earners, one_earner = calculate_taxes(cases, calculation_mode="statutory").get_column("siitax").to_list()
 
     assert one_earner - two_earners == pytest.approx(100.0, abs=0.01)  # 5% of a second $2,000
+
+
+def test_colorado_statutory_pension_subtraction_is_per_taxpayer_by_age() -> None:
+    # DR 0104AD: $20,000 each at 55-64, $24,000 each at 65+, nothing below 55.
+    # TAXSIM's cap applies only when someone is 65 or older.
+    cases = pl.DataFrame(
+        [
+            {"mstat": 2, "page": 63, "sage": 63, "pensions": 50_000.0},
+            {"mstat": 2, "page": 70, "sage": 60, "pensions": 80_000.0},
+            {"mstat": 1, "page": 60, "sage": 0, "pensions": 30_000.0},
+            {"mstat": 1, "page": 50, "sage": 0, "pensions": 30_000.0},
+            {"mstat": 1, "page": 70, "sage": 0, "pensions": 30_000.0},
+        ]
+    ).with_columns(state=pl.lit(6), year=pl.lit(2024), taxsimid=pl.int_range(1, 6))
+
+    result = calculate_taxes(cases, keep_intermediate=True).get_column("co_pension_exclusion").to_list()
+
+    assert result == pytest.approx([40_000.0, 44_000.0, 20_000.0, 0.0, 24_000.0])

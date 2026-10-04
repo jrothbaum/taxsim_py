@@ -183,6 +183,19 @@ family_affordability_credit:
 # Pension and Social Security exclusion per taxpayer, for returns with a
 # taxpayer 65 or older (TAXSIM `pnsion`).
 pension_exclusion: {1977: 3000, 1978: 4000, 1979: 5000, 1982: 20000, 2000: 24000}
+# 2022+ (C.R.S. 39-22-104(4)(f)-(g); DR 0104AD): each taxpayer subtracts
+# pension and annuity income up to the cap for their age, reduced by their
+# Social Security subtraction. Taxpayers 65+ subtract all taxable Social
+# Security; those 55-64 subtract it within the younger cap, which from 2025
+# (HB24-1142) rises to the full amount when federal AGI is at or below the limit.
+pension_subtraction_2022plus:
+  age_older: 65
+  age_younger: 55
+  cap_older: 24000
+  cap_younger: 20000
+  social_security_cap_increase_agi_limit:
+    single: {2022: 0, 2025: 75000}
+    joint: {2022: 0, 2025: 95000}
 # 2001-2002 joint returns: subtraction per taxpayer 65 or older.
 aged_marriage_subtraction_2001: 900
 

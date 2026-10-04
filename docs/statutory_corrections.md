@@ -487,6 +487,22 @@ uv run --group test pytest tests/test_calculation_modes.py tests/test_independen
   figures from `engine.payroll_tax.taxsim_payroll`.
 - **Tests:** `tests/test_calculation_modes.py::test_massachusetts_statutory_payroll_deduction_is_per_spouse`.
 
+## CO-001: Pension and Social Security subtraction by age, per taxpayer
+
+- **Status:** corrected in statutory mode for 2022 onward; retained in TAXSIM mode.
+- **TAXSIM behavior:** the subtraction applies only when someone is 65 or
+  older, as one combined cap of $24,000 per taxpayer on pensions plus taxable
+  Social Security. A couple aged 63 and 63 gets nothing.
+- **Corrected behavior:** each taxpayer subtracts pension income up to $20,000
+  at ages 55-64 or $24,000 at 65+, less their Social Security subtraction.
+  Taxpayers 65+ subtract all taxable Social Security; those 55-64 within the
+  $20,000 cap (from 2025, all of it when federal AGI is at most $75,000, or
+  $95,000 jointly). The pension and Social Security inputs are split equally
+  between spouses.
+- **Reason:** C.R.S. 39-22-104(4)(f) and (4)(g); DR 0104AD; HB24-1142.
+- **Implementation:** `taxsim_py.calculators.states.co.compute_co_tax`.
+- **Tests:** `tests/test_calculation_modes.py::test_colorado_statutory_pension_subtraction_is_per_taxpayer_by_age`.
+
 ## HI-003: Pensions never excluded
 
 - **Affected years:** all years in statutory mode.
