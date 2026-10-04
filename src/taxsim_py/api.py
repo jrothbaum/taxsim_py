@@ -20,7 +20,7 @@ from taxsim_py.engine.detail import (
     federal_detail,
     state_detail,
 )
-from taxsim_py.engine.federal_state import resolve_federal_and_state
+from taxsim_py.engine.federal_state import StateCalculator, resolve_federal_and_state
 from taxsim_py.engine.inputs import SUPPORTED_MSTAT, with_input_defaults
 
 StateIdType = Literal["taxsim", "fips"]
@@ -135,6 +135,9 @@ LAST_SUPPORTED_YEAR = 2025
 _FEDERAL_RATE_LIMIT = 100.0
 _STATE_RATE_LIMIT = 25.0
 _MIN_BATCH_ROWS = 25_000
+# Batches of this many rows, eight at a time, were as fast as larger ones and used
+# the least memory for one state and for 42 states (1,000,000 rows).
+_DEFAULT_BATCH_ROWS = 50_000
 _MAX_BATCH_WORKERS = 8
 
 
@@ -142,7 +145,7 @@ def _resolve(
     rows: pl.DataFrame,
     year: int | None,
     year_column: str,
-    calculators: dict,
+    calculators: dict[int, StateCalculator],
     max_year_workers: int | None,
     batch_rows: int | None,
     keep_intermediate: bool,
@@ -150,30 +153,45 @@ def _resolve(
     keep_columns: tuple[str, ...] = (),
     result_columns: tuple[str, ...] | None = None,
 ) -> pl.DataFrame:
-    """Resolve each year's rows in batches, several batches at a time.
+    """Resolve state/year partitions in batches, several batches at a time.
 
     Peak memory follows the batch size times the number of batches in flight.
-    Without `batch_rows` each year is cut into at most eight batches of at
-    least `_MIN_BATCH_ROWS` rows, which is fastest.
+    Large year partitions split by state before federal plan construction.
+    Small mixed-state partitions share a federal plan to limit setup overhead.
+    Without `batch_rows` batches hold `_DEFAULT_BATCH_ROWS` rows.
     """
     if year is not None:
         partitions = [((int(year),), rows)]
     else:
         partitions = list(rows.partition_by(year_column, as_dict=True).items())
-    tasks = [
-        (int(partition_year), batch)
-        for (partition_year,), part in partitions
-        for batch in part.iter_slices(
-            n_rows=batch_rows or max(_MIN_BATCH_ROWS, -(-part.height // _MAX_BATCH_WORKERS))
+    tasks = []
+    for (partition_year,), part in partitions:
+        if len(calculators) == 1:
+            state_parts = [(next(iter(calculators.values())), part)]
+        elif part.height < 2 * _MIN_BATCH_ROWS:
+            # A shared federal plan is faster when a year has few rows.
+            states = part.get_column("state").unique()
+            calculator = calculators[states[0]] if len(states) == 1 else calculators
+            state_parts = [(calculator, part)]
+        else:
+            state_parts = [
+                (calculators[state_code], state_rows)
+                for (state_code,), state_rows in part.partition_by("state", as_dict=True).items()
+            ]
+        tasks.extend(
+            (int(partition_year), calculator, batch)
+            for calculator, state_rows in state_parts
+            for batch in state_rows.iter_slices(
+                n_rows=batch_rows or _DEFAULT_BATCH_ROWS
+            )
         )
-    ]
 
-    def resolve_batch(task: tuple[int, pl.DataFrame]) -> pl.DataFrame:
-        batch_year, batch = task
+    def resolve_batch(task: tuple[int, StateCalculator | dict[int, StateCalculator], pl.DataFrame]) -> pl.DataFrame:
+        batch_year, calculator, batch = task
         return resolve_federal_and_state(
             batch,
             batch_year,
-            calculators,
+            calculator,
             keep_intermediate=keep_intermediate,
             keep_columns=keep_columns,
             result_columns=result_columns,
@@ -320,8 +338,9 @@ def calculate_taxes(
     eager frame is the input, unchanged and in order, plus ``OUTPUT_COLUMNS``;
     ``keep_intermediate=True`` also returns every intermediate federal and
     state column. Mixed-year calls resolve years concurrently; large
-    single-year calls similarly split rows across workers. Both use up to
-    ``max_year_workers`` threads (default: Polars' thread pool size, which
+    single-year calls similarly split rows across workers. Large year partitions
+    split by state first; small mixed-state partitions share federal plans.
+    Both use up to ``max_year_workers`` threads (default: Polars' thread pool size, which
     ``POLARS_MAX_THREADS`` sets), with single-year row workers capped at eight.
 
     ``mtr`` (or an integer ``mtr`` column, per row) requests TAXSIM's marginal

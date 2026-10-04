@@ -14,7 +14,7 @@ from taxsim_py.engine.state import FORCE_ITEMIZE
 ITERATIONS = 3
 _ROW = "__resolve_row"
 
-StateCalculator = Callable[[pl.LazyFrame, int], pl.LazyFrame]
+StateCalculator = Callable[[pl.LazyFrame, int, BehaviorProfile], pl.LazyFrame]
 
 _SALES_TAX = "__sales_tax"
 _DEDUCTION = "state_sales_or_income_tax_ded"
@@ -130,19 +130,35 @@ def resolve_federal_and_state(
     # State calculators may rewrite federal columns (projected years deflate
     # them in place), so the result keeps the federal pass's own columns and
     # takes only the columns each state adds.
-    federal = _federal(current, year, behavior).collect()
-    final_plans = _state_plans(federal, year, compute_state_tax_fn, behavior)
-    if not keep_intermediate:
-        # Only the state tax, plus any requested columns the calculator sets.
-        final_plans = [
-            plan.select(*_KEYS, "siitax", *[c for c in keep_columns if c in plan.collect_schema().names()])
-            for plan in final_plans
-        ]
-    state_out = pl.concat(pl.collect_all(final_plans), how="diagonal_relaxed")
-    state_columns = [c for c in state_out.columns if c not in federal.columns]
-    out = federal.join(state_out.select(*_KEYS, *state_columns), on=_KEYS).drop(_SALES_TAX)
-    if result_columns is not None:
-        out = out.select(*_KEYS, *result_columns)
+    if callable(compute_state_tax_fn) and result_columns is not None:
+        federal = _federal(current, year, behavior)
+        present = set(federal.collect_schema().names())
+        saved = {}
+        for column in result_columns:
+            if column in present:
+                name = f"__resolve_federal_{column}"
+                while name in present:
+                    name += "_"
+                present.add(name)
+                saved[column] = name
+        federal = federal.with_columns(pl.col(column).alias(name) for column, name in saved.items())
+        out = compute_state_tax_fn(federal, year, behavior).select(
+            *_KEYS, *(pl.col(saved.get(column, column)).alias(column) for column in result_columns)
+        ).collect()
+    else:
+        federal = _federal(current, year, behavior).collect()
+        final_plans = _state_plans(federal, year, compute_state_tax_fn, behavior)
+        if not keep_intermediate:
+            # Only the state tax, plus any requested columns the calculator sets.
+            final_plans = [
+                plan.select(*_KEYS, "siitax", *[c for c in keep_columns if c in plan.collect_schema().names()])
+                for plan in final_plans
+            ]
+        state_out = pl.concat(pl.collect_all(final_plans), how="diagonal_relaxed")
+        state_columns = [c for c in state_out.columns if c not in federal.columns]
+        out = federal.join(state_out.select(*_KEYS, *state_columns), on=_KEYS).drop(_SALES_TAX)
+        if result_columns is not None:
+            out = out.select(*_KEYS, *result_columns)
 
     itemized = out.filter(pl.col(FORCE_ITEMIZE)).sort(_ROW)
     standard = out.filter(~pl.col(FORCE_ITEMIZE)).sort(_ROW)

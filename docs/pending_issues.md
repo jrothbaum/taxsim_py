@@ -4,11 +4,9 @@ Status as of 2026-10-04.
 
 Line numbers refer to `taxsim_2024_09_21.f`, and "the executable" means `taxsim2024.exe`.
 
-The newer NBER source/executable is now the preferred TAXSIM reference for
-new updates. The older source and executable named above are retained only as
-historical compatibility oracles. The first newer-source audit found no
-supported 2021 federal table changes and added the missing 2021 Ohio
-exemption values. See
+The current NBER source/executable is the preferred TAXSIM reference. The
+source and executable named above serve as compatibility oracles. Parameter
+differences are documented in
 [`oracle_archive/newer_source_parameter_audit.md`](oracle_archive/newer_source_parameter_audit.md).
 
 ## Prioritized roadmap
@@ -43,7 +41,7 @@ testing/replication mode.
   both TAXSIM and PolicyEngine. State law is checked against
   PolicyEngine and state forms (see the PolicyEngine comparison doc and
   `statutory_corrections.md`).
-- [x] **Add an independent calculator harness.** The test dependency group now
+- [x] **Add an independent calculator harness.** The test dependency group
   includes PSL Tax-Calculator and PolicyEngine's TAXSIM emulator. The strict
   synthetic matrix compares Tax-Calculator federal and payroll tax from 2013
   onward and PolicyEngine federal and payroll tax from 2021 onward. A sampled
@@ -66,15 +64,13 @@ testing/replication mode.
   where applicable.
 - [x] **Continuous integration: skipped.** Tests and the validation scripts are
   run locally before each release.
-- [x] **Document the supported contract.** Done in the README ("What is
-  supported"): years, inputs, accuracy, and what is not modelled.
+- [x] **Document the supported contract.** The README's "What is supported"
+  section covers years, inputs, accuracy, and what is not modelled.
 - [x] **Make the repository releasable.** The README has installation, examples
   and the supported contract, and the project is MIT licensed. No contribution
   guidance or versioning policy is planned.
-- [ ] **Tag the validated baseline.** Work is committed in reviewable steps;
-  no beta tag exists yet.
-- [x] **Archive the final upstream oracle metadata.** TAXSIM is being sunset
-  after its maintainer's retirement, so record the executable build stamps,
+- [ ] **Tag the validated release.** No beta tag exists.
+- [x] **Archive upstream oracle metadata.** Record the executable build stamps,
   hashes, output schemas, validation summaries, and representative outputs
   needed to reproduce each upstream generation even if its download disappears.
   `scripts/archive_oracle_generations.py` records this for every generation
@@ -87,9 +83,9 @@ testing/replication mode.
 
 ### P1: confidence and maintainability after the beta
 
-- [x] **Test every actual-law year with realistic data.** The CPS units were run
-  through every year from 1977 through 2021 against the compiled TAXSIM and
-  through 2022-2025 against PolicyEngine (October 2026; results below).
+- [x] **Test every actual-law year with realistic data.** CPS validation covers
+  every year from 1977 through 2021 against the compiled TAXSIM and
+  2022-2025 against PolicyEngine (results below).
 - [ ] **Add boundary and property tests.** Generate cases immediately below,
   at, and above brackets, phaseouts, caps, filing thresholds, age cutoffs, and
   itemization ties. Add invariants such as row-order preservation, serial and
@@ -103,29 +99,25 @@ testing/replication mode.
 - [ ] **Add parameter provenance.** Give each YAML/CSV policy table a source
   citation or source note and a review status. Preserve corrections as
   year-specific parameter changes or narrowly scoped mechanics, with a test
-  showing the old failure.
-- [x] **Extend the 2022-2024 state audit to the remaining states.** Done: all 45
-  income-tax states run actual law for 2022-2025 in statutory mode and were
-  compared with PolicyEngine on a synthetic grid with explicit child ages, an
-  age-65+ grid, and CPS samples for each year (see
+  covering the corrected behavior.
+- [x] **Validate 2022-2025 state law.** All 45 income-tax states run actual law
+  for 2022-2025 in statutory mode. PolicyEngine comparisons cover a synthetic
+  grid with explicit child ages, an age-65+ grid, and CPS samples for each year (see
   [`docs/policyengine_recent_state_comparison.md`](policyengine_recent_state_comparison.md)).
-  Lessons to reuse: a table whose last entry is 2021 is silently held at 2021 for
-  a listed state; TAXSIM's `tablki` interpolation is wrong for statutory step
-  schedules; and tests placed exactly on a threshold flip tiers because TAXSIM
-  adds $0.001 to AGI.
-- [x] **Residual 2022-2024 state differences.** Superseded by the remaining-
-  differences table in the PolicyEngine comparison doc (October 2026). The small
-  items from the earlier list (Oklahoma credit details, Indiana 2022 joint
-  returns, Kentucky's low-income credit, Arkansas recapture, Connecticut tiers,
-  Arizona $6, Ohio tier at $80,000, California and Illinois at $250,000) were not
-  individually re-verified.
-- [x] **Complete the recent state-law imports state by state.** Done for every
-  income-tax state through 2025. Provisions TAXSIM has no input for are listed
-  in the comparison doc.
+  Parameter checks must account for tables held at their last entry,
+  TAXSIM's `tablki` interpolation of statutory step schedules, and the
+  $0.001 AGI adjustment that can change tiers at exact thresholds.
+- [x] **Track residual state differences.** The remaining-differences table
+  is in the PolicyEngine comparison doc. Oklahoma credit details, Indiana 2022
+  joint returns, Kentucky's low-income credit, Arkansas recapture, Connecticut tiers,
+  Arizona $6, Ohio tier at $80,000, and California and Illinois at $250,000
+  need individual verification.
+- [x] **Provide state law through 2025.** Every income-tax state is covered.
+  Provisions TAXSIM has no input for are listed in the comparison doc.
 - [ ] **Resolve the 1981 detail-output cluster.** Determine why TAXSIM `v26`
   differs on about 1,690 CPS units while taxes mostly agree. Either fix the
   semantic `federal_alternative_minimum_taxable_income` output or document the
-  executable's historical worksheet behavior and classify it explicitly.
+  executable's worksheet behavior and classify it explicitly.
 - [ ] **Publish reproducible benchmark and parity artifacts.** Save compact
   machine-readable results for the validation matrix, CPS comparisons, and
   performance benchmarks so users can evaluate a release without trusting a
@@ -133,10 +125,8 @@ testing/replication mode.
 
 ### P2: explicitly deferred or optional
 
-- [x] Fix the negative-capital-gain state cases (Alabama, California,
-  Connecticut, Illinois, Hawaii - all fixed unconditionally, see
-  "Negative capital gains" below) and move their shared regression cases
-  back into `tests/state_new_inputs.py` - done.
+- [x] **Cover negative capital gains.** Shared regression cases for Alabama,
+  California, Connecticut, Illinois and Hawaii are in `tests/state_new_inputs.py`.
 - [ ] Decide whether to implement the eight documented
   `opt1/opt1v/opt2/opt2v` switches. Until then, warn or reject when callers
   supply nonzero option values instead of silently ignoring them.
@@ -189,8 +179,8 @@ recorded here:
   replicated. Several other states (for example `nm.py` and `ma.py`) rebuild the
   federal gain on their own instead of using `federal_capital_gain_in_agi`; not
   confirmed broken, not checked.
-- **Small residuals** from the earlier age-65+ and working-age grids that were not
-  re-verified: Michigan tiers for filers born before 1953, Maryland high income,
+- **Small residuals needing verification:** Michigan tiers for filers born
+  before 1953, Maryland high income,
   Arkansas joint interest-only returns, Minnesota joint at $750,000, California
   joint at $600,000 with children, Indiana 2024 joint, New York 2023 low-income
   two-child rows.
@@ -227,7 +217,7 @@ TAXSIM, tax years 1977-2021. Units differing for no classified reason:
 | 2011-2020 | 6-14 |
 | 2021 | 0 |
 
-Known and left alone: in 1977, 14 Connecticut units differ in federal tax by
+Known 1977 difference: 14 Connecticut units differ in federal tax by
 $2,000-$19,000 because TAXSIM itemizes Connecticut filers with property tax
 (and so loses the 50% cap on earned income) for reasons not yet identified.
 The comparator names each deliberate difference (childless EITC age, Minnesota
@@ -241,10 +231,6 @@ tax differs on about 6% of units each year, nearly all of it self-employment
 income, where TAXSIM gives no 20% business deduction on `psemp` and the port
 keeps that convention. State tax differs on 10-11% of units, and what remains is
 the list in [PolicyEngine comparison](policyengine_recent_state_comparison.md).
-The sweep found and fixed the California and New Jersey childless EITC minimum
-age, the Massachusetts per-spouse payroll deduction, stale Massachusetts
-circuit-breaker limits and rent cap for 2022-2025, and the Colorado per-taxpayer
-pension subtraction.
 
 ### Independent model commands
 

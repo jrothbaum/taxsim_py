@@ -81,11 +81,15 @@ def build_cases(states: list[str], years: list[int], rows: int) -> pl.DataFrame:
     return frame.drop("taxsimid", strict=False).with_row_index("taxsimid", offset=1)
 
 
-def encode_fortran_input(cases: pl.DataFrame) -> str:
-    lines = [" ".join(INPUT_COLUMNS)]
+def encode_fortran_input(cases: pl.DataFrame, *, mtr: int | None = None) -> str:
+    columns = INPUT_COLUMNS
+    if mtr is not None:
+        cases = cases.with_columns(pl.lit(mtr).alias("mtr"))
+        columns = [*columns, "mtr"]
+    lines = [" ".join(columns)]
     lines.extend(
         " ".join(str(value) for value in row)
-        for row in cases.select(INPUT_COLUMNS).iter_rows()
+        for row in cases.select(columns).iter_rows()
     )
     return "\n".join(lines) + "\n"
 

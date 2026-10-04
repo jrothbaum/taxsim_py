@@ -83,6 +83,36 @@ class CalculateTaxesTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             calculate_taxes(cases, batch_rows=0)
 
+    def test_mixed_state_fast_results_match_intermediate_results(self) -> None:
+        cases = pl.DataFrame([
+            {**_case(i, year, state), "pwages": wages, "proptax": 15_000, "mortgage": 20_000}
+            for i, (year, state, wages) in enumerate([
+                (2020, 5, 150_000), (1985, 1, 50_000), (2020, 0, 20_000),
+                (1985, 5, 100_000), (2020, 1, 80_000), (2020, 5, 10_000),
+            ])
+        ])
+        for options in ({}, {"mtr": 85}, {"idtl": 2}):
+            with self.subTest(options=options):
+                with patch("taxsim_py.api._MIN_BATCH_ROWS", 1):
+                    compact = calculate_taxes(cases, batch_rows=2, max_year_workers=2, **options)
+                detailed = calculate_taxes(cases, keep_intermediate=True, max_year_workers=1, **options)
+                assert_frame_equal(compact, detailed.select(compact.columns))
+
+    def test_fast_results_preserve_federal_columns_rewritten_by_state(self) -> None:
+        def rescaling_state(frame, year, behavior):
+            return frame.with_columns(
+                (pl.col("fiitax") / 2).alias("fiitax"),
+                (pl.col("fica") / 2).alias("fica"),
+                (pl.col("agi") / 2).alias("agi"),
+                pl.lit(3_000.0).alias("siitax"),
+            )
+
+        cases = pl.DataFrame([_case(1, 2020, 5), _case(2, 2020, 5)])
+        with patch("taxsim_py.api.get_state_calculators", return_value={5: rescaling_state}):
+            compact = calculate_taxes(cases)
+            detailed = calculate_taxes(cases, keep_intermediate=True)
+        assert_frame_equal(compact, detailed.select(compact.columns))
+
     def test_years_after_the_last_implemented_year_raise(self) -> None:
         last = LAST_SUPPORTED_YEAR
         calculate_taxes(pl.DataFrame([_case(1, last, 5)]))

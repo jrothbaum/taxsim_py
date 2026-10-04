@@ -32,7 +32,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--taxsim-names", action="store_true", help="use TAXSIM's v1-style names for detail columns")
     parser.add_argument("--keep-intermediate", action="store_true", help="also return intermediate columns")
     parser.add_argument("--lowercase", action="store_true", help="lowercase the input column names (useful for SAS files)")
-    parser.add_argument("--batch-rows", type=int, help="rows per batch: smaller batches use less memory but are slower")
+    parser.add_argument("--batch-rows", type=int, help="maximum input rows per calculation batch")
     parser.add_argument("--workers", type=int, help="threads (batches in flight)")
     return parser
 

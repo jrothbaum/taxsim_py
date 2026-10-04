@@ -1,29 +1,50 @@
 # Performance
 
-`scripts/benchmark_comparison.py` runs taxsim_py, the compiled Fortran TAXSIM
-and PolicyEngine-US on the same mixed batch of 42 states (tax year 2022), each
-in its own process:
+With default settings, a mixed 42-state batch of one million rows takes about
+**7.4 seconds and 2.8 GiB RAM**. Results depend on the data and hardware.
+
+## Benchmarks
+
+Tax year 2022, 42 states. All models calculate taxes and weighted-wage marginal
+rates. Each cell shows runtime and peak memory:
+
+| Model | 1,000 | 10,000 | 15,000 | 100,000 | 200,000 | 500,000 | 1,000,000 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| taxsim_py | 1.50 s<br>357 MiB | 1.69 s<br>439 MiB | 1.73 s<br>518 MiB | 2.19 s<br>683 MiB | 2.54 s<br>979 MiB | 4.16 s<br>1,804 MiB | 7.37 s<br>2,888 MiB |
+| Fortran TAXSIM | 0.02 s<br>4 MiB | 0.18 s<br>4 MiB | 0.26 s<br>4 MiB | 1.73 s<br>4 MiB | 3.48 s<br>4 MiB | 8.65 s<br>4 MiB | 17.22 s<br>4 MiB |
+| PolicyEngine TAXSIM | 19.61 s<br>2,306 MiB | 32.81 s<br>5,940 MiB | 44.77 s<br>8,034 MiB | - | - | - | - |
+
+These are first-call timings; taxsim_py uses statutory mode and 16 Polars
+threads. Python engine imports are outside the timer. Memory is peak process
+RSS, except Fortran's figure covers only its executable.
+PolicyEngine uses its unmodified runner. Under the 8 GiB budget it completes 15,000
+rows, and every larger run exceeded 8 GiB: 20,000+ rows
+were stopped at the limit after ~50 s.
+
+## Memory Controls
+
+`batch_rows` limits input rows per calculation batch; `max_year_workers`
+limits concurrent batches:
+
+```python
+calculate_taxes(df, batch_rows=50_000, max_year_workers=4)
+```
+
+Reducing either limit can lower peak RAM, especially when many rows belong to
+one state. Runtime varies with the workload. The full input and output frames
+still occupy memory proportional to the total row count.
+
+## Run the Benchmark
+
+Reproduce the Python and Fortran measurements:
 
 ```bash
 uv run --group test scripts/benchmark_comparison.py \
-  --rows 1000 10000 1000000 --policyengine-rows 1000 10000
+  --engines taxsim_py taxsim --rows 1000 10000 100000 200000 500000 1000000
 ```
 
-Time and peak memory by number of rows:
-
-| Model | 1,000 | 10,000 | 100,000 | 200,000 | 500,000 | 1,000,000 |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| taxsim_py | 1.3 s<br>330 MB | 1.3 s<br>380 MB | 2.1 s<br>1.1 GB | 2.8 s<br>1.9 GB | 4.7 s<br>2.9 GB | 9.1 s<br>4.4 GB |
-| taxsim_py, low memory | 1.3 s<br>350 MB | 1.4 s<br>380 MB | 2.0 s<br>950 MB | 2.6 s<br>1.6 GB | 6.4 s<br>1.8 GB | 11.4 s<br>2.0 GB |
-| Fortran TAXSIM | 0.02 s<br>4 MB | 0.18 s<br>4 MB | 1.7 s<br>4 MB | 3.4 s<br>4 MB | 8.5 s<br>4 MB | 16.9 s<br>4 MB |
-| PolicyEngine-US | 28 s<br>2.3 GB | 41 s<br>5.9 GB | – | – | – | – |
-
-taxsim_py has a fixed cost of about 1 s per call and then runs at about
-110,000 rows/s, against about 57,000 for the Fortran, so it is faster above
-roughly 100,000 rows. By default it favours speed: rows are processed in up to
-eight parallel batches, which peaks at about 4 GB per million rows. For less
-memory at some cost in time, set the batch size and number of workers, for
-example `calculate_taxes(df, batch_rows=50_000, max_year_workers=4)` (the
-"low memory" row; 3,000,000 rows take 33 s and 3.2 GB). Peak memory then
-follows `batch_rows` times the number of workers, not the number of rows.
-PolicyEngine's setup dominates its time and it needs about 0.4 MB per row.
+Use `--engines policyengine --policyengine-rows 1000 10000 15000 100000`
+for PolicyEngine, or `--batch-rows 50000 --workers 4` to benchmark memory controls.
+The Linux harness monitors process-tree RAM with an 8 GiB budget, a 2 GiB available
+RAM reserve and a 600-second timeout. It stops a measurement at a limit and skips
+larger samples. These are monitored safeguards, not a hard memory quota.

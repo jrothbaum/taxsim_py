@@ -4,38 +4,19 @@ THIS IS STILL IN DEVELOPMENT AND NOT ON PYPI YET
 
 `taxsim-py` is a dataframe-oriented Python implementation of NBER TAXSIM,
 independent of and not affiliated with NBER. It calculates federal income tax,
-payroll tax, and state income tax for realistic household records.
-
-The public API uses clear internal variable names and accepts Polars
-`DataFrame` or `LazyFrame` objects. TAXSIM's older `v1`-style detail names are
-available only when requested.
+payroll tax, and state income tax for household records, using Polars
+`DataFrame` or `LazyFrame` inputs and clear variable names (TAXSIM's `v1`-style
+names only on request).
 
 ## Install
 
-The package requires Python 3.10 or newer.
-
-```bash
-python -m pip install taxsim-py
-```
-
-With `uv`:
-
-```bash
-uv add taxsim-py
-```
-
-For development from this repository, install the project in editable mode:
-
-```bash
-python -m pip install -e .
-uv sync --group dev --group test
-```
+Python 3.10 or newer: `pip install taxsim-py` or `uv add taxsim-py`. From a
+checkout: `uv sync --group dev --group test`.
 
 ## Basic use
 
-Every row needs `mstat` and `state`. Include `year` in the data, or pass one
-year to the function. TAXSIM state codes are used by default; Census FIPS
-codes can be passed with `state_id_type="fips"`.
+Every row needs `mstat` and `state` (TAXSIM codes, or Census FIPS with
+`state_id_type="fips"`). Include `year` in the data or pass `year=`.
 
 ```python
 import polars as pl
@@ -58,55 +39,18 @@ taxes = calculate_taxes(households)
 print(taxes.select("fiitax", "fica", "siitax"))
 ```
 
-Missing optional inputs default to zero. `dep13`, `dep17`, and `dep18`
-default to `depx` when they are not supplied.
-
-The result contains the original input columns plus output columns such as:
-
-- `fiitax`: federal income tax
-- `fica`: payroll taxes
-- `siitax`: state income tax
-- `frate`, `srate`: marginal rates, when requested
-
-Use `idtl=2` for detailed, meaningfully named federal and state worksheets:
-
-```python
-detail = calculate_taxes(households, idtl=2)
-```
-
-Use `taxsim_names=True` only when another tool requires TAXSIM's compatibility
-labels. Use `keep_intermediate=True` when debugging or auditing calculations.
+The result is the input plus `fiitax` (federal income tax), `fica` (payroll
+taxes), `siitax` (state income tax) and other outputs, and `frate`/`srate`
+(marginal rates) when requested. Missing inputs default to zero (`dep13`,
+`dep17` and `dep18` default to `depx`). `idtl=2` adds detailed federal and state
+worksheets, `taxsim_names=True` renames them to TAXSIM's labels, and
+`keep_intermediate=True` keeps every intermediate column for auditing.
 
 ## Calculation modes
 
-`statutory` is the default. It uses the canonical parameter tables and
-reviewed corrections to TAXSIM behavior.
-
-```python
-taxsim_compatible = calculate_taxes(
-    households,
-    calculation_mode="taxsim",
-)
-```
-
-The `taxsim` mode is for replication and comparison with the compiled TAXSIM
-model. It preserves known compatibility behavior. It is not the recommended
-default for new analysis.
-
-In `taxsim` mode the results match the compiled TAXSIM on the repository's
-validation matrix (`scripts/validate_federal.py` and `scripts/validate_states.py`);
-differences that remain are logged in [Statutory corrections](docs/statutory_corrections.md).
-
-**Benchmark** ([details](docs/performance.md), `scripts/benchmark_comparison.py`):
-on a mixed 42-state batch, 1,000,000 rows take about 9 s and 4.4 GB with
-taxsim_py (11 s and 2 GB with `batch_rows=50_000, max_year_workers=4`) versus
-17 s and 4 MB with the compiled TAXSIM; taxsim_py is faster above roughly
-100,000 rows. PolicyEngine takes about 40 s and 6 GB for 10,000.
-
-The default `statutory` mode is also compared with PolicyEngine-US (all states,
-tax years 2022-2025) and Tax-Calculator (federal): see
-[PolicyEngine comparison](docs/policyengine_recent_state_comparison.md) and
-`scripts/compare_independent.py`.
+`statutory` (default) uses the canonical parameter tables and reviewed
+corrections to TAXSIM. `calculation_mode="taxsim"` reproduces the compiled
+TAXSIM, for replication and comparison; it is not recommended for new analysis.
 
 ## Command line
 
@@ -116,63 +60,53 @@ taxsim-py households.dta                 # CSV on standard output
 taxsim-py households.csv taxes.csv --mode taxsim --batch-rows 50000 --workers 4
 ```
 
-The file types come from the extensions: `csv`, `tsv`, `parquet`, `arrow`,
-`ndjson`, and Stata (`dta`), SPSS (`sav`, `zsav`) and SAS (`sas7bdat`, read only)
-with the optional reader, installed with `pip install "taxsim-py[readstat]"`
-(it adds [polars-readstat](https://github.com/jrothbaum/polars_readstat)). Use
-`--input-format` or `--output-format` for a file without a useful extension, and
-`--lowercase` for SAS files with uppercase column names. The same readers are
-available in Python as `taxsim_py.io.tables.read_table` and `write_table`.
+File types come from the extensions: `csv`, `tsv`, `parquet`, `arrow`, `ndjson`,
+and Stata (`dta`), SPSS (`sav`, `zsav`) and SAS (`sas7bdat`, read only) with the
+optional reader (`pip install "taxsim-py[readstat]"`, which adds
+[polars-readstat](https://github.com/jrothbaum/polars_readstat)). Use
+`--input-format`/`--output-format` when the extension is not useful and
+`--lowercase` for SAS files with uppercase names. The same readers are
+`taxsim_py.io.tables.read_table` and `write_table`.
 
 ## What is supported
 
-- **Years:** federal tax for 1960-2025 and state tax for 1977-2025, all actual
-  law. Years outside these ranges raise an error.
+- **Years:** federal tax 1960-2025 and state tax 1977-2025, all actual law. Other
+  years raise an error.
 - **States:** all 50 states and DC (TAXSIM codes 1-51; 0 means no state). States
-  without an income tax return 0, except Washington's Working Families credit
-  in statutory mode.
-- **Inputs:** TAXSIM's 35 inputs, with the same meanings and units (dollars per
-  year, filing status `mstat`). Missing inputs are 0. Optional extras that are
-  not TAXSIM inputs: `children_under_3`, `children_under_4` and
-  `children_under_7`. Two conventions to know: `psemp`/`ssemp` get no
-  qualified business income deduction (use `pbusinc`/`pprofinc`), and `pensions`
-  is the kind of pension each state exempts.
+  without an income tax return 0, except Washington's Working Families credit in
+  statutory mode.
+- **Inputs:** TAXSIM's 35 inputs, with the same meanings and units, plus the
+  optional `children_under_3`, `children_under_4` and `children_under_7`. Two
+  conventions: `psemp`/`ssemp` get no qualified business income deduction (use
+  `pbusinc`/`pprofinc`), and `pensions` is the kind of pension each state exempts.
 - **Accuracy:** in `taxsim` mode, to the cent against the compiled TAXSIM on the
-  validation matrix, apart from logged TAXSIM errors. `statutory` mode follows
-  the law where TAXSIM is wrong ([Statutory corrections](docs/statutory_corrections.md));
-  against PolicyEngine the remaining differences are listed in
+  validation matrix (`scripts/validate_federal.py`, `scripts/validate_states.py`),
+  apart from logged TAXSIM errors. `statutory` mode follows the law where TAXSIM is
+  wrong ([Statutory corrections](docs/statutory_corrections.md)); its remaining
+  differences from PolicyEngine-US (2022-2025) are in the
   [PolicyEngine comparison](docs/policyengine_recent_state_comparison.md).
-- **Not modelled:** items TAXSIM has no input for, such as 2025 deductions for
-  tips, overtime and car-loan interest, and Washington's capital gains tax.
+- **Not modelled:** items TAXSIM has no input for, such as 2025 deductions for tips,
+  overtime and car-loan interest, and Washington's capital gains tax.
+- **Speed:** on a mixed 42-state batch, 1,000,000 rows including marginal rates
+  take about 7.4 s and 2.8 GiB. The compiled TAXSIM takes 17.2 s for the same
+  calculation.
+  `batch_rows` and `max_year_workers` limit memory. See [Performance](docs/performance.md).
 
 ## Tests
 
-Run the normal test suite with:
-
-```bash
-uv run pytest -q
-```
-
-Useful validation commands from a source checkout include:
-
-```bash
-uv run scripts/validate_all.py
-uv run scripts/compare_cps.py PATH/TO/cps_2011 --tax-year 2021
-```
-
-The CPS comparison uses locally cached CPS ASEC data and the TAXSIM executable
-provided by the `policyengine-taxsim` test dependency.
+`uv run pytest -q` runs the test suite, `uv run scripts/validate_all.py` the full
+validation matrix, and `uv run scripts/compare_cps.py PATH/TO/cps_2011 --tax-year
+2021` a CPS comparison with the compiled TAXSIM (from the `policyengine-taxsim`
+test dependency).
 
 ## Documentation
 
-Start with the short [documentation index](docs/README.md).
-
-- [Architecture](docs/architecture.md): how the calculators and parameters fit together
-- [Statutory corrections](docs/statutory_corrections.md): reviewed differences from compiled TAXSIM
-- [Performance](docs/performance.md): time and memory against the compiled TAXSIM and PolicyEngine
-- [PolicyEngine comparison](docs/policyengine_recent_state_comparison.md): 2022-2025 state results and known differences
-- [Pending issues](docs/pending_issues.md): current project status and remaining work
-- [Parameter tables](parameters/README.md): how law-oriented YAML and CSV data are maintained
+See the [documentation index](docs/README.md): [Architecture](docs/architecture.md),
+[Statutory corrections](docs/statutory_corrections.md),
+[Performance](docs/performance.md),
+[PolicyEngine comparison](docs/policyengine_recent_state_comparison.md),
+[Pending issues](docs/pending_issues.md) and
+[Parameter tables](parameters/README.md).
 
 ## License
 
