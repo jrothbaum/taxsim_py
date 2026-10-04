@@ -56,16 +56,10 @@ TAXSIM, for replication and comparison; it is not recommended for new analysis.
 
 ## In the browser
 
-`web/index.html` is a calculator that runs taxsim-py in the browser through Pyodide:
-a form for one household, and a CSV upload for many. Nothing is sent to a server.
-
-```bash
-uv run python scripts/build_web.py      # builds the wheel into web/
-python -m http.server -d web            # then open http://localhost:8000
-```
-
-From JavaScript or Python, `taxsim_py.calculate_row({...})` takes a dict of TAXSIM
-inputs and returns a dict of inputs plus results.
+The [calculator](https://jrothbaum.github.io/taxsim_py/calculator/) runs taxsim-py in
+the page through Pyodide: a form for one household, and a CSV upload for many. Nothing
+is sent to a server. From Python, `taxsim_py.calculate_row({...})` takes a dict of
+TAXSIM inputs and returns a dict of inputs plus results.
 
 ## Command line
 
@@ -95,8 +89,7 @@ optional reader (`pip install "taxsim-py[readstat]"`, which adds
   conventions: `psemp`/`ssemp` get no qualified business income deduction (use
   `pbusinc`/`pprofinc`), and `pensions` is the kind of pension each state exempts.
 - **Accuracy:** in `taxsim` mode, to the cent against the compiled TAXSIM on the
-  validation matrix (`scripts/validate_federal.py`, `scripts/validate_states.py`),
-  apart from logged TAXSIM errors. `statutory` mode follows the law where TAXSIM is
+  validation matrix, apart from logged TAXSIM errors. `statutory` mode follows the law where TAXSIM is
   wrong ([Statutory corrections](docs/statutory_corrections.md)); its remaining
   differences from PolicyEngine-US (2022-2025) are in the
   [PolicyEngine comparison](docs/policyengine_recent_state_comparison.md).
@@ -107,21 +100,12 @@ optional reader (`pip install "taxsim-py[readstat]"`, which adds
   calculation.
   `batch_rows` and `max_year_workers` limit memory. See [Performance](docs/performance.md).
 
-## Tests
-
-`uv run pytest -q` runs the test suite, `uv run scripts/validate_all.py` the full
-validation matrix, and `uv run scripts/compare_cps.py PATH/TO/cps_2011 --tax-year
-2021` a CPS comparison with the compiled TAXSIM (from the `policyengine-taxsim`
-test dependency).
-
 ## Documentation
 
-Start with the [user guide](docs/index.md) (build it with `uvx --with mkdocs-material mkdocs serve`). Reference and working notes: [Architecture](docs/architecture.md),
+Start with the [user guide](https://jrothbaum.github.io/taxsim_py/). Also:
 [Statutory corrections](docs/statutory_corrections.md),
-[Performance](docs/performance.md),
-[PolicyEngine comparison](docs/policyengine_recent_state_comparison.md),
-[Pending issues](docs/pending_issues.md) and
-[Parameter tables](parameters/README.md).
+[Performance](docs/performance.md) and
+[PolicyEngine comparison](docs/policyengine_recent_state_comparison.md).
 
 ## License
 
