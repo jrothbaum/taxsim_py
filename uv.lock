@@ -2729,6 +2729,21 @@ wheels = [
 ]
 
 [[package]]
+name = "polars-readstat"
+version = "0.24.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "polars" },
+]
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e6/f5/d904d2fe4b176b7eeafd0fa905e5f199195b689aa5f1540f52ff56d93392/polars_readstat-0.24.0-cp39-abi3-macosx_10_15_x86_64.whl", hash = "sha256:d4dc84bcf82b0094a54f35c179b8597cfc951f84c590462545af98cfa7008ea8", size = 23160805, upload-time = "2026-10-04T04:31:49.762Z" },
+    { url = "https://files.pythonhosted.org/packages/75/96/2fe18a5d8e2d05996faacba0c3715df9fe17dedd0592ae667e0ba7afbe41/polars_readstat-0.24.0-cp39-abi3-macosx_11_0_arm64.whl", hash = "sha256:11df26f8e6433e894639b01cd824d9178b091bcefbfcc87c66804f2870c9b57e", size = 20851616, upload-time = "2026-10-04T04:31:52.265Z" },
+    { url = "https://files.pythonhosted.org/packages/ed/fd/079def4e74ec03b98ee176e7cda6e7ed37cd5665cbe6801711ac0741bddd/polars_readstat-0.24.0-cp39-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:88ac0c38a1fc5efbfead01de2a64fc59c96e8809808767e46ec75df55914abf8", size = 24005617, upload-time = "2026-10-04T04:31:55.522Z" },
+    { url = "https://files.pythonhosted.org/packages/09/a1/b389c2f2d513a20ce78b6f3da54dd8aa7c2757476e26d1a207bd1b9d422b/polars_readstat-0.24.0-cp39-abi3-manylinux_2_28_x86_64.whl", hash = "sha256:564c76da363266f58e9ae08985e3e51a159972d017966109191c2e558294339f", size = 24060438, upload-time = "2026-10-04T04:31:58.373Z" },
+    { url = "https://files.pythonhosted.org/packages/19/94/6ccb46de9db7e93ec92f65b49068c5c594575fe60f1bb1622378e127205f/polars_readstat-0.24.0-cp39-abi3-win_amd64.whl", hash = "sha256:49d527e19b1aa590a87df25b0a664e6edbaccfa3a6582c04ab0baa7ddc6c6c71", size = 25600863, upload-time = "2026-10-04T04:32:00.664Z" },
+]
+
+[[package]]
 name = "polars-runtime-32"
 version = "1.44.2"
 source = { registry = "https://pypi.org/simple" }
@@ -3451,6 +3466,11 @@ dependencies = [
     { name = "pyyaml" },
 ]
 
+[package.optional-dependencies]
+readstat = [
+    { name = "polars-readstat" },
+]
+
 [package.dev-dependencies]
 dev = [
     { name = "ruff" },
@@ -3465,8 +3485,10 @@ test = [
 [package.metadata]
 requires-dist = [
     { name = "polars", specifier = ">=1.28.1" },
+    { name = "polars-readstat", marker = "extra == 'readstat'", specifier = ">=0.24" },
     { name = "pyyaml", specifier = ">=6.0.3" },
 ]
+provides-extras = ["readstat"]
 
 [package.metadata.requires-dev]
 dev = [{ name = "ruff", specifier = ">=0.16.10" }]

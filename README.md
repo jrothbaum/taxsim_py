@@ -108,6 +108,22 @@ tax years 2022-2025) and Tax-Calculator (federal): see
 [PolicyEngine comparison](docs/policyengine_recent_state_comparison.md) and
 `scripts/compare_independent.py`.
 
+## Command line
+
+```bash
+taxsim-py households.csv taxes.parquet
+taxsim-py households.dta                 # CSV on standard output
+taxsim-py households.csv taxes.csv --mode taxsim --batch-rows 50000 --workers 4
+```
+
+The file types come from the extensions: `csv`, `tsv`, `parquet`, `arrow`,
+`ndjson`, and Stata (`dta`), SPSS (`sav`, `zsav`) and SAS (`sas7bdat`, read only)
+with the optional reader, installed with `pip install "taxsim-py[readstat]"`
+(it adds [polars-readstat](https://github.com/jrothbaum/polars_readstat)). Use
+`--input-format` or `--output-format` for a file without a useful extension, and
+`--lowercase` for SAS files with uppercase column names. The same readers are
+available in Python as `taxsim_py.io.tables.read_table` and `write_table`.
+
 ## What is supported
 
 - **Years:** federal tax for 1960-2025 and state tax for 1977-2025, all actual

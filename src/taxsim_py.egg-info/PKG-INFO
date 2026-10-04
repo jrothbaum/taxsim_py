@@ -2,6 +2,11 @@ Metadata-Version: 2.4
 Name: taxsim-py
 Version: 0.1.0
 Summary: A dataframe-oriented Python implementation of NBER TAXSIM
+License-Expression: MIT
 Requires-Python: >=3.10
+License-File: LICENSE
 Requires-Dist: polars>=1.28.1
 Requires-Dist: pyyaml>=6.0.3
+Provides-Extra: readstat
+Requires-Dist: polars-readstat>=0.24; extra == "readstat"
+Dynamic: license-file
