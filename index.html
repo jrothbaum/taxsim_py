@@ -1035,7 +1035,7 @@
 Polars-first Python package. It follows <a href="https://taxsim.nber.org/">NBER TAXSIM</a>'s
 inputs and meanings but is independent of, and not affiliated with, NBER.</p>
 <h2 id="install">Install</h2>
-<pre><code class="language-bash">pip install taxsim-py                    # Python 3.10 or newer
+<pre><code class="language-bash">pip install taxsim-py                    # Python 3.9 or newer
 pip install &quot;taxsim-py[readstat]&quot;        # also read and write Stata, SPSS and SAS files
 </code></pre>
 <h2 id="quick-start">Quick start</h2>
@@ -1072,6 +1072,15 @@ taxes.select(&quot;fiitax&quot;, &quot;siitax&quot;, &quot;fica&quot;)
 states and years. Inputs you leave out count as zero; only <code>mstat</code>, <code>state</code> and the
 year are required.</p>
 <h3 id="a-file">A file</h3>
+<p>From Python, scan the file with Polars and pass it in. A <code>LazyFrame</code> works as well as a
+<code>DataFrame</code>; the result is an eager <code>DataFrame</code>.</p>
+<pre><code class="language-python">import polars as pl
+from taxsim_py import calculate_taxes
+
+taxes = calculate_taxes(pl.scan_parquet(&quot;households.parquet&quot;))
+taxes.write_parquet(&quot;taxes.parquet&quot;)
+</code></pre>
+<p>From the command line, with any of the <a href="files/">supported file types</a>:</p>
 <pre><code class="language-bash">taxsim-py households.csv taxes.csv
 </code></pre>
 <h3 id="in-the-browser">In the browser</h3>
