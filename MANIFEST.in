@@ -1,0 +1,2 @@
+graft parameters
+global-exclude __pycache__ *.py[cod]
