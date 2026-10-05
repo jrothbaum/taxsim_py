@@ -1,2 +1,0 @@
-[console_scripts]
-taxsim-py = taxsim_py.cli:main
