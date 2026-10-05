@@ -8,3 +8,12 @@ web/*.whl
 web/wheel.txt
 site/
 docs/calculator/
+*.egg-info/
+build/
+dist/
+.venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.ipynb_checkpoints/
+.DS_Store
