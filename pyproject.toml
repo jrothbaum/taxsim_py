@@ -1,6 +1,6 @@
 [project]
 name = "taxsim-py"
-version = "0.1.0"
+version = "0.2.0"
 description = "A dataframe-oriented Python implementation of NBER TAXSIM"
 readme = "README.md"
 license = "MIT"
@@ -36,6 +36,7 @@ dev = [
 ]
 test = [
     "policyengine-taxsim>=2.31.1; python_version >= '3.10'",
+    "psutil>=6.1.1",
     "pytest>=8.4.2",
     "taxcalc>=6.2.1; python_version >= '3.10'",
 ]

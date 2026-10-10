@@ -13,7 +13,6 @@ def benchmark(monkeypatch):
     return importlib.import_module("benchmark_comparison")
 
 
-@pytest.mark.skipif(not Path("/proc/self/status").exists(), reason="Linux resource monitoring")
 def test_guard_accepts_result_after_progress(benchmark):
     command = [sys.executable, "-c", 'print("progress"); print(\'BENCHMARK_RESULT {"seconds": 1.25, "peak_mib": 20}\')']
     result = benchmark.run_guarded(command, 256, 1, 5)
@@ -22,14 +21,12 @@ def test_guard_accepts_result_after_progress(benchmark):
     assert result.peak_mib == 20
 
 
-@pytest.mark.skipif(not Path("/proc/self/status").exists(), reason="Linux resource monitoring")
 def test_guard_stops_timeout(benchmark):
     result = benchmark.run_guarded([sys.executable, "-c", "import time; time.sleep(10)"], 256, 1, 0.1)
     assert result.status == "timeout"
     assert result.seconds < 5
 
 
-@pytest.mark.skipif(not Path("/proc/self/status").exists(), reason="Linux resource monitoring")
 def test_guard_stops_memory_growth(benchmark):
     command = [sys.executable, "-c", "import time; allocation = bytearray(64 * 1024 * 1024); time.sleep(10)"]
     result = benchmark.run_guarded(command, 32, 1, 5)

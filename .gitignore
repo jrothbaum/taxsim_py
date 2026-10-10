@@ -17,3 +17,10 @@ dist/
 .mypy_cache/
 .ipynb_checkpoints/
 .DS_Store
+
+# Local Stata test harness (copied from stata_parquet_io; machine-specific)
+scripts/stata_test_harness.py
+scripts/run-stata.ps1
+scripts/run-reset-code.ps1
+stata/*.log
+stata/testing/*.log

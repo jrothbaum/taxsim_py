@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import importlib
 import io
+import os
 import statistics
 import subprocess
 import sys
@@ -20,7 +21,14 @@ sys.path.insert(0, str(ROOT / "tests"))
 
 from taxsim_py import calculate_taxes  # noqa: E402
 
-TAXSIM_EXE = ROOT / "taxsim2024.exe"
+# The frozen 2024 build is Linux-only; Windows falls back to the taxsimtest
+# build that policyengine-taxsim installs. Set TAXSIM_EXE to choose another.
+DEFAULT_TAXSIM_EXE = (
+    ROOT / ".venv/share/policyengine_taxsim/taxsimtest/taxsimtest-windows.exe"
+    if sys.platform == "win32"
+    else ROOT / "taxsim2024.exe"
+)
+TAXSIM_EXE = Path(os.environ.get("TAXSIM_EXE", DEFAULT_TAXSIM_EXE)).expanduser().resolve()
 INPUT_COLUMNS = [
     "taxsimid",
     "year",

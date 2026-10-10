@@ -1,0 +1,21 @@
+v 3
+d taxsim_py. Federal, state and payroll taxes with the same inputs and outputs as NBER's taxsim35
+d
+d Calculates US federal and state income taxes and payroll taxes for every observation
+d in memory, reading the same input variables as NBER's taxsim35 and taxsimlocal35 and
+d returning at least the same output variables. The calculation is done by the taxsim-py
+d Python package (https://pypi.org/project/taxsim-py/), run in Stata's Python.
+d
+d Requires Stata 16 or newer, and Stata's Python able to import taxsim-py: add
+d taxsim-py[readstat] to your Python environment, or create one with taxsim_py install
+d (which needs uv, https://docs.astral.sh/uv/). See help taxsim_py.
+d
+d Author: Jon Rothbaum
+d Support: https://github.com/jrothbaum/taxsim_py
+d
+d Distribution-Date: 20261010
+f taxsim_py.ado
+f _taxsim_py_exec.ado
+f _taxsim_py_run.ado
+f _taxsim_py_require_uv.ado
+f taxsim_py.sthlp

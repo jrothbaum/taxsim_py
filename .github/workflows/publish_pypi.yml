@@ -1,4 +1,4 @@
-name: Publish to PyPI
+name: Release
 
 # Manual only: run it from the Actions tab and choose the release tag to publish.
 on:
@@ -20,3 +20,56 @@ jobs:
           packages-dir: dist/
           password: ${{ secrets.PYPI_API_TOKEN }}
           skip-existing: true
+
+  # The Stata files for SSC: everything in stata/ that users install (.ado, .sthlp, .pkg),
+  # without the tests and development scripts.
+  stata-zip:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+      - name: Check the Stata file versions match the package
+        id: version
+        run: |
+          version=$(python3 -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          status=0
+          for file in stata/*.ado; do
+            if ! grep -q "^\*! taxsim_py $version " "$file"; then
+              echo "::error file=$file::header is not '*! taxsim_py $version'"
+              status=1
+            fi
+          done
+          if ! grep -q "^{\* \*! version $version}" stata/taxsim_py.sthlp; then
+            echo "::error file=stata/taxsim_py.sthlp::header is not '{* *! version $version}'"
+            status=1
+          fi
+          if ! grep -q "return local version $version\$" stata/taxsim_py.ado; then
+            echo "::error file=stata/taxsim_py.ado::_taxsim_py_minimum_version is not $version"
+            status=1
+          fi
+          exit $status
+      - name: Zip the Stata files
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          mkdir -p dist
+          cd stata
+          zip "../dist/taxsim_py-stata-$VERSION.zip" $(ls *.ado *.sthlp *.pkg 2>/dev/null)
+          unzip -l "../dist/taxsim_py-stata-$VERSION.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: taxsim_py-stata-${{ steps.version.outputs.version }}
+          path: dist/taxsim_py-stata-${{ steps.version.outputs.version }}.zip
+      - name: Attach the zip to the GitHub release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" "dist/taxsim_py-stata-$VERSION.zip" --clobber
+          else
+            echo "No GitHub release for $GITHUB_REF_NAME; the zip is in this run's artifacts."
+          fi

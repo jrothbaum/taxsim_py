@@ -12,7 +12,6 @@ import argparse
 import importlib
 import json
 import os
-import resource
 import signal
 import subprocess
 import sys
@@ -20,6 +19,8 @@ import tempfile
 import time
 from dataclasses import dataclass
 from pathlib import Path
+
+import psutil
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import benchmark_multistate as multistate  # noqa: E402
@@ -39,35 +40,102 @@ class Measurement:
     detail: str = ""
 
 
+MIB = 1024 * 1024
+
+
 def available_memory_mib() -> float:
-    for line in Path("/proc/meminfo").read_text().splitlines():
-        if line.startswith("MemAvailable:"):
-            return int(line.split()[1]) / 1024
-    raise RuntimeError("Linux MemAvailable is required for memory protection")
+    return psutil.virtual_memory().available / MIB
+
+
+def process_tree(pid: int) -> list[psutil.Process]:
+    try:
+        root = psutil.Process(pid)
+        return [root, *root.children(recursive=True)]
+    except psutil.NoSuchProcess:
+        return []
 
 
 def process_tree_rss_mib(pid: int) -> float:
-    pending = [pid]
-    seen = set()
-    total_kib = 0
-    while pending:
-        current = pending.pop()
-        if current in seen:
-            continue
-        seen.add(current)
-        proc = Path(f"/proc/{current}")
+    total = 0
+    for process in process_tree(pid):
         try:
-            for line in (proc / "status").read_text().splitlines():
-                if line.startswith("VmRSS:"):
-                    total_kib += int(line.split()[1])
-            for task in (proc / "task").iterdir():
-                try:
-                    pending.extend(map(int, (task / "children").read_text().split()))
-                except (FileNotFoundError, ProcessLookupError):
-                    pass
-        except (FileNotFoundError, ProcessLookupError):
+            total += process.memory_info().rss
+        except psutil.NoSuchProcess:
             pass
-    return total_kib / 1024
+    return total / MIB
+
+
+def kill_process_tree(process: subprocess.Popen) -> None:
+    if os.name == "posix":
+        # The worker leads its own session, so this also reaches orphaned descendants.
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        return
+    # Windows has no process groups; skip an exited worker so a reused PID is never killed.
+    if process.poll() is not None:
+        return
+    for member in reversed(process_tree(process.pid)):
+        try:
+            member.kill()
+        except psutil.NoSuchProcess:
+            pass
+
+
+def peak_rss_mib() -> float:
+    if sys.platform == "win32":
+        return psutil.Process().memory_info().peak_wset / MIB
+    import resource
+
+    peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    # ru_maxrss is bytes on macOS and KiB on Linux.
+    return peak / MIB if sys.platform == "darwin" else peak / 1024
+
+
+def windows_child_peak_mib(process: subprocess.Popen) -> float:
+    """Peak working set of an exited child, read through the handle Popen still holds."""
+    import ctypes
+    from ctypes import wintypes
+
+    class ProcessMemoryCounters(ctypes.Structure):
+        _fields_ = [
+            ("cb", wintypes.DWORD),
+            ("PageFaultCount", wintypes.DWORD),
+            ("PeakWorkingSetSize", ctypes.c_size_t),
+            ("WorkingSetSize", ctypes.c_size_t),
+            ("QuotaPeakPagedPoolUsage", ctypes.c_size_t),
+            ("QuotaPagedPoolUsage", ctypes.c_size_t),
+            ("QuotaPeakNonPagedPoolUsage", ctypes.c_size_t),
+            ("QuotaNonPagedPoolUsage", ctypes.c_size_t),
+            ("PagefileUsage", ctypes.c_size_t),
+            ("PeakPagefileUsage", ctypes.c_size_t),
+        ]
+
+    get_memory_info = ctypes.WinDLL("kernel32", use_last_error=True).K32GetProcessMemoryInfo
+    get_memory_info.argtypes = [wintypes.HANDLE, ctypes.POINTER(ProcessMemoryCounters), wintypes.DWORD]
+    get_memory_info.restype = wintypes.BOOL
+    counters = ProcessMemoryCounters(cb=ctypes.sizeof(ProcessMemoryCounters))
+    if not get_memory_info(int(process._handle), ctypes.byref(counters), counters.cb):
+        raise ctypes.WinError(ctypes.get_last_error())
+    return counters.PeakWorkingSetSize / MIB
+
+
+def run_taxsim_exe(payload: str) -> float:
+    """Run the compiled TAXSIM and return its peak memory in MiB."""
+    if sys.platform == "win32":
+        with subprocess.Popen(
+            [str(multistate.TAXSIM_EXE)], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+        ) as process:
+            _, stderr = process.communicate(payload)
+            if process.returncode:
+                raise subprocess.CalledProcessError(process.returncode, process.args, stderr=stderr)
+            return windows_child_peak_mib(process)
+    # GNU time reports the Fortran's peak memory (KB).
+    result = subprocess.run(
+        ["/usr/bin/time", "-f", "%M", str(multistate.TAXSIM_EXE)], input=payload, capture_output=True, text=True, check=True
+    )
+    return int(result.stderr.split()[-1]) / 1024
 
 
 def run_guarded(command: list[str], memory_mib: float, reserve_mib: float, timeout: float) -> Measurement:
@@ -98,10 +166,7 @@ def run_guarded(command: list[str], memory_mib: float, reserve_mib: float, timeo
                     time.sleep(0.01)
             finally:
                 # Kill descendants as well as the worker on limits or interruption.
-                try:
-                    os.killpg(process.pid, signal.SIGKILL)
-                except ProcessLookupError:
-                    pass
+                kill_process_tree(process)
                 process.wait()
             elapsed = time.perf_counter() - started
             if status != "ok":
@@ -127,12 +192,9 @@ def worker(engine: str, rows: int, taxsim_py_options: dict, selected_states: lis
     cases = multistate.build_cases(states(selected_states), [YEAR], rows)
     if engine == "taxsim":
         payload = multistate.encode_fortran_input(cases, mtr=11)
-        # The Fortran is its own process; GNU time reports its peak memory (KB).
+        # The Fortran is its own process, so its peak is measured separately.
         started = time.perf_counter()
-        result = subprocess.run(
-            ["/usr/bin/time", "-f", "%M", str(multistate.TAXSIM_EXE)], input=payload, capture_output=True, text=True, check=True
-        )
-        peak_mib = int(result.stderr.split()[-1]) / 1024
+        peak_mib = run_taxsim_exe(payload)
     else:
         if engine == "taxsim_py":
             runner = multistate.calculate_taxes
@@ -145,7 +207,7 @@ def worker(engine: str, rows: int, taxsim_py_options: dict, selected_states: lis
         result = runner(cases, mtr=11, **taxsim_py_options) if engine == "taxsim_py" else runner(cases)
         if result.height != rows:
             raise RuntimeError(f"Expected {rows} output rows, got {result.height}")
-        peak_mib = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024
+        peak_mib = peak_rss_mib()
     print(RESULT_PREFIX + json.dumps({"seconds": time.perf_counter() - started, "peak_mib": peak_mib}))
 
 
@@ -179,8 +241,6 @@ def main() -> None:
     if args.worker:
         worker(args.worker[0], int(args.worker[1]), options, args.states)
         return
-    if not Path("/proc/self/status").exists():
-        parser.error("memory protection requires Linux /proc")
     extra = [f"--{k.replace('_', '-')}={v}" for k, v in (("batch_rows", args.batch_rows), ("workers", args.workers)) if v]
     if args.states:
         extra += ["--states", *args.states]
