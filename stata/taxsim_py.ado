@@ -1,6 +1,7 @@
 *! taxsim_py 0.2.0  NBER TAXSIM-compatible tax calculations through the taxsim-py Python package
 // Calculations run in Stata's Python (Stata 16+), which the user points at an environment
-// with taxsim-py installed. taxsim_py install creates such an environment with uv.
+// with taxsim-py installed; taxsim_py install creates one with uv. Every external program also
+// runs through Stata's Python, never shell, so batch mode works on every system.
 program define taxsim_py, rclass
 	version 16
 	gettoken subcommand rest : 0, parse(" ,")
@@ -199,14 +200,19 @@ program define _taxsim_py_cleanup
 end
 
 
-// taxsim_py install, path(dir) [update | version(x.y.z)] [uv(path)]
+// taxsim_py install, path(dir) [update | version(x.y.z)] [from(source)] [uv(path)]
 //
-// Creates a venv at path() with uv and installs taxsim-py[readstat] from PyPI, or updates it.
-// Only touches environments it created (marked by a file in the venv); prints the lines
-// that point Stata's Python at the environment, for the user to run.
+// from() installs taxsim-py from a local folder or a git URL instead of PyPI (for testing a
+// checkout or an unreleased branch); it reinstalls every time, so a checkout's latest code is used.
+//
+// Creates a venv at path() with uv, built on the Python Stata is running, and installs
+// taxsim-py[readstat] from PyPI, or updates it. Because the venv shares Stata's interpreter,
+// its packages are added to the running session at once (no restart), and later sessions
+// need only python_userpath. Only touches environments it created (marked by a file in the
+// venv). Everything runs through Stata's Python, so it works in batch mode too.
 program define _taxsim_py_install, rclass
 	version 16
-	syntax , PATH(string) [UPDATE VERSION(string) UV(string)]
+	syntax , PATH(string) [UPDATE VERSION(string) FROM(string) UV(string)]
 
 	_taxsim_py_minimum_version
 	local minimum_version "`r(version)'"
@@ -216,14 +222,34 @@ program define _taxsim_py_install, rclass
 		display as error "options update and version() may not be combined"
 		exit 198
 	}
+	if `"`from'"' != "" & `"`version'"' != "" {
+		display as error "options from() and version() may not be combined"
+		exit 198
+	}
 	local spec "taxsim-py[readstat]"
 	if `"`version'"' != "" local spec "taxsim-py[readstat]==`version'"
 	local upgrade = cond("`update'" != "", "--upgrade", "")
+	if `"`from'"' != "" {
+		// A URL (git+https://..., https://...) or a local folder holding taxsim-py's pyproject.toml.
+		if regexm(`"`from'"', "^[A-Za-z+]+://") local spec `"taxsim-py[readstat] @ `from'"'
+		else {
+			_taxsim_py_normalize_path `"`from'"'
+			local from `"`r(path)'"'
+			capture confirm file `"`from'/pyproject.toml"'
+			if _rc {
+				display as error `"from(): `from' is not a URL or a folder with taxsim-py's pyproject.toml"'
+				exit 601
+			}
+			local spec `"`from'[readstat]"'
+		}
+		local upgrade "--reinstall-package taxsim-py"
+	}
 
 	_taxsim_py_normalize_path `"`path'"'
 	local path `"`r(path)'"'
 	if c(os) == "Windows" local python `"`path'/Scripts/python.exe"'
 	else local python `"`path'/bin/python"'
+	_taxsim_py_python_starts
 
 	capture confirm file `"`python'"'
 	if _rc {
@@ -237,43 +263,53 @@ program define _taxsim_py_install, rclass
 				exit 601
 			}
 		}
-		_taxsim_py_require_uv, uv(`uv')
+		_taxsim_py_find_uv, uv(`uv')
 		local uv `"`r(uv)'"'
-		display as text `"Creating a Python environment at `path'"'
-		_taxsim_py_run "`uv'" venv "`path'", what("uv venv")
+		// Inside Stata, sys.executable is Stata itself; the interpreter is in sys.base_prefix.
+		local stata_python ""
+		python: import os, sys; from sfi import Macro; _taxsim_py_base = os.path.join(sys.base_prefix, "python.exe") if os.name == "nt" else os.path.join(sys.base_prefix, "bin", "python%d.%d" % sys.version_info[:2]); Macro.setLocal("stata_python", _taxsim_py_base if os.path.isfile(_taxsim_py_base) else "")
+		if `"`stata_python'"' == "" {
+			quietly python query
+			local stata_python `"`r(execpath)'"'
+		}
+		display as text `"Creating a Python environment at `path' (on `stata_python')"'
+		_taxsim_py_exec "`uv'" venv --python "`stata_python'" "`path'", what("uv venv")
 		tempname marker
 		quietly file open `marker' using `"`path'/`marker_name'"', write text replace
 		file write `marker' "Created by taxsim_py install; taxsim_py install may update this environment." _n
 		file close `marker'
 		display as text `"Installing `spec'"'
-		_taxsim_py_run "`uv'" pip install --python "`python'" "`spec'", what("uv pip install")
+		_taxsim_py_exec "`uv'" pip install --python "`python'" "`spec'", what("uv pip install")
 		local action created
 	}
 	else {
 		capture confirm file `"`path'/`marker_name'"'
 		if _rc {
 			display as error `"`path' is a Python environment taxsim_py install did not create, so it will not change it."'
-			display as error "To use it, add taxsim-py[readstat] with your own tools (uv add or pip install),"
-			display as error "then point Stata's Python at it:"
-			_taxsim_py_setup_lines `"`path'"'
+			display as error "To use it, add taxsim-py[readstat] with your own tools (uv add or pip install), then:"
+			_taxsim_py_environment `"`python'"'
+			_taxsim_py_setup_lines `"`r(packages)'"' `"`r(base_python)'"' `r(same_python)' error
 			exit 601
 		}
-		_taxsim_py_installed_version `"`python'"'
+		_taxsim_py_environment `"`python'"'
 		local installed `"`r(version)'"'
 		local action none
-		if "`update'" != "" | `"`version'"' != "" | `"`installed'"' == "" {
-			_taxsim_py_require_uv, uv(`uv')
+		if "`update'" != "" | `"`version'"' != "" | `"`from'"' != "" | `"`installed'"' == "" {
+			_taxsim_py_find_uv, uv(`uv')
 			local uv `"`r(uv)'"'
 			display as text `"Installing `spec' into `path'"'
-			_taxsim_py_run "`uv'" pip install `upgrade' --python "`python'" "`spec'", what("uv pip install")
-			local action = cond("`update'" != "", "updated", cond(`"`version'"' != "", "version", "installed"))
+			_taxsim_py_exec "`uv'" pip install `upgrade' --python "`python'" "`spec'", what("uv pip install")
+			local action = cond(`"`from'"' != "", "from", cond("`update'" != "", "updated", cond(`"`version'"' != "", "version", "installed")))
 		}
 	}
 
-	_taxsim_py_installed_version `"`python'"'
+	_taxsim_py_environment `"`python'"'
 	local installed `"`r(version)'"'
+	local packages `"`r(packages)'"'
+	local base_python `"`r(base_python)'"'
+	local same_python `r(same_python)'
 	if `"`installed'"' == "" {
-		display as error `"taxsim-py could not be imported by `python'"'
+		display as error `"taxsim-py is not installed in `path'"'
 		exit 601
 	}
 	_taxsim_py_compare_versions `"`installed'"' `"`minimum_version'"'
@@ -282,46 +318,38 @@ program define _taxsim_py_install, rclass
 		exit 601
 	}
 
-	display as text `"`path' has taxsim-py `installed'. To use it, point Stata's Python at it"'
-	display as text "(add , permanently to keep the setting for later sessions):"
-	_taxsim_py_setup_lines `"`path'"'
-	if "`action'" == "updated" | "`action'" == "version" {
-		display as text "If Stata's Python is already running, restart Stata to load the new version."
+	// Use it now when it shares Stata's interpreter; say what later sessions need.
+	if `same_python' {
+		python: import site; from sfi import Macro; site.addsitedir(Macro.getLocal("packages"))
+		local loaded ""
+		python: import sys; from sfi import Macro; _taxsim_py_module = sys.modules.get("taxsim_py"); Macro.setLocal("loaded", getattr(_taxsim_py_module, "__version__", "an older version") if _taxsim_py_module else "")
+		display as text `"`path' has taxsim-py `installed', ready to use in this session."'
+		if "`loaded'" != "" & "`loaded'" != "`installed'" display as text "This session already loaded taxsim-py `loaded'; restart Stata to use `installed'."
 	}
+	else display as text `"`path' has taxsim-py `installed'."'
+	_taxsim_py_setup_lines `"`packages'"' `"`base_python'"' `same_python' text
 	return local python `"`python'"'
 	return local version `"`installed'"'
 	return local action `"`action'"'
 end
 
 
-// Checks that Stata's Python can import taxsim-py, and explains how to fix it when not.
-// Returns r(version), the taxsim-py version Stata's Python loaded.
+// Checks that Stata's Python can import taxsim-py and polars-readstat, and explains how to
+// fix it when not. Returns r(version), the taxsim-py version Stata's Python loaded.
 program define _taxsim_py_python_ready, rclass
 	version 16
 	_taxsim_py_minimum_version
 	local minimum_version "`r(version)'"
+	_taxsim_py_python_starts
 	local loaded ""
-	capture python: import importlib.metadata, taxsim_py; from sfi import Macro; Macro.setLocal("loaded", importlib.metadata.version("taxsim-py"))
-	if _rc | `"`loaded'"' == "" {
-		quietly python query
-		local exec `"`r(execpath)'"'
-		local running = r(initialized)
-		display as error "taxsim_py runs in Stata's Python, which could not import taxsim-py."
-		if !`running' display as error `"Stata could not start Python from `exec'."'
-		// A venv's python.exe cannot be loaded on Windows; its base interpreter can.
-		_taxsim_py_normalize_path `"`exec'"'
-		local exec `"`r(path)'"'
-		local env = regexr(`"`exec'"', "/(Scripts|bin)/[^/]+$", "")
-		capture confirm file `"`env'/pyvenv.cfg"'
-		if !_rc & `"`env'"' != `"`exec'"' {
-			display as error "That is a virtual environment. Point Stata at its base Python and add the"
-			display as error "environment's packages instead, then restart Stata:"
-			_taxsim_py_base_lines `"`env'"'
-		}
-		else {
-			display as error `"Point Stata's Python at an environment with taxsim-py[readstat] ({help python:set python_exec}),"'
-			display as error "or create one with: taxsim_py install, path(<folder>)"
-		}
+	local interpreter ""
+	capture python: import importlib.metadata, taxsim_py; from sfi import Macro; Macro.setLocal("loaded", getattr(taxsim_py, "__version__", None) or importlib.metadata.version("taxsim-py"))
+	python: import sys; from sfi import Macro; Macro.setLocal("interpreter", sys.executable)
+	if `"`loaded'"' == "" {
+		display as error `"Stata's Python (`interpreter') cannot import taxsim-py. Either create an environment for it:"'
+		display as input "    taxsim_py install, path(<folder>)"
+		display as error "or add taxsim-py[readstat] to an environment you use and point Stata at it"
+		display as error "(taxsim_py install, path(<that folder>) prints the lines to run)."
 		exit 601
 	}
 	_taxsim_py_compare_versions `"`loaded'"' `"`minimum_version'"'
@@ -330,58 +358,161 @@ program define _taxsim_py_python_ready, rclass
 		display as error "Update it (taxsim_py install, path(<folder>) update, or your own tools), then restart Stata."
 		exit 601
 	}
+	// The data go to taxsim-py and back as .dta files, which need polars-readstat.
+	capture python: import polars_readstat
+	if _rc {
+		display as error "Stata's Python has taxsim-py `loaded' but not polars-readstat, which taxsim_py needs to"
+		display as error "pass .dta files to taxsim-py and back. Add the readstat extra to that environment:"
+		display as input `"    uv add "taxsim-py[readstat]"     or     pip install "taxsim-py[readstat]""'
+		display as error "then restart Stata."
+		exit 601
+	}
 	return local version `"`loaded'"'
 end
 
 
-// Prints the simple setup line: Stata's Python is the environment's own interpreter.
-program define _taxsim_py_setup_lines
+// Stops with setup instructions when Stata's Python cannot start: taxsim_py needs it both to
+// calculate and to run uv (it never uses shell, which Windows batch mode ignores).
+program define _taxsim_py_python_starts
 	version 16
-	args env
-	if c(os) == "Windows" local python `"`env'/Scripts/python.exe"'
-	else local python `"`env'/bin/python"'
-	display as input `"    set python_exec "`python'""'
+	capture python: import sys
+	if !_rc exit
+	quietly python query
+	local exec `"`r(execpath)'"'
+	display as error `"taxsim_py runs in Stata's Python, which could not start from `exec'."'
+	_taxsim_py_normalize_path `"`exec'"'
+	local env = regexr(`"`r(path)'"', "/(Scripts|bin)/[^/]+$", "")
+	capture confirm file `"`env'/pyvenv.cfg"'
+	if !_rc & `"`env'"' != `"`exec'"' {
+		// A venv's python.exe cannot be loaded on Windows; its base interpreter can.
+		display as error "That is a virtual environment. Point Stata at the Python it was built on instead, then restart Stata:"
+		_taxsim_py_base_python `"`env'"'
+		display as input `"    set python_exec "`r(base_python)'", permanently"'
+	}
+	else {
+		display as error "Point Stata at a Python 3.9 or newer installation (for example from python.org;"
+		display as error "on Windows, not a virtual environment's python.exe), then restart Stata:"
+		display as input `"    set python_exec "<path to python>", permanently"'
+		display as error "See {help python}."
+	}
+	exit 601
 end
 
 
-// Prints the fallback setup: the venv's base interpreter (pyvenv.cfg's home), plus its packages.
-program define _taxsim_py_base_lines
+// _taxsim_py_exec program [arguments] [, what(description)]: runs a program through Stata's
+// Python, each argument passed as is, so it works in batch mode on every system. Returns
+// r(rc) (the exit code, -1 if it could not start), r(first) (first non-blank line of output)
+// and r(text) (all of it). With what(), stops with the output when the program fails.
+program define _taxsim_py_exec, rclass
+	version 16
+	syntax anything(name=arguments id="program") [, WHAT(string)]
+	_taxsim_py_python_starts
+	local rest `"`arguments'"'
+	local exec_n 0
+	while `"`rest'"' != "" {
+		gettoken argument rest : rest
+		if `"`argument'"' == "" continue
+		local ++exec_n
+		local exec_arg`exec_n' `"`argument'"'
+	}
+	local exec_rc -1
+	local exec_first ""
+	local exec_text ""
+	// Output is set through sfi, so backticks and quotes in it are never expanded as macros.
+	capture python: import subprocess; from sfi import Macro; _taxsim_py_done = subprocess.run([Macro.getLocal("exec_arg%d" % i) for i in range(1, int(Macro.getLocal("exec_n")) + 1)], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding="utf-8", errors="replace", creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)); Macro.setLocal("exec_rc", str(_taxsim_py_done.returncode)); Macro.setLocal("exec_text", _taxsim_py_done.stdout.strip()); Macro.setLocal("exec_first", next((line.strip() for line in _taxsim_py_done.stdout.splitlines() if line.strip()), ""))
+	if _rc mata: st_local("exec_text", "could not start " + st_local("exec_arg1"))
+	if `"`what'"' != "" & `exec_rc' != 0 {
+		display as error `"`what' failed:"'
+		mata: printf("{err}%s\n", st_local("exec_text"))
+		exit 693
+	}
+	return scalar rc = `exec_rc'
+	return local first : copy local exec_first
+	return local text : copy local exec_text
+end
+
+
+// The uv executable: uv(), then the search path, then uv's default install folders.
+program define _taxsim_py_find_uv, rclass
+	version 16
+	syntax [, UV(string)]
+	if `"`uv'"' != "" {
+		capture confirm file `"`uv'"'
+		if _rc {
+			display as error `"uv not found at `uv'"'
+			exit 601
+		}
+		return local uv `"`uv'"'
+		exit
+	}
+	local found ""
+	python: import os, shutil; from sfi import Macro; _taxsim_py_uv = "uv.exe" if os.name == "nt" else "uv"; _taxsim_py_home = os.path.expanduser("~"); Macro.setLocal("found", shutil.which("uv") or next((p for p in [os.path.join(_taxsim_py_home, ".local", "bin", _taxsim_py_uv), os.path.join(_taxsim_py_home, ".cargo", "bin", _taxsim_py_uv), "/opt/homebrew/bin/uv", "/usr/local/bin/uv"] if os.path.isfile(p)), ""))
+	if `"`found'"' == "" {
+		display as error "taxsim_py install needs uv to create the Python environment, and uv was not found."
+		display as error `"Install it from {browse "https://docs.astral.sh/uv/"}, or give its location with uv()."'
+		exit 601
+	}
+	return local uv `"`found'"'
+end
+
+
+// Facts about the venv whose interpreter is python, read from its files in Stata's Python
+// (no process started): r(packages) its site-packages folder, r(version) its taxsim-py ("" if
+// not installed), r(base_python) the Python it was built on (from pyvenv.cfg), and
+// r(same_python) 1 when that is the Python Stata is running.
+program define _taxsim_py_environment, rclass
+	version 16
+	args python
+	_taxsim_py_python_starts
+	_taxsim_py_normalize_path `"`python'"'
+	local env = regexr(`"`r(path)'"', "/(Scripts|bin)/[^/]+$", "")
+	local packages ""
+	local version ""
+	local base_python ""
+	local same_python 0
+	python: import glob, os; from sfi import Macro; _taxsim_py_env = Macro.getLocal("env"); _taxsim_py_found = sorted(glob.glob(os.path.join(_taxsim_py_env, "Lib", "site-packages")) + glob.glob(os.path.join(_taxsim_py_env, "lib", "python*", "site-packages"))); Macro.setLocal("packages", _taxsim_py_found[0] if _taxsim_py_found else "")
+	// The installed version from the package metadata in that folder, without importing it.
+	if `"`packages'"' != "" {
+		python: import importlib.metadata, re; from sfi import Macro; Macro.setLocal("version", next((d.version for d in importlib.metadata.distributions(path=[Macro.getLocal("packages")]) if re.sub(r"[-_.]+", "-", (d.metadata["Name"] or "").lower()) == "taxsim-py"), ""))
+	}
+	capture python: import os, sys; from sfi import Macro; _taxsim_py_cfg = dict((k.strip().lower(), v.strip()) for k, _, v in (line.partition("=") for line in open(os.path.join(Macro.getLocal("env"), "pyvenv.cfg"), encoding="utf-8") if "=" in line)); _taxsim_py_home = _taxsim_py_cfg.get("home", ""); _taxsim_py_minor = ".".join((_taxsim_py_cfg.get("version_info") or _taxsim_py_cfg.get("version") or "3").split(".")[:2]); Macro.setLocal("base_python", os.path.join(_taxsim_py_home, "python.exe") if os.name == "nt" else os.path.join(_taxsim_py_home, "python" + _taxsim_py_minor)); _taxsim_py_same = lambda p: os.path.normcase(os.path.realpath(p)); Macro.setLocal("same_python", "1" if _taxsim_py_home and _taxsim_py_same(_taxsim_py_home) in (_taxsim_py_same(sys.base_prefix), _taxsim_py_same(os.path.join(sys.base_prefix, "bin"))) else "0")
+	_taxsim_py_normalize_path `"`packages'"'
+	return local packages `"`r(path)'"'
+	_taxsim_py_normalize_path `"`base_python'"'
+	return local base_python `"`r(path)'"'
+	return local version `"`version'"'
+	return local same_python `same_python'
+end
+
+
+// Prints the lines that point Stata's Python at an environment for later sessions: its packages,
+// and its interpreter when that is not the one Stata runs now. style is text or error.
+program define _taxsim_py_setup_lines
+	version 16
+	args packages base_python same_python style
+	if `same_python' display as `style' "To use it in later sessions too, run once:"
+	else display as `style' "Stata runs a different Python. To use this environment, run once and restart Stata:"
+	if !`same_python' display as input `"    set python_exec "`base_python'", permanently"'
+	display as input `"    set python_userpath "`packages'", prepend permanently"'
+end
+
+
+// The Python a venv was built on, from its pyvenv.cfg (readable even when no Python runs).
+program define _taxsim_py_base_python, rclass
 	version 16
 	args env
 	local home ""
-	local pyversion ""
 	tempname cfg
 	file open `cfg' using `"`env'/pyvenv.cfg"', read text
 	file read `cfg' line
 	while r(eof) == 0 {
 		if regexm(`"`line'"', "^ *home *= *(.+)$") local home = trim(regexs(1))
-		if regexm(`"`line'"', "^ *version(_info)? *= *([0-9]+\.[0-9]+)") local pyversion = regexs(2)
 		file read `cfg' line
 	}
 	file close `cfg'
 	_taxsim_py_normalize_path `"`home'"'
-	local home `"`r(path)'"'
-	if c(os) == "Windows" {
-		local base `"`home'/python.exe"'
-		local packages `"`env'/Lib/site-packages"'
-	}
-	else {
-		local base `"`home'/python3"'
-		local packages `"`env'/lib/python`pyversion'/site-packages"'
-	}
-	display as input `"    set python_exec "`base'""'
-	display as input `"    set python_userpath "`packages'", prepend"'
-end
-
-
-// The installed taxsim-py version, or "" when it is not importable.
-program define _taxsim_py_installed_version, rclass
-	version 16
-	args python
-	_taxsim_py_exec "`python'" -c "import importlib.metadata as m; print(m.version('taxsim-py'))"
-	local found ""
-	if r(rc) == 0 & regexm(`"`r(first)'"', "^[0-9]+(\.[0-9A-Za-z]+)*$") local found `"`r(first)'"'
-	return local version `"`found'"'
+	if c(os) == "Windows" return local base_python `"`r(path)'/python.exe"'
+	else return local base_python `"`r(path)'/python3"'
 end
 
 

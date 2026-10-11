@@ -15,7 +15,4 @@ d Support: https://github.com/jrothbaum/taxsim_py
 d
 d Distribution-Date: 20261010
 f taxsim_py.ado
-f _taxsim_py_exec.ado
-f _taxsim_py_run.ado
-f _taxsim_py_require_uv.ado
 f taxsim_py.sthlp

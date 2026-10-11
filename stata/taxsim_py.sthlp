@@ -29,7 +29,7 @@ Calculate taxes for the data in memory
 Create or update a Python environment for {cmd:taxsim_py}
 
 {p 8 17 2}
-{cmd:taxsim_py install}{cmd:,} {opt path(folder)} [{opt update} | {opt version(x.y.z)}] [{opt uv(path)}]
+{cmd:taxsim_py install}{cmd:,} {opt path(folder)} [{opt update} | {opt version(x.y.z)}] [{opt from(source)}] [{opt uv(path)}]
 
 {synoptset 22 tabbed}{...}
 {synopthdr}
@@ -82,31 +82,34 @@ current directory by default.
 {title:Setup}
 
 {pstd}
-{cmd:taxsim_py} needs Stata's Python ({help python}) to be able to import taxsim-py. There
-are two ways to set that up.
+{cmd:taxsim_py} runs in Stata's Python ({help python}), which must be able to import
+{cmd:taxsim-py[readstat]}. It never uses {cmd:shell}, so it works the same in batch mode.
 
 {phang}
-1. {bf:If you already use Python,} add {cmd:taxsim-py[readstat]} to the environment you
-normally use (for example {cmd:uv add "taxsim-py[readstat]"} or
-{cmd:pip install "taxsim-py[readstat]"}), and point Stata's Python at it with
-{cmd:set python_exec}.
+1. {bf:Once:} Stata needs a Python it can load, version 3.9 or newer. If {cmd:python query}
+does not show one, install Python (for example from {browse "https://www.python.org":python.org})
+and run {cmd:set python_exec "}{it:path to python}{cmd:", permanently}. On Windows this must be
+an installed Python, not a virtual environment's {cmd:python.exe}.
 
 {phang}
-2. {bf:If you do not use Python,} let {cmd:taxsim_py install} create an environment. It
-needs {browse "https://docs.astral.sh/uv/":uv}, which downloads Python itself and needs no
-administrator rights. It then prints the {cmd:set python_exec} line to run; add
-{cmd:, permanently} to keep the setting for later sessions.
+2. {bf:Then either} let {cmd:taxsim_py install, path(}{it:folder}{cmd:)} create an environment
+for taxsim-py, {bf:or} add {cmd:taxsim-py[readstat]} to an environment you already use
+({cmd:uv add} or {cmd:pip install}) and point Stata at it.
 
 {pstd}
-On Windows, Stata cannot load a virtual environment's {cmd:python.exe}. If Stata's Python
-does not start, {cmd:taxsim_py} prints the lines to use instead: the environment's base
-Python for {cmd:set python_exec}, and its packages for {cmd:set python_userpath}. Restart
-Stata after changing these settings.
+{cmd:taxsim_py install} needs {browse "https://docs.astral.sh/uv/":uv}. It builds the
+environment on the Python Stata is running, so the environment can be used at once, in the
+same session, with no restart. It then prints the {cmd:set python_userpath ..., permanently}
+line that makes it available in later sessions too.
+
+{pstd}
+When something is missing, {cmd:taxsim_py} stops and prints the setting to change: a Python
+Stata cannot start (for a virtual environment, the Python it was built on), taxsim-py or
+polars-readstat not importable, or a taxsim-py older than this command needs.
 
 {pstd}
 {cmd:taxsim_py install} only changes environments it created. Pointed at any other
-environment, it stops and prints how to use that environment instead.
-
+environment, it stops and prints the lines to use that environment instead.
 
 {marker options}{...}
 {title:Options}
@@ -160,7 +163,14 @@ empty, or hold an environment {cmd:taxsim_py install} created earlier.
 
 {phang}
 {opt update} upgrades taxsim-py to the newest release. {opt version(x.y.z)} installs that
-release instead. Restart Stata afterwards if its Python is already running.
+release instead. If this session has already loaded taxsim-py, restart Stata to use the
+new version.
+
+{phang}
+{opt from(source)} installs taxsim-py from {it:source} instead of PyPI: a local folder
+holding taxsim-py's source, or a git URL such as
+{cmd:git+https://github.com/jrothbaum/taxsim_py@main}. It reinstalls every time, so the
+latest code in a local folder is used. It may not be combined with {opt version()}.
 
 {phang}
 {opt uv(path)} gives the location of uv when it is not on the search path or in uv's
@@ -219,7 +229,7 @@ values when it writes and reads its CSV files and {cmd:taxsim_py} does not.
 Set up once, if you do not already have Python with taxsim-py{p_end}
 {phang2}{cmd:. taxsim_py install, path(C:/taxsim_py_env)}{p_end}
 {pstd}
-then run the {cmd:set python_exec} line it prints, adding {cmd:, permanently}.{p_end}
+then calculate at once; for later sessions, run the {cmd:set python_userpath} line it prints.{p_end}
 
 {pstd}
 NBER's test case: a married couple with $100,000 of long-term capital gains in 1970{p_end}
@@ -258,7 +268,7 @@ Keep the results in a file instead of merging them{p_end}
 {p2col 5 15 19 2: Macros}{p_end}
 {synopt:{cmd:r(python)}}the environment's Python{p_end}
 {synopt:{cmd:r(version)}}the installed taxsim-py version{p_end}
-{synopt:{cmd:r(action)}}{cmd:created}, {cmd:installed}, {cmd:updated}, {cmd:version} or {cmd:none}{p_end}
+{synopt:{cmd:r(action)}}{cmd:created}, {cmd:installed}, {cmd:updated}, {cmd:version}, {cmd:from} or {cmd:none}{p_end}
 {p2colreset}{...}
 
 

@@ -19,33 +19,47 @@ local current_pypi 0.1.0
 local pypi_meets_minimum 0
 local install_rc = cond(`pypi_meets_minimum', 0, 601)
 
-// Windows batch mode ignores shell, so install runs uv through Stata's Python. Stata cannot
-// load a venv's python.exe, so start it from the base interpreter behind this repo's venv.
-if c(os) == "Windows" & c(mode) == "batch" {
-	tempname cfg
-	file open `cfg' using "`repo'/.venv/pyvenv.cfg", read text
+// The one-time setup every user needs: a Python Stata can load (here the one behind this
+// repository's venv; Stata cannot load a venv's own python.exe on Windows).
+tempname cfg
+file open `cfg' using "`repo'/.venv/pyvenv.cfg", read text
+file read `cfg' cfg_line
+while r(eof) == 0 {
+	if regexm(`"`cfg_line'"', "^home *= *(.+)$") local home = subinstr(trim(regexs(1)), "\", "/", .)
 	file read `cfg' cfg_line
-	while r(eof) == 0 {
-		if regexm(`"`cfg_line'"', "^home *= *(.+)$") local base_python = trim(regexs(1)) + "/python.exe"
-		file read `cfg' cfg_line
-	}
-	file close `cfg'
-	set python_exec "`base_python'"
 }
+file close `cfg'
+if c(os) == "Windows" set python_exec "`home'/python.exe"
+else set python_exec "`home'/python3"
 
-// 1. Nothing at path(): create a venv and install taxsim-py from PyPI.
+clear
+quietly set obs 1
+generate year = 2022
+generate mstat = 1
+generate pwages = 50000
+
+// 1. Before any install, Stata's Python cannot import taxsim-py, and the command says how to fix it.
+capture noisily taxsim_py, replace
+assert _rc == 601
+
+// 2. Nothing at path(): create a venv on Stata's Python and install taxsim-py from PyPI.
 capture noisily taxsim_py install, path(`root'/managed)
 assert _rc == `install_rc'
 confirm file "`root'/managed/.taxsim_py_managed"
 if c(os) == "Windows" confirm file "`root'/managed/Scripts/python.exe"
 else confirm file "`root'/managed/bin/python"
 
-// 2. Already installed: check only.
+// 3. Once installed, the calculation runs in the same session (no restart) or, with PyPI's
+// older taxsim-py, still cannot (601).
+capture noisily taxsim_py, replace
+assert _rc == `install_rc'
+
+// 4. Already installed: check only.
 capture noisily taxsim_py install, path(`root'/managed)
 assert _rc == `install_rc'
 if `pypi_meets_minimum' assert "`r(action)'" == "none"
 
-// 3. update and version() change an environment install created.
+// 5. update and version() change an environment install created.
 capture noisily taxsim_py install, path(`root'/managed) update
 assert _rc == `install_rc'
 if `pypi_meets_minimum' assert "`r(action)'" == "updated"
@@ -54,7 +68,20 @@ assert _rc == 601
 capture noisily taxsim_py install, path(`root'/managed) update version(`current_pypi')
 assert _rc == 198
 
-// 4. A non-empty folder that is not a Python environment is refused.
+// 5b. from() installs this checkout (0.2.0) instead of PyPI's release: install adds the
+// environment to this session and the calculation runs without a restart.
+taxsim_py install, path(`root'/managed) from(`repo')
+assert "`r(action)'" == "from"
+assert "`r(version)'" == "0.2.0"
+taxsim_py, replace
+confirm variable fiitax, exact
+drop taxsimid fiitax siitax fica frate srate ficar tfica
+capture noisily taxsim_py install, path(`root'/managed) from(`repo') version(0.2.0)
+assert _rc == 198
+capture noisily taxsim_py install, path(`root'/managed) from(`root'/no_such_checkout)
+assert _rc == 601
+
+// 6. A non-empty folder that is not a Python environment is refused.
 mkdir "`root'/not_an_env"
 tempname handle
 quietly file open `handle' using "`root'/not_an_env/notes.txt", write text replace
@@ -63,31 +90,10 @@ file close `handle'
 capture noisily taxsim_py install, path(`root'/not_an_env)
 assert _rc == 601
 
-// 5. An environment install did not create is refused, with setup instructions.
-_taxsim_py_require_uv
-_taxsim_py_run "`r(uv)'" venv "`root'/plain", what("uv venv")
+// 7. An environment install did not create is refused, with the lines to use it instead.
+python: import shutil, subprocess; from sfi import Macro; subprocess.run([shutil.which("uv"), "venv", Macro.getLocal("root") + "/plain"], check=True, capture_output=True)
 capture noisily taxsim_py install, path(`root'/plain)
 assert _rc == 601
 
-// 6. Running needs Stata's Python to import taxsim-py; it cannot yet, so the command explains.
-clear
-quietly set obs 1
-generate year = 2022
-generate mstat = 1
-generate pwages = 50000
-capture noisily taxsim_py, replace
-assert _rc == 601
-
-// 7. Once Stata's Python has the environment's packages, the calculation runs or, with PyPI's older
-// taxsim-py, the command reports it too old (601).
-quietly python query
-if r(initialized) {
-	python: import glob, site; from sfi import Macro; site.addsitedir(glob.glob(Macro.getLocal("root") + "/managed/**/site-packages", recursive=True)[0])
-	capture noisily taxsim_py, replace
-	assert _rc == cond(`pypi_meets_minimum', 0, 601)
-}
-
 // Clean up the scratch folder.
-local root_native = subinstr("`root'", "/", "\", .)
-if c(os) == "Windows" _taxsim_py_exec cmd /c rmdir /s /q "`root_native'"
-else _taxsim_py_exec rm -rf "`root'"
+python: import shutil; from sfi import Macro; shutil.rmtree(Macro.getLocal("root"))

@@ -19,7 +19,7 @@ sysdir set PLUS "`root'/"
 net install taxsim_py, from("`source'") replace
 
 // Every file in the package lands where Stata looks for it.
-foreach file in taxsim_py.ado _taxsim_py_exec.ado _taxsim_py_run.ado _taxsim_py_require_uv.ado taxsim_py.sthlp {
+foreach file in taxsim_py.ado taxsim_py.sthlp {
 	local folder = substr("`file'", 1, 1)
 	confirm file "`root'/`folder'/`file'"
 }
