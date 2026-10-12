@@ -107,6 +107,9 @@ Start with the [user guide](https://jrothbaum.github.io/taxsim_py/). Also:
 [Performance](https://jrothbaum.github.io/taxsim_py/performance/) and
 [PolicyEngine comparison](https://jrothbaum.github.io/taxsim_py/policyengine_recent_state_comparison/).
 
+To add a tax year, change the law or add an output, see
+[Updating the tax law](https://jrothbaum.github.io/taxsim_py/updating/).
+
 ## License
 
 MIT; see [LICENSE](https://github.com/jrothbaum/taxsim_py/blob/main/LICENSE).
