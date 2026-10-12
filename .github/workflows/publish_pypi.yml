@@ -1,4 +1,4 @@
-name: Release
+name: Publish to PyPI
 
 # Manual only: run it from the Actions tab and enter the release tag to publish.
 # The Stata files go to the GitHub release separately (stata_release.yml).
