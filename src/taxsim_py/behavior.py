@@ -39,6 +39,9 @@ class BehaviorProfile:
     allow_kansas_itemizing_after_2020: bool
     apply_kentucky_pension_cap_per_taxpayer: bool
     deduct_massachusetts_employee_payroll_tax_per_spouse: bool
+    count_capital_gains_in_dc_childless_eitc_investment_income: bool
+    exclude_children_under_4_from_ny_empire_credit: bool
+    count_only_children_under_13_for_oregon_dependent_care: bool
 
 
 TAXSIM_BEHAVIOR = BehaviorProfile(
@@ -64,6 +67,9 @@ TAXSIM_BEHAVIOR = BehaviorProfile(
     allow_kansas_itemizing_after_2020=False,
     apply_kentucky_pension_cap_per_taxpayer=False,
     deduct_massachusetts_employee_payroll_tax_per_spouse=False,
+    count_capital_gains_in_dc_childless_eitc_investment_income=False,
+    exclude_children_under_4_from_ny_empire_credit=False,
+    count_only_children_under_13_for_oregon_dependent_care=False,
 )
 
 STATUTORY_BEHAVIOR = BehaviorProfile(
@@ -89,6 +95,9 @@ STATUTORY_BEHAVIOR = BehaviorProfile(
     allow_kansas_itemizing_after_2020=True,
     apply_kentucky_pension_cap_per_taxpayer=True,
     deduct_massachusetts_employee_payroll_tax_per_spouse=True,
+    count_capital_gains_in_dc_childless_eitc_investment_income=True,
+    exclude_children_under_4_from_ny_empire_credit=True,
+    count_only_children_under_13_for_oregon_dependent_care=True,
 )
 
 

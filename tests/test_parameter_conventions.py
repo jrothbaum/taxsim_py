@@ -13,9 +13,9 @@ STATE_FILES = sorted((PARAMETERS_ROOT / "states").glob("*/income_tax.yaml"))
 # Integer keys that are not years: TAXSIM state codes in the sales tax table.
 STATE_CODE_TABLES = {("sales_tax_deduction.yaml", "coefficients")}
 YEAR_IN_NAME = re.compile(r"(19|20)\d\d")
-# States without `law_coded_through`: Alaska repealed its tax in 1980,
-# Tennessee in 2021, and Washington has no income tax.
-UNPROJECTED_STATES = {"ak", "tn", "wa"}
+# States whose law is never projected past its last year: Alaska repealed its
+# tax in 1980 and Washington has no income tax.
+UNPROJECTED_STATES = {"ak", "wa"}
 
 
 class _UniqueKeyLoader(yaml.SafeLoader):

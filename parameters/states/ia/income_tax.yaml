@@ -9,6 +9,11 @@
 # Statutory mode uses actual law through this year.
 law_coded_through: 2025
 
+# Married couples may file separately on a combined return (each spouse taxed
+# on their own share, when lower) through 2022; from 2023 the Iowa filing
+# status follows the federal return (Iowa DOR, 2023 changes).
+combined_return_allowed: {1977: true, 2023: false}
+
 # Rate schedules, [start of bracket, rate], applied to taxable income
 # divided by `bracket_inflation` (the tax multiplied back). Joint returns
 # may instead file combined, each spouse on their own share.
@@ -21,8 +26,7 @@ bracket_inflation: {1977: 1.0, 1979: 1.023, 1987: 1.0, 1989: 1.016, 1990: 1.038,
 # From 2023 the main tax uses these schedules by filing status (not
 # inflated); `other` covers every non-joint status. 2025: a flat 3.8%
 # (S.F. 2442). Source: PolicyEngine-US
-# gov.states.ia.tax.income.rates.by_filing_status. Combined filing and the
-# reported rate still use `brackets`.
+# gov.states.ia.tax.income.rates.by_filing_status.
 brackets_by_status:
   2023:
     other: [[0, 0.044], [6000, 0.0482], [30000, 0.057], [75000, 0.06]]

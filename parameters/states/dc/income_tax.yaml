@@ -302,7 +302,8 @@ eitc_federal_share: {2000: 0.10, 2001: 0.25, 2005: 0.35, 2008: 0.40, 2022: 0.70,
 # income and AGI above `phaseout_start`; none above `max_earned`, with
 # investment income above `disqualified_income_limit`, under `minimum_age`
 # (or over `maximum_age` with a spouse under it; 2021: under 19 only).
-# 2022 on: the federal childless maximum and phaseout start.
+# 2022 on: the federal childless maximum and phaseout start, and the D-40
+# investment income limit.
 eitc_childless:
   2015: {max_credit: 503, max_earned: 24040, phaseout_start: 18111, phase_in_rate: 0.0765, disqualified_income_limit: 3400}
   2016: {max_credit: 506, max_earned: 24254, phaseout_start: 18292, phase_in_rate: 0.0765, disqualified_income_limit: 3400}
@@ -311,9 +312,9 @@ eitc_childless:
   2019: {max_credit: 529, max_earned: 25477, phaseout_start: 19239, phase_in_rate: 0.0765, disqualified_income_limit: 3600}
   2020: {max_credit: 538, max_earned: 25833, phaseout_start: 19489, phase_in_rate: 0.0765, disqualified_income_limit: 3650}
   2021: {max_credit: 1502, max_earned: 37455, phaseout_start: 19743, phase_in_rate: 0.153, disqualified_income_limit: 10000}
-  2022: {max_credit: 560, max_earned: 27136, phaseout_start: 20532, phase_in_rate: 0.0765, disqualified_income_limit: 10000}
-  2023: {max_credit: 600, max_earned: 28964, phaseout_start: 21888, phase_in_rate: 0.0765, disqualified_income_limit: 10000}
-  2024: {max_credit: 632, max_earned: 30019, phaseout_start: 22566, phase_in_rate: 0.0765, disqualified_income_limit: 10000}
-  2025: {max_credit: 649, max_earned: 30941, phaseout_start: 23288, phase_in_rate: 0.0765, disqualified_income_limit: 10000}
+  2022: {max_credit: 560, max_earned: 27136, phaseout_start: 20532, phase_in_rate: 0.0765, disqualified_income_limit: 10300}
+  2023: {max_credit: 600, max_earned: 28964, phaseout_start: 21888, phase_in_rate: 0.0765, disqualified_income_limit: 11000}
+  2024: {max_credit: 632, max_earned: 30019, phaseout_start: 22566, phase_in_rate: 0.0765, disqualified_income_limit: 11600}
+  2025: {max_credit: 649, max_earned: 30941, phaseout_start: 23288, phase_in_rate: 0.0765, disqualified_income_limit: 11950}
 eitc_childless_phaseout_rate: 0.0848
 eitc_childless_age_limits: {minimum_age: 25, maximum_age: 65}

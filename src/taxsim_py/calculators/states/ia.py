@@ -160,7 +160,7 @@ def compute_ia_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     # --- Joint returns may file combined: each spouse on their own share ---
     agih = higher_earner_share(pl.col("ia_agi"))
     agiw = pl.col("ia_agi") - agih
-    is_mfc = is_joint & (pl.col("ia_agi") > 0)
+    is_mfc = is_joint & (pl.col("ia_agi") > 0) & pl.lit(bool(p.value("combined_return_allowed")))
     stded_h_general = (pct * pl.col("ia_agi")).clip(0, cap_single)
     xitdh = pl.when(pl.col("ia_agi") != 0).then(pl.col("ia_xitded") * agih / pl.col("ia_agi")).otherwise(0.0)
     xitdw = pl.col("ia_xitded") - xitdh
@@ -187,10 +187,14 @@ def compute_ia_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     aif = p.num("bracket_inflation")
     table = p.value("brackets")
     statax = bracket_tax(pl.col("ia_taxinc") / aif, table) * aif
+    single_rate = bracket_rate(pl.col("ia_taxinc") / aif, table)
     if p.in_effect("brackets_by_status"):
         schedules = p.value("brackets_by_status")
         statax = pl.when(is_joint).then(bracket_tax(pl.col("ia_taxinc"), schedules["joint"])).otherwise(
             bracket_tax(pl.col("ia_taxinc"), schedules["other"])
+        )
+        single_rate = pl.when(is_joint).then(bracket_rate(pl.col("ia_taxinc"), schedules["joint"])).otherwise(
+            bracket_rate(pl.col("ia_taxinc"), schedules["other"])
         )
     df = df.with_columns(ia_statax=statax)
 
@@ -214,9 +218,7 @@ def compute_ia_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             ia_statax=pl.when(is_mfc).then(pl.min_horizontal(pl.col("ia_statax"), stath + statw)).otherwise(pl.col("ia_statax"))
         )
         split_rate = bracket_rate(pl.col("ia_taxinw") / aif, table)
-    rate_expr = pl.when(is_mfc).then(split_rate).otherwise(
-        bracket_rate(pl.col("ia_taxinc") / aif, table)
-    )
+    rate_expr = pl.when(is_mfc).then(split_rate).otherwise(single_rate)
 
     # --- Alternate Tax --- (never single)
     exy_other = p.num("no_tax_income_limit", "other")

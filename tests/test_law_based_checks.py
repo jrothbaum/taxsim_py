@@ -92,6 +92,13 @@ CASES = [
         "taxable_income",
         0.0,
     ),
+    (
+        "2024 dependent standard deduction: earned income plus $450 (Rev. Proc."
+        " 2023-34 sec. 3.15): $5,000 of wages and $1,000 of interest leave $550",
+        {**_wage_case(2024, 8, 5_000), "intrec": 1_000},
+        "taxable_income",
+        550.0,
+    ),
 ]
 
 

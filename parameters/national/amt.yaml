@@ -216,8 +216,9 @@ separate_return_addback_threshold:
 separate_return_addback_rate: {1990: 0.25}
 # From 1990 the exemption of a dependent filer, or of a filer whose (older)
 # reported age is under `young_filer_age`, is capped at earned income plus this
-# amount (2023 the published amount). Age 0 means only dependent filers without
-# a reported age are capped.
+# amount (from 2023 the published amount; Rev. Proc. 2022-38, 2023-34 and
+# 2024-40 section .12). Age 0 means only dependent filers without a reported
+# age are capped.
 young_filer_exemption_addition:
   1990: 1000
   1996: 1300
@@ -245,6 +246,8 @@ young_filer_exemption_addition:
   2021: 7900
   2022: 8200
   2023: 8800
+  2024: 9250
+  2025: 9550
 young_filer_age: {1990: 14, 2006: 18, 2008: 24, 2018: 0}
 # From 1997 gains and qualified dividends use the regular-tax rates
 # (capital_gains.yaml) with this as the second ceiling (a large sentinel before

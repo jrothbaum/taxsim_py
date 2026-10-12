@@ -418,7 +418,7 @@ dependent_standard_deduction:
     2023: 1250
     2024: 1300
     2025: 1350
-  earned_income_addition: {1987: 0, 1998: 250, 2006: 300, 2013: 350, 2022: 400}
+  earned_income_addition: {1987: 0, 1998: 250, 2006: 300, 2013: 350, 2022: 400, 2024: 450}
 # Qualified business income deduction from 2018: the rate on business income;
 # professional-service income loses it over the taxable income range from
 # `qbi_phase_in_start` to `qbi_phase_in_end` (`unmarried` or `married_joint`;

@@ -185,14 +185,16 @@ renter_credit_index: {1991: 1.0, 1992: 1.036, 1993: null, 1998: 1.0, 1999: 1.026
 # --- Alternative minimum tax (from 1987) ---
 # Tentative minimum tax is `amt_rate` of income above the exemption, which
 # falls by `amt_exemption_phaseout_rate` of income above the phaseout start.
-# Before 1998 the exemption is the federal AMT exemption.
+# Before 1998 the exemption is the federal AMT exemption. Schedule P (540)
+# line 22: 2001 head of household and married separate and 2018 married
+# separate are the published amounts (TAXSIM: 45692, 30461 and 44685).
 amt_rate: {1987: 0.085, 1996: 0.07, 2008: 0.0725, 2011: 0.07}
 amt_exemption_phaseout_rate: 0.25
 amt_exemption:
   1998: {single: 42945, married_joint: 57260, head_of_household: 42945, married_separate: 28630}
   1999: {single: 44062, married_joint: 58749, head_of_household: 44062, married_separate: 29374}
   2000: {single: 45692, married_joint: 60923, head_of_household: 45692, married_separate: 30461}
-  2001: {single: 48114, married_joint: 64152, head_of_household: 45692, married_separate: 30461}
+  2001: {single: 48114, married_joint: 64152, head_of_household: 48114, married_separate: 32075}
   2002: {single: 48836, married_joint: 65114, head_of_household: 48836, married_separate: 32556}
   2003: {single: 49910, married_joint: 66547, head_of_household: 49910, married_separate: 33272}
   2004: {single: 51457, married_joint: 68610, head_of_household: 51457, married_separate: 34303}
@@ -209,10 +211,14 @@ amt_exemption:
   2015: {single: 65721, married_joint: 87627, head_of_household: 65721, married_separate: 43812}
   2016: {single: 67101, married_joint: 89467, head_of_household: 67101, married_separate: 44732}
   2017: {single: 68846, married_joint: 91793, head_of_household: 68846, married_separate: 45895}
-  2018: {single: 71531, married_joint: 95373, head_of_household: 71531, married_separate: 44685}
+  2018: {single: 71531, married_joint: 95373, head_of_household: 71531, married_separate: 47685}
   2019: {single: 73748, married_joint: 98330, head_of_household: 73748, married_separate: 49163}
   2020: {single: 74777, married_joint: 99702, head_of_household: 74777, married_separate: 49851}
   2021: {single: 78070, married_joint: 104094, head_of_household: 78070, married_separate: 52044}
+  2022: {single: 84550, married_joint: 112734, head_of_household: 84550, married_separate: 56364}
+  2023: {single: 87171, married_joint: 116229, head_of_household: 87171, married_separate: 58111}
+  2024: {single: 90048, married_joint: 120065, head_of_household: 90048, married_separate: 60029}
+  2025: {single: 92749, married_joint: 123667, head_of_household: 92749, married_separate: 61830}
 amt_phaseout_start:
   1987: {single: 112500, married_joint: 150000, head_of_household: 112500, married_separate: 75000}
   1998: {single: 161044, married_joint: 214725, head_of_household: 161044, married_separate: 107362}
@@ -239,8 +245,10 @@ amt_phaseout_start:
   2019: {single: 276552, married_joint: 368737, head_of_household: 276552, married_separate: 184365}
   2020: {single: 280419, married_joint: 373892, head_of_household: 280419, married_separate: 186946}
   2021: {single: 292763, married_joint: 390351, head_of_household: 292763, married_separate: 195172}
-  # TAXSIM-era fallback, to be replaced with Schedule P values.
-  2022: {single: 112500, married_joint: 150000, head_of_household: 112500, married_separate: 75000}
+  2022: {single: 317062, married_joint: 422750, head_of_household: 317062, married_separate: 211371}
+  2023: {single: 326891, married_joint: 435855, head_of_household: 326891, married_separate: 217924}
+  2024: {single: 337678, married_joint: 450238, head_of_household: 337678, married_separate: 225115}
+  2025: {single: 347808, married_joint: 463745, head_of_household: 347808, married_separate: 231868}
 
 # Mental Health Services tax from 2005: `rate` of taxable income above
 # `threshold`.

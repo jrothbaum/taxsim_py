@@ -118,8 +118,30 @@ tests: `tests/test_calculation_modes.py` (the `single_high_se`, `wage_se_cap`,
   ([2022 CT-1040 instructions](https://portal.ct.gov/-/media/drs/forms/2022/income/2022-ct-1040-instructions_1222.pdf)).
 - **DC-002 (2015+).** The EITC with-child track uses the age-qualified child count
   `dep18`, not `depx > 0`. Switch: `use_age_qualified_children_for_dc_eitc`.
+- **DC-003 (2015+).** The childless credit's investment income counts positive
+  capital gains as well as interest and dividends (D-40 EITC checklist); TAXSIM
+  counts interest and dividends only. Switch:
+  `count_capital_gains_in_dc_childless_eitc_investment_income`.
+- **NY-001 (2006-2022).** Children under 4 do not qualify for the Empire State child
+  credit before 2023 (Tax Law 606(c-1)); TAXSIM has no ages. Statutory mode removes
+  `children_under_4` from the 2018-2022 rebuilt credit (the 2006-2017 credit still
+  counts them). Switch: `exclude_children_under_4_from_ny_empire_credit`.
+- **OR-003 (2016+).** The working family household and dependent care credit counts
+  only children under 13 (ORS 315.264, IRC 21(b)); TAXSIM counts every dependent.
+  Switch: `count_only_children_under_13_for_oregon_dependent_care`.
 - **OR-002.** The 12% under-three EITC match uses `children_under_3`, and the care
   credit cap uses `dep13`.
+
+## Published values that replace TAXSIM's (both modes)
+
+Where TAXSIM's own table is wrong for its year, the published value is used in both
+modes, as for parameter updates.
+
+- **AR (2004).** Rate thresholds from the DFA 2004 Indexed Tax Brackets ($3,400,
+  $6,800, $10,300, $17,100, $28,500); TAXSIM reuses the 1977 thresholds.
+- **CA (2001, 2018).** Schedule P (540) line 22 exemptions: 2001 head of household
+  $48,114 and married separate $32,075 (TAXSIM repeats 2000's), 2018 married separate
+  $47,685 (TAXSIM $44,685).
 
 ## Dated 2022+ state tables (STATE-DATED)
 
@@ -131,7 +153,7 @@ for (see the [PolicyEngine comparison](policyengine_recent_state_comparison.md))
 | State (IDs) | Dated values |
 |:--|:--|
 | AR (AR-001) | Standard deduction, rate and subtraction schedules, low-income tax tables, 2022-2023 inflationary-relief credit |
-| CA (CA-003) | Standard deductions, rate thresholds, exemption credits, CalEITC maximums, Young Child Tax Credit amounts |
+| CA (CA-003) | Standard deductions, rate thresholds, exemption credits, CalEITC maximums, Young Child Tax Credit amounts, AMT exemptions and phaseout starts (Schedule P (540)) |
 | DC (DC-001) | Schedule H maximum, AGI tiers, elderly threshold; rent counts at 20% added to property tax |
 | HI (HI-002) | 2024 doubled standard deductions, 2023-2024 Food/Excise credit tables, refundable 40% EITC from 2023 (Acts 46, 114, 163) |
 | NH (NH-001) | Interest-and-dividends rate 4% (2023), 3% (2024), 0 (2025); exemptions unchanged |

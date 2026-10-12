@@ -13,7 +13,7 @@ TN_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "tn" / "income_tax.yaml")
 
 def compute_tn_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
     """Calculate Tennessee income tax on interest and dividends for each row."""
-    effective_year, flate = resolve_state_year(year, behavior)
+    effective_year, flate = resolve_state_year(year, behavior, TN_PARAMS)
     y = effective_year
     p = YearParams(TN_PARAMS, effective_year)
     dividend_adjustment = dividend_input_adjustment()

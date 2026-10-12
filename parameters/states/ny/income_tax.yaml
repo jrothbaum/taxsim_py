@@ -948,6 +948,9 @@ empire_child_credit:
     amount: 330
     phaseout_per_1000: 16.5
     threshold: {single: 75000, head_of_household: 75000, married_joint: 110000, married_separate: 55000}
+# Children under 4 qualify for the Empire State child credit only from 2023
+# (Tax Law 606(c-1)).
+empire_child_credit_excludes_under_4: {2006: true, 2023: false}
 # Social Security wage base for the rebuilt federal additional child credit.
 payroll_wage_base: {2018: 128400, 2019: 135900, 2020: 142500, 2021: 148800, 2022: 155100, 2023: 161700}
 # 2015-2016 family tax relief credit.

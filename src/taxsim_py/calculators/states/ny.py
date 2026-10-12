@@ -608,8 +608,7 @@ def compute_ny_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         dep17 = pl.col("dep17")
         dep18 = pl.col("dep18")
         kids = depx
-        if y == 2022:
-            # Children under 4 qualify only from 2023.
+        if behavior.exclude_children_under_4_from_ny_empire_credit and p.value("empire_child_credit_excludes_under_4"):
             young = pl.col("children_under_4")
             dep17 = dep17 - young
             dep18 = dep18 - young

@@ -360,8 +360,11 @@ def compute_dc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         earncr_childless_raw = pl.when(agimax <= am).then(
             pl.min_horizontal(cr, phase_rate * earned) - p["eitc_childless_phaseout_rate"] * (agimax - ym).clip(0, None)
         ).otherwise(0.0)
-        # Disqualifying income is dividends and interest only.
+        # Investment income: interest and dividends (and capital gains, D-40
+        # EITC checklist).
         disqy = pl.col("dividends").clip(0, None) + pl.col("intrec")
+        if behavior.count_capital_gains_in_dc_childless_eitc_investment_income:
+            disqy = disqy + (pl.col("stcg") + pl.col("ltcg")).clip(0, None)
         no_childless_credit = (disqy > dylim) | (pl.col("dc_sep") == 2) | is_dependent_filer()
         if effective_year != 2021:
             no_childless_credit = no_childless_credit | (aged >= taxpayer_count())

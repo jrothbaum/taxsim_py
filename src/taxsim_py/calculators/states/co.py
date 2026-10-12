@@ -41,9 +41,11 @@ def compute_co_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         agi_limits = ps["social_security_full_agi_limit"]
         agi_limit = pl.when(files_joint()).then(float(agi_limits["joint"])).otherwise(float(agi_limits["other"]))
         # Each taxpayer takes an equal share of the pension and Social Security
-        # inputs, as for the other states that cap pensions per person.
-        pension_each = pl.col("pensions") / pl.col("co_taxpayers")
-        social_security_each = pl.col("taxable_social_security") / pl.col("co_taxpayers")
+        # inputs, as for the other states that cap pensions per person; a
+        # dependent filer is one person.
+        people = pl.col("co_taxpayers").clip(1, None)
+        pension_each = pl.col("pensions") / people
+        social_security_each = pl.col("taxable_social_security") / people
 
         def subtraction(age: pl.Expr, present: pl.Expr) -> pl.Expr:
             older = present & (age >= float(ps["age_older"]))

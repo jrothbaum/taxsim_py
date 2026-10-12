@@ -161,8 +161,9 @@ low_income_credit_aged_income: {1977: 6000.0, 1978: null}
 student_credit: {1977: 10.0, 1989: null}
 # Child care credit: a share of the federal credit (nonrefundable), or from 2003
 # the refundable share at federal AGI up to the limit. From 2022 the full
-# refundable share for everyone (32 V.S.A. 5828c).
-child_care_rate: 0.24
+# refundable share for everyone and no nonrefundable credit (32 V.S.A. 5828c,
+# Schedule IN-112).
+child_care_rate: {1977: 0.24, 2022: null}
 child_care_refundable_rate: {2003: 0.5}
 child_care_refundable_agi:
   2003: {married_joint: 39999.0, other: 29999.0}

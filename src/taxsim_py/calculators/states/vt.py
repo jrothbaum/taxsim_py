@@ -149,7 +149,7 @@ def compute_vt_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     studcr = pl.lit(0.0)
     if p.in_effect("student_credit"):
         studcr = pl.when(dependent_filer).then(0.0).otherwise(pl.min_horizontal(pl.lit(p.num("student_credit")), statax))
-    chcr = p["child_care_rate"] * fed_ccc
+    chcr = p.num("child_care_rate") * fed_ccc if p.in_effect("child_care_rate") else pl.lit(0.0)
     chcref = pl.lit(0.0)
     if p.in_effect("child_care_refundable_rate"):
         limits = p.value("child_care_refundable_agi")

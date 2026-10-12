@@ -2,6 +2,9 @@
 #
 # Source: NBER TAXSIM (`tntax`). Repealed from 2021.
 
+# Statutory mode uses actual law through this year.
+law_coded_through: 2025
+
 rate: {1977: 0.06, 2016: 0.05, 2017: 0.04, 2018: 0.03, 2019: 0.02, 2020: 0.01, 2021: 0.0}
 # Through 1985 no tax when interest and dividends are at most this per
 # taxpayer.

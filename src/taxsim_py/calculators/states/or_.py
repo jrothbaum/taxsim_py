@@ -275,7 +275,9 @@ def compute_or_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         num = exemps.floor()
         poverty = p.value("poverty_line")
         agi_limit = p.value("dependent_care_agi_limit")
-        children = pl.col("dep13").clip(None, 2).floor() if y >= 2022 else depx.clip(None, 2).floor()
+        # Qualifying individuals are children under 13 (ORS 315.264, IRC 21(b)).
+        qualifying = pl.col("dep13") if behavior.count_only_children_under_13_for_oregon_dependent_care else depx
+        children = qualifying.clip(None, 2).floor()
         expens = pl.min_horizontal(
             pl.col("childcare"), p["dependent_care_expense_per_child"] * children, pl.col("earned_income")
         )

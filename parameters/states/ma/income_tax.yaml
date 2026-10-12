@@ -178,14 +178,15 @@ eitc_rate:
   2019: 0.30
   2023: 0.40
 
-# Unemployment exclusion from 2020: up to the cap per person when household
-# income is at most twice the poverty level for the family size. (Still
-# applied after 2021; to be checked against Form 1.)
+# Unemployment exclusion 2020-2021: up to the cap per person when household
+# income is at most twice the poverty level for the family size. Source: St.
+# 2021, c. 9, s. 26 (taxable years 2020 and 2021).
 ui_exclusion_poverty_level:
   2020: 12760
   2021: 12880
 ui_exclusion_cap_per_person:
   2020: 10200
+  2022: null
 
 # Exemption per taxpayer 65 or older.
 aged_exemption:
