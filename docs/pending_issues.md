@@ -166,6 +166,21 @@ recorded here:
 - **Reported ages:** the executable pays the childless EITC below the minimum age
   (25, or 19 in 2021) and does not cap young filers' AMT exemption. The port uses
   the reported ages. This may already be on the tab.
+- **Arkansas, 2004:** TAXSIM reuses the 1977 bracket thresholds ($3,000, $6,000,
+  $9,000, $15,000, $25,000). The published 2004 thresholds are $3,400, $6,800,
+  $10,300, $17,100 and $28,500
+  ([DFA 2004 Indexed Tax Brackets](https://dfa.arkansas.gov/wp-content/uploads/2004brackets.pdf)).
+  On $20,000 of Arkansas taxable income the rate schedule gives $780.00 with
+  TAXSIM's thresholds and $721.50 with the published ones (before the 3%
+  surcharge). The port uses the published
+  values in both modes.
+- **California AMT exemption, 2001:** TAXSIM repeats the 2000 amounts for head of
+  household ($45,692) and married filing separately ($30,461). Schedule P (540)
+  2001 line 22 gives $48,114 and $32,075. The port uses the published values in
+  both modes.
+- **California AMT exemption, 2018:** TAXSIM has $44,685 for married filing
+  separately, below 2017's $45,895. Schedule P (540) 2018 line 22 gives $47,685
+  (an apparent digit slip). The port uses the published value in both modes.
 
 ### Other open items
 
