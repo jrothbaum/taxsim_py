@@ -1,6 +1,6 @@
 [project]
 name = "taxsim-py"
-version = "0.2.0"
+version = "0.3.0"
 description = "A dataframe-oriented Python implementation of NBER TAXSIM"
 readme = "README.md"
 license = "MIT"
