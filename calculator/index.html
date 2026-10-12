@@ -73,7 +73,7 @@
       <fieldset><legend>Basics</legend><div class="grid" id="basics"></div></fieldset>
       <fieldset><legend>People</legend><div class="grid" id="people"></div></fieldset>
       <fieldset><legend>Income</legend><div class="grid" id="income"></div></fieldset>
-      <fieldset><legend>Business income (TCJA / QBI)</legend><div class="grid" id="business"></div></fieldset>
+      <fieldset><legend>Business income eligible for the 20% business deduction (2018 on)</legend><div class="grid" id="business"></div></fieldset>
       <fieldset><legend>Deductions and expenses</legend><div class="grid" id="deductions"></div></fieldset>
       <fieldset><legend>Options</legend><div class="grid" id="options"></div></fieldset>
       <div class="actions">
@@ -132,8 +132,11 @@ const FIELDS = {
            ["pensions", "Pensions and IRA distributions", 0], ["gssi", "Gross Social Security", 0],
            ["pui", "Your unemployment compensation", 0], ["sui", "Spouse's unemployment compensation", 0],
            ["transfers", "Non-taxable transfers", 0]],
-  business: [["scorp", "S-corporation income", 0], ["pbusinc", "Your QBI", 0], ["pprofinc", "Your specified service QBI", 0],
-             ["sbusinc", "Spouse's QBI", 0], ["sprofinc", "Spouse's specified service QBI", 0]],
+  business: [["scorp", "S corporation income", 0],
+             ["pbusinc", "Your business income", 0],
+             ["pprofinc", "Your professional services income (law, health, consulting and similar; deduction phases out at high income)", 0],
+             ["sbusinc", "Spouse's business income", 0],
+             ["sprofinc", "Spouse's professional services income", 0]],
   deductions: [["rentpaid", "Rent paid", 0], ["proptax", "Real estate taxes", 0], ["otheritem", "Other itemized deductions", 0],
                ["childcare", "Child care expenses", 0], ["mortgage", "Mortgage interest and other deductions", 0]],
 };
@@ -169,7 +172,6 @@ function build() {
   y.append(yi); $("basics").append(y);
   select("basics", "state", "State", [[0, "No state calculation"], ...STATES.map((s, i) => [i + 1, s])], 5);
   select("basics", "mstat", "Marital status", MSTAT, 1);
-  field("basics", "taxsimid", "Case ID", 1, "count");
   for (const [group, list] of Object.entries(FIELDS))
     for (const [name, label, value, kind] of list) field(group, name, label, value, kind);
   select("options", "mtr", "Marginal rates with respect to", MTR, 85);
