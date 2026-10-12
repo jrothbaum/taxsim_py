@@ -114,15 +114,13 @@ def compute_federal_income_tax_law60(
     # each taxpayer 65 or older.
     df = df.with_columns(exemps_count=taxpayer_count() + pl.col("depx") + aged_count())
     if year <= 1963:
-        # <=1963: a straight percentage of AGI capped at a flat ceiling, NO
-        # floor term at all - taxsim_2022_10_21.f:22673-22674.
+        # A percentage of AGI capped at a flat ceiling, with no floor.
         pct = p.num("standard_deduction_pct")
         ceiling = p.num("standard_deduction_ceiling_other")
         df = df.with_columns(zbr=pl.min_horizontal(ceiling / pl.col("sepret"), pct * pl.col("agix")))
     elif year <= 1970:
-        # 1964-1970: the percentage deduction up to the ceiling, at least
-        # $200/sepret + $100 per exemption, both capped at ceiling/sepret
-        # (taxsim_2022_10_21.f:22670-22672).
+        # The percentage deduction up to the ceiling, at least the base plus
+        # an amount per exemption, both capped at the ceiling.
         pct = p.num("standard_deduction_pct")
         ceiling = p.num("standard_deduction_ceiling_other")
         per_exemption_base = p.num("standard_deduction_per_exemption_base")
@@ -136,20 +134,15 @@ def compute_federal_income_tax_law60(
                 ),
             )
         )
-        if year == 1970:
-            # 1970 Additional Allowance for Low Incomes
-            # (taxsim_2024_09_21.f:22629-22632): `zbradd=900-100*exemps`,
-            # `zbrpo=max(0,.5*(agi-(1100+625*exemps)))`,
-            # `zbr += max(0, zbradd-zbrpo)`.
-            lia = p["low_income_allowance_1970"]
+        if p.in_effect("low_income_allowance"):
+            lia = p.value("low_income_allowance")
             zbradd = lia["base"] - lia["per_exemption"] * pl.col("exemps_count")
             zbrpo = (
                 lia["phaseout_rate"] * (pl.col("agi") - (lia["income_base"] + lia["income_per_exemption"] * pl.col("exemps_count")))
             ).clip(0, None)
             df = df.with_columns(zbr=pl.col("zbr") + (zbradd - zbrpo).clip(0, None))
     elif year <= 1974:
-        # 1971-1974: one shared ceiling/floor formula for every status (no
-        # joint/other split existed yet - taxsim_2022_10_21.f:22666-22672).
+        # One ceiling and floor for every filing status.
         zbr_pct = p.num("standard_deduction_pct")
         zbr_ceiling_other = p.num("standard_deduction_ceiling_other")
         zbr_floor_other = p.num("standard_deduction_floor_other")
@@ -201,7 +194,7 @@ def compute_federal_income_tax_law60(
     # applies 1970-1975; `cgtx1`, the bracket tax, applies every year. ---
     df = df.with_columns(cg1=(pl.col("taxable_income") - pl.col("capded")).clip(0, None))
     df = df.with_columns(cgtx1=bracket_tax_by_status(pl.col("cg1"), brackets_by_status))
-    if 1970 <= year <= 1975:
+    if p.in_effect("alt_capital_gains_threshold"):
         threshold = p.num("alt_capital_gains_threshold")
         flat_component = p.num("alt_capital_gains_flat_component")
         cap_rate = p.num("alt_capital_gains_cap_rate")
@@ -226,20 +219,16 @@ def compute_federal_income_tax_law60(
             cgtx2=pl.when(pl.col("gate")).then(pl.col("cgtx2_gated")).otherwise(0.5 * pl.col("capded")),
             cgtx3=pl.when(pl.col("gate")).then(flat_component / pl.col("sepret")).otherwise(0.0),
         )
-    else:  # year<=1969 (no matching branch) or year==1976 (`subd` unpopulated)
+    else:
         df = df.with_columns(cgtx2=0.5 * pl.col("capded"), cgtx3=pl.lit(0.0))
     df = df.with_columns(
         acgtax=pl.when(pl.col("fullcg") > 0).then(pl.col("cgtx1") + pl.col("cgtx2") + pl.col("cgtx3")).otherwise(-1.0)
     )
 
-    # --- Maximum tax on earned income (1971-1976) ---
-    if year >= 1971:
-        ebot_expr = by_filing_status(
-            {status: resolve_year(p["max_tax_earned_income_floor"][status], year) for status in FILING_STATUSES}
-        )
-        eacc_expr = by_filing_status(
-            {status: resolve_year(p["max_tax_earned_income_accumulated"][status], year) for status in FILING_STATUSES}
-        )
+    # --- Maximum tax on earned income ---
+    if p.in_effect("max_tax_earned_income_floor"):
+        ebot_expr = by_filing_status(p.value("max_tax_earned_income_floor"))
+        eacc_expr = by_filing_status(p.value("max_tax_earned_income_accumulated"))
         etop_mult = p.num("max_tax_earned_income_etop_multiplier")
         df = df.with_columns(
             ebot=ebot_expr,
@@ -293,15 +282,13 @@ def compute_federal_income_tax_law60(
         .otherwise(pl.col("altax"))
     )
 
-    # --- Vietnam-era surtax (1968-1970): a multiplier on `altax` before
-    # credits (taxsim_2022_10_21.f:23047-23056). ---
-    if year in (1968, 1969, 1970):
+    # --- Surtax: a multiplier on `altax` before credits. ---
+    if p.in_effect("surtax_multiplier"):
         surtax_multiplier = p.num("surtax_multiplier")
         df = df.with_columns(altax=pl.col("altax") * surtax_multiplier)
 
-    # --- Credits: Child Care Credit (1976), $30-per-exemption credit
-    # (1975), General Tax Credit (1976). ---
-    if year == 1976:
+    # --- Credits: child care, exemption and general tax credits. ---
+    if p.in_effect("child_care_credit_flat_rate"):
         expense_cap = p.num("child_care_credit_expense_cap")
         chr_rate = p.num("child_care_credit_flat_rate")
         df = with_default(df, "dep13")
@@ -311,13 +298,12 @@ def compute_federal_income_tax_law60(
     else:
         df = df.with_columns(chcr=pl.lit(0.0))
 
-    if year == 1975:
+    if p.in_effect("personal_exemption_credit_amount"):
         exemption_credit = p.num("personal_exemption_credit_amount")
         df = df.with_columns(gencr=exemption_credit * pl.col("exemps_count"))
-    elif year == 1976:
-        per_exemption = p.num("general_tax_credit_per_exemption")
-        cap = p.num("general_tax_credit_cap")
-        rate = p.num("general_tax_credit_rate")
+    elif p.in_effect("general_tax_credit"):
+        g = p.value("general_tax_credit")
+        per_exemption, cap, rate = float(g["per_exemption"]), float(g["cap"]), float(g["rate"])
         df = df.with_columns(
             gencr=pl.max_horizontal(per_exemption * pl.col("exemps_count"), (rate * pl.col("taxable_income")).clip(0, cap))
         )
@@ -332,19 +318,17 @@ def compute_federal_income_tax_law60(
     df = df.with_columns(taxaft=(pl.col("altax") - pl.col("credit")).clip(0, None))
 
     # --- Add-on minimum tax, added to tax rather than a floor. ---
-    if year <= 1975:
+    rate = p.num("addmin_rate")
+    if p.in_effect("addmin_offset_flat"):
         offset_flat = p.num("addmin_offset_flat")
-        rate = p.num("addmin_rate_pre1976")
         df = df.with_columns(offset=offset_flat / pl.col("sepret") + pl.col("taxaft") - pl.col("credit"))
         # Before 1976 `gencr` is subtracted again although `credit` already
-        # reduced `taxaft` (taxsim_2022_10_21.f:23218,
-        # `addmin = max(0,(data(81)+capgn-offset)*.10-credm-gencr)`).
+        # reduced `taxaft`.
         df = df.with_columns(
             addmin=(((pl.col("capgn") - pl.col("offset")) * rate) - pl.col("credm") - pl.col("gencr")).clip(0, None)
         )
-    else:  # 1976
+    else:
         offset_floor = p.num("addmin_offset_pct_floor")
-        rate = p.num("addmin_rate_1976to1978")
         df = df.with_columns(
             offset=pl.max_horizontal(0.5 * (pl.col("taxaft") - pl.col("credit")), offset_floor / pl.col("sepret"))
         )
@@ -356,9 +340,8 @@ def compute_federal_income_tax_law60(
     else:
         df = df.with_columns(tax_after_addmin=pl.col("taxaft"))
 
-    # --- EITC (real 1975-1976 only; eligibility keys off `depx`, not
-    # `dep18` the way law79/law87 do - taxsim_2022_10_21.f:23188). ---
-    if year >= 1975:
+    # --- EITC; eligibility keys off `depx`, not `dep18` as in later law. ---
+    if p.in_effect("eitc_rate_in"):
         rate_in = p.num("eitc_rate_in")
         max_credit = p.num("eitc_max_credit")
         phaseout_start = p.num("eitc_phaseout_start")

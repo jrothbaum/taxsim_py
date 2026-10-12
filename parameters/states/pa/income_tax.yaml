@@ -1,27 +1,18 @@
-# Pennsylvania personal income tax (TAXSIM `patax`, taxsim_2024_09_21.f:17720-17817).
-# A flat rate on positive income classes (no capital losses, no unemployment
-# compensation), less the tax forgiveness credit.
+# Pennsylvania personal income tax.
+#
+# Sources: 1977-2021 NBER TAXSIM (`patax`); 2022 on, 72 P.S. Article III and
+# PolicyEngine-US `gov.states.pa.tax.income`. A flat rate on positive income
+# classes (no capital losses, no unemployment compensation), less the tax
+# forgiveness credit.
 
-rate:
-  1977: 0.02
-  1978: 0.022
-  1983: 0.0245
-  1984: 0.024
-  1985: 0.0235
-  1986: 0.0216
-  1987: 0.021
-  1991: 0.026
-  1992: 0.0295
-  1993: 0.028
-  2004: 0.0307
-  # PolicyEngine-US gov.states.pa.tax.income.rate, queried 2026-09-29.
-  2022: 0.0307
-  2023: 0.0307
-  2024: 0.0307
+# Statutory mode uses actual law through this year.
+law_coded_through: 2025
+
+rate: {1977: 0.02, 1978: 0.022, 1983: 0.0245, 1984: 0.024, 1985: 0.0235, 1986: 0.0216, 1987: 0.021, 1991: 0.026, 1992: 0.0295, 1993: 0.028, 2004: 0.0307}
 
 # Tax forgiveness: the income allowance is `base` plus amounts for the first
-# and the other claimants (`dep1`, `dep2`, see the calculator); tax is
-# forgiven in full at or below it and phased out over `phaseout` above it.
+# and the other claimants (see the calculator); tax is forgiven in full at
+# or below it and phased out over `forgiveness_phaseout` above it.
 forgiveness_allowance:
   1977: {base: 3000.0, first: 1200.0, other: 750.0}
   1987: {base: 4500.0, first: 1500.0, other: 1000.0}
@@ -38,9 +29,12 @@ forgiveness_allowance:
   2002: {first: 6500.0, other: 9000.0}
   2004: {first: 6500.0, other: 9500.0}
 forgiveness_phaseout: {1977: 1000.0, 1998: 2500.0}
-# 2022+: forgiveness falls by this share for each increment of income (or part) over the allowance.
-forgiveness_step_2022plus: {income: 250, share: 0.1}
+# From 2022 forgiveness falls by `share` for each `income` (or part) over the
+# allowance.
+forgiveness_step:
+  2022: {income: 250, share: 0.1}
 
-# 2025 on (Working Pennsylvanians Tax Credit, Act 56 of 2025; PolicyEngine-US credits.eitc.match): a refundable
-# share of the federal earned income credit.
-eitc_match_2025plus: {2025: 0.10}
+# Working Pennsylvanians Tax Credit from 2025 (Act 56 of 2025): a refundable
+# share of the federal earned income credit. Source: PolicyEngine-US
+# gov.states.pa.tax.income.credits.eitc.match.
+eitc_federal_share: {2025: 0.10}

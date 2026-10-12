@@ -26,12 +26,12 @@ _STATUSES = ["single", "married_joint", "married_separate", "head_of_household"]
 
 def compute_mo_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
     """Calculate Missouri income tax for each row."""
-    state_year = "mo" if behavior.mode.value == "statutory" else None
-    effective_year, flate = resolve_state_year(year, state_year)
+    effective_year, flate = resolve_state_year(year, behavior, MO_PARAMS)
     y = effective_year
     p = YearParams(MO_PARAMS, effective_year)
 
-    setax = pl.col("payroll_setax")  # `comnew(175)`, real-year and undeflated
+    # Self-employment tax is not deflated in projected years.
+    setax = pl.col("payroll_setax")
     df = df.with_columns(
         mo_setax=setax,
         mo_household_income=household_income(),
@@ -81,9 +81,9 @@ def compute_mo_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         .otherwise(p.num("exemption_per_taxpayer") * txp)
         + depx * p.num("exemption_per_dependent")
     )
-    if y == 2017:
-        bonus = p.num("low_income_exemption")
-        limit = p.num("low_income_exemption_limit")
+    if p.in_effect("low_income_exemption"):
+        lie = p.value("low_income_exemption")
+        bonus, limit = float(lie["amount"]), float(lie["income_limit"])
         joint_bonus = pl.when(agih < limit).then(bonus).otherwise(0.0) + pl.when(agiw < limit).then(bonus).otherwise(0.0)
         exemp = exemp + pl.when(dependent_filer).then(0.0).otherwise(
             pl.when(is_joint).then(joint_bonus).otherwise(pl.when(agi < limit).then(bonus).otherwise(0.0))
@@ -108,15 +108,15 @@ def compute_mo_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         slim = pl.when(is_joint | is_sep).then(float(limits["married"]) / sep).otherwise(float(limits["single"]))
         if y <= 1998:
             scred = pl.when(magi <= slim).then(
-                pl.min_horizontal(pl.lit(float(MO_PARAMS["pension_exemption_1990_1998"])), pension)
+                pl.min_horizontal(pl.lit(p.num("pension_exemption_flat")), pension)
             ).otherwise(0.0)
         elif y <= 2006:
-            cap = float(MO_PARAMS["pension_exemption_1999_2013"])
+            cap = p.num("pension_exemption_flat")
             scred = pl.when(magi - slim <= cap * txp).then(pl.min_horizontal(pl.lit(cap), pension)).otherwise(0.0)
         else:
             ssmax = p.num("pension_exemption_maximum")
             if y <= 2013:
-                cap = float(MO_PARAMS["pension_exemption_1999_2013"])
+                cap = p.num("pension_exemption_flat")
                 limited = pl.min_horizontal(pl.lit(ssmax), p.num("social_security_exemption_share") * pension)
                 if y <= 2008:
                     nontaxable = pl.col("gssi") - pl.col("taxable_social_security")
@@ -132,19 +132,18 @@ def compute_mo_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     # --- Itemized deductions (only when itemizing federally) ---
     socsec = taxsim_socsec(y, setax, pl.col("addmed"))
     xitded = (deducp + pl.min_horizontal(socsec, p.num("payroll_tax_deduction_cap") * txp) - salt_ded).clip(0, None)
-    if y == 1993:
-        septx = pl.min_horizontal(p.num("self_employment_tax_deduction_cap_1993") * txp, setax)
-    elif y in (2011, 2012):
-        septx = pl.when(setax <= p.num("self_employment_tax_deduction_threshold")).then(
-            p.num("self_employment_tax_deduction_lower_rate") * setax
-        ).otherwise(
-            p.num("self_employment_tax_deduction_upper_rate") * setax + p.num("self_employment_tax_deduction_amount")
+    if p.in_effect("self_employment_tax_deduction_cap"):
+        septx = pl.min_horizontal(p.num("self_employment_tax_deduction_cap") * txp, setax)
+    elif p.in_effect("self_employment_tax_deduction_holiday"):
+        holiday = p.value("self_employment_tax_deduction_holiday")
+        septx = pl.when(setax <= holiday["threshold"]).then(holiday["lower_rate"] * setax).otherwise(
+            holiday["upper_rate"] * setax + float(holiday["amount"])
         )
     else:
         septx = p.num("self_employment_tax_deduction_rate") * setax
     xitded = (xitded - septx).clip(0, None)
     stax = salt_ded
-    if 1993 <= y <= 2017:
+    if p.in_effect("itemized_limit_rate"):
         if y >= 2013:
             threshold = (
                 p.num("itemized_limit_threshold_base")
@@ -179,28 +178,29 @@ def compute_mo_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             ctc_used = pl.col("odc")
         else:
             ctc_used = pl.lit(0.0)
-        # `comnew(52)-comnew(53)-comnew(54)-comnew(59)-comnew(81)-comnew(94)`.
+        # Regular tax less the child care, elderly, earned income, child and
+        # Making Work Pay credits.
         fedtax = (
             pl.col("regular_tax") - ccc_used - pl.col("federal_elder") - pl.col("eitc") - ctc_used - pl.col("making_work_pay")
         )
     fedtax = fedtax.clip(0, None)
-    if 1994 <= y <= 2018:
+    if p.in_effect("federal_tax_deduction_cap_per_taxpayer"):
         fedtax = pl.min_horizontal(fedtax, p.num("federal_tax_deduction_cap_per_taxpayer") * txp)
-    if y >= 2019:
+    if p.in_effect("federal_tax_deduction_share"):
         share = pl.lit(0.0)
-        for upper, value in reversed(MO_PARAMS["federal_tax_deduction_share_2019"]):
+        for upper, value in reversed(p.value("federal_tax_deduction_share")):
             share = pl.when(agi <= upper).then(pl.lit(float(value))).otherwise(share)
         fedtax = share * fedtax
 
     df, (fedtax, exemp) = checkpoint(df, mo_fedtax=fedtax, mo_exemp=exemp)
     cg_subtraction = pl.lit(0.0)
-    if y >= 2025 and behavior.mode.value == "statutory":
-        cg_subtraction = float(resolve_year(MO_PARAMS["capital_gains_subtraction_2025plus"], y)) * (
+    if p.in_effect("capital_gains_subtraction"):
+        cg_subtraction = p.num("capital_gains_subtraction") * (
             pl.col("stcg") + pl.col("ltcg")
         ).clip(0, None)
     df, (taxinc,) = checkpoint(df, mo_taxinc=(agi - deduc - fedtax - exemp - cg_subtraction).clip(0, None))
     aif = p.num("bracket_inflation")
-    brackets = scale_brackets(resolve_year(MO_PARAMS["brackets"], y), aif)
+    brackets = scale_brackets(p.value("brackets"), aif)
     df, (taxh, taxw) = checkpoint(df, mo_taxinc_h=taxinc * agih / agi, mo_taxinc_w=taxinc * agiw / agi)
     statax = bracket_tax(taxinc, brackets)
     split_tax = bracket_tax(taxh, brackets) + bracket_tax(taxw, brackets)
@@ -217,16 +217,16 @@ def compute_mo_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         married_sub = p.num("property_credit_married_subtraction")
     else:
         married_sub = (
-            pl.when(proptax > 0).then(float(MO_PARAMS["property_credit_married_owner_subtraction_2008"])).otherwise(0.0)
+            pl.when(proptax > 0).then(p.num("property_credit_married_owner_subtraction")).otherwise(0.0)
             + pl.when(rentpaid > 0).then(p.num("property_credit_married_subtraction")).otherwise(0.0)
         )
     hy1 = pl.when(is_joint).then((hy1 - married_sub).clip(0, None)).otherwise(hy1)
-    schedule = resolve_year(MO_PARAMS["property_credit_schedule"], y)
+    schedule = p.value("property_credit_schedule")
     base, step = float(schedule["base"]), float(schedule["step"])
     income_limit, maximum = p.num("property_credit_income_limit"), p.num("property_credit_maximum")
     steps = pl.lit(float(schedule["steps"]))
-    if y >= 2008:
-        owner = MO_PARAMS["property_credit_owner_2008"]
+    if p.in_effect("property_credit_owner"):
+        owner = p.value("property_credit_owner")
         is_owner = proptax > 0
         income_limit = pl.when(is_owner).then(float(owner["income_limit"])).otherwise(income_limit)
         maximum = pl.when(is_owner).then(float(owner["maximum"])).otherwise(maximum)
@@ -245,13 +245,13 @@ def compute_mo_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         pcred = pl.min_horizontal(pcred, statax)
     statax = statax - pcred
     wftc = pl.lit(0.0)
-    if y >= 2023:
-        c = MO_PARAMS["working_family_credit_2023plus"]
+    if p.in_effect("working_family_credit"):
+        c = p.value("working_family_credit")
         investment = (
             pl.col("dividends") + pl.col("intrec") + (pl.col("stcg") + pl.col("ltcg")).clip(0, None) + pl.col("otherprop").clip(0, None)
         )
-        eligible = (investment <= float(resolve_year(c["investment_income_limit"], y))) & ~is_dependent_filer()
-        wftc = pl.when(eligible).then(pl.min_horizontal(float(resolve_year(c["match"], y)) * pl.col("eitc"), statax.clip(0, None))).otherwise(0.0)
+        eligible = (investment <= float(c["investment_income_limit"])) & ~is_dependent_filer()
+        wftc = pl.when(eligible).then(pl.min_horizontal(float(c["match"]) * pl.col("eitc"), statax.clip(0, None))).otherwise(0.0)
         statax = statax - wftc
 
     detail_stded = fed_zbr

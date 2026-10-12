@@ -1,416 +1,225 @@
-# Kansas individual income tax (`kstax`, taxsim_2024_09_21.f:6507-6941,
-# state id 17). See calculators/states/ks.py for the full mechanism.
+# Kansas individual income tax.
 #
-# Not TAXSIM inputs, so always zero: blindness, medical expenses
-# (`data(47)`-`data(49)`), casualty losses (`data(61)`), the childcare addback
-# for a dependent filing its own return (`data(34)`) and the solar/energy
-# credit (`data(38)`). `comnew(8)`, `comnew(20)`, `comnew(23)` and
-# `comnew(25)` are $0 in the oracle.
-#
-# The 1989-1991 alternative "federal-tax-subtracted" bracket computation
-# (`ftabs`/`ftabm`, `taxy=taxinc-fedtax`) is REAL, DEAD CODE in the
-# source itself - its own `if(law.ge.1989.and.law.le.1991)` branch can
-# never fire, since the two `elseif` branches immediately above it
-# already catch law 1988-1989 and law 1990-1991 respectively, leaving no
-# year for this branch to ever reach. Confirmed by control-flow reading
-# alone, not by probing - not implemented here, matching the oracle's own
-# actual (unreachable) behavior.
-#
-# `look()`'s own real "married filing combined" comparison (splitting
-# income between spouses by wages, same shape Iowa's own mechanic uses,
-# taking whichever of the plain halved-joint-bracket or the split
-# computation is cheaper) is wired to fire ONLY for years<=1987 and
-# years>=2013 (the `-data(2)` third argument to `look()`) - 1988-2012
-# instead use entirely separate, explicit single-vs-joint bracket tables
-# with no halving or splitting at all.
+# Sources: 1977-2021 NBER TAXSIM (`kstax`); 2022 on, K.S.A. 79-32 and
+# PolicyEngine-US `gov.states.ks.tax.income`. Not modeled (no TAXSIM input):
+# blindness, medical and casualty deductions and the energy credit.
 
-# Bracket tables. `look`'s own (upper_bound, rate%) pairs shifted into
-# this project's own (start, rate_fraction) convention.
-brackets_pre1988:  # single table, halved+doubled for married_joint, plus
-  # the real married-filing-combined split comparison
-  - [0, 0.02]
-  - [2000, 0.035]
-  - [3000, 0.04]
-  - [5000, 0.05]
-  - [7000, 0.065]
-  - [10000, 0.075]
-  - [20000, 0.085]
-  - [25000, 0.09]
-brackets_1988_1989_single:
-  - [0, 0.048]
-  - [27500, 0.061]
-brackets_1988_1989_joint:
-  - [0, 0.0405]
-  - [35000, 0.053]
-brackets_1990_1991_single:
-  - [0, 0.045]
-  - [27500, 0.0595]
-brackets_1990_1991_joint:
-  - [0, 0.0365]
-  - [35000, 0.0515]
-brackets_1992_1996_single:
-  - [0, 0.044]
-  - [20000, 0.075]
-  - [30000, 0.0775]
-brackets_1992_2012_joint:
-  - [0, 0.035]
-  - [30000, 0.0625]
-  - [60000, 0.0645]
-brackets_1997_single:
-  - [0, 0.041]
-  - [20000, 0.075]
-  - [30000, 0.0775]
-brackets_1998_2012_single:
-  - [0, 0.035]
-  - [15000, 0.0625]
-  - [30000, 0.0645]
-brackets_2013:  # married-filing-combined split allowed
-  - [0, 0.03]
-  - [15000, 0.049]
-brackets_2014:
-  - [0, 0.027]
-  - [15000, 0.048]
-brackets_2015_2016:
-  - [0, 0.027]
-  - [15000, 0.046]
-brackets_2017:
-  - [0, 0.029]
-  - [15000, 0.049]
-  - [30000, 0.052]
-brackets_2018plus:
-  - [0, 0.031]
-  - [15000, 0.0525]
-  - [30000, 0.057]
-# 2015+ low-taxinc floor: tax is $0 below these thresholds (real, applied
-# AFTER the bracket lookup, not baked into the table itself).
-zero_tax_taxinc_ceiling_single_2015_2017:
-  1960: 5000
-zero_tax_taxinc_ceiling_joint_2015_2017:
-  1960: 12500
-zero_tax_taxinc_ceiling_single_2018plus:
-  1960: 2500
-zero_tax_taxinc_ceiling_joint_2018plus:
-  1960: 5000
+# Statutory mode uses actual law through this year.
+law_coded_through: 2025
 
-# Standard deduction.
-standard_deduction_pct_pre1988:
-  1960: 0.16
-standard_deduction_floor_single_or_hoh_pre1988:
-  1960: 1700
-standard_deduction_cap_single_or_hoh_pre1988:
-  1960: 2400
-standard_deduction_floor_married_pre1988:  # divided by `sep`
-  1960: 2100
-standard_deduction_cap_married_pre1988:  # divided by `sep`
-  1960: 2800
-# `filing(mst,single,joint,hoh,separate)` - real, per-status dollar
-# amounts, three sparse eras.
-standard_deduction_1988_1997:
-  single: 3000
-  married_joint: 5000
-  head_of_household: 4400
-  married_separate: 2500
-standard_deduction_1998_2012:
-  single: 3000
-  married_joint: 6000
-  head_of_household: 4500
-  married_separate: 3000
-standard_deduction_2013_2020:
-  single: 3000
-  married_joint: 7500
-  head_of_household: 5500
-  married_separate: 3750
-standard_deduction_2021plus:
-  single: 3500
-  married_joint: 7800
-  head_of_household: 6000
-  married_separate: 4000
+# Rate schedules, [start of bracket, rate]. A single schedule: joint returns
+# are taxed on half their income, doubled, or on each earner's share if
+# lower. By status: `joint` for joint returns, `other` for the rest.
+brackets:
+  1977: [[0, 0.02], [2000, 0.035], [3000, 0.04], [5000, 0.05], [7000, 0.065], [10000, 0.075], [20000, 0.085], [25000, 0.09]]
+  1988:
+    other: [[0, 0.048], [27500, 0.061]]
+    joint: [[0, 0.0405], [35000, 0.053]]
+  1990:
+    other: [[0, 0.045], [27500, 0.0595]]
+    joint: [[0, 0.0365], [35000, 0.0515]]
+  1992:
+    other: [[0, 0.044], [20000, 0.075], [30000, 0.0775]]
+    joint: [[0, 0.035], [30000, 0.0625], [60000, 0.0645]]
+  1997:
+    other: [[0, 0.041], [20000, 0.075], [30000, 0.0775]]
+    joint: [[0, 0.035], [30000, 0.0625], [60000, 0.0645]]
+  1998:
+    other: [[0, 0.035], [15000, 0.0625], [30000, 0.0645]]
+    joint: [[0, 0.035], [30000, 0.0625], [60000, 0.0645]]
+  2013: [[0, 0.03], [15000, 0.049]]
+  2014: [[0, 0.027], [15000, 0.048]]
+  2015: [[0, 0.027], [15000, 0.046]]
+  2017: [[0, 0.029], [15000, 0.049], [30000, 0.052]]
+  2018: [[0, 0.031], [15000, 0.0525], [30000, 0.057]]
+  2024:
+    other: [[0, 0.052], [23000, 0.0558]]
+    joint: [[0, 0.052], [46000, 0.0558]]
+# 2015-2023: no tax at taxable income up to these amounts. From 2024: no tax
+# at Kansas AGI up to `zero_tax_agi`.
+zero_tax_taxable_income:
+  2015: {single: 5000, joint: 12500}
+  2018: {single: 2500, joint: 5000}
+  2024: null
+zero_tax_agi:
+  2024: {joint: 26560, other: 12765}
 
-# Federal tax deduction (`fedded`) - real, phased out by era, repealed
-# entirely 1989+.
-fedded_1983_1984_cap_per_filer:
-  1960: 5000
-fedded_1983_1984_upper_cap_per_filer:
-  1960: 10000
+# --- Income ---
+# Social Security benefits are exempt at federal AGI up to this amount.
+social_security_agi_limit: {2007: 50000, 2008: 75000, 2024: 1.0e+20}
+# Federal tax deduction: in full through 1982 and 1987-1988; 1983-1984 up to
+# `cap` per taxpayer, `cap` again up to `upper_cap`, and half above;
+# 1985-1986 in proportion to Kansas AGI; none from 1989.
+federal_tax_deduction_caps:
+  1983: {cap: 5000, upper_cap: 10000}
+  1985: null
 
-# Itemized-deduction phaseout (1991-2009's own `aif` table - NOTE: this
-# is a genuinely different, Kansas-specific table from other states' own
-# aif92 copies, starting 1991 not 1992, with an extra leading 1.0).
-itemized_phaseout_aif_1991_2009:
-  1991: 1.0
-  1992: 1.0525
-  1993: 1.0845
-  1994: 1.118
-  1995: 1.147
-  1996: 1.1795
-  1997: 1.212
-  1998: 1.245
-  1999: 1.266
-  2000: 1.2895
-  2001: 1.3295
-  2002: 1.373
-  2003: 1.395
-  2004: 1.427
-  2005: 1.4595
-  2006: 1.505
-  2007: 1.564
-  2008: 1.5995
-  2009: 1.668
-# 2013-2021 itemized-deduction scaling factor (`aifit`).
-itemized_scaling_2013plus:
-  2013: 0.7
-  2014: 0.65
-  2015: 0.5
-  2019: 0.75
-  2020: 1.0
-
-# Personal exemption amount (`xmp(law)`, real, per-exemption dollar
-# figure - head_of_household gets ONE EXTRA exemption beyond `comnew(68)`
-# itself, matching `if(mst.eq.4.or.mst.eq.7) exemps=exemps+1`).
-personal_exemption_amount:
-  1977: 750
-  1979: 1000
-  1988: 1950
-  1989: 2000
-  1998: 2250
-
-# Pre-1987 itemized-deduction addback: household FICA/self-employment
-# tax paid (TAXSIM `socsec`, `engine.state.taxsim_socsec`), capped.
-socsec_max_1977_1986:  # `socmax(law)` - cap on the FICA-portion addback
-  1977: 965.25
-  1978: 1070.8
-  1979: 1403.8
-  1980: 1587.7
-  1981: 1975.05
-  1982: 2170.8
-  1983: 2391.9
-  1984: 2532.6
-selfemployment_tax_max_1977_1986:  # `selfmx(law)` - cap on the SE-tax
-  # portion addback
-  1977: 1303.5
-  1978: 1433.7
-  1979: 1854.9
-  1980: 2097.9
-  1981: 2405.7
-  1982: 3029.4
-  1983: 3337.95
-  1984: 4271.4
-
-# Child/Dependent Care Credit - a real percentage of federal's OWN CCC
-# (reused as this project's own `ccc` column, same DC-established
-# `comnew(176)`-approximation technique; `comnew(52)`'s own expense
-# ceiling wasn't binding in any live probe tried and is approximated
-# away here, same spirit as DC's own documented approximation).
-# 2013-2018 has NO branch at all in the source (a real, deliberate
-# Brownback-era suspension, not a gap) - `chcr` stays at its initialized
-# $0 those years.
-child_care_credit_rate_pre1988:
-  1960: NaN  # uses the `child` interpolation table instead, see below
-child_care_credit_rate_1988_2012_and_2020plus:
-  1960: 0.25
-child_care_credit_rate_2019:
-  1960: 0.1875
-child_care_credit_table_pre1988:  # `tablki`-style linear interpolation
-  - [5000, 1.0]
-  - [6000, 0.9]
-  - [7000, 0.8]
-  - [8000, 0.7]
-  - [9000, 0.6]
-  - [10000, 0.5]
-  - [11000, 0.4]
-  - [12000, 0.3]
-  - [13000, 0.2]
-  - [14000, 0.1]
-  - [100000000, 0.0]
-
-# Homestead Property Tax Refund / food credit - a genuinely rich,
-# income-bracket-based program, several distinct eras.
-# `pt(law)` - a real, year-indexed table, INDEPENDENT of the formula-
-# selection if/else boundaries below (which pick which of three
-# rent-dependent formulas applies - `pt(law)` itself changes at 2007, not
-# 2008).
-homestead_pt_cap:
-  1997: 600
-  2007: 700
-homestead_hy_ceiling_by_year:  # `prop(law)`, 1997-2021
-  1997: 25001
-  2004: 26301
-  2005: 27001
-  2006: 28001
-  2007: 29101
-  2008: 29701
-  2009: 31301
-  2010: 30801
-  2011: 31201
-  2012: 32401
-  2013: 32901
-  2014: 33401
-  2015: 34001
-  2016: 34101
-  2017: 34451
-  2018: 35000
-  2019: 35700
-  2020: 36300
-  2021: 36600
-homestead_table_1997_2004:  # `hom98`, `tablki`-style
-  - [3001, 1.0]
-  - [4001, 0.88]
-  - [5001, 0.84]
-  - [6001, 0.8]
-  - [7001, 0.76]
-  - [8001, 0.72]
-  - [9001, 0.68]
-  - [10001, 0.64]
-  - [11001, 0.60]
-  - [12001, 0.56]
-  - [13001, 0.52]
-  - [14001, 0.48]
-  - [15001, 0.44]
-  - [16001, 0.40]
-  - [17001, 0.36]
-  - [18001, 0.32]
-  - [19001, 0.28]
-  - [20001, 0.24]
-  - [21001, 0.20]
-  - [22001, 0.16]
-  - [23001, 0.12]
-  - [24001, 0.08]
-  - [100000000, 0.04]
-homestead_table_2005plus:  # `hom08`, `tablki`-style
-  - [6000, 1.0]
-  - [7000, 0.96]
-  - [8000, 0.92]
-  - [9000, 0.88]
-  - [10000, 0.84]
-  - [11000, 0.80]
-  - [12000, 0.76]
-  - [13000, 0.72]
-  - [14000, 0.68]
-  - [15000, 0.64]
-  - [16000, 0.60]
-  - [17000, 0.55]
-  - [18000, 0.50]
-  - [19000, 0.45]
-  - [20000, 0.40]
-  - [21000, 0.35]
-  - [22000, 0.30]
-  - [23000, 0.25]
-  - [24000, 0.20]
-  - [25000, 0.15]
-  - [26000, 0.10]
-  - [100000000, 0.05]
-homestead_1977_income_ceiling:
-  1960: 8150
-homestead_1978_income_ceiling:
-  1960: 9200
-homestead_1979_1988_income_ceiling:
-  1960: 12800
-homestead_1989_1994_income_ceiling:
-  1960: 15000
-homestead_1995_1996_income_ceiling:
-  1960: 17200
-homestead_cap_1977_1978:
-  1960: 395
-homestead_cap_1979_1988:
-  1960: 395
-homestead_cap_1989_1994:
-  1960: 490
-homestead_cap_1995_1996:
-  1960: 590
-
-# Food Sales Tax Refund.
-food_sales_tax_credit_amount:  # `food(law)`, used 1998-2021 (formula
-  # itself differs law<=2012 vs law>=2013, not just this table)
-  1998: 30.0
-  1999: 30.0
-  2000: 30.0
-  2001: 30.0
-  2002: 30.0
-  2003: 36.0
-  2004: 36.0
-  2005: 36.0
-  2006: 37.0
-  2007: 38.0
-  2008: 39.0
-  2009: 41.0
-  2010: 45.0
-  2011: 45.0
-  2012: 47.0
-  2013: 125.0
-  # Repealed for tax year 2025 (PolicyEngine-US credits.food_sales_tax.amount).
-  2025: 0.0
-food_sales_tax_refund_agi_ceiling:  # `agimax(law)`
-  1998: 12500
-  2003: 13150
-  2004: 13450
-  2005: 13800
-  2006: 14300
-  2007: 14850
-  2008: 15150
-  2009: 15950
-  2010: 17500
-  2012: 18350
-  2013: 30615
-
-# Earned Income Credit (1998+) - a real percentage of federal EITC.
-eitc_rate:
-  1998: 0.10
-  2002: 0.15
-  2007: 0.17
-  2010: 0.18
-  2013: 0.17
-
-# 2008+ Property Tax Relief for low income seniors: a share of property tax
-# when household income is under the limit (replaces the homestead refund).
-senior_property_relief_share: {2008: 0.45, 2011: 0.75}
-senior_property_relief_income_limit: {2008: 16800, 2009: 17500, 2011: 17700, 2012: 18200, 2013: 18600, 2014: 18900, 2015: 19100, 2016: 19200, 2017: 19500, 2018: 19800, 2019: 20300, 2020: 20700, 2021: 20900}
-# Homestead: rent counts at this share with property tax.
-homestead_rent_share: {1977: 0.12, 1979: 0.15, 1997: 0.20, 2008: 0.15, 2013: 0.0}
+# --- Deductions ---
+# Through 1987: `rate` of AGI between a floor and a cap (`married` halved on
+# separate returns; `single` covers head of household).
+standard_deduction_percent:
+  1977:
+    rate: 0.16
+    single: {floor: 1700, cap: 2400}
+    married: {floor: 2100, cap: 2800}
+  1988: null
+standard_deduction:
+  1988: {single: 3000, married_joint: 5000, head_of_household: 4400, married_separate: 2500}
+  1998: {single: 3000, married_joint: 6000, head_of_household: 4500, married_separate: 3000}
+  2013: {single: 3000, married_joint: 7500, head_of_household: 5500, married_separate: 3750}
+  2021: {single: 3500, married_joint: 7800, head_of_household: 6000, married_separate: 4000}
+  2022: {single: 3500, married_joint: 8000, married_separate: 4000, head_of_household: 6000}
+  2024: {single: 3605, married_joint: 8240, married_separate: 4120, head_of_household: 6180}
 # Additional standard deduction per taxpayer 65 or older (single-type,
 # married-type).
 aged_standard_deduction: {1988: [750, 600], 1998: [850, 700]}
-dependent_standard_deduction_minimum: 500
-# Social Security exempt at federal AGI up to this amount.
-social_security_agi_limit: {2007: 50000, 2008: 75000, 2024: 1.0e+20}
-# Food sales tax refund before 1986: per aged taxpayer (up to the number of
-# exemptions) with household income up to $10,000.
-food_refund_aged_pre1986: 20
-food_refund_aged_income_limit_pre1986: 10000
+# From 1998 a dependent filer's standard deduction is at most the greater of
+# this and earned income.
+dependent_standard_deduction_minimum: {1998: 500}
+# Through 1987 payroll and self-employment tax are deductible up to these
+# amounts per taxpayer (no cap 1985-1987).
+payroll_tax_deduction_cap:
+  1977: {payroll: 965.25, self_employment: 1303.5}
+  1978: {payroll: 1070.8, self_employment: 1433.7}
+  1979: {payroll: 1403.8, self_employment: 1854.9}
+  1980: {payroll: 1587.7, self_employment: 2097.9}
+  1981: {payroll: 1975.05, self_employment: 2405.7}
+  1982: {payroll: 2170.8, self_employment: 3029.4}
+  1983: {payroll: 2391.9, self_employment: 3337.95}
+  1984: {payroll: 2532.6, self_employment: 4271.4}
+  1985: null
+# 1991-2009 itemized limitation: the state tax deduction is reduced in the
+# share of the federal limitation, `rate` of AGI above the threshold (times
+# `itemized_limitation_index`, halved on separate returns) at most
+# `cap_rate` of itemized deductions.
+itemized_limitation:
+  1991: {threshold: 100000, rate: 0.03, cap_rate: 0.8}
+  2010: null
+itemized_limitation_index: {1991: 1.0, 1992: 1.0525, 1993: 1.0845, 1994: 1.118, 1995: 1.147, 1996: 1.1795, 1997: 1.212, 1998: 1.245, 1999: 1.266, 2000: 1.2895, 2001: 1.3295, 2002: 1.373, 2003: 1.395, 2004: 1.427, 2005: 1.4595, 2006: 1.505, 2007: 1.564, 2008: 1.5995, 2009: 1.668}
+# From 2013 itemized deductions are scaled by this share.
+itemized_scaling: {2013: 0.7, 2014: 0.65, 2015: 0.5, 2019: 0.75, 2020: 1.0}
 
-# Homestead refund reduction by household income, as `[threshold, rate]`
-# brackets (`claw`); income up to `homestead_full_refund_income` keeps the
-# full refund.
+# --- Exemptions ---
+# Per federal exemption, plus one for a head of household. From 2024 by
+# filing status, plus an amount per dependent and a head-of-household
+# addition.
+personal_exemption: {1977: 750, 1979: 1000, 1988: 1950, 1989: 2000, 1998: 2250}
+exemptions_by_status:
+  2024:
+    by_status: {single: 9160, married_joint: 18320, married_separate: 9160, head_of_household: 9160}
+    dependent: 2320
+    head_of_household_addition: 2320
+
+# --- Credits ---
+# Child care credit: a share of the federal credit (up to regular tax), by
+# Kansas AGI ([AGI, share] interpolated) or a single share; none 2013-2018.
+child_care_credit_federal_share:
+  1977:
+    - [5000, 1.0]
+    - [6000, 0.9]
+    - [7000, 0.8]
+    - [8000, 0.7]
+    - [9000, 0.6]
+    - [10000, 0.5]
+    - [11000, 0.4]
+    - [12000, 0.3]
+    - [13000, 0.2]
+    - [14000, 0.1]
+    - [100000000, 0.0]
+  1988: 0.25
+  2013: 0
+  2019: 0.1875
+  2020: 0.25
+
+# Homestead property tax refund on property tax plus `homestead_rent_share`
+# of rent. Through 1996, at household income up to `income_ceiling`: the
+# full amount up to `homestead_full_refund_income`, otherwise up to `cap`
+# less the reduction schedule ([income, rate] brackets).
+homestead_rent_share: {1977: 0.12, 1979: 0.15, 1997: 0.2, 2008: 0.15, 2013: 0.0}
+homestead_refund:
+  1977: {income_ceiling: 8150, cap: 395}
+  1978: {income_ceiling: 9200, cap: 395}
+  1979: {income_ceiling: 12800, cap: 395}
+  1989: {income_ceiling: 15000, cap: 490}
+  1995: {income_ceiling: 17200, cap: 590}
+  1997: null
+homestead_full_refund_income: {1977: 3400}
 homestead_reduction_schedule:
   1977: [[0, 0.0], [3400, 0.02], [4200, 0.04], [4600, 0.045]]
   1979: [[0, 0.0], [3400, 0.01], [3500, 0.02], [4000, 0.03], [4600, 0.04], [8600, 0.05]]
   1989: [[0, 0.0], [3400, 0.02], [4200, 0.04], [4600, 0.045]]
-homestead_full_refund_income:
-  1977: 3400
+# From 1997: property tax (up to `homestead_property_tax_cap`) times a share
+# by income ([income, share] interpolated) below the income limit.
+homestead_property_tax_cap: {1997: 600, 2007: 700}
+homestead_refund_income_limit: {1997: 25001, 2004: 26301, 2005: 27001, 2006: 28001, 2007: 29101, 2008: 29701, 2009: 31301, 2010: 30801, 2011: 31201, 2012: 32401, 2013: 32901, 2014: 33401, 2015: 34001, 2016: 34101, 2017: 34451, 2018: 35000, 2019: 35700, 2020: 36300, 2021: 36600}
+homestead_refund_share:
+  1997:
+    - [3001, 1.0]
+    - [4001, 0.88]
+    - [5001, 0.84]
+    - [6001, 0.8]
+    - [7001, 0.76]
+    - [8001, 0.72]
+    - [9001, 0.68]
+    - [10001, 0.64]
+    - [11001, 0.6]
+    - [12001, 0.56]
+    - [13001, 0.52]
+    - [14001, 0.48]
+    - [15001, 0.44]
+    - [16001, 0.4]
+    - [17001, 0.36]
+    - [18001, 0.32]
+    - [19001, 0.28]
+    - [20001, 0.24]
+    - [21001, 0.2]
+    - [22001, 0.16]
+    - [23001, 0.12]
+    - [24001, 0.08]
+    - [100000000, 0.04]
+  2005:
+    - [6000, 1.0]
+    - [7000, 0.96]
+    - [8000, 0.92]
+    - [9000, 0.88]
+    - [10000, 0.84]
+    - [11000, 0.8]
+    - [12000, 0.76]
+    - [13000, 0.72]
+    - [14000, 0.68]
+    - [15000, 0.64]
+    - [16000, 0.6]
+    - [17000, 0.55]
+    - [18000, 0.5]
+    - [19000, 0.45]
+    - [20000, 0.4]
+    - [21000, 0.35]
+    - [22000, 0.3]
+    - [23000, 0.25]
+    - [24000, 0.2]
+    - [25000, 0.15]
+    - [26000, 0.1]
+    - [100000000, 0.05]
+# From 2008, property tax relief for low-income seniors replaces it: this
+# share of property tax when household income is under the limit.
+senior_property_relief_share: {2008: 0.45, 2011: 0.75}
+senior_property_relief_income_limit: {2008: 16800, 2009: 17500, 2011: 17700, 2012: 18200, 2013: 18600, 2014: 18900, 2015: 19100, 2016: 19200, 2017: 19500, 2018: 19800, 2019: 20300, 2020: 20700, 2021: 20900}
 
-# 1991-2009 itemized deduction limitation: 3% of AGI above the threshold
-# (times the inflation factor), at most 80% of itemized deductions.
-itemized_phaseout_threshold:
-  1991: 100000
-itemized_phaseout_rate:
-  1991: 0.03
-itemized_phaseout_cap_rate:
-  1991: 0.8
+# Food sales tax refund. Through 1985: `amount` per taxpayer 65 or older (up
+# to the number of exemptions) at household income up to `income_limit`.
+food_refund_aged:
+  1977: {amount: 20, income_limit: 10000}
+  1986: null
+# 1986-1997: [income limit, base, per additional exemption]; the first two
+# limits are exclusive, the last inclusive.
+food_refund_tiers:
+  1986: [[5000, 40, 30], [10000, 30, 25], [13000, 20, 15]]
+  1998: null
+# From 1998, with a dependent or taxpayer 65 or older: per exemption, twice
+# the amount up to the AGI ceiling and the amount up to twice it (from 2013
+# the amount up to the ceiling). Repealed for 2025.
+food_sales_tax_credit_amount: {1998: 30.0, 1999: 30.0, 2000: 30.0, 2001: 30.0, 2002: 30.0, 2003: 36.0, 2004: 36.0, 2005: 36.0, 2006: 37.0, 2007: 38.0, 2008: 39.0, 2009: 41.0, 2010: 45.0, 2011: 45.0, 2012: 47.0, 2013: 125.0, 2025: 0.0}
+food_sales_tax_refund_agi_ceiling: {1998: 12500, 2003: 13150, 2004: 13450, 2005: 13800, 2006: 14300, 2007: 14850, 2008: 15150, 2009: 15950, 2010: 17500, 2012: 18350, 2013: 30615}
 
-# 1986-1997 food sales tax refund: `[income limit, base, per additional
-# exemption]`; the first two limits are exclusive, the last inclusive.
-food_refund_1986_1997:
-  - [5000, 40, 30]
-  - [10000, 30, 25]
-  - [13000, 20, 15]
-
-# 2024+ statutory values (PolicyEngine-US gov.states.ks.tax.income, queried 2026-10-01).
-standard_deduction_2024plus: {single: 3605, married_joint: 8240, married_separate: 4120, head_of_household: 6180}
-exemptions_2024plus:
-  by_status: {single: 9160, married_joint: 18320, married_separate: 9160, head_of_household: 9160}
-  dependent: 2320
-  head_of_household_addition: 2320
-brackets_2024plus:
-  other: [[0, 0.052], [23000, 0.0558]]
-  joint: [[0, 0.052], [46000, 0.0558]]
-agi_zero_tax_threshold_2024plus: {joint: 26560, other: 12765}
-standard_deduction_2022_2023: {single: 3500, married_joint: 8000, married_separate: 4000, head_of_household: 6000}
+# Earned income credit from 1998: a share of the federal credit.
+eitc_rate: {1998: 0.1, 2002: 0.15, 2007: 0.17, 2010: 0.18, 2013: 0.17}

@@ -1,13 +1,15 @@
-# Michigan individual income tax (`mitax`, taxsim_2024_09_21.f:8904-9230,
-# state id 23). See calculators/states/mi.py for the mechanism. Year
-# tables are the source's DATA statements with repeat counts expanded and
-# checked against each array's declared dimension, forward-filled here.
+# Michigan individual income tax.
 #
-# Not TAXSIM inputs, so always zero: blindness (`data(10)`, the blind and
-# veteran property tax credit), the solar credit (`data(38)`) and
-# `data(65)`.
+# Sources: 1977-2021 NBER TAXSIM (`mitax`); 2022 on, MCL 206, MI-1040
+# instructions and PolicyEngine-US `gov.states.mi.tax.income`. Not modeled
+# (no TAXSIM input): blindness, the veteran property tax credit and the solar
+# credit.
 
-# Flat income tax rate (`rate`).
+# Statutory mode uses actual law through this year.
+law_coded_through: 2025
+
+# Flat income tax rate. Source for 2022 on: PolicyEngine-US
+# gov.states.mi.tax.income.rate.
 rate:
   1977: 0.046
   1982: 0.051
@@ -26,14 +28,12 @@ rate:
   2008: 0.0435
   2012: 0.0433
   2013: 0.0425
-  # PolicyEngine-US gov.states.mi.tax.income.rate, queried 2026-09-29.
-  2022: 0.0425
   2023: 0.0405
   2024: 0.0425
 
-# Personal exemption (`xmp(law,1)`) and the special exemption for the
-# elderly or for filers whose UI is at least half of federal AGI
-# (`xmp(law,2)`, 1987+).
+# Personal exemption, and from 1987 the special exemption for each
+# taxpayer 65 or older and for filers whose unemployment compensation is at
+# least `special_exemption_ui_share` of federal AGI.
 personal_exemption:
   1977: 1500
   1987: 1600
@@ -85,24 +85,23 @@ dependent_exemption:
   2000: 600
   2012: 0
 
-# AGI addback for the deductible portion of self-employment tax.
+# From 1998 this share of self-employment tax is added back to AGI;
+# 2011-2012 the payroll-tax-holiday deduction as TAXSIM rounds it:
+# `lower_rate` of the tax up to `threshold`, else `upper_rate` plus `amount`.
 self_employment_tax_agi_addback_rate:
   1998: 0.5
-self_employment_tax_agi_addback_threshold:
-  2011: 14204
-self_employment_tax_agi_addback_lower_rate:
-  2011: 0.5751
-self_employment_tax_agi_addback_upper_rate:
-  2011: 0.5
-self_employment_tax_agi_addback_amount:
-  2011: 1067
+self_employment_tax_agi_addback_holiday:
+  2011: {threshold: 14204, lower_rate: 0.5751, upper_rate: 0.5, amount: 1067}
+  2013: null
 
 special_exemption_ui_share:
   1987: 0.5
 
-# Homestead property tax credit: household-resources ceiling above which
-# the credit phases down 10% per $1,000 (`pallow`); fully gone $9,000
-# above it.
+# Homestead property tax credit: `property_credit_rate` of property tax
+# (rent at `property_credit_rent_share`) over `property_credit_income_share`
+# of household resources, up to the cap; above `property_credit_phaseout_start`
+# it falls `phaseout_rate` per `phaseout_step`, ending `phaseout_range`
+# above. Source for 2022 on: PolicyEngine-US gov.states.mi.tax.income.credits.
 property_credit_phaseout_start:
   1977: 1.0e+20
   1982: 65000
@@ -112,7 +111,6 @@ property_credit_phaseout_start:
   2012: 41000
   2018: 51000
   2021: 51600
-  # PolicyEngine-US gov.states.mi.tax.income.credits, dated 2022-2024.
   2022: 54000
   2023: 58300
   2024: 60700
@@ -127,7 +125,6 @@ property_credit_rate:
 property_credit_cap:
   1977: 1200
   2018: 1500
-  # PolicyEngine-US gov.states.mi.tax.income.credits, dated 2022-2024.
   2022: 1600
   2023: 1700
   2024: 1800
@@ -139,8 +136,10 @@ property_credit_phaseout_step:
 property_credit_phaseout_range:
   1977: 9000
 
-# Home heating credit.
-heating_credit_share:  # `frt` - share of the computed credit actually paid
+# Home heating credit: the base amount by exemptions less
+# `heating_credit_income_rate` of household income, times the share actually
+# paid.
+heating_credit_share:
   1977: 0.0
   1978: 0.76
   2007: 0.53
@@ -154,22 +153,15 @@ heating_credit_share:  # `frt` - share of the computed credit actually paid
   2019: 0.80
   2020: 0.85
   2021: 1.0
-  # PolicyEngine-US gov.states.mi.tax.income.credits, dated 2022-2024.
   2022: 0.9
   2023: 0.56
   2024: 0.52
 heating_credit_income_rate:
   1977: 0.035
-heating_credit_base_1977_1984:  # `fuelc1`, by exemptions 1-6
-  - [200, 240, 280, 310, 340, 370]
-heating_credit_inflation_1977_1984:  # `cin`
-  1977: 0.0
-  1978: 1.0
-  1980: 1.13
-  1981: 1.16
-  1982: 1.27
-  1983: 1.36
-heating_credit_base_1985_2005:  # `fuelc2`, by exemptions 1-6
+# Through 2005 by exemptions (1-6): 1977-1984 times `heating_credit_inflation`;
+# 1985-2005 plus `heating_credit_per_extra_exemption` above six.
+heating_credit_base_by_exemptions:
+  1977: [200, 240, 280, 310, 340, 370]
   1985: [272, 326, 379, 421, 480, 550]
   1986: [272, 326, 379, 425, 497, 570]
   1987: [272, 326, 379, 433, 506, 579]
@@ -191,7 +183,10 @@ heating_credit_base_1985_2005:  # `fuelc2`, by exemptions 1-6
   2003: [347, 468, 589, 709, 830, 951]
   2004: [359, 482, 604, 727, 849, 972]
   2005: [369, 495, 620, 746, 871, 997]
-heating_credit_base_2006plus:  # `fuelc3`, first exemption
+  2006: null
+heating_credit_inflation: {1977: 0.0, 1978: 1.0, 1980: 1.13, 1981: 1.16, 1982: 1.27, 1983: 1.36, 1985: null}
+# From 2006: the first exemption, plus `heating_credit_per_extra_exemption` each.
+heating_credit_base:
   2006: 378
   2007: 394
   2008: 401
@@ -206,12 +201,11 @@ heating_credit_base_2006plus:  # `fuelc3`, first exemption
   2019: 482
   2020: 492
   2021: 497
-  # PolicyEngine-US gov.states.mi.tax.income.credits, dated 2022-2024.
   2022: 524
   2023: 562
   2024: 581
   2025: 597.751
-heating_credit_per_extra_exemption:  # `cin2` (1985+)
+heating_credit_per_extra_exemption:
   1985: 70
   1986: 73
   1987: 74
@@ -252,28 +246,23 @@ heating_credit_per_extra_exemption:  # `cin2` (1985+)
   2024: 208
   2025: 213.997
 
-# Refundable EITC, share of federal (`reic`, 2008+).
+# Refundable earned income credit from 2008, a share of the federal credit
+# (the Working Families Tax Credit, 30% from 2023). Source for 2022 on:
+# PolicyEngine-US gov.states.mi.tax.income.credits.eitc.match.
 eitc_rate:
   2008: 0.10
   2009: 0.20
   2012: 0.06
-  # PolicyEngine-US gov.states.mi.tax.income.credits.eitc.match,
-  # queried 2026-09-29. Michigan's Working Families Tax Credit raised the
-  # match to 30% beginning with tax year 2023 (2022 stays at 6%).
-  2022: 0.06
   2023: 0.30
-  2024: 0.30
 
 # Retirement subtraction for taxpayers 65 or older. Through 1993: pensions
-# up to a cap (joint returns; separate filers get half their pensions);
-# from 1994 a cap per taxpayer (`pended`, the source's table has no 2021
-# entry, which the 2013+ senior deduction makes moot).
-pension_exclusion_single_1977_1993:
-  1977: 7500
-pension_exclusion_joint_1977_1993:
-  1977: 10000
-pension_exclusion_joint_1994:
-  1994: 22500
+# up to a cap per return (joint and separate returns; separate filers get
+# half their pensions); from 1994 a cap per taxpayer (1994 joint returns:
+# `pension_exclusion_joint_cap`).
+pension_exclusion_by_return:
+  1977: {single: 7500, joint: 10000}
+  1994: null
+pension_exclusion_joint_cap: {1994: 22500, 1995: null}
 pension_exclusion_per_taxpayer:
   1994: 13125
   1995: 30945
@@ -302,8 +291,8 @@ pension_exclusion_per_taxpayer:
   2019: 52808
   2020: 53759
   2021: 54404
-# 1994+: interest, dividends (and from 1997 capital gains) up to this per
-# taxpayer (`oldded`), when larger than the pension subtraction.
+# From 1994: interest, dividends (and from 1997 capital gains) up to this per
+# taxpayer, when larger than the pension subtraction.
 senior_investment_deduction_per_taxpayer:
   1994: 250
   1995: 1032
@@ -336,8 +325,10 @@ senior_investment_deduction_per_taxpayer:
 senior_standard_deduction:
   2013: 20000
 
-# 2023+: retirement subtraction phased in for taxpayers born 1946-1958 as a
-# share of the maximum for private pensions (Public Act 4 of 2023).
+# From 2023 (statutory mode): the senior standard deduction is reduced by the
+# exemptions claimed, and the retirement subtraction is phased in for
+# taxpayers born 1946-1958 as a share of the private-pension maximum when
+# larger (Public Act 4 of 2023).
 expanded_retirement_share: {2022: 0.0, 2023: 0.25, 2024: 0.5, 2025: 0.75}
 expanded_retirement_maximum:
   single: {2022: 56961, 2023: 61518, 2024: 64040, 2025: 65897}
@@ -352,8 +343,8 @@ property_credit_rent_share:
   1977: 0.17
   1994: 0.2
   2018: 0.23
-# Taxpayers 65 or older: property tax over this share of household income
-# (`proptb`, `prtb18`, interpolated).
+# From 1980, taxpayers 65 or older: property tax over this share of
+# household income ([income, share] interpolated).
 property_credit_senior_income_share:
   1980:
     - [3000, 0.0]
@@ -367,7 +358,7 @@ property_credit_senior_income_share:
     - [5000, 0.02]
     - [6000, 0.03]
     - [1.0e+20, 0.032]
-# 2012+: the senior credit is scaled by this percentage (`pcra`).
+# From 2012 the senior credit is scaled by this percentage by income.
 property_credit_senior_percentage:
   - [21001, 1.0]
   - [22001, 0.96]

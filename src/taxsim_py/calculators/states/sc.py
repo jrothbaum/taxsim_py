@@ -25,8 +25,7 @@ FEDERAL_EXEMPTION_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "personal_ex
 
 def compute_sc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
     """Calculate South Carolina income tax for each row."""
-    state_year = "sc" if behavior.mode.value == "statutory" else None
-    effective_year, flate = resolve_state_year(year, state_year)
+    effective_year, flate = resolve_state_year(year, behavior, SC_PARAMS)
     y = effective_year
     p = YearParams(SC_PARAMS, effective_year)
     dividend_adjustment = dividend_input_adjustment()
@@ -50,11 +49,11 @@ def compute_sc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         agi = fed_agi + dividend_exclusion_addback(y) + (
             pl.col("sc_ui") - pl.col("taxable_unemployment")
         ).clip(0, None)
-        cg = p["long_term_gain_share_1984"] * pl.col("ltcg") + pl.col("stcg")
+        cg = p.num("long_term_gain_share") * pl.col("ltcg") + pl.col("stcg")
         agi = agi - pl.col("pre1987_capgn").clip(0, None) + cg.clip(0, None)
-        if y >= 1982:
+        if p.in_effect("interest_dividend_exclusion"):
             agi = agi - (pl.col("dividends") + dividend_adjustment + pl.col("intrec")).clip(
-                0, p["interest_dividend_exclusion_1982"] * txp
+                0, p.num("interest_dividend_exclusion") * txp
             )
     elif y <= 1986:
         # Federal taxable income (`comnew(29)`) is net of the zero bracket
@@ -66,69 +65,68 @@ def compute_sc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     if y in (2009, 2020):
         # Unemployment compensation is taxed in full.
         agi = agi - pl.col("taxable_unemployment") + pl.col("sc_ui")
-    if y == 2020:
-        agi = agi + pl.when(fed_itemizes).then(0.0).otherwise(pl.col("charity_cash").clip(None, p["charity_nonitemizer_2020"] / sep))
-    elif y == 2021:
-        agi = agi + pl.when(fed_itemizes).then(0.0).otherwise(pl.col("charity_cash").clip(None, p["charity_nonitemizer_2020"] * txp))
+    if p.in_effect("charity_nonitemizer_addback"):
+        amount = p.num("charity_nonitemizer_addback")
+        limit = amount / sep if y == 2020 else amount * txp
+        agi = agi + pl.when(fed_itemizes).then(0.0).otherwise(pl.col("charity_cash").clip(None, limit))
     # Retirement income deduction.
     pensions = pl.col("pensions")
-    if y >= 1983:
+    if p.in_effect("retirement_deduction_per_taxpayer"):
         young_cap = p.num("retirement_deduction_per_taxpayer")
         retded = pensions.clip(0, young_cap * txp)
-        if y >= 1993:
-            aged_cap = float(p["retirement_deduction_aged_per_taxpayer"])
+        if p.in_effect("retirement_deduction_aged_per_taxpayer"):
+            aged_cap = p.num("retirement_deduction_aged_per_taxpayer")
             aged_ded = pl.when(is_joint & (aged == 1)).then(pensions.clip(0, aged_cap + young_cap)).otherwise(
                 pensions.clip(0, aged_cap * txp)
             )
             retded = pl.when(aged > 0).then(aged_ded).otherwise(retded)
-        if y >= 1999:
-            retded = pl.when(aged > 0).then(float(p["aged_deduction_per_taxpayer_1999"]) * aged).otherwise(retded)
+        if p.in_effect("aged_deduction_per_taxpayer"):
+            retded = pl.when(aged > 0).then(p.num("aged_deduction_per_taxpayer") * aged).otherwise(retded)
         agi = agi - retded
     if y >= 1984:
         agi = agi - pl.col("taxable_social_security")
     df, (agi,) = checkpoint(df, sc_agi=agi)
 
     if y <= 1984:
-        index = p.num("index")
+        index = p.num("bracket_index")
         ag = agi.clip(0, None)
-        stded = pl.min_horizontal(p["standard_deduction_rate_1984"] * ag * index, index * p["standard_deduction_cap_1984"] * txp)
+        share = p.value("standard_deduction_share")
+        stded = pl.min_horizontal(share["rate"] * ag * index, index * share["cap_per_taxpayer"] * txp)
         gross, _, _ = pre1987_federal_itemizing(y)
         xitded = (gross - pl.col("state_sales_or_income_tax_ded")).clip(0, None)
-        # TAXSIM re-runs federal law 1980 for this deduction, but the result
-        # never reaches the state's copy of the federal values, so the
-        # current year's federal tax is deducted (logged).
         fedtax = pl.col("fiitax")
-        xitded = (xitded + fedtax.clip(0, p["federal_tax_deduction_cap"] * txp)).clip(0, None)
-        if y <= 1981:
+        xitded = (xitded + fedtax.clip(0, p.num("federal_tax_deduction_cap") * txp)).clip(0, None)
+        if p.in_effect("gasoline_deduction"):
             xitded = xitded + p.num("gasoline_deduction") * txp
         contr = pl.col("charity_cash")
         clim = p.num("charity_limit_share") * ag
         xitded = pl.when(contr > clim).then((xitded - (contr - clim)).clip(0, None)).otherwise(xitded)
+        cd = p.value("child_care_deduction")
         chcr = pl.min_horizontal(
-            pl.col("childcare"),
-            depx.clip(None, p["child_care_deduction_max_dependents"]) * p["child_care_deduction_per_dependent"]
-            + p["child_care_deduction_base"],
+            pl.col("childcare"), depx.clip(None, cd["max_dependents"]) * cd["per_dependent"] + cd["base"],
         )
-        chcr = (chcr - p["child_care_deduction_phaseout_rate"] * (agi - p["child_care_deduction_phaseout_agi"]).clip(0, None)).clip(0, None)
+        chcr = (chcr - cd["phaseout_rate"] * (agi - cd["phaseout_agi"]).clip(0, None)).clip(0, None)
         deduc = pl.max_horizontal(stded, xitded + chcr)
         exemps = federal_exemption_count(y)
-        exemp = exemps * index * p["exemption_1984"] + pl.when(is_hoh).then(index * p["exemption_1984"]).otherwise(0.0)
+        amount = p.num("exemption_amount")
+        exemp = exemps * index * amount + pl.when(is_hoh).then(index * amount).otherwise(0.0)
         df, (taxinc,) = checkpoint(df, sc_taxinc=(agi - deduc - exemp).clip(0, None))
-        statax = bracket_tax(taxinc, scale_brackets(p["brackets"][1977], index))
+        table = scale_brackets(p.value("brackets"), index)
+        statax = bracket_tax(taxinc, table)
         values = {
             "exemptions": exemp,
             "standard_deduction": stded,
             "itemized_deductions": xitded + chcr,
             "taxable_income": taxinc,
             "child_care_credit": chcr,
-            "rate": bracket_rate(taxinc, scale_brackets(p["brackets"][1977], index)),
+            "rate": bracket_rate(taxinc, table),
         }
-        if y == 1984:
-            foodcr = (depx + txp) * p["food_credit_1984"]
+        if p.in_effect("food_credit"):
+            foodcr = (depx + txp) * p.num("food_credit")
             statax = statax - foodcr
             values["credits"] = foodcr
         else:
-            limits = p["aged_no_tax_limit_1983"]
+            limits = p.value("aged_no_tax_limit")
             limit = pl.when(depx > 0).then(float(limits["with_dependents"])).otherwise(float(limits["alone"]))
             # TAXSIM returns before the worksheet for these returns.
             early = (aged > 0) & (agi <= limit)
@@ -143,36 +141,34 @@ def compute_sc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     deducp = pl.col("itemized_before_limit")
     if y <= 2017:
         tx = salt
-        if y >= 1991:
-            if y <= 2012:
-                phas92 = p["itemized_limit_threshold"] * p.num("itemized_limit_index") / sep
+        if p.in_effect("itemized_limit_threshold"):
+            if not p.in_effect("itemized_limit_status_factor"):
+                phas92 = p.num("itemized_limit_threshold") * p.num("itemized_limit_index") / sep
             else:
                 phas92 = (
-                    p.num("itemized_limit_index_2013") * p["itemized_limit_threshold_2013"]
-                    * by_filing_status(p["itemized_limit_status_factor_2013"])
+                    p.num("itemized_limit_index") * p.num("itemized_limit_threshold")
+                    * by_filing_status(p.value("itemized_limit_status_factor"))
                 )
             dedphs = deducp - itemized
             tx = pl.when((fed_agi > phas92) & (deducp > 0)).then(salt - dedphs * salt / deducp).otherwise(salt)
             # The federal zero bracket is 0 for itemizers.
             tx = pl.min_horizontal(tx, itemized)
     else:
-        room = (p["salt_cap_2018"] / sep - pl.col("proptax") - pl.col("otheritem")).clip(0, None)
-        if y >= 2025 and behavior.mode.value == "statutory":
-            # The federal cap is no longer $10,000; use what the federal return actually deducted.
-            room = (pl.col("salt_capped") - pl.col("proptax") - pl.col("otheritem")).clip(0, None)
+        cap = p.num("salt_cap") / sep if p.in_effect("salt_cap") else pl.col("salt_capped")
+        room = (cap - pl.col("proptax") - pl.col("otheritem")).clip(0, None)
         tx = pl.min_horizontal(salt, pl.min_horizontal(itemized.clip(0, None), room))
     tx = pl.when(fed_itemizes).then(tx).otherwise(0.0)
 
     # --- Long-term capital gain deduction ---
     dedgan = pl.lit(0.0)
-    if y >= 1990:
+    if p.in_effect("capital_gain_deduction"):
         dedgan = p.num("capital_gain_deduction") * pl.col("ltcg").clip(0, None)
 
     add = pl.lit(0.0)
-    if y == 2003:
+    if p.in_effect("married_standard_deduction_addback"):
         zbr = pl.col("standard_deduction")
         added = pl.min_horizontal(zbr, (fed_agi - pl.col("personal_exemptions")).clip(0, None))
-        added = (added - p["married_standard_deduction_2003"]).clip(0, None) / sep
+        added = (added - p.num("married_standard_deduction_addback")).clip(0, None) / sep
         add = pl.when(~fed_itemizes & (is_joint | is_sep)).then(added).otherwise(0.0)
 
     # --- Federal itemized and exemption phase-out adjustment (itemizers) ---
@@ -183,41 +179,30 @@ def compute_sc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         reduced = itemized + pl.col("personal_exemptions")
         adjust = pl.when(fed_itemizes).then((unreduced - reduced).clip(0, None)).otherwise(0.0)
 
-    if y >= 2025 and behavior.mode.value == "statutory":
-        increase = by_filing_status({k: float(v) for k, v in resolve_year(p["obbba_standard_deduction_increase"], y).items()})
+    if p.in_effect("federal_standard_deduction_increase_addback"):
+        increase = by_filing_status(p.value("federal_standard_deduction_increase_addback"))
         add = add + pl.when(fed_itemizes).then(0.0).otherwise(increase) + pl.col("senior_deduction")
     exemp = pl.lit(0.0)
-    if y >= 2018:
+    if p.in_effect("dependent_exemption"):
         exemp = p.num("dependent_exemption") * (depx + pl.col("dep6"))
     taxinc = (agi + tx - dedgan + add - exemp - adjust).clip(0, None)
     df, (taxinc,) = checkpoint(df, sc_taxinc=taxinc)
 
     # --- Tax ---
-    brackets = p["brackets"]
-    if y <= 1986:
-        amounts = p["exemption_1985"][y]
+    brackets = p.value("brackets")
+    if isinstance(brackets, dict):
+        amounts = p.value("exemption_amount")
         single_income = (taxinc - amounts["single"]).clip(0, None)
         married_income = (taxinc - amounts["married"] / sep).clip(0, None)
-        statax = pl.when(is_single).then(bracket_tax(single_income, brackets["1985_single"])).otherwise(
-            bracket_tax(married_income, brackets["1985_married"])
+        statax = pl.when(is_single).then(bracket_tax(single_income, brackets["single"])).otherwise(
+            bracket_tax(married_income, brackets["married"])
         )
-        rate = pl.when(is_single).then(bracket_rate(single_income, brackets["1985_single"])).otherwise(
-            bracket_rate(married_income, brackets["1985_married"])
+        rate = pl.when(is_single).then(bracket_rate(single_income, brackets["single"])).otherwise(
+            bracket_rate(married_income, brackets["married"])
         )
         detail_taxinc = pl.when(is_single).then(single_income).otherwise(married_income)
     else:
-        if y <= 1989:
-            table = scale_brackets(brackets[1987], p.num("index"))
-        elif y == 1990:
-            table = brackets[1990]
-        elif y <= 2000:
-            table = scale_brackets(brackets[1991], p.num("index"))
-        elif y == 2001:
-            table = brackets[2001]
-        else:
-            table = scale_brackets(brackets[2002] if y <= 2008 else brackets[2009], p.num("index_2002"))
-            if y >= 2022:
-                table = brackets[y]  # statutory dollars
+        table = scale_brackets(brackets, p.num("bracket_index"))
         statax = bracket_tax(taxinc, table)
         rate = bracket_rate(taxinc, table)
         detail_taxinc = taxinc
@@ -227,12 +212,12 @@ def compute_sc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     nccp = depx.clip(None, 2).floor()
     expenses = pl.min_horizontal(p.num("child_care_expense_per_child") * nccp, pl.col("childcare"))
     chcr = p["child_care_rate"] * expenses
-    if y >= 2002:
+    if p.in_effect("child_care_cap_per_child"):
         chcr = pl.min_horizontal(p.num("child_care_cap_per_child") * nccp, chcr)
     chcr = pl.when(is_sep).then(0.0).otherwise(chcr)
 
     twocrd = pl.lit(0.0)
-    if y >= 1987:
+    if p.in_effect("two_earner_earnings_max"):
         busnes = (pl.col("psemp") + pl.col("ssemp")).clip(0, None) - 0.5 * pl.col("setax")
         husb = pl.col("pwages").clip(0, None) + 0.5 * busnes
         wife = pl.col("swages").clip(0, None) + 0.5 * busnes
@@ -244,7 +229,7 @@ def compute_sc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         earnls = pl.min_horizontal(husb, wife).clip(0, p.num("two_earner_earnings_max"))
         twocrd = pl.when(is_joint).then(p["two_earner_credit_rate"] * earnls).otherwise(0.0)
 
-    earncr = p.num("eitc_rate") * pl.col("eitc") if y >= 2018 else pl.lit(0.0)
+    earncr = p.num("eitc_rate") * pl.col("eitc") if p.in_effect("eitc_rate") else pl.lit(0.0)
     statax = (statax - chcr - twocrd - earncr).clip(0, None)
 
     df = df.with_columns(siitax=statax * flate)

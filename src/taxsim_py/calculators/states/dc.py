@@ -18,13 +18,10 @@ PRE1987_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "pre1987.yaml")
 _PRE1987_STATUSES = ["single", "married_joint", "married_separate", "head_of_household"]
 
 def compute_dc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
-    state_year = "dc" if behavior.mode.value == "statutory" else None
-    effective_year, flate = resolve_state_year(year, state_year)
+    effective_year, flate = resolve_state_year(year, behavior, DC_PARAMS)
     p = YearParams(DC_PARAMS, effective_year)
     df = df.with_columns(
         dc_sep=separate_divisor(),
-        # `data(7)` - self/spouse exemption unit count (1, or 2 ONLY for
-        # married_joint), used by the exemption formula.
         dc_taxpayers=taxpayer_count(),
     )
 
@@ -43,8 +40,9 @@ def compute_dc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     else:
         df = df.with_columns(dc_agi=pl.col("agi"))
         if 1982 <= effective_year <= 1986:
-            two_earner_rate = float(resolve_year(PRE1987_PARAMS["two_earner_deduction_rate"], effective_year))
-            two_earner_cap = float(resolve_year(PRE1987_PARAMS["two_earner_deduction_cap"], effective_year))
+            p87 = YearParams(PRE1987_PARAMS, effective_year)
+            two_earner_rate = p87.num("two_earner_deduction_rate")
+            two_earner_cap = p87.num("two_earner_deduction_cap")
             twoded = (
                 two_earner_rate * pl.min_horizontal(pl.col("pwages"), pl.col("swages")).clip(0, None)
             ).clip(0, two_earner_cap)
@@ -53,67 +51,38 @@ def compute_dc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         if effective_year >= 1984:
             df = df.with_columns(dc_agi=pl.col("dc_agi") - pl.col("taxable_social_security"))
 
-    # Unemployment compensation is excluded in every year (`data(82)`).
+    # Unemployment compensation is excluded in every year.
     ui_total = unemployment_total()
     df = df.with_columns(dc_agi=pl.col("dc_agi") - ui_total)
 
     # --- Standard deduction ---
-    if effective_year <= 1981:
-        cap = float(p["standard_deduction_cap_pre1982"][1960])
-        df = df.with_columns(dc_stded=(p["standard_deduction_share_pre1982"] * pl.col("dc_agi")).clip(0, cap / pl.col("dc_sep")))
-    elif effective_year <= 1986:
-        flat = float(p["standard_deduction_flat_1982_1986"][1982])
-        df = df.with_columns(dc_stded=flat / pl.col("dc_sep"))
-    elif effective_year <= 2005:
-        flat = float(p["standard_deduction_flat_1987_2005"][1987])
-        df = df.with_columns(dc_stded=flat / pl.col("dc_sep"))
-    elif effective_year <= 2007:
-        flat = float(p["standard_deduction_flat_2006_2007"][2006])
-        df = df.with_columns(dc_stded=flat / pl.col("dc_sep"))
-    elif effective_year <= 2009:
-        flat = float(p["standard_deduction_flat_2008_2009"][2008])
-        per_unit = float(p["standard_deduction_proptax_addback_per_exemption_unit_2008_2009"][2008])
-        addback = pl.min_horizontal(pl.col("proptax"), pl.col("dc_taxpayers") * per_unit)
-        df = df.with_columns(dc_stded=flat / pl.col("dc_sep") + addback)
-    elif effective_year <= 2012:
-        flat = float(p["standard_deduction_flat_2010_2012"][2010])
-        df = df.with_columns(dc_stded=flat / pl.col("dc_sep"))
-    elif effective_year == 2013:
-        flat = float(p["standard_deduction_flat_2013"][2013])
-        df = df.with_columns(dc_stded=flat / pl.col("dc_sep"))
-    elif effective_year == 2014:
-        flat = float(p["standard_deduction_flat_2014"][2014])
-        df = df.with_columns(dc_stded=flat / pl.col("dc_sep"))
-    elif effective_year <= 2016:
-        joint = float(p["standard_deduction_2015_2016_joint"][2015])
-        hoh = float(p["standard_deduction_2015_2016_hoh"][2015])
-        single_or_sep = float(p["standard_deduction_2015_2016_single_or_separate"][2015])
-        df = df.with_columns(
-            dc_stded=pl.when(files_joint())
-            .then(joint)
-            .when(files_head_of_household())
-            .then(hoh)
-            .otherwise(single_or_sep)
-        )
-    elif effective_year == 2017:
-        joint = float(p["standard_deduction_2017_joint"][2017])
-        hoh = float(p["standard_deduction_2017_hoh"][2017])
-        single_or_sep = float(p["standard_deduction_2017_single_or_separate"][2017])
-        df = df.with_columns(
-            dc_stded=pl.when(files_joint())
-            .then(joint)
-            .when(files_head_of_household())
-            .then(hoh)
-            .otherwise(single_or_sep)
-        )
+    if p.in_effect("standard_deduction_percent"):
+        sd = p.value("standard_deduction_percent")
+        df = df.with_columns(dc_stded=(sd["rate"] * pl.col("dc_agi")).clip(0, float(sd["cap"]) / pl.col("dc_sep")))
+    elif p.in_effect("standard_deduction"):
+        sd = p.value("standard_deduction")
+        if isinstance(sd, dict):
+            df = df.with_columns(
+                dc_stded=pl.when(files_joint())
+                .then(float(sd["married_joint"]))
+                .when(files_head_of_household())
+                .then(float(sd["head_of_household"]))
+                .otherwise(float(sd["single"]))
+            )
+        elif p.in_effect("standard_deduction_property_tax_addition"):
+            addback = pl.min_horizontal(pl.col("proptax"), pl.col("dc_taxpayers") * p.num("standard_deduction_property_tax_addition"))
+            df = df.with_columns(dc_stded=float(sd) / pl.col("dc_sep") + addback)
+        else:
+            df = df.with_columns(dc_stded=float(sd) / pl.col("dc_sep"))
     else:
-        # Federal zero bracket (`zbrack(nfile,law)/sep`); separate returns
-        # use the joint amount halved.
-        single_sd = float(resolve_year(FEDERAL_INCOME_TAX_PARAMS["standard_deduction"]["single"], effective_year))
-        joint_sd = float(resolve_year(FEDERAL_INCOME_TAX_PARAMS["standard_deduction"]["married_joint"], effective_year))
-        hoh_sd = float(resolve_year(FEDERAL_INCOME_TAX_PARAMS["standard_deduction"]["head_of_household"], effective_year))
-        if effective_year >= 2025 and behavior.mode.value == "statutory":
-            nonconforming = resolve_year(p["standard_deduction_nonconforming"], effective_year)
+        # The federal standard deduction; separate returns use the joint
+        # amount halved.
+        fed = YearParams(FEDERAL_INCOME_TAX_PARAMS, effective_year)
+        single_sd = fed.num("standard_deduction", "single")
+        joint_sd = fed.num("standard_deduction", "married_joint")
+        hoh_sd = fed.num("standard_deduction", "head_of_household")
+        if p.in_effect("standard_deduction_nonconforming"):
+            nonconforming = p.value("standard_deduction_nonconforming")
             single_sd, joint_sd, hoh_sd = (float(nonconforming[k]) for k in ("single", "married_joint", "head_of_household"))
         df = df.with_columns(
             dc_stded=pl.when(files_single())
@@ -140,8 +109,7 @@ def compute_dc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     df = df.with_columns(dc_deduc=pl.col("dc_stded"))
 
     # --- Itemized deduction --- Before 1987 the federal gross and
-    # allowed itemized totals (`comnew(30)`, `comnew(24)`) are equal, so
-    # they are rebuilt from the inputs.
+    # allowed itemized totals are equal, so they are rebuilt from the inputs.
     if effective_year <= 1986:
         df = df.with_columns(
             dc_raw_itemized=pl.col("proptax") + pl.col("otheritem") + pl.col("mortgage")
@@ -149,20 +117,16 @@ def compute_dc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         )
     else:
         df = df.with_columns(dc_raw_itemized=pl.col("salt_capped") + pl.col("mortgage"))
-    # DC itemizes exactly when the federal return does
-    # (`comnew(26).gt.0.and.comnew(30).gt.0`). Before 1987 that choice is
-    # rebuilt from the federal zero bracket amount.
+    # DC itemizes exactly when the federal return does.
     if effective_year <= 1986:
-        # Federal itemized deductions (`comnew(24)`), zero when the federal
-        # return does not itemize.
+        # Federal itemized deductions, zero when the federal return does not
+        # itemize.
         itemizing_gate = pl.col("pre1987_itemizes")
         df = df.with_columns(dc_raw_itemized=pl.col("pre1987_deduc"))
     else:
         itemizing_gate = pl.col("itemizes")
 
     if effective_year <= 1981:
-        # `xitded=comnew(24)-max(comnew(23)-.15*agi,0)`; `comnew(23)` is 0
-        # for these inputs.
         df = df.with_columns(dc_xitded=pl.col("dc_raw_itemized"))
     elif 1982 <= effective_year <= 2017:
         salt_share = (pl.col("state_sales_or_income_tax_ded") / pl.col("dc_raw_itemized").clip(1e-9, None))
@@ -170,13 +134,13 @@ def compute_dc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             dc_xitded=(pl.col("itemized_deduction") * (1.0 - salt_share)).clip(0, None)
         )
     if 1982 <= effective_year <= 1986:
-        # Without a federal limitation, `comnew(24)` less the state tax
-        # deduction is the itemized inputs.
+        # Without a federal limitation, itemized deductions less the state
+        # tax deduction are the itemized inputs.
         df = df.with_columns(
             dc_xitded=(pl.col("dc_raw_itemized") - pl.col("state_sales_or_income_tax_ded")).clip(0, None)
         )
-    if effective_year >= 2018:
-        sttax_cap = p["state_tax_deduction_cap_2018plus"] / pl.col("dc_sep")
+    if p.in_effect("state_tax_deduction_cap"):
+        sttax_cap = p.num("state_tax_deduction_cap") / pl.col("dc_sep")
         sttax = pl.min_horizontal(
             sttax_cap, pl.col("proptax") + pl.col("state_sales_or_income_tax_ded") + pl.col("otheritem")
         )
@@ -188,11 +152,10 @@ def compute_dc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             ).clip(0, None)
         )
 
-    # In every era, itemized deductions fall by 5% of AGI above
-    # $200,000 ($100,000 separate).
-    threshold = float(p["itemized_agi_reduction_threshold"][1960]) / pl.col("dc_sep")
+    reduction = p["itemized_reduction"]
+    threshold = float(reduction["threshold"]) / pl.col("dc_sep")
     excess = (pl.col("dc_agi") - threshold).clip(0, None)
-    df = df.with_columns(dc_xitded=(pl.col("dc_xitded") - p["itemized_agi_reduction_rate"] * excess).clip(0, None))
+    df = df.with_columns(dc_xitded=(pl.col("dc_xitded") - reduction["rate"] * excess).clip(0, None))
 
     # Not itemizing federally leaves `xitded` at 0, which the joint
     # earner split below also compares against.
@@ -207,7 +170,7 @@ def compute_dc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
 
     # --- Exemption ---
     df = df.with_columns(dc_num=pl.col("dc_taxpayers") + pl.col("depx") + aged_count())
-    amnt = p.num("personal_exemption_amount")
+    amnt = p.num("personal_exemption")
     df = df.with_columns(dc_exemp=pl.col("dc_num") * amnt)
     df = df.with_columns(
         dc_exemp=pl.when(files_head_of_household())
@@ -215,40 +178,23 @@ def compute_dc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         .otherwise(pl.col("dc_exemp"))
     )
     df = df.with_columns(dc_exemp=pl.when(is_dependent_filer()).then(0.0).otherwise(pl.col("dc_exemp")))
-    if 2015 <= effective_year <= 2017:
-        floor = float(p["exemption_phaseout_2015_2017_floor"][2015])
-        ceiling = float(p["exemption_phaseout_2015_2017_ceiling"][2015])
-        band = float(p["exemption_phaseout_2015_2017_band_per_sep"][2015]) / pl.col("dc_sep")
+    if p.in_effect("exemption_phaseout"):
+        ep = p.value("exemption_phaseout")
+        floor, ceiling = float(ep["floor"]), float(ep["ceiling"])
+        band = float(ep["band"]) / pl.col("dc_sep")
         ratio = (
             pl.when(pl.col("dc_agi") > ceiling)
             .then(1.0)
             .when(pl.col("dc_agi") > floor)
-            .then(pl.min_horizontal(1.0, p["exemption_phaseout_2015_2017_share_per_band"] * (pl.col("dc_agi") - floor) / band))
+            .then(pl.min_horizontal(1.0, ep["share_per_band"] * (pl.col("dc_agi") - floor) / band))
             .otherwise(0.0)
         )
         df = df.with_columns(dc_exemp=pl.col("dc_exemp") * (1.0 - ratio))
 
     df = df.with_columns(dc_taxinc=(pl.col("dc_agi") - pl.col("dc_deduc") - pl.col("dc_exemp")).clip(0, None))
 
-    # --- Bracket tax ---
-    year_table_map = {
-        (1977, 1986): "brackets_pre1987",
-        (1987, 1987): "brackets_1987",
-        (1988, 1999): "brackets_1988_1999",
-        (2000, 2000): "brackets_2000",
-        (2001, 2004): "brackets_2001_2004",
-        (2005, 2005): "brackets_2005",
-        (2006, 2006): "brackets_2006",
-        (2007, 2011): "brackets_2007_2011",
-        (2012, 2014): "brackets_2012_2014",
-        (2015, 2015): "brackets_2015",
-    }
-    key = "brackets_2022plus" if effective_year >= 2022 else "brackets_2016plus"
-    for (lo, hi), k in year_table_map.items():
-        if lo <= effective_year <= hi:
-            key = k
-            break
-    brackets = p[key]
+    # --- Tax ---
+    brackets = p.value("brackets")
     df = df.with_columns(dc_statax=bracket_tax(pl.col("dc_taxinc"), brackets))
     rate_expr = bracket_rate(pl.col("dc_taxinc"), brackets)
 
@@ -270,28 +216,21 @@ def compute_dc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         dc_taxyh=(pl.col("dc_agi_higher_earner") - pl.col("dc_dedh") - pl.col("dc_exemph")).clip(0, None),
         dc_taxyw=(pl.col("dc_agi_lower_earner") - pl.col("dc_dedw") - pl.col("dc_exempw")).clip(0, None),
     )
-    split_brackets = p["brackets_2007_split"] if effective_year == 2007 else brackets
+    split_brackets = p.value("earner_split_brackets") if p.in_effect("earner_split_brackets") else brackets
     dc_taxbc = bracket_tax(pl.col("dc_taxyh"), split_brackets) + bracket_tax(pl.col("dc_taxyw"), split_brackets)
     df = df.with_columns(
         dc_statax=pl.when(is_joint_relief).then(pl.min_horizontal(pl.col("dc_statax"), dc_taxbc)).otherwise(pl.col("dc_statax"))
     )
 
     # --- Credits ---
-    # Child/Dependent Care Credit (1982+): a share of the federal credit
-    # before its liability limit (`comnew(176)`), which TAXSIM leaves at 0
-    # before 1987.
-    if effective_year <= 1981:
-        df = df.with_columns(dc_chcr=pl.lit(0.0))
-    elif effective_year <= 1988:
-        rate = float(p["child_care_credit_rate_1982_1988"][1982])
-        df = df.with_columns(dc_chcr=rate * pl.col("ccc_uncapped"))
+    # Child and dependent care credit: a share of the federal credit before
+    # its liability limit, which TAXSIM leaves at 0 before 1987.
+    if p.in_effect("child_care_credit_federal_share"):
+        df = df.with_columns(dc_chcr=p.num("child_care_credit_federal_share") * pl.col("ccc_uncapped"))
     else:
-        rate = float(p["child_care_credit_rate_1989plus"][1989])
-        df = df.with_columns(dc_chcr=rate * pl.col("ccc_uncapped"))
+        df = df.with_columns(dc_chcr=pl.lit(0.0))
 
-    # The campaign contribution credit has no TAXSIM input.
-    df = df.with_columns(dc_polcr=pl.lit(0.0))
-    df = df.with_columns(dc_credit=pl.col("dc_chcr") + pl.col("dc_polcr"))
+    df = df.with_columns(dc_credit=pl.col("dc_chcr"))
     df = df.with_columns(dc_statax=(pl.col("dc_statax") - pl.col("dc_credit")).clip(0, None))
 
     # Property Tax Credit ("Schedule H"): property tax, or a share of rent
@@ -301,11 +240,11 @@ def compute_dc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     hy = pl.col("dc_household_income")
     rent_share = p.num("property_credit_rent_share")
     ptax = pl.max_horizontal(rent_share * pl.col("rentpaid"), pl.col("proptax"))
-    if effective_year <= 2013:
-        cap = float(p["property_credit_cap_pre2014"][1960])
-        aged_rate = p["property_credit_aged_base_rate"] + hy / p["property_credit_aged_rate_income"] / 100.0
+    if p.in_effect("property_credit_by_income"):
+        c = p.value("property_credit_by_income")
+        cap = float(c["cap"])
+        aged_rate = c["aged_base_rate"] + hy / c["aged_rate_income"] / 100.0
         aged_pcred = (ptax - hy * aged_rate).clip(0, None)
-        c = p["property_credit_nonaged_pre2014"]
         raw_pcred = (ptax - hy * (c["base_pct"] + hy / c["divisor"]) / 100.0).clip(0, None)
         young_pcred = pl.when(hy < c["low_income_limit"]).then(c["low_income_share"] * raw_pcred).otherwise(
             c["share"] * raw_pcred
@@ -314,12 +253,10 @@ def compute_dc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         pcred = pl.when(hy <= c["income_limit"]).then(pl.min_horizontal(cap, pcred)).otherwise(0.0)
     else:
         agix = pl.col("agi").clip(0, None)
-        c = p["property_credit_2014plus"]
-        recent = behavior.mode.value == "statutory" and effective_year >= 2022
-        if recent:
-            recent_p = p.value("property_credit_recent")
-            # Recent Schedule H adds the rent allowance to property taxes;
-            # the historical TAXSIM path retains its max() approximation.
+        c = p["property_credit_rates"]
+        if p.in_effect("property_credit_schedule"):
+            recent_p = p.value("property_credit_schedule")
+            # From 2022 the rent allowance is added to property tax.
             ptax = pl.col("proptax") + float(recent_p["rent_share"]) * pl.col("rentpaid")
             nonelderly_rate = tier_values(
                 agix,
@@ -345,9 +282,8 @@ def compute_dc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             )
             pcred = pl.when(agix >= limit).then(0.0).otherwise(pcred)
         else:
-            table_years = p["property_credit_by_year_2014plus"]
-            lookup_year = effective_year if effective_year in table_years else max(y for y in table_years if y <= effective_year)
-            prop_cap, pagi_val, prlim_val = (float(v) for v in table_years[lookup_year])
+            limits = p.value("property_credit_limits")
+            prop_cap, pagi_val, prlim_val = (float(limits[k]) for k in ("income_limit", "aged_income_limit", "max"))
             under_prop_cap = agix <= prop_cap
             if effective_year <= 2018:
                 over_25k_pcred = pl.when(under_prop_cap).then((ptax - c["rate"] * agix).clip(0, None)).otherwise(0.0)
@@ -369,7 +305,7 @@ def compute_dc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     # zero: by filing status and number of aged taxpayers, plus an amount
     # per dependent and aged taxpayer. Dependent filers instead get DC tax
     # on the federal standard deduction less DC's.
-    if 1987 <= effective_year <= 2017:
+    if p.in_effect("low_income_credit_per_dependent"):
         joint_row = [float(v) for v in p.value("low_income_credit_joint_by_aged")]
         single_row = [float(v) for v in p.value("low_income_credit_single_by_aged")]
         hoh_row = [float(v) for v in p.value("low_income_credit_hoh_by_aged")]
@@ -408,30 +344,23 @@ def compute_dc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     df = df.with_columns(dc_ycr=ycr)
     stat1 = (pl.col("dc_statax") - pl.col("dc_ycr")).clip(0, None)
 
-    # --- EITC (2000+) ---
-    if effective_year < 2000:
+    # --- Earned income credit (2000+) ---
+    if not p.in_effect("eitc_federal_share"):
         earncr = pl.lit(0.0)
-    elif effective_year <= 2014:
-        rate = float(resolve_year(
-            {**p["eitc_rate_2000"], **p["eitc_rate_2001_2004"], **p["eitc_rate_2005_2007"], **p["eitc_rate_2008plus"]},
-            effective_year,
-        ))
-        earncr = rate * pl.col("eitc").clip(0, None)
+    elif not p.in_effect("eitc_childless"):
+        earncr = p.num("eitc_federal_share") * pl.col("eitc").clip(0, None)
     else:
-        rate = p.num("eitc_rate_2008plus")
-        earncr_with_kids = rate * pl.col("eitc").clip(0, None)
-        cr = p.num("eitc_childless_max_credit_by_year")
-        am = p.num("eitc_childless_max_earned_by_year")
-        ym = p.num("eitc_childless_phaseout_start_by_year")
-        dylim = p.num("eitc_disqualified_income_limit_by_year")
+        earncr_with_kids = p.num("eitc_federal_share") * pl.col("eitc").clip(0, None)
+        childless = p.value("eitc_childless")
+        cr, am, ym = float(childless["max_credit"]), float(childless["max_earned"]), float(childless["phaseout_start"])
+        dylim = float(childless["disqualified_income_limit"])
+        phase_rate = float(childless["phase_in_rate"])
         earned = pl.col("earned_income")
         agimax = pl.max_horizontal(earned, pl.col("agi"))
-        childless = p["eitc_childless"]
-        phase_rate = float(resolve_year(childless["phase_in_rate"], effective_year))
         earncr_childless_raw = pl.when(agimax <= am).then(
-            pl.min_horizontal(cr, phase_rate * earned) - childless["phaseout_rate"] * (agimax - ym).clip(0, None)
+            pl.min_horizontal(cr, phase_rate * earned) - p["eitc_childless_phaseout_rate"] * (agimax - ym).clip(0, None)
         ).otherwise(0.0)
-        # `disqy` (`comnew(159)`) is dividends and interest only.
+        # Disqualifying income is dividends and interest only.
         disqy = pl.col("dividends").clip(0, None) + pl.col("intrec")
         no_childless_credit = (disqy > dylim) | (pl.col("dc_sep") == 2) | is_dependent_filer()
         if effective_year != 2021:
@@ -441,19 +370,17 @@ def compute_dc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         # removed the upper-age restriction for that year.
         older = pl.max_horizontal(pl.col("page"), pl.col("sage"))
         younger = pl.min_horizontal(pl.col("page"), pl.col("sage"))
-        min_age, max_age = childless["minimum_age"], childless["maximum_age"]
+        min_age, max_age = p["eitc_childless_age_limits"]["minimum_age"], p["eitc_childless_age_limits"]["maximum_age"]
         if effective_year == 2021:
             too_young = ((older > 0) & (older < 19)) | ((younger > 0) & (younger < 19))
         else:
             too_young = ((older > 0) & (older < min_age)) | ((older > max_age) & (younger > 0) & (younger < min_age))
         no_childless_credit = no_childless_credit | too_young
         earncr_childless = pl.when(no_childless_credit).then(0.0).otherwise(earncr_childless_raw)
-        # A dependent is not automatically a qualifying EITC child. Statutory
-        # mode uses the age-qualified count; compatibility mode preserves the
-        # historical TAXSIM `depx` switch.
+        # DC-002: TAXSIM treats any dependent as a qualifying child.
         has_qualifying_child = (
             pl.col("dep18") > 0
-            if behavior.mode.value == "statutory"
+            if behavior.use_age_qualified_children_for_dc_eitc
             else pl.col("depx") > 0
         )
         earncr = pl.when(has_qualifying_child).then(earncr_with_kids).otherwise(earncr_childless)

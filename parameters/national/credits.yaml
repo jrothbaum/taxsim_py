@@ -1,104 +1,55 @@
-# Credit for Other Dependents (ODC): $500 nonrefundable credit per dependent
-# not eligible for the Child Tax Credit, phased out above an AGI threshold.
-# Verified directly against taxsim_2022_10_21.f:25619-25668.
-other_dependent_credit:
-  amount:
-    2018: 500
-    2019: 500
-    2022: 500
-  phaseout_threshold:
-    single:
-      2018: 200000
-      2019: 200000
-      2022: 200000
-    head_of_household:
-      2018: 200000
-      2019: 200000
-      2022: 200000
-    married_separate:
-      2018: 200000
-      2019: 200000
-      2022: 200000
-    married_joint:
-      2018: 400000
-      2019: 400000
-      2022: 400000
-  phaseout_rate_per_1000:
-    2018: 50
-    2019: 50
-    2022: 50
+# Federal credits other than the EITC (eitc.csv, eitc_misc.yaml).
+#
+# Sources: 1987-2021 NBER TAXSIM (`law87`); 2022 on, Internal Revenue Code
+# sections 21, 24, 6428 and 6428B, Form 1040 instructions and Revenue
+# Procedures, checked against PolicyEngine-US `gov.irs.credits`.
 
-# Child Tax Credit + Additional (refundable) CTC, for 0-2 CTC-qualifying
-# children (dep17). 3+ children uses a different alternate ACTC formula
-# (an SS-tax-based floor) not implemented here - see calculators/federal.py.
-# Verified against taxsim_2022_10_21.f:25619-25668 (nonrefundable base,
-# two-tier phaseout) and :25918-25940 (refundable ACTC top-up).
+# Child and dependent care credit: the rate times expenses up to the cap per
+# qualifying person (at most two), limited to the lower earner's wages. The rate
+# falls one point per `step_amount` of AGI above `phase_start` from `top_rate`
+# to `floor_rate`; in 2021 (refundable) from `top_rate` to `mid_rate` over the
+# first phase and from `mid_rate` to zero over the second. TAXSIM does not apply
+# the credit before 1998.
+child_care_credit:
+  max_qualifying_persons: 2
+  max_expense_per_person: {1987: 2400, 2003: 3000, 2021: 8000, 2022: 3000}
+  rate:
+    1987: {top_rate: 0.3, floor_rate: 0.2, phase_start: 10000, step_amount: 2000}
+    2003: {top_rate: 0.35, floor_rate: 0.2, phase_start: 15000, step_amount: 2000}
+    2021:
+      top_rate: 0.5
+      mid_rate: 0.2
+      first_phase_start: 125000
+      first_phase_ceiling: 183000
+      first_phase_step_amount: 2000
+      second_phase_start: 400000
+      second_phase_ceiling: 438000
+      second_phase_step_amount: 2000
+    2022: {top_rate: 0.35, floor_rate: 0.2, phase_start: 15000, step_amount: 2000}
+  refundable: {1987: false, 2021: true, 2022: false}
+# Child tax credit from 1998 per qualifying child (under 17), and from 2018 the
+# other dependent credit, reduced together by `phaseout_rate_per_1000` per
+# $1,000 of AGI over the threshold. 2021 (ARPA, fully refundable): `enhanced`
+# amounts for children under 6 and 6-16, with the part above
+# `base_amount_offset` reduced by `low_income_phaseout_rate` of AGI over its
+# threshold, up to the cap. The additional (refundable) credit from 2001:
+# `actc_rate` of earned income above the floor, from 2018 at most the refundable
+# amount per child. 2025 per-child amount from P.L. 119-21 sec. 70104.
 child_tax_credit:
-  young_child_amount:  # dep6: qualifying children under 6
-    2021: 3600
-    2022: 3600
-  older_child_amount:  # dep17 - dep6: qualifying children 6-16
-    2021: 3000
-    2022: 3000
-  base_amount_offset:  # ccrmax - base_amount_offset*ideps = "enhanced" amount above the $2000 base
-    2021: 2000
-    2022: 2000
-  enhanced_cap:  # crfile in the source: caps the enhanced amount before the low-income phaseout
-    single: {2021: 6250, 2022: 6250}
-    head_of_household: {2021: 4375, 2022: 4375}
-    married_separate: {2021: 6250, 2022: 6250}
-    married_joint: {2021: 12500, 2022: 12500}
-  low_income_phaseout_threshold:  # thresh: phases the enhanced amount back toward the $2000 base
-    single: {2021: 75000, 2022: 75000}
-    head_of_household: {2021: 112500, 2022: 112500}
-    married_separate: {2021: 75000, 2022: 75000}
-    married_joint: {2021: 150000, 2022: 150000}
-  low_income_phaseout_rate:
-    2021: 0.05
-    2022: 0.05
-  # For lawyr<=2020 (pre-ARPA), the nonrefundable base is a flat per-child
-  # amount with no young/old-child distinction and no low-income phaseout
-  # mechanism at all: precrd = flat_amount_pre2021(year)*ideps + odcred.
-  # Verified against taxsim_2022_10_21.f:25619-25637.
-  flat_amount_pre2021:  # chmax(lawyr): $600/child 2001-2002 (EGTRRA's
-    # original level), JGTRRA accelerated the increase to $1,000 starting
-    # 2003 (originally scheduled for 2010) - confirmed via the source's own
-    # `chmax` array. The Child Tax Credit itself didn't exist before 1998
-    # (TRA1997 created it) - `chmax` has no 1997 entry in the source at all
-    # (dimensioned `chmax(1998:2023)`, and the whole CTC section is gated
-    # `if(lawyr.ge.1998)`) - 0 here reproduces that with no extra code
-    # branch. $400/child for 1998 (its first, partial-phase-in year),
-    # $500/child 1999-2000.
-    1987: 0
-    1988: 0
-    1991: 0
-    1992: 0
-    1993: 0
-    1994: 0
-    1995: 0
-    1996: 0
-    1997: 0
-    1998: 400
-    1999: 500
-    2000: 500
-    2001: 600
-    2002: 600
-    2003: 1000
-    2004: 1000
-    2005: 1000
-    2006: 1000
-    2007: 1000
-    2008: 1000
-    2009: 1000
-    2018: 2000
-    2019: 2000
-    # 2025: $2,200 (OBBBA, P.L. 119-21 sec. 70104; indexed from 2026).
-    2025: 2200
-  # earlim: $8,500 for 2008 specifically (the pre-ARRA level - confirmed
-  # via the source's own `ealim` array, taxsim_2022_10_21.f, genuinely
-  # different from every other year checked so far, not a typo), ARRA
-  # lowered it to $3,000 starting 2009 (made permanent by PATH), TCJA set
-  # it to $2,500 starting 2018.
+  amount_per_child: {1998: 400, 1999: 500, 2001: 600, 2003: 1000, 2018: 2000, 2025: 2200}
+  enhanced:
+    2021:
+      young_child_amount: 3600
+      older_child_amount: 3000
+      base_amount_offset: 2000
+      low_income_phaseout_rate: 0.05
+      enhanced_cap: {single: 6250, married_joint: 12500, married_separate: 6250, head_of_household: 4375}
+      low_income_phaseout_threshold: {single: 75000, married_joint: 150000, married_separate: 75000, head_of_household: 112500}
+    2022: null
+  phaseout_threshold:
+    1987: {single: 75000, married_joint: 110000, married_separate: 55000, head_of_household: 75000}
+    2018: {single: 200000, married_joint: 400000, married_separate: 200000, head_of_household: 200000}
+  phaseout_rate_per_1000: 50
   actc_earned_income_floor:
     2001: 10000
     2002: 10350
@@ -110,269 +61,39 @@ child_tax_credit:
     2008: 8500
     2009: 3000
     2018: 2500
-    2019: 2500
-    2022: 2500
-  actc_rate:  # eapct(2001:2023): 3*.10 (2001-2003) then .15 (2004+) - the
-    # ACTC rate was 10% for 2001-2003, raised to 15% starting 2004 (Working
-    # Families Tax Relief Act of 2004) - confirmed via a live oracle probe
-    # (2003, $15,000 wages, 1 kid: refundable ACTC = $450.00 = 10% of
-    # ($15,000-$10,500), not $675 = 15% of the same).
-    2001: 0.10
-    2002: 0.10
-    2003: 0.10
-    2004: 0.15
-    2005: 0.15
-    2006: 0.15
-    2007: 0.15
-    2008: 0.15
-    2009: 0.15
-    2022: 0.15
-  # refch: 1500 only for lawyr.eq.2022, else 1400 - but this per-child
-  # refundable cap doesn't exist at all pre-2018 (taxsim_2022_10_21.f:
-  # 25924-25928: the lawyr.le.2017 branch is just
-  # chcr1=min(precrd-chcred,tenpct), no refch*ideps term whatsoever) - not
-  # fetched for year<2018 in calculators/federal.py, so no 2017 entry here.
-  actc_max_refundable_per_child:
-    2018: 1400
-    2019: 1400
-    2022: 1500
-    2023: 1600
-    # 2024/2025: Rev. Proc. 2023-34 p.9, Rev. Proc. 2024-40 p.8 - the cap
-    # holds flat at $1,700 both years (confirmed against PolicyEngine-US's
-    # parameters/gov/irs/credits/ctc/refundable/individual_max.yaml).
-    2024: 1700
-    2025: 1700
-  # Pre-2018: no Credit for Other Dependents at all (TCJA introduced it) -
-  # CTC alone phases out above a FLAT, never-inflation-indexed threshold
-  # that was unchanged 2001-2017 (the `cphas` array,
-  # taxsim_2022_10_21.f:29040 - NOT the $200k/$400k TCJA-era ODC/CTC
-  # combined threshold in other_dependent_credit above). Same 5%-per-$1000
-  # reduction rate as the TCJA-era phaseout - taxsim_2022_10_21.f:24696-24710.
-  pre2018_phaseout_threshold:
-    single: {1987: 75000, 1988: 75000, 1991: 75000, 1992: 75000, 1993: 75000, 1994: 75000, 1995: 75000, 1996: 75000, 1997: 75000, 1998: 75000, 1999: 75000, 2000: 75000, 2001: 75000, 2002: 75000, 2003: 75000, 2004: 75000, 2005: 75000, 2006: 75000, 2007: 75000, 2008: 75000, 2009: 75000}
-    head_of_household: {1987: 75000, 1988: 75000, 1991: 75000, 1992: 75000, 1993: 75000, 1994: 75000, 1995: 75000, 1996: 75000, 1997: 75000, 1998: 75000, 1999: 75000, 2000: 75000, 2001: 75000, 2002: 75000, 2003: 75000, 2004: 75000, 2005: 75000, 2006: 75000, 2007: 75000, 2008: 75000, 2009: 75000}
-    married_separate: {1987: 55000, 1988: 55000, 1991: 55000, 1992: 55000, 1993: 55000, 1994: 55000, 1995: 55000, 1996: 55000, 1997: 55000, 1998: 55000, 1999: 55000, 2000: 55000, 2001: 55000, 2002: 55000, 2003: 55000, 2004: 55000, 2005: 55000, 2006: 55000, 2007: 55000, 2008: 55000, 2009: 55000}
-    married_joint: {1987: 110000, 1988: 110000, 1991: 110000, 1992: 110000, 1993: 110000, 1994: 110000, 1995: 110000, 1996: 110000, 1997: 110000, 1998: 110000, 1999: 110000, 2000: 110000, 2001: 110000, 2002: 110000, 2003: 110000, 2004: 110000, 2005: 110000, 2006: 110000, 2007: 110000, 2008: 110000, 2009: 110000}
-  pre2018_phaseout_rate_per_1000:
-    1987: 50
-    1994: 50
-    1995: 50
-    1996: 50
-    1997: 50
-    1998: 50
-    1999: 50
-    2000: 50
-    2001: 50
-    2002: 50
-    2003: 50
-    2004: 50
-    2005: 50
-    2006: 50
-    2007: 50
-    2008: 50
-    2009: 50
-
-# Child and Dependent Care Credit, nonrefundable (confirmed empirically:
-# taxsim2022.exe caps it exactly at regular tax - the source's own "2021
-# chcr is refundable" comment does not carry over to 2022 despite the
-# 2021-style expanded rate/expense-cap schedule below applying to 2022 too,
-# per taxsim_2022_10_21.f:25486-25525).
-child_care_credit:
-  max_qualifying_persons:  # ncccr cap - unchanged across all years
-    1987: 2
-    1994: 2
-    1995: 2
-    1996: 2
-    1997: 2
-    1998: 2
-    1999: 2
-    2000: 2
-    2001: 2
-    2002: 2
-    2003: 2
-    2004: 2
-    2005: 2
-    2006: 2
-    2007: 2
-    2008: 2
-    2009: 2
-    2022: 2
-  max_expense_per_person:
-    2021: 8000
-    2022: 8000
-  # Rate is a step-down formula, not a smooth interpolation - it really is
-  # discontinuous at the two upper thresholds exactly as coded (e.g. at
-  # AGI=183000 the phase-down formula gives 21%, but AGI=183000.01 gets a
-  # flat 20% - a small real jump in the source, not a rounding artifact).
-  # rate = top_rate - max(0, (agi - phase_start)/step_amount * step_rate),
-  # floored at floor_rate, for agi <= phase_ceiling; else flat_rate below
-  # the ceiling or 0 above it. See calculators/federal.py for the exact
-  # piecewise structure (taxsim_2022_10_21.f:25519-25530).
-  first_phase_start:
-    2021: 125000
-    2022: 125000
-  first_phase_ceiling:
-    2021: 183000
-    2022: 183000
-  first_phase_step_amount:
-    2021: 2000
-    2022: 2000
-  top_rate:
-    2021: 0.5
-    2022: 0.5
-  mid_rate:
-    2021: 0.2
-    2022: 0.2
-  second_phase_start:
-    2021: 400000
-    2022: 400000
-  second_phase_ceiling:
-    2021: 438000
-    2022: 438000
-  second_phase_step_amount:
-    2021: 2000
-    2022: 2000
-
-  # For lawyr 2003-2020 (pre-2021), the credit uses a completely different
-  # shape: a single continuous step-down from a 35% ceiling to a 20% floor
-  # (1 percentage point per $2000 of AGI above $15,000), which the floor
-  # holds forever - it never phases down further or reaches 0%. There is
-  # no $400k-income second phase-down at all in this era.
-  # rate = max(floor_rate, top_rate - max(0, (agi-phase_start)/step_amount)*0.01)
-  # Verified against taxsim_2022_10_21.f:25488-25525.
-  #
-  # 2001-2002 (pre-EGTRRA-2003-expansion) used a SMALLER, genuinely
-  # different version of this same shape: $2,400/person expense cap (not
-  # $3,000), 30% ceiling (not 35%), and the step-down started at $10,000 of
-  # AGI (not $15,000) - taxsim_2022_10_21.f:25489-25497 (`if(lawyr.le.2002)
-  # child = min(data(64),2400.0*ncccr) ... chr = .01*max(20.,30.-
-  # max((agi-10000.)/2000.,0.))`).
-  max_expense_per_person_pre2021:
-    1987: 2400
-    1994: 2400
-    1995: 2400
-    1996: 2400
-    1997: 2400
-    1998: 2400
-    1999: 2400
-    2000: 2400
-    2001: 2400
-    2002: 2400
-    2003: 3000
-    2004: 3000
-    2005: 3000
-    2006: 3000
-    2007: 3000
-    2008: 3000
-    2009: 3000
-  pre2021_rate_top:
-    1987: 0.30
-    1994: 0.30
-    1995: 0.30
-    1996: 0.30
-    1997: 0.30
-    1998: 0.30
-    1999: 0.30
-    2000: 0.30
-    2001: 0.30
-    2002: 0.30
-    2003: 0.35
-    2004: 0.35
-    2005: 0.35
-    2006: 0.35
-    2007: 0.35
-    2008: 0.35
-    2009: 0.35
-  pre2021_rate_floor:
-    1987: 0.20
-    1994: 0.20
-    1995: 0.20
-    1996: 0.20
-    1997: 0.20
-    1998: 0.20
-    1999: 0.20
-    2000: 0.20
-    2001: 0.20
-    2002: 0.20
-    2003: 0.20
-    2004: 0.20
-    2005: 0.20
-    2006: 0.20
-    2007: 0.20
-    2008: 0.20
-    2009: 0.20
-  pre2021_phase_start:
-    1987: 10000
-    1994: 10000
-    1995: 10000
-    1996: 10000
-    1997: 10000
-    1998: 10000
-    1999: 10000
-    2000: 10000
-    2001: 10000
-    2002: 10000
-    2003: 15000
-    2004: 15000
-    2005: 15000
-    2006: 15000
-    2007: 15000
-    2008: 15000
-    2009: 15000
-  pre2021_step_amount:
-    1987: 2000
-    1994: 2000
-    1995: 2000
-    1996: 2000
-    1997: 2000
-    1998: 2000
-    1999: 2000
-    2000: 2000
-    2001: 2000
-    2002: 2000
-    2003: 2000
-    2004: 2000
-    2005: 2000
-    2006: 2000
-    2007: 2000
-    2008: 2000
-    2009: 2000
-
-# 2020-2021 Recovery Rebate Credits (taxsim_2022_10_21.f:26055-26089).
-# Amounts per adult and per child (`dep13` in 2020, all dependents in
-# 2021); 2020 payments fall by `phaseout_rate` of AGI above the start, 2021
-# phases out linearly between start and end.
+  actc_rate: {2001: 0.1, 2004: 0.15}
+  actc_max_refundable_per_child: {2018: 1400, 2022: 1500, 2023: 1600, 2024: 1700}
+# Other dependent credit from 2018 per dependent not eligible for the child tax
+# credit (phased out with it).
+other_dependent_credit:
+  amount: {2018: 500}
+# 2020-2021 recovery rebate credits per adult and per child (2020 children under
+# 13, 2021 all dependents). 2020 each payment falls by `phaseout_rate` of AGI
+# above the start; 2021 phases out linearly between start and end.
 recovery_rebate:
-  phaseout_start:
-    single: 75000
-    married_joint: 150000
-    head_of_household: 112500
-    married_separate: 75000
-  phaseout_rate_2020: 0.05
-  phaseout_end_2021:
-    single: 80000
-    married_joint: 160000
-    head_of_household: 120000
-    married_separate: 80000
-  payments_2020:
-    - {per_adult: 1200, per_child: 500}
-    - {per_adult: 600, per_child: 600}
-  payment_2021: {per_adult: 1400, per_dependent: 1400}
-
-# 2009-2010 Making Work Pay Credit, per taxpayer: a rate on earned income up
-# to the maximum, less a rate on AGI above the start, none at the ceiling,
-# less Social Security benefits up to the offset.
+  2020:
+    phaseout_start: {single: 75000, married_joint: 150000, head_of_household: 112500, married_separate: 75000}
+    phaseout_rate: 0.05
+    payments: [{per_adult: 1200, per_child: 500}, {per_adult: 600, per_child: 600}]
+  2021:
+    phaseout_start: {single: 75000, married_joint: 150000, head_of_household: 112500, married_separate: 75000}
+    phaseout_end: {single: 80000, married_joint: 160000, head_of_household: 120000, married_separate: 80000}
+    payment: {per_adult: 1400, per_dependent: 1400}
+  2022: null
+# 2009-2010 Making Work Pay credit per taxpayer: a rate on earned income up to
+# the maximum, less a rate on AGI above the start, none at the ceiling, less
+# Social Security benefits up to the offset.
 making_work_pay:
-  rate: 0.062
-  max_credit: 400
-  phaseout_start: 75000
-  phaseout_rate: 0.02
-  income_ceiling: 95000
-  benefit_offset: 250
-
-# 2006 Telephone Excise Tax refund (taxsim_2022_10_21.f:26051-26054): per
-# exemption up to a maximum, plus a flat amount.
+  2009:
+    rate: 0.062
+    max_credit: 400
+    phaseout_start: 75000
+    phaseout_rate: 0.02
+    income_ceiling: 95000
+    benefit_offset: 250
+  2011: null
+# 2006 telephone excise tax refund: an amount per exemption up to a maximum,
+# plus `base_exemptions` more.
 telephone_excise_credit:
-  per_exemption: 10
-  max_exemptions: 4
-  base_exemptions: 2
+  2006: {per_exemption: 10, max_exemptions: 4, base_exemptions: 2}
+  2007: null

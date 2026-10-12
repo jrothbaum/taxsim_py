@@ -1,31 +1,159 @@
-# Minnesota individual income tax (`mntax`, `mncred`, `crmarr1`, `mnrate`;
-# taxsim_2024_09_21.f:9235-11080, state id 24). Year tables are the
-# source's DATA statements with repeat counts expanded, forward-filled.
+# Minnesota individual income tax.
 #
-# Not TAXSIM inputs, so always zero: blindness, charitable, medical and
-# casualty amounts, political contributions (`data(65)`), IRA/Keogh, the
-# energy credit and tuition (the education credit).
+# Sources: 1977-2021 NBER TAXSIM (`mntax`, `mncred`, `crmarr1`, `mnrate`); 2022
+# on, Minn. Stat. Chapter 290, M1 instructions and PolicyEngine-US
+# `gov.states.mn.tax.income`. Not modeled (no TAXSIM input): blindness,
+# charitable, medical and casualty amounts, political contributions,
+# IRA/Keogh, the energy credit and the education credit.
 
-# --- Rate schedules (start, rate) and their inflation factors ---
-brackets_1977_1984_base:  # `tb77`; the top two rates are set by year below
-  - [0, 0.016]
-  - [500, 0.022]
-  - [1000, 0.035]
-  - [2000, 0.058]
-  - [3000, 0.073]
-  - [4000, 0.088]
-  - [5000, 0.102]
-  - [7000, 0.115]
-  - [9000, 0.128]
-  - [12500, 0.14]
-  - [20000, 0.15]
-  - [27500, 0.0]
-  - [40000, 0.0]
-brackets_1977_1984_top_rates:  # rates for the $27,500 and $40,000 brackets
-  1977: [0.15, 0.15]
-  1978: [0.16, 0.17]
-  1980: [0.16, 0.16]
-brackets_1977_1998_inflation:  # `aif`
+# Statutory mode uses actual law through this year.
+law_coded_through: 2025
+
+# Rate schedules, [start of bracket, rate], with starts times
+# `bracket_inflation`. Through 1984 one schedule; 1985-1986 schedule A without
+# the federal tax deduction and B with it, the lower tax winning; from 1987 by
+# class (separate returns: from 1999 half the joint schedule on twice their
+# income). Source for 2022 on: PolicyEngine-US gov.states.mn.tax.income.rates.
+brackets:
+  1977:
+    - [0, 0.016]
+    - [500, 0.022]
+    - [1000, 0.035]
+    - [2000, 0.058]
+    - [3000, 0.073]
+    - [4000, 0.088]
+    - [5000, 0.102]
+    - [7000, 0.115]
+    - [9000, 0.128]
+    - [12500, 0.14]
+    - [20000, 0.15]
+    - [27500, 0.15]
+    - [40000, 0.15]
+  1978:
+    - [0, 0.016]
+    - [500, 0.022]
+    - [1000, 0.035]
+    - [2000, 0.058]
+    - [3000, 0.073]
+    - [4000, 0.088]
+    - [5000, 0.102]
+    - [7000, 0.115]
+    - [9000, 0.128]
+    - [12500, 0.14]
+    - [20000, 0.15]
+    - [27500, 0.16]
+    - [40000, 0.17]
+  1980:
+    - [0, 0.016]
+    - [500, 0.022]
+    - [1000, 0.035]
+    - [2000, 0.058]
+    - [3000, 0.073]
+    - [4000, 0.088]
+    - [5000, 0.102]
+    - [7000, 0.115]
+    - [9000, 0.128]
+    - [12500, 0.14]
+    - [20000, 0.15]
+    - [27500, 0.16]
+    - [40000, 0.16]
+  1985:
+    single_a:
+      - [0, 0.01]
+      - [300, 0.016]
+      - [600, 0.016]
+      - [900, 0.021]
+      - [1300, 0.027]
+      - [2000, 0.037]
+      - [2800, 0.045]
+      - [4300, 0.061]
+      - [6400, 0.075]
+      - [9400, 0.093]
+      - [16200, 0.099]
+    single_b:
+      - [0, 0.013]
+      - [700, 0.019]
+      - [1400, 0.032]
+      - [2800, 0.054]
+      - [4300, 0.069]
+      - [5700, 0.084]
+      - [7100, 0.098]
+      - [9900, 0.111]
+      - [12800, 0.124]
+      - [15400, 0.136]
+      - [19400, 0.14]
+    joint_a:
+      - [0, 0.017]
+      - [1200, 0.021]
+      - [1700, 0.023]
+      - [2700, 0.033]
+      - [5600, 0.053]
+      - [9100, 0.068]
+      - [12600, 0.085]
+      - [17800, 0.093]
+      - [30800, 0.099]
+    joint_b:
+      - [0, 0.015]
+      - [875, 0.02]
+      - [1750, 0.029]
+      - [3500, 0.048]
+      - [5375, 0.059]
+      - [7000, 0.061]
+      - [7125, 0.072]
+      - [8875, 0.083]
+      - [12375, 0.093]
+      - [14000, 0.1]
+      - [16000, 0.11]
+      - [21500, 0.113]
+      - [22125, 0.123]
+      - [25500, 0.126]
+      - [28500, 0.137]
+      - [31750, 0.14]
+  1987:
+    single: [[0, 0.04], [3000, 0.06], [7500, 0.08], [16000, 0.09]]
+    joint: [[0, 0.04], [4000, 0.06], [11000, 0.08], [21000, 0.09]]
+    head_of_household: [[0, 0.04], [3500, 0.06], [9250, 0.08], [18500, 0.09]]
+  1988:
+    single: [[0, 0.06], [13000, 0.08], [42800, 0.085], [93000, 0.09]]
+    joint: [[0, 0.06], [19000, 0.08], [75500, 0.085], [165000, 0.09]]
+    head_of_household: [[0, 0.06], [16000, 0.08], [64300, 0.085], [135000, 0.09]]
+  1991:
+    single: [[0, 0.06], [13700, 0.08], [45000, 0.085]]
+    joint: [[0, 0.06], [20000, 0.08], [79120, 0.085]]
+    head_of_household: [[0, 0.06], [16800, 0.08], [67390, 0.085]]
+  1999:
+    single: [[0, 0.055], [17250, 0.0725], [56680, 0.08]]
+    joint: [[0, 0.055], [25220, 0.0725], [100200, 0.08]]
+    head_of_household: [[0, 0.055], [21240, 0.0725], [85350, 0.08]]
+  2000:
+    single: [[0, 0.0535], [17570, 0.0705], [57710, 0.0785]]
+    joint: [[0, 0.0535], [25680, 0.0705], [102030, 0.0785]]
+    head_of_household: [[0, 0.0535], [21630, 0.0705], [86910, 0.0785]]
+  2013:
+    single: [[0, 0.0535], [24210, 0.0705], [79730, 0.0785], [150000, 0.0985]]
+    joint: [[0, 0.0535], [35480, 0.0705], [140960, 0.0785], [250000, 0.0985]]
+    head_of_household: [[0, 0.0535], [29880, 0.0705], [120070, 0.0785], [200000, 0.0985]]
+  2019:
+    single: [[0, 0.0535], [26520, 0.068], [87110, 0.0785], [161720, 0.0985]]
+    joint: [[0, 0.0535], [38770, 0.068], [154020, 0.0785], [269010, 0.0985]]
+    head_of_household: [[0, 0.0535], [32650, 0.068], [131190, 0.0785], [214980, 0.0985]]
+  2022:
+    single: [[0, 0.0535], [28080, 0.068], [92230, 0.0785], [171220, 0.0985]]
+    joint: [[0, 0.0535], [41050, 0.068], [163060, 0.0785], [284810, 0.0985]]
+    head_of_household: [[0, 0.0535], [34570, 0.068], [138890, 0.0785], [227600, 0.0985]]
+  2023:
+    single: [[0, 0.0535], [30070, 0.068], [98760, 0.0785], [183340, 0.0985]]
+    joint: [[0, 0.0535], [43950, 0.068], [174610, 0.0785], [304970, 0.0985]]
+    head_of_household: [[0, 0.0535], [37010, 0.068], [148730, 0.0785], [243720, 0.0985]]
+  2024:
+    single: [[0, 0.0535], [31690, 0.068], [104690, 0.0785], [193240, 0.0985]]
+    joint: [[0, 0.0535], [46330, 0.068], [184040, 0.0785], [321450, 0.0985]]
+    head_of_household: [[0, 0.0535], [39690, 0.068], [156760, 0.0785], [256880, 0.0985]]
+  2025:
+    single: [[0, 0.0535], [32570, 0.068], [106990, 0.0785], [198630, 0.0985]]
+    joint: [[0, 0.0535], [47620, 0.068], [189180, 0.0785], [330410, 0.0985]]
+    head_of_household: [[0, 0.0535], [40100, 0.068], [161130, 0.0785], [264050, 0.0985]]
+bracket_inflation:
   1977: 1.0
   1979: 1.1011
   1980: 1.196
@@ -43,84 +171,7 @@ brackets_1977_1998_inflation:  # `aif`
   1996: 1.18
   1997: 1.212
   1998: 1.238
-surtax:  # multiplier on tax through 1983
-  1977: 1.0
-  1982: 1.07
-  1983: 1.10
-# 1985-1986: schedule A applies without the federal tax deduction and
-# schedule B with it; the lower tax wins.
-brackets_1985_1986_single_a:
-  - [0, 0.01]
-  - [300, 0.016]
-  - [600, 0.016]
-  - [900, 0.021]
-  - [1300, 0.027]
-  - [2000, 0.037]
-  - [2800, 0.045]
-  - [4300, 0.061]
-  - [6400, 0.075]
-  - [9400, 0.093]
-  - [16200, 0.099]
-brackets_1985_1986_single_b:
-  - [0, 0.013]
-  - [700, 0.019]
-  - [1400, 0.032]
-  - [2800, 0.054]
-  - [4300, 0.069]
-  - [5700, 0.084]
-  - [7100, 0.098]
-  - [9900, 0.111]
-  - [12800, 0.124]
-  - [15400, 0.136]
-  - [19400, 0.14]
-brackets_1985_1986_joint_a:
-  - [0, 0.017]
-  - [1200, 0.021]
-  - [1700, 0.023]
-  - [2700, 0.033]
-  - [5600, 0.053]
-  - [9100, 0.068]
-  - [12600, 0.085]
-  - [17800, 0.093]
-  - [30800, 0.099]
-brackets_1985_1986_joint_b:
-  - [0, 0.015]
-  - [875, 0.02]
-  - [1750, 0.029]
-  - [3500, 0.048]
-  - [5375, 0.059]
-  - [7000, 0.061]
-  - [7125, 0.072]
-  - [8875, 0.083]
-  - [12375, 0.093]
-  - [14000, 0.10]
-  - [16000, 0.11]
-  - [21500, 0.113]
-  - [22125, 0.123]
-  - [25500, 0.126]
-  - [28500, 0.137]
-  - [31750, 0.14]
-brackets_1987:
-  single: [[0, 0.04], [3000, 0.06], [7500, 0.08], [16000, 0.09]]
-  joint: [[0, 0.04], [4000, 0.06], [11000, 0.08], [21000, 0.09]]
-  head_of_household: [[0, 0.04], [3500, 0.06], [9250, 0.08], [18500, 0.09]]
-brackets_1988_1990:
-  single: [[0, 0.06], [13000, 0.08], [42800, 0.085], [93000, 0.09]]
-  joint: [[0, 0.06], [19000, 0.08], [75500, 0.085], [165000, 0.09]]
-  head_of_household: [[0, 0.06], [16000, 0.08], [64300, 0.085], [135000, 0.09]]
-brackets_1991_1998:  # times `brackets_1977_1998_inflation`
-  single: [[0, 0.06], [13700, 0.08], [45000, 0.085]]
-  joint: [[0, 0.06], [20000, 0.08], [79120, 0.085]]
-  head_of_household: [[0, 0.06], [16800, 0.08], [67390, 0.085]]
-brackets_1999:
-  single: [[0, 0.055], [17250, 0.0725], [56680, 0.08]]
-  joint: [[0, 0.055], [25220, 0.0725], [100200, 0.08]]
-  head_of_household: [[0, 0.055], [21240, 0.0725], [85350, 0.08]]
-brackets_2000_2012:  # times `brackets_2000_2012_inflation`
-  single: [[0, 0.0535], [17570, 0.0705], [57710, 0.0785]]
-  joint: [[0, 0.0535], [25680, 0.0705], [102030, 0.0785]]
-  head_of_household: [[0, 0.0535], [21630, 0.0705], [86910, 0.0785]]
-brackets_2000_2012_inflation:  # `aif00`
+  1999: 1.0
   2000: 1.0
   2001: 1.032
   2002: 1.065
@@ -134,15 +185,6 @@ brackets_2000_2012_inflation:  # `aif00`
   2010: 1.2959
   2011: 1.315
   2012: 1.34696
-brackets_2013_2018:  # times `brackets_2013plus_inflation`
-  single: [[0, 0.0535], [24210, 0.0705], [79730, 0.0785], [150000, 0.0985]]
-  joint: [[0, 0.0535], [35480, 0.0705], [140960, 0.0785], [250000, 0.0985]]
-  head_of_household: [[0, 0.0535], [29880, 0.0705], [120070, 0.0785], [200000, 0.0985]]
-brackets_2019plus:
-  single: [[0, 0.0535], [26520, 0.068], [87110, 0.0785], [161720, 0.0985]]
-  joint: [[0, 0.0535], [38770, 0.068], [154020, 0.0785], [269010, 0.0985]]
-  head_of_household: [[0, 0.0535], [32650, 0.068], [131190, 0.0785], [214980, 0.0985]]
-brackets_2013plus_inflation:  # `aif13`
   2013: 1.0
   2014: 1.0168
   2015: 1.033
@@ -152,53 +194,77 @@ brackets_2013plus_inflation:  # `aif13`
   2019: 1.0
   2020: 1.0165
   2021: 1.0267722
+  2022: 1.0
+# Multiplier on the tax through 1983.
+surtax: {1977: 1.0, 1982: 1.07, 1983: 1.1, 1984: null}
 
 # --- Income ---
-capital_gains_addback_rate_1979_1982: {1979: 0.1}
-# Federal tax deduction (through 1984): self-employment tax share excluded
-# (`seless`) and its cap (`semax`).
-federal_tax_se_share:
-  1977: 0.75
-  1979: 0.76
-  1981: 1.0
-  1983: 0.75
-  1986: 0.60
-  1987: 1.0
-federal_tax_se_cap:
-  1977: 1.0e+20
-  1978: 358.43
-  1979: 445.18
-  1980: 503.5
-  1981: 1.0e+20
+# 1979-1982: this share of capital gains is added back.
+capital_gains_addback_rate: {1979: 0.1, 1983: null}
+# Federal income tax is deductible through 1986 (subtracted from income
+# through 1984), less this share of self-employment tax and the rest above
+# `federal_tax_se_cap`, scaled by Minnesota over federal AGI.
+federal_tax_se_share: {1977: 0.75, 1979: 0.76, 1981: 1.0, 1983: 0.75, 1986: 0.6, 1987: null}
+federal_tax_se_cap: {1977: 1.0e+20, 1978: 358.43, 1979: 445.18, 1980: 503.5, 1981: 1.0e+20}
+# Pension exclusion through 1986: up to the maximum, reduced dollar for dollar
+# by federal AGI over the threshold; 1985-1986 only for taxpayers 65 or older.
+pension_exclusion_max: {1977: 0, 1978: 7200, 1979: 10000, 1980: 11000, 1987: null}
+pension_exclusion_income_threshold: {1977: 0, 1978: 13000, 1979: 17000}
+# From 1999 nonitemizers subtract this share of charitable contributions over the floor.
+charity_subtraction_rate: {1999: 0.5}
+charity_subtraction_floor: {1999: 500}
+# 2020: the federal nonitemizer charitable deduction is added back.
+charity_nonitemizer_addback: {2020: 300, 2021: null}
+# Subtraction for the elderly (1988-2016, and from 2022 under current law): an
+# amount less nontaxable Social Security and `elderly_subtraction_reduction_rate`
+# of federal AGI over a start, for federal AGI up to a limit. Lists are [joint
+# both 65+, joint one 65+, single or head of household, married separate].
+elderly_subtraction:
+  1988:
+    income_limit: [35000, 32000, 28000, 17500]
+    amount: [10000, 10000, 8000, 5000]
+    reduction_start: [15000, 12000, 12000, 7500]
+  1994:
+    income_limit: [42000, 38500, 33700, 21000]
+    amount: [12000, 12000, 9600, 6000]
+    reduction_start: [18000, 14500, 14500, 9000]
+  2017: null
+  2022:
+    income_limit: [42000, 38500, 33700, 21000]
+    amount: [12000, 12000, 9600, 6000]
+    reduction_start: [18000, 14500, 14500, 9000]
+elderly_subtraction_reduction_rate: 0.5
+# From 2017 the Social Security subtraction: up to a maximum, less
+# `phaseout_rate` of provisional income (federal AGI less taxable benefits
+# plus `benefit_share` of all benefits) over a threshold; married amounts
+# halved on separate returns.
+social_security_subtraction_threshold:
+  single: {2017: 60200, 2018: 61400, 2019: 61080, 2020: 62090, 2021: 62710}
+  married: {2017: 77000, 2018: 78530, 2019: 78180, 2020: 79480, 2021: 80270}
+social_security_subtraction_max:
+  single: {2017: 3500, 2019: 4020, 2020: 4090, 2021: 4130}
+  married: {2017: 4500, 2019: 5150, 2020: 5240, 2021: 5950}
+social_security_subtraction_benefit_share: 0.5
+social_security_subtraction_phaseout_rate: 0.2
 
-# --- Standard deduction ---
-standard_deduction_pct_pre1987: {1977: 0.1}
-standard_deduction_cap_pre1987:  # before `stdaif` inflation
-  1977: 1000
-  1979: 2000
-standard_deduction_inflation_pre1987:  # `stdaif`
-  1977: 1.0
-  1981: 1.103
-  1982: 1.125
-  1983: 1.135
-  1984: 1.150
-  1985: 1.20
-  1986: 1.25
-# Married reductions of the federal amount (Minnesota did not adopt the
-# federal increases), divided by `sep` for married filing separately.
-standard_deduction_married_reduction:
-  2005: 1300
-  2006: 0
-  2011: 1950
-  2012: 2000
-  2013: 2050
-  2014: 0
-standard_deduction_2018:
-  single: 6500
-  married_joint: 13000
-  married_separate: 6500
-  head_of_household: 9550
-# `stnd(law,1..3)`: single, married joint, head of household.
+# --- Deductions ---
+# Through 1986: a share of AGI up to the cap times its inflation factor (from
+# 1985 halved on separate returns). 1987-2017 the federal standard deduction
+# less `standard_deduction_married_reduction` from 2005 for married returns.
+standard_deduction_percent: {1977: 0.1, 1987: null}
+standard_deduction_cap: {1977: 1000, 1979: 2000, 1987: null}
+standard_deduction_cap_inflation: {1977: 1.0, 1981: 1.103, 1982: 1.125, 1983: 1.135, 1984: 1.15, 1985: 1.2, 1986: 1.25}
+standard_deduction_married_reduction: {2005: 1300, 2006: 0, 2011: 1950, 2012: 2000, 2013: 2050, 2014: 0, 2018: null}
+# 2018: by filing status, plus an amount per taxpayer 65 or older.
+standard_deduction_by_status:
+  2018: {single: 6500, married_joint: 13000, married_separate: 6500, head_of_household: 9550}
+  2019: null
+standard_deduction_aged_addition_by_status:
+  2018: {single: 1600, married_joint: 1300, married_separate: 1300, head_of_household: 1600}
+  2019: null
+# From 2019 (and for the state tax addback from 1988): by filing status, plus
+# `standard_deduction_aged_addition` per taxpayer 65 or older, halved on
+# separate returns. From 2022 reduced as AGI rises (`phaseout_schedule`).
 standard_deduction_table:
   single:
     1988: 3000
@@ -305,8 +371,6 @@ standard_deduction_table:
     2016: 9300
     2017: 9350
     2018: 9550
-    # TAXSIM's table repeats the single amounts for 2019-2021; Minnesota
-    # law (conformed to the federal amounts) is used instead.
     2019: 18350
     2020: 18650
     2021: 18800
@@ -314,9 +378,62 @@ standard_deduction_table:
     2023: 20800
     2024: 21900
     2025: 22500
+standard_deduction_aged_addition:
+  single:
+    1988: 750
+    1990: 800
+    1991: 850
+    1992: 900
+    1994: 950
+    1996: 1000
+    1998: 1050
+    2001: 1100
+    2002: 1150
+    2004: 1200
+    2005: 1250
+    2007: 1300
+    2008: 1350
+    2009: 1400
+    2011: 1450
+    2013: 1500
+    2014: 1550
+    2018: 1600
+    2019: 1650
+    2022: 1700
+    2023: 1850
+    2024: 1950
+    2025: 2000
+  married:
+    1988: 600
+    1990: 650
+    1992: 700
+    1994: 750
+    1996: 800
+    1998: 850
+    2001: 900
+    2003: 950
+    2005: 1000
+    2007: 1050
+    2009: 1100
+    2011: 1150
+    2013: 1200
+    2015: 1250
+    2018: 1300
+    2022: 1350
+    2023: 1450
+    2024: 1550
+    2025: 1600
+# From 2018 a dependent filer's standard deduction is at most the larger of this
+# and earned income plus the addition.
+dependent_standard_deduction_floor: {2018: 1050}
+dependent_standard_deduction_earned_addition: {2018: 350}
+# From 2018 state and local taxes are deductible up to this amount (halved on
+# separate returns).
+salt_cap: {2018: 10000}
 
-# --- Exemptions (2013+) ---
-# TAXSIM's `/fed/` exemption table (`exem`), which continues past 2017.
+# --- Exemptions and phaseouts ---
+# Exemption per federal exemption from 2013 (per dependent from 2019); through
+# 2012 the federal exemption amount; none for dependent filers.
 exemption_amount:
   1987: 1900
   1988: 1950
@@ -355,7 +472,7 @@ exemption_amount:
   2023: 4800
   2024: 5050
   2025: 5200
-# TAXSIM's `/fed/` married-joint standard deduction (`zbrack(2,law)`).
+# The federal joint standard deduction (read by the marriage credit through 2017).
 federal_joint_standard_deduction:
   1987: 3760
   1988: 5000
@@ -390,8 +507,10 @@ federal_joint_standard_deduction:
   2019: 24400
   2020: 24800
   2021: 25100
-# Exemption and itemized-deduction phaseout threshold base (`aif91`
-# inflation of $100,000; times 1.25 head of household, 1.5 married).
+# From 2013 exemptions fall by `exemption_phaseout_rate` per `exemption_phaseout_step`
+# (halved on separate returns) of federal AGI above the threshold base times
+# `phaseout_inflation` and the status multiplier; itemized deductions by
+# `itemized_phaseout_rate` of the excess, at most `itemized_phaseout_max_share`.
 phaseout_threshold_base: {2013: 100000}
 phaseout_inflation:
   2013: 1.7815
@@ -399,48 +518,84 @@ phaseout_inflation:
   2015: 1.84
   2016: 1.8485
   2017: 1.8635
-  2018: 1.9050
+  2018: 1.905
   2019: 1.9465
   2020: 1.9785
   2021: 1.9985
-  # 2022+: PolicyEngine-US gov.states.mn.tax.income.exemptions.agi_threshold (single) / 100,000.
   2022: 2.0605
   2023: 2.2065
   2024: 2.3255
   2025: 2.3905
-phaseout_multiplier:
-  single: 1.0
-  married_joint: 1.5
-  married_separate: 1.5
-  head_of_household: 1.25
+phaseout_multiplier: {single: 1.0, married_joint: 1.5, married_separate: 1.5, head_of_household: 1.25}
 exemption_phaseout_rate: {2011: 0.02}
 exemption_phaseout_step: {2011: 2500}
 itemized_phaseout_rate: {2011: 0.03}
 itemized_phaseout_max_share: {2011: 0.8}
-salt_cap: {2018: 10000}
-# 2011-2013 Schedule M1M addbacks of the itemized-deduction and exemption
-# amounts prior federal law would have limited (`ph`); the exemption
-# addback is complete once AGI exceeds the threshold by `range`.
-m1m_addback_threshold:
-  2011: 169550
-  2012: 173650
-  2013: 178150
-m1m_exemption_phaseout_range: {2011: 122500}
-# 1999+: nonitemizers subtract half of charitable contributions over $500.
-charity_subtraction_rate: {1999: 0.5}
-charity_subtraction_floor: {1999: 500}
-# 2020: the federal nonitemizer charitable deduction is added back.
-charity_nonitemizer_addback: {2020: 300}
+# From 2022: exemptions fall `step_fraction` per step above the start; the
+# standard or itemized deduction falls by the lesser of `alternate_rate` of it
+# and the AGI-based reduction. Source: PolicyEngine-US gov.states.mn.tax.income.
+phaseout_schedule:
+  2022:
+    low_rate: 0.03
+    high_rate: 0.1
+    alternate_rate: 0.8
+    alternate_applies: false
+    alternate_income: 1000000
+    step_fraction: 0.02
+    low: {single: 206050, married_joint: 206050, married_separate: 103025, head_of_household: 206050}
+    high: {single: 304970, married_joint: 304970, married_separate: 152485, head_of_household: 304970}
+    exemption_start: {single: 206050, married_joint: 309050, married_separate: 154525, head_of_household: 257550}
+    exemption_step: {single: 2500, married_joint: 2500, married_separate: 1250, head_of_household: 2500}
+    itemized_low_equals_standard: true
+  2023:
+    low_rate: 0.03
+    high_rate: 0.1
+    alternate_rate: 0.8
+    alternate_applies: true
+    alternate_income: 1000000
+    step_fraction: 0.02
+    low: {single: 220650, married_joint: 220650, married_separate: 110325, head_of_household: 220650}
+    high: {single: 304970, married_joint: 304970, married_separate: 152485, head_of_household: 304970}
+    exemption_start: {single: 220650, married_joint: 330950, married_separate: 165475, head_of_household: 275800}
+    exemption_step: {single: 2500, married_joint: 2500, married_separate: 1250, head_of_household: 2500}
+    itemized_low_equals_standard: true
+  2024:
+    low_rate: 0.03
+    high_rate: 0.1
+    alternate_rate: 0.8
+    alternate_applies: true
+    alternate_income: 1053750
+    step_fraction: 0.02
+    low: {single: 232500, married_joint: 232500, married_separate: 116250, head_of_household: 232500}
+    high: {single: 321350, married_joint: 321350, married_separate: 160675, head_of_household: 321350}
+    exemption_start: {single: 232550, married_joint: 348850, married_separate: 174425, head_of_household: 290700}
+    exemption_step: {single: 2500, married_joint: 2500, married_separate: 1250, head_of_household: 2500}
+    itemized_low_equals_standard: true
+  2025:
+    low_rate: 0.03
+    high_rate: 0.1
+    alternate_rate: 0.8
+    alternate_applies: true
+    alternate_income: 1083150
+    step_fraction: 0.02
+    low: {single: 238950, married_joint: 238950, married_separate: 119475, head_of_household: 238950}
+    high: {single: 330300, married_joint: 330300, married_separate: 165150, head_of_household: 330300}
+    exemption_start: {single: 239050, married_joint: 358550, married_separate: 179275, head_of_household: 298800}
+    exemption_step: {single: 2500, married_joint: 2500, married_separate: 1250, head_of_household: 2500}
+    itemized_low_equals_standard: true
+# 2011-2013 Schedule M1M addbacks of the itemized deductions and exemptions
+# prior federal law would have limited; the exemption addback is complete
+# once AGI exceeds the threshold by the range.
+m1m_addback_threshold: {2011: 169550, 2012: 173650, 2013: 178150}
+m1m_exemption_phaseout_range: {2011: 122500, 2014: null}
 
-# --- Minimum tax (2001+) ---
-amt_rate:
-  2001: 0.064
-  2013: 0.0675
-amt_charity_floor:  # share of AGI; contributions below it are not preferences
-  2001: 0.0
-  2002: 0.013
-  2003: 0.01
-  2006: 0.0
+# --- Minimum tax (from 2001) ---
+# `amt_rate` on federal AGI less charitable preferences (contributions above
+# `amt_charity_floor` of AGI), less the exclusion, which falls by
+# `amt_phaseout_rate` above the start (married amounts halved on separate
+# returns); paid when above regular tax.
+amt_rate: {2001: 0.064, 2013: 0.0675}
+amt_charity_floor: {2001: 0.0, 2002: 0.013, 2003: 0.01, 2006: 0.0}
 amt_exclusion:
   single:
     2001: 30000
@@ -495,34 +650,37 @@ amt_exclusion:
     2019: 58190
     2020: 59150
     2021: 59750
-amt_phaseout_start:
-  single: 112500
-  married: 150000
-  head_of_household: 112500
+amt_phaseout_start: {single: 112500, married: 150000, head_of_household: 112500}
 amt_phaseout_rate: {2001: 0.25}
 
 # --- Credits ---
-personal_credit:  # `cred`, per exemption 1977 and 1979-1986
-  1977: 21
-  1978: 40
-  1979: 55
-  1980: 60
-  1981: 66
-  1982: 67
-  1983: 68
-  1984: 70
-  1986: 73
-# Low-income credit (through 1984): income test by household size (1-6)
-# and year group (1977, 1978, 1979, 1980+).
-low_income_credit_rate: {1977: 0.15}
+# Personal credit per exemption through 1986 (1978 per taxpayer and dependent).
+personal_credit: {1977: 21, 1978: 40, 1979: 55, 1980: 60, 1981: 66, 1982: 67, 1983: 68, 1984: 70, 1986: 73}
+# 1978: per taxpayer 65 or older, and extra per aged person beyond the taxpayers.
+personal_credit_aged:
+  1978: {per_aged: 20, extra_aged: 10}
+  1979: null
+# 1978-1984 homemaker credit: for a dependent filer with dependents, no earnings
+# over the limit and federal AGI up to the limit.
+homemaker_credit:
+  1978: {amount: 50, earnings_limit: 50, agi_limit: 25000}
+  1985: null
+# 1987: share of the federal credit for the elderly.
+elderly_credit_share: {1987: 0.4, 1988: null}
+# Low-income credit through 1984: the tax above `rate` of household income over
+# the threshold by household size (1-6), for federal AGI up to the limit.
+low_income_credit_rate: {1977: 0.15, 1985: null}
 low_income_credit_agi_limit: {1977: 20000}
 low_income_credit_threshold:
   1977: [4400, 5200, 6000, 6700, 7300, 7800]
   1978: [4800, 5800, 6900, 7800, 8400, 8900]
   1979: [5500, 7000, 8000, 8900, 9600, 10000]
   1980: [5800, 7400, 8800, 10000, 10500, 11000]
-
-# Marriage credit (1999+, married joint).
+# Marriage credit from 1999 (joint returns): the joint tax less the tax on the
+# lower earner's earnings (the smaller wage plus a share of self-employment
+# income net of a share of self-employment tax, less one exemption and a share
+# of the joint standard deduction through 2017, a flat amount after) and the
+# rest, each on the single schedule, up to the maximum.
 marriage_credit_max:
   1999: 261
   2000: 268
@@ -576,90 +734,397 @@ marriage_credit_min_taxable_income:
   2017: 38000
   2019: 39000
   2020: 40000
-# Lower earner's earnings: the smaller spouse wage plus this share of
-# self-employment income net of this share of self-employment tax.
 marriage_credit_self_employment_share: {1999: 0.5}
 marriage_credit_self_employment_tax_share: {1999: 0.5}
-# Deduction allotted to the lower earner: one exemption plus this share of
-# the joint standard deduction through 2017, a flat amount after.
 marriage_credit_standard_deduction_share: {1999: 0.5}
-marriage_credit_lower_earner_deduction:
-  2018: 10650
-  2019: 12200
-
-# Working Family Credit.
-wfc_share_of_federal_eitc:
-  1991: 0.10
-  1993: 0.15
-wfc_min_federal_eitc: {1998: 5}
-# 1998: explicit schedules as (income start, amount at start, rate) pieces;
-# `agi_test` is the AGI at or below which only earned income is tested.
-wfc_1998:
-  no_child:
-    phase_in_end: 4400
-    phase_in_rate: 0.012
-    plateau_end: 5600
-    maximum: 51
-    phase_out_end: 10000
-    phase_out_rate: 0.012
-    agi_test: 5570
-  one_child:
-    pieces: [[0, 0, 0.068], [6700, 454, 0.0], [11700, 454, 0.086], [13000, 568, 0.0], [14600, 568, -0.048], [26500, 0, 0.0]]
-    agi_test: 14560
-  two_or_more:
-    pieces: [[0, 0, 0.08], [9400, 751, 0.0], [14400, 751, 0.2], [16200, 1127, 0.0], [17300, 1127, -0.088], [30100, 0, 0.0]]
-    agi_test: 17280
-# 1999-2013, childless: phase-in end, phase-out start (single/joint),
-# rate, maximum.
-wfc_1999_2013_no_child:
-  phase_in_end: {1999: 4540, 2000: 4620, 2001: 4760, 2002: 4960, 2004: 5110, 2005: 5230, 2006: 5390, 2007: 5600, 2008: 5730, 2009: 5980, 2010: 5990, 2011: 6080, 2012: 6220, 2013: 6380}
-  phase_out_start: {1999: 5660, 2000: 5770, 2001: 5950, 2002: 6150, 2003: 6240, 2004: 6390, 2005: 6530, 2006: 6740, 2007: 7000, 2008: 7160, 2009: 7460, 2010: 7480, 2011: 7590, 2012: 7770, 2013: 7970}
-  phase_out_start_joint: {2002: 7210, 2003: 7240, 2004: 7390, 2005: 8530, 2006: 8740, 2007: 9000, 2008: 10160, 2009: 10590, 2010: 10610, 2011: 12670, 2012: 13310}
+marriage_credit_lower_earner_deduction: {2018: 10650, 2019: 12200}
+# Working family credit (refundable): 1991-1997 a share of the federal EITC.
+working_family_credit_federal_share: {1991: 0.1, 1993: 0.15, 1998: null}
+# 1998: schedules of [income start, amount at start, rate] pieces; `agi_test` is
+# the AGI at or below which only earned income is tested.
+working_family_credit_pieces:
+  1998:
+    no_child:
+      phase_in_end: 4400
+      phase_in_rate: 0.012
+      plateau_end: 5600
+      maximum: 51
+      phase_out_end: 10000
+      phase_out_rate: 0.012
+      agi_test: 5570
+    one_child:
+      pieces:
+        - [0, 0, 0.068]
+        - [6700, 454, 0.0]
+        - [11700, 454, 0.086]
+        - [13000, 568, 0.0]
+        - [14600, 568, -0.048]
+        - [26500, 0, 0.0]
+      agi_test: 14560
+    two_or_more:
+      pieces:
+        - [0, 0, 0.08]
+        - [9400, 751, 0.0]
+        - [14400, 751, 0.2]
+        - [16200, 1127, 0.0]
+        - [17300, 1127, -0.088]
+        - [30100, 0, 0.0]
+      agi_test: 17280
+  1999: null
+# 1999-2013: schedules by children (phase-in end, phase-out starts, rates and
+# maxima; with children breakpoints 1-4, rates 1-3 and maxima 1-2).
+working_family_credit_no_child:
+  phase_in_end:
+    1999: 4540
+    2000: 4620
+    2001: 4760
+    2002: 4960
+    2004: 5110
+    2005: 5230
+    2006: 5390
+    2007: 5600
+    2008: 5730
+    2009: 5980
+    2010: 5990
+    2011: 6080
+    2012: 6220
+    2013: 6380
+  phase_out_start:
+    1999: 5660
+    2000: 5770
+    2001: 5950
+    2002: 6150
+    2003: 6240
+    2004: 6390
+    2005: 6530
+    2006: 6740
+    2007: 7000
+    2008: 7160
+    2009: 7460
+    2010: 7480
+    2011: 7590
+    2012: 7770
+    2013: 7970
+  phase_out_start_joint:
+    2002: 7210
+    2003: 7240
+    2004: 7390
+    2005: 8530
+    2006: 8740
+    2007: 9000
+    2008: 10160
+    2009: 10590
+    2010: 10610
+    2011: 12670
+    2012: 13310
   rate: {1999: 0.011475, 2000: 0.019125}
-  maximum: {1999: 52, 2000: 88, 2001: 91, 2002: 94, 2003: 96, 2004: 98, 2005: 100, 2006: 103, 2007: 107, 2008: 110, 2009: 114, 2010: 115, 2011: 116, 2012: 119, 2013: 122}
-# One child and two or more: breakpoints 1-4, rates 1-3, maxima 1-2.
-wfc_1999_2013_one_child:
-  break_1: {1999: 6790, 2000: 6920, 2001: 7140, 2002: 7370, 2003: 7490, 2004: 7660, 2005: 7830, 2006: 8080, 2007: 8390, 2008: 8580, 2009: 8950, 2010: 8970, 2011: 9100, 2012: 9320, 2013: 9560}
-  break_2: {1999: 11850, 2000: 12060, 2001: 12460, 2002: 12870, 2003: 13080, 2004: 13370, 2005: 13680, 2006: 14100, 2007: 14650, 2008: 14990, 2009: 15630, 2010: 15650, 2011: 15890, 2012: 16270, 2013: 16690}
-  break_3: {1999: 13210, 2000: 13450, 2001: 13870, 2002: 14320, 2003: 14560, 2004: 14880, 2005: 15230, 2006: 15700, 2007: 16310, 2008: 16690, 2009: 17400, 2010: 17430, 2011: 17690, 2012: 18120, 2013: 18580}
-  break_4: {1999: 14810, 2000: 15080, 2001: 15550, 2002: 16060, 2003: 16320, 2004: 16690, 2005: 17070, 2006: 17600, 2007: 18290, 2008: 18710, 2009: 19510, 2010: 19540, 2012: 20310, 2013: 20830}
-  break_4_joint: {2002: 17130, 2003: 17320, 2004: 17690, 2005: 19070, 2006: 19600, 2007: 20290, 2008: 21710, 2009: 22640, 2010: 22670, 2011: 24910, 2012: 26170}
+  maximum:
+    1999: 52
+    2000: 88
+    2001: 91
+    2002: 94
+    2003: 96
+    2004: 98
+    2005: 100
+    2006: 103
+    2007: 107
+    2008: 110
+    2009: 114
+    2010: 115
+    2011: 116
+    2012: 119
+    2013: 122
+working_family_credit_one_child:
+  break_1:
+    1999: 6790
+    2000: 6920
+    2001: 7140
+    2002: 7370
+    2003: 7490
+    2004: 7660
+    2005: 7830
+    2006: 8080
+    2007: 8390
+    2008: 8580
+    2009: 8950
+    2010: 8970
+    2011: 9100
+    2012: 9320
+    2013: 9560
+  break_2:
+    1999: 11850
+    2000: 12060
+    2001: 12460
+    2002: 12870
+    2003: 13080
+    2004: 13370
+    2005: 13680
+    2006: 14100
+    2007: 14650
+    2008: 14990
+    2009: 15630
+    2010: 15650
+    2011: 15890
+    2012: 16270
+    2013: 16690
+  break_3:
+    1999: 13210
+    2000: 13450
+    2001: 13870
+    2002: 14320
+    2003: 14560
+    2004: 14880
+    2005: 15230
+    2006: 15700
+    2007: 16310
+    2008: 16690
+    2009: 17400
+    2010: 17430
+    2011: 17690
+    2012: 18120
+    2013: 18580
+  break_4:
+    1999: 14810
+    2000: 15080
+    2001: 15550
+    2002: 16060
+    2003: 16320
+    2004: 16690
+    2005: 17070
+    2006: 17600
+    2007: 18290
+    2008: 18710
+    2009: 19510
+    2010: 19540
+    2012: 20310
+    2013: 20830
+  break_4_joint:
+    2002: 17130
+    2003: 17320
+    2004: 17690
+    2005: 19070
+    2006: 19600
+    2007: 20290
+    2008: 21710
+    2009: 22640
+    2010: 22670
+    2011: 24910
+    2012: 26170
   rate_1: {1999: 0.0745, 2000: 0.085}
   rate_2: {1999: 0.085}
   rate_3: {1999: 0.0513, 2000: 0.0573}
-  maximum_1: {1999: 505, 2000: 588, 2001: 607, 2002: 626, 2003: 637, 2004: 651, 2005: 665, 2006: 687, 2007: 713, 2008: 729, 2009: 761, 2010: 762, 2011: 774, 2012: 792, 2013: 820}
-  maximum_2: {1999: 620, 2000: 706, 2001: 727, 2002: 750, 2003: 762, 2004: 779, 2005: 797, 2006: 823, 2007: 854, 2008: 874, 2009: 911, 2010: 914, 2011: 927, 2012: 949, 2013: 973}
-wfc_1999_2013_two_children:
-  break_1: {1999: 9550, 2000: 9720, 2001: 10020, 2002: 10350, 2003: 10520, 2004: 10760, 2005: 11000, 2006: 11350, 2007: 11790, 2008: 12060, 2009: 12570, 2010: 12600, 2011: 12780, 2012: 13090, 2013: 13430}
-  break_2: {1999: 14590, 2000: 14860, 2001: 15320, 2002: 15830, 2003: 16100, 2004: 16440, 2005: 16820, 2006: 17350, 2007: 18020, 2008: 18440, 2009: 19220, 2010: 19260, 2011: 19540, 2012: 20020, 2013: 20530}
-  break_3: {1999: 16500, 2000: 16800, 2001: 17320, 2002: 17890, 2003: 18190, 2004: 18590, 2005: 19020, 2006: 19610, 2007: 20380, 2008: 20840, 2009: 21730, 2010: 21770, 2011: 22090, 2012: 22630, 2013: 23210}
-  break_4: {1999: 17570, 2000: 17890, 2001: 18450, 2002: 19050, 2003: 19360, 2004: 19800, 2005: 20250, 2006: 20880, 2007: 21700, 2008: 22190, 2009: 23140, 2010: 23180, 2011: 23530, 2012: 24100, 2013: 24720}
-  break_4_joint: {2002: 20120, 2003: 20360, 2004: 20800, 2005: 22250, 2006: 22880, 2007: 23700, 2008: 25190, 2009: 26270, 2010: 26310, 2011: 28610, 2012: 30060}
-  rate_1: {1999: 0.088, 2000: 0.10}
-  rate_2: {1999: 0.20}
-  rate_3: {1999: 0.0938, 2000: 0.1030}
-  maximum_1: {1999: 840, 2000: 972, 2001: 1002, 2002: 1035, 2003: 1052, 2004: 1076, 2005: 1100, 2006: 1135, 2007: 1179, 2008: 1206, 2009: 1257, 2010: 1260, 2011: 1278, 2012: 1309, 2013: 1343}
-  maximum_2: {1999: 1222, 2000: 1360, 2001: 1402, 2002: 1447, 2003: 1472, 2004: 1506, 2005: 1540, 2006: 1587, 2007: 1651, 2008: 1686, 2009: 1759, 2010: 1762, 2011: 1788, 2012: 1831, 2013: 1879}
-# 2014+: maximum, phase-in end, phase-out start (single/joint), rates.
-wfc_2014plus:
+  maximum_1:
+    1999: 505
+    2000: 588
+    2001: 607
+    2002: 626
+    2003: 637
+    2004: 651
+    2005: 665
+    2006: 687
+    2007: 713
+    2008: 729
+    2009: 761
+    2010: 762
+    2011: 774
+    2012: 792
+    2013: 820
+  maximum_2:
+    1999: 620
+    2000: 706
+    2001: 727
+    2002: 750
+    2003: 762
+    2004: 779
+    2005: 797
+    2006: 823
+    2007: 854
+    2008: 874
+    2009: 911
+    2010: 914
+    2011: 927
+    2012: 949
+    2013: 973
+working_family_credit_two_children:
+  break_1:
+    1999: 9550
+    2000: 9720
+    2001: 10020
+    2002: 10350
+    2003: 10520
+    2004: 10760
+    2005: 11000
+    2006: 11350
+    2007: 11790
+    2008: 12060
+    2009: 12570
+    2010: 12600
+    2011: 12780
+    2012: 13090
+    2013: 13430
+  break_2:
+    1999: 14590
+    2000: 14860
+    2001: 15320
+    2002: 15830
+    2003: 16100
+    2004: 16440
+    2005: 16820
+    2006: 17350
+    2007: 18020
+    2008: 18440
+    2009: 19220
+    2010: 19260
+    2011: 19540
+    2012: 20020
+    2013: 20530
+  break_3:
+    1999: 16500
+    2000: 16800
+    2001: 17320
+    2002: 17890
+    2003: 18190
+    2004: 18590
+    2005: 19020
+    2006: 19610
+    2007: 20380
+    2008: 20840
+    2009: 21730
+    2010: 21770
+    2011: 22090
+    2012: 22630
+    2013: 23210
+  break_4:
+    1999: 17570
+    2000: 17890
+    2001: 18450
+    2002: 19050
+    2003: 19360
+    2004: 19800
+    2005: 20250
+    2006: 20880
+    2007: 21700
+    2008: 22190
+    2009: 23140
+    2010: 23180
+    2011: 23530
+    2012: 24100
+    2013: 24720
+  break_4_joint:
+    2002: 20120
+    2003: 20360
+    2004: 20800
+    2005: 22250
+    2006: 22880
+    2007: 23700
+    2008: 25190
+    2009: 26270
+    2010: 26310
+    2011: 28610
+    2012: 30060
+  rate_1: {1999: 0.088, 2000: 0.1}
+  rate_2: {1999: 0.2}
+  rate_3: {1999: 0.0938, 2000: 0.103}
+  maximum_1:
+    1999: 840
+    2000: 972
+    2001: 1002
+    2002: 1035
+    2003: 1052
+    2004: 1076
+    2005: 1100
+    2006: 1135
+    2007: 1179
+    2008: 1206
+    2009: 1257
+    2010: 1260
+    2011: 1278
+    2012: 1309
+    2013: 1343
+  maximum_2:
+    1999: 1222
+    2000: 1360
+    2001: 1402
+    2002: 1447
+    2003: 1472
+    2004: 1506
+    2005: 1540
+    2006: 1587
+    2007: 1651
+    2008: 1686
+    2009: 1759
+    2010: 1762
+    2011: 1788
+    2012: 1831
+    2013: 1879
+# 2014-2021: phase-in rate up to the maximum, less the phase-out rate above the start.
+working_family_credit_schedule:
   no_child:
     maximum: {2014: 130, 2015: 132, 2016: 133, 2017: 134, 2018: 136, 2019: 279, 2020: 284, 2021: 286}
     phase_in_end: {2014: 6180, 2015: 6280, 2016: 6310, 2017: 6360, 2018: 6480, 2019: 7150, 2020: 7350, 2021: 7340}
     phase_out_start: {2014: 8130, 2015: 8260, 2016: 8300, 2017: 8360, 2018: 8530, 2019: 8730, 2020: 8870, 2021: 8960}
-    phase_out_start_joint: {2014: 13560, 2015: 13780, 2016: 13840, 2017: 13950, 2018: 14230, 2019: 14570, 2020: 14810, 2021: 14960}
+    phase_out_start_joint:
+      2014: 13560
+      2015: 13780
+      2016: 13840
+      2017: 13950
+      2018: 14230
+      2019: 14570
+      2020: 14810
+      2021: 14960
     phase_in_rate: {2014: 0.021, 2019: 0.039}
     phase_out_rate: {2014: 0.0201, 2019: 0.02}
   one_child:
     maximum: {2014: 1040, 2015: 1057, 2016: 1061, 2017: 1070, 2018: 1091, 2019: 1117, 2020: 1136, 2021: 1147}
-    phase_in_end: {2014: 11120, 2015: 11300, 2016: 11350, 2017: 11440, 2018: 11670, 2019: 11950, 2020: 12150, 2021: 12270}
-    phase_out_start: {2014: 21190, 2015: 21520, 2016: 21620, 2017: 21800, 2018: 22230, 2019: 22770, 2020: 23150, 2021: 23380}
-    phase_out_start_joint: {2014: 26620, 2015: 27040, 2016: 27160, 2017: 27390, 2018: 27930, 2019: 28610, 2020: 29080, 2021: 29380}
+    phase_in_end:
+      2014: 11120
+      2015: 11300
+      2016: 11350
+      2017: 11440
+      2018: 11670
+      2019: 11950
+      2020: 12150
+      2021: 12270
+    phase_out_start:
+      2014: 21190
+      2015: 21520
+      2016: 21620
+      2017: 21800
+      2018: 22230
+      2019: 22770
+      2020: 23150
+      2021: 23380
+    phase_out_start_joint:
+      2014: 26620
+      2015: 27040
+      2016: 27160
+      2017: 27390
+      2018: 27930
+      2019: 28610
+      2020: 29080
+      2021: 29380
     phase_in_rate: {2014: 0.0935}
     phase_out_rate: {2014: 0.0602, 2019: 0.06}
   two_children:
     maximum: {2014: 2006, 2015: 2038, 2016: 2047, 2017: 2064, 2018: 2104, 2019: 2156, 2020: 2191, 2021: 2213}
-    phase_in_end: {2014: 18240, 2015: 18530, 2016: 18610, 2017: 18760, 2018: 19130, 2019: 19600, 2020: 19950, 2021: 20120}
-    phase_out_start_joint: {2014: 30560, 2015: 31050, 2016: 31180, 2017: 31440, 2018: 32060, 2019: 32840, 2020: 33380, 2021: 33720}
+    phase_in_end:
+      2014: 18240
+      2015: 18530
+      2016: 18610
+      2017: 18760
+      2018: 19130
+      2019: 19600
+      2020: 19950
+      2021: 20120
+    phase_out_start_joint:
+      2014: 30560
+      2015: 31050
+      2016: 31180
+      2017: 31440
+      2018: 32060
+      2019: 32840
+      2020: 33380
+      2021: 33720
     phase_in_rate: {2014: 0.11}
     phase_out_rate: {2014: 0.1082, 2019: 0.105}
   three_children:
@@ -667,8 +1132,29 @@ wfc_2014plus:
     phase_in_end: {2019: 20000, 2020: 20350, 2021: 20530}
     phase_in_rate: {2019: 0.125}
     phase_out_rate: {2019: 0.105}
-
-# Child and dependent care credit (refundable), by 1 or 2+ dependents.
+# 1998-2018: no credit when the federal EITC is below this.
+working_family_credit_min_federal_eitc: {1998: 5, 2019: null}
+# From 2022: 2022 the pre-2023 credit by EITC children; from 2023 the child and
+# working families credit, an amount per child under 18 plus a phase-in on
+# earnings, less a phase-out above the threshold. Source: PolicyEngine-US
+# gov.states.mn.tax.income.credits.cwfc.
+child_and_working_family_credit:
+  pre_cwfc:
+    earnings_maximum: [7570, 12650, 20750, 21170]
+    phase_in_rate: [0.039, 0.0935, 0.11, 0.125]
+    phase_out_threshold_joint: [15430, 30290, 34770, 35090]
+    phase_out_threshold_other: [9240, 24110, 28590, 28900]
+    phase_out_rate: [0.02, 0.06, 0.105, 0.105]
+  child_amount: 1750
+  phase_in_rate: 0.04
+  phase_out_rate: 0.12
+  by_year:
+    2023: {phase_in_end: 8750, phase_out_joint: 35000, phase_out_other: 29500}
+    2024: {phase_in_end: 9220, phase_out_joint: 36880, phase_out_other: 31090}
+    2025: {phase_in_end: 9480, phase_out_joint: 37910, phase_out_other: 31950}
+# Child and dependent care credit: a share of the federal credit before its
+# liability limit (capped through 2016), less the phase-out rate (per dependent
+# from 1983 through 2016) above the start; none above the income limit.
 child_care_income_limit:
   one:
     1977: 18000
@@ -738,7 +1224,7 @@ child_care_income_limit:
     2019: 76230
     2020: 77100
     2021: 77630
-child_care_phaseout_start:  # `cded`
+child_care_phaseout_start:
   1977: 12000
   1981: 15000
   1983: 14000
@@ -772,49 +1258,33 @@ child_care_phaseout_start:  # `cded`
   2019: 52230
   2020: 53100
   2021: 53630
-child_care_credit_max:  # `cmax`, 1 / 2+ dependents (not applied after 2016)
-  one:
-    1977: 150
-    1981: 400
-    1983: 480
-    1984: 720
-    2017: 600
-  two_or_more:
-    1977: 300
-    1981: 800
-    1983: 960
-    1984: 1440
-    2017: 1200
-child_care_share_of_federal:  # share of the federal pre-cap credit used
-  1977: 0.5
-  1981: 1.0
-  1982: 0.2
-  1984: 1.0
-child_care_phaseout_rate:
-  1977: 0.05
-  1983: 0.052  # per dependent
-  2017: 0.05
-# 2013: Minnesota's own credit computation.
-child_care_2013:
-  expense_cap_per_child: 2400
-  rate_top: 0.30
-  rate_floor: 0.20
-  rate_start: 10000
-  rate_step: 2000
-  rate_step_decrement: 0.01
+child_care_credit_max:
+  one: {1977: 150, 1981: 400, 1983: 480, 1984: 720, 2017: 600}
+  two_or_more: {1977: 300, 1981: 800, 1983: 960, 1984: 1440, 2017: 1200}
+child_care_share_of_federal: {1977: 0.5, 1981: 1.0, 1982: 0.2, 1984: 1.0}
+child_care_phaseout_rate: {1977: 0.05, 1983: 0.052, 2017: 0.05}
+# 2013: Minnesota's own computation on expenses.
+child_care_expense_credit:
+  2013:
+    expense_cap_per_child: 2400
+    rate_top: 0.3
+    rate_floor: 0.2
+    rate_start: 10000
+    rate_step: 2000
+    rate_step_decrement: 0.01
+  2014: null
+# 2009 motor fuels credit, for taxable income up to the limit (both halved on
+# separate returns).
+motor_fuels_credit:
+  2009:
+    taxable_income_limit: {single: 22730, married: 33220, head_of_household: 27980}
+    amount: 25
+  2010: null
 
-# 2009 motor fuels credit: taxable-income limit (single, married, head
-# of household) and amount, both divided by `sep` for married separate.
-fuel_credit_2009:
-  taxable_income_limit:
-    single: 22730
-    married: 33220
-    head_of_household: 27980
-  amount: 25
-
-# --- Property tax refund (homeowners) ---
-# 1989+: income limit (`owner` times `aif2`), maximum refund and threshold
-# percentage tables (income deflated by `aif2`), co-pay share tables.
+# --- Property tax refund (from 1989) ---
+# Homeowners: property tax above a threshold percent of income, less the
+# copayment share, up to the maximum; income tables are on income divided by
+# `property_refund_inflation`, and none above the income limit (times it).
 property_refund_owner_income_limit:
   1989: 60000
   2001: 65000
@@ -824,7 +1294,7 @@ property_refund_owner_income_limit:
   2019: 65020
   2020: 64940
   2021: 64962
-property_refund_inflation:  # `aif2`
+property_refund_inflation:
   1989: 1.0
   1994: 1.03
   1995: 1.06
@@ -854,189 +1324,198 @@ property_refund_inflation:  # `aif2`
   2019: 1.769
   2020: 1.789
   2021: 1.844
-# 1989-2000 maximum: 430 x aif2, clawed back above $57,000/$58,000.
-property_refund_1989_2000:
-  maximum: 430
-  clawback_start_1: 57000
-  clawback_start_2: 58000
-  clawback_end: 60000
-  clawback_rate_1: 0.143
-  clawback_rate_2: 0.215
-property_refund_threshold_1989_2000:  # `p1o`, percent of income
-  - [1000, 1.2]
-  - [2000, 1.3]
-  - [3000, 1.4]
-  - [4000, 1.6]
-  - [5000, 1.7]
-  - [7000, 1.9]
-  - [8000, 2.1]
-  - [9000, 2.2]
-  - [10000, 2.3]
-  - [11000, 2.4]
-  - [12000, 2.5]
-  - [14000, 2.6]
-  - [15000, 2.8]
-  - [16000, 3.0]
-  - [17000, 3.2]
-  - [21000, 3.3]
-  - [24000, 3.4]
-  - [35000, 3.5]
-  - [40000, 3.7]
-  - [1.0e+20, 4.0]
-property_refund_max_2001_2002:  # `p101`
-  - [2000, 1550]
-  - [4000, 1500]
-  - [7000, 1450]
-  - [9000, 1400]
-  - [11000, 1350]
-  - [14000, 1300]
-  - [16000, 1250]
-  - [21000, 1200]
-  - [30000, 1150]
-  - [40000, 1100]
-  - [45000, 950]
-  - [50000, 850]
-  - [55000, 750]
-  - [58000, 600]
-  - [60000, 500]
-  - [62000, 425]
-  - [65000, 300]
-property_refund_threshold_2001_2002:  # `p201`
-  - [1000, 1.0]
-  - [2000, 1.1]
-  - [3000, 1.2]
-  - [4000, 1.3]
-  - [5000, 1.4]
-  - [7000, 1.5]
-  - [8000, 1.6]
-  - [9000, 1.7]
-  - [10000, 1.8]
-  - [11000, 1.9]
-  - [12000, 2.0]
-  - [14000, 2.1]
-  - [15000, 2.2]
-  - [16000, 2.3]
-  - [17000, 2.4]
-  - [21000, 2.5]
-  - [24000, 2.6]
-  - [30000, 2.7]
-  - [35000, 2.8]
-  - [40000, 3.0]
-  - [45000, 3.2]
-  - [50000, 3.5]
-  - [65000, 4.0]
-property_refund_max_2003_2007:  # `p107`
-  - [2000, 1225]
-  - [4000, 1190]
-  - [7000, 1150]
-  - [9000, 1105]
-  - [11000, 1065]
-  - [14000, 1022]
-  - [17000, 980]
-  - [21000, 938]
-  - [30000, 900]
-  - [40000, 820]
-  - [45000, 735]
-  - [50000, 655]
-  - [55000, 575]
-  - [58000, 490]
-  - [60000, 405]
-  - [62000, 330]
-  - [65000, 245]
-property_refund_max_2008_2010:  # `p110`
-  - [2000, 1560]
-  - [4000, 1514]
-  - [7000, 1455]
-  - [9000, 1400]
-  - [11000, 1356]
-  - [16000, 1245]
-  - [21000, 1200]
-  - [30000, 1145]
-  - [40000, 1040]
-  - [45000, 935]
-  - [50000, 835]
-  - [55000, 730]
-  - [58000, 625]
-  - [60000, 515]
-  - [62000, 420]
-  - [65000, 300]
-property_refund_threshold_2003_2010:  # `p210`
-  - [1000, 1.0]
-  - [2000, 1.1]
-  - [3000, 1.2]
-  - [4000, 1.3]
-  - [5000, 1.4]
-  - [7000, 1.5]
-  - [8000, 1.6]
-  - [9000, 1.7]
-  - [10000, 1.8]
-  - [11000, 1.9]
-  - [12000, 2.0]
-  - [14000, 2.1]
-  - [15000, 2.2]
-  - [16000, 2.3]
-  - [17000, 2.4]
-  - [21000, 2.5]
-  - [24000, 2.6]
-  - [30000, 2.7]
-  - [35000, 2.8]
-  - [40000, 3.0]
-  - [45000, 3.2]
-  - [65000, 3.5]
-property_refund_max_2011plus:  # `p116`
-  - [24000, 1600]
-  - [35000, 1288]
-  - [40000, 1130]
-  - [45000, 950]
-  - [50000, 850]
-  - [55000, 750]
-  - [58000, 600]
-  - [60000, 500]
-  - [62000, 425]
-  - [65000, 300]
-property_refund_threshold_2011plus:  # `p216`
-  - [1000, 1.0]
-  - [2000, 1.1]
-  - [3000, 1.2]
-  - [4000, 1.3]
-  - [5000, 1.4]
-  - [7000, 1.5]
-  - [8000, 1.6]
-  - [9000, 1.7]
-  - [10000, 1.8]
-  - [11000, 1.9]
-  - [40000, 2.0]
-  - [45000, 2.1]
-  - [50000, 2.2]
-  - [65000, 2.5]
-property_refund_copay_through_2002:  # `p2o`
-  - [3000, 0.15]
-  - [7000, 0.2]
-  - [10000, 0.25]
-  - [14000, 0.3]
-  - [17000, 0.35]
-  - [30000, 0.4]
-  - [45000, 0.45]
-  - [65000, 0.5]
-property_refund_copay_2003_2010:  # `p10o`
-  - [3000, 0.15]
-  - [7000, 0.2]
-  - [10000, 0.25]
-  - [14000, 0.3]
-  - [17000, 0.35]
-  - [30000, 0.4]
-  - [45000, 0.45]
-  - [65000, 0.5]
-property_refund_copay_2011plus:  # `p16o`
-  - [3000, 0.15]
-  - [10000, 0.2]
-  - [14000, 0.25]
-  - [17000, 0.3]
-  - [35000, 0.35]
-  - [55000, 0.4]
-  - [60000, 0.45]
-  - [65000, 0.5]
-# 1994+ household-income subtraction by number of dependents (0-5).
+# 1989-2000: the maximum (times the inflation factor), clawed back above the starts.
+property_refund_clawback:
+  1989:
+    maximum: 430
+    clawback_start_1: 57000
+    clawback_start_2: 58000
+    clawback_end: 60000
+    clawback_rate_1: 0.143
+    clawback_rate_2: 0.215
+  2001: null
+# [income, amount] interpolated, from 2001.
+property_refund_max:
+  2001:
+    - [2000, 1550]
+    - [4000, 1500]
+    - [7000, 1450]
+    - [9000, 1400]
+    - [11000, 1350]
+    - [14000, 1300]
+    - [16000, 1250]
+    - [21000, 1200]
+    - [30000, 1150]
+    - [40000, 1100]
+    - [45000, 950]
+    - [50000, 850]
+    - [55000, 750]
+    - [58000, 600]
+    - [60000, 500]
+    - [62000, 425]
+    - [65000, 300]
+  2003:
+    - [2000, 1225]
+    - [4000, 1190]
+    - [7000, 1150]
+    - [9000, 1105]
+    - [11000, 1065]
+    - [14000, 1022]
+    - [17000, 980]
+    - [21000, 938]
+    - [30000, 900]
+    - [40000, 820]
+    - [45000, 735]
+    - [50000, 655]
+    - [55000, 575]
+    - [58000, 490]
+    - [60000, 405]
+    - [62000, 330]
+    - [65000, 245]
+  2008:
+    - [2000, 1560]
+    - [4000, 1514]
+    - [7000, 1455]
+    - [9000, 1400]
+    - [11000, 1356]
+    - [16000, 1245]
+    - [21000, 1200]
+    - [30000, 1145]
+    - [40000, 1040]
+    - [45000, 935]
+    - [50000, 835]
+    - [55000, 730]
+    - [58000, 625]
+    - [60000, 515]
+    - [62000, 420]
+    - [65000, 300]
+  2011:
+    - [24000, 1600]
+    - [35000, 1288]
+    - [40000, 1130]
+    - [45000, 950]
+    - [50000, 850]
+    - [55000, 750]
+    - [58000, 600]
+    - [60000, 500]
+    - [62000, 425]
+    - [65000, 300]
+# [income, percent of income] interpolated.
+property_refund_threshold:
+  1989:
+    - [1000, 1.2]
+    - [2000, 1.3]
+    - [3000, 1.4]
+    - [4000, 1.6]
+    - [5000, 1.7]
+    - [7000, 1.9]
+    - [8000, 2.1]
+    - [9000, 2.2]
+    - [10000, 2.3]
+    - [11000, 2.4]
+    - [12000, 2.5]
+    - [14000, 2.6]
+    - [15000, 2.8]
+    - [16000, 3.0]
+    - [17000, 3.2]
+    - [21000, 3.3]
+    - [24000, 3.4]
+    - [35000, 3.5]
+    - [40000, 3.7]
+    - [1.0e+20, 4.0]
+  2001:
+    - [1000, 1.0]
+    - [2000, 1.1]
+    - [3000, 1.2]
+    - [4000, 1.3]
+    - [5000, 1.4]
+    - [7000, 1.5]
+    - [8000, 1.6]
+    - [9000, 1.7]
+    - [10000, 1.8]
+    - [11000, 1.9]
+    - [12000, 2.0]
+    - [14000, 2.1]
+    - [15000, 2.2]
+    - [16000, 2.3]
+    - [17000, 2.4]
+    - [21000, 2.5]
+    - [24000, 2.6]
+    - [30000, 2.7]
+    - [35000, 2.8]
+    - [40000, 3.0]
+    - [45000, 3.2]
+    - [50000, 3.5]
+    - [65000, 4.0]
+  2003:
+    - [1000, 1.0]
+    - [2000, 1.1]
+    - [3000, 1.2]
+    - [4000, 1.3]
+    - [5000, 1.4]
+    - [7000, 1.5]
+    - [8000, 1.6]
+    - [9000, 1.7]
+    - [10000, 1.8]
+    - [11000, 1.9]
+    - [12000, 2.0]
+    - [14000, 2.1]
+    - [15000, 2.2]
+    - [16000, 2.3]
+    - [17000, 2.4]
+    - [21000, 2.5]
+    - [24000, 2.6]
+    - [30000, 2.7]
+    - [35000, 2.8]
+    - [40000, 3.0]
+    - [45000, 3.2]
+    - [65000, 3.5]
+  2011:
+    - [1000, 1.0]
+    - [2000, 1.1]
+    - [3000, 1.2]
+    - [4000, 1.3]
+    - [5000, 1.4]
+    - [7000, 1.5]
+    - [8000, 1.6]
+    - [9000, 1.7]
+    - [10000, 1.8]
+    - [11000, 1.9]
+    - [40000, 2.0]
+    - [45000, 2.1]
+    - [50000, 2.2]
+    - [65000, 2.5]
+# [income, share] interpolated.
+property_refund_copay:
+  1989:
+    - [3000, 0.15]
+    - [7000, 0.2]
+    - [10000, 0.25]
+    - [14000, 0.3]
+    - [17000, 0.35]
+    - [30000, 0.4]
+    - [45000, 0.45]
+    - [65000, 0.5]
+  2003:
+    - [3000, 0.15]
+    - [7000, 0.2]
+    - [10000, 0.25]
+    - [14000, 0.3]
+    - [17000, 0.35]
+    - [30000, 0.4]
+    - [45000, 0.45]
+    - [65000, 0.5]
+  2011:
+    - [3000, 0.15]
+    - [10000, 0.2]
+    - [14000, 0.25]
+    - [17000, 0.3]
+    - [35000, 0.35]
+    - [55000, 0.4]
+    - [60000, 0.45]
+    - [65000, 0.5]
+# From 1994 income is reduced by this amount by dependents (0-5); with a taxpayer
+# 65 or older by it plus an exemption (1994: `property_refund_aged_subtraction`).
 property_refund_dependent_subtraction:
   1994: [0, 3430, 6615, 9555, 12250, 14700]
   1995: [0, 3500, 6750, 9750, 12500, 15000]
@@ -1064,203 +1543,10 @@ property_refund_dependent_subtraction:
   2019: [0, 5950, 11475, 16575, 21250, 25500]
   2020: [0, 6020, 11610, 16770, 21500, 25800]
   2021: [0, 6090, 11745, 16965, 21750, 26100]
-
-# --- Property tax credit before 1989 (household income `data(159)`) ---
-property_credit_1987_1988:
-  income_limit: 35000
-  threshold_1988: [[3000, 0.01], [4000, 0.011], [5000, 0.012], [6000, 0.013], [7000, 0.014], [8000, 0.015], [9000, 0.016], [10000, 0.017], [11000, 0.018], [12000, 0.019], [13000, 0.020], [14000, 0.021], [15000, 0.022], [16000, 0.023], [17000, 0.024], [18000, 0.025], [19000, 0.026], [20000, 0.027], [21000, 0.028], [22000, 0.027], [23000, 0.028], [24000, 0.029], [25000, 0.030], [26000, 0.031], [27000, 0.032], [28000, 0.033], [29000, 0.034], [30000, 0.035], [31000, 0.036], [32000, 0.037], [33000, 0.038], [34000, 0.039], [1.0e+20, 0.040]]
-  copay_1988: [[9000, 0.10], [10000, 0.12], [11000, 0.14], [12000, 0.16], [13000, 0.18], [14000, 0.20], [15000, 0.22], [16000, 0.24], [17000, 0.26], [18000, 0.28], [19000, 0.30], [20000, 0.32], [21000, 0.34], [22000, 0.36], [23000, 0.38], [24000, 0.40], [25000, 0.42], [26000, 0.44], [27000, 0.46], [28000, 0.48], [29000, 0.50], [30000, 0.52], [31000, 0.54], [32000, 0.56], [33000, 0.58], [1.0e+20, 0.60]]
-  threshold_1987_with_dependents: [[8000, 0.010], [9000, 0.011], [10000, 0.012], [11000, 0.013], [12000, 0.014], [13000, 0.015], [14000, 0.016], [15000, 0.017], [16000, 0.018], [17000, 0.019], [18000, 0.0195], [20000, 0.020], [21000, 0.021], [24000, 0.022], [27000, 0.023], [31000, 0.024], [1.0e+20, 0.025]]
-  threshold_1987_no_dependents: [[8000, 0.025], [9000, 0.026], [10000, 0.027], [11000, 0.028], [12000, 0.029], [13000, 0.030], [14000, 0.031], [15000, 0.032], [16000, 0.033], [17000, 0.034], [18000, 0.0345], [20000, 0.035], [21000, 0.036], [24000, 0.037], [27000, 0.038], [31000, 0.039], [1.0e+20, 0.040]]
-  copay_1987: [[9000, 0.10], [10000, 0.11], [11000, 0.12], [12000, 0.13], [13000, 0.14], [14000, 0.15], [15000, 0.16], [16000, 0.17], [17000, 0.18], [18000, 0.19], [19000, 0.20], [20000, 0.22], [21000, 0.24], [22000, 0.26], [23000, 0.28], [24000, 0.30], [25000, 0.32], [26000, 0.34], [27000, 0.36], [28000, 0.38], [29000, 0.40], [30000, 0.42], [31000, 0.44], [32000, 0.46], [33000, 0.48], [1.0e+20, 0.50]]
-  # maximum credit by income: [upper bound, amount]; above the last,
-  # 500 - 0.2 x (income - 32,000); 27,000-32,500 is 1,000 - 0.1 x (income - 27,000).
-  maximum_steps: [[10000, 1100], [17000, 1075], [23000, 1050], [26500, 1025], [27000, 1013]]
-  maximum_mid_start: 27000
-  maximum_mid_end: 32500
-  maximum_mid_base: 1000
-  maximum_mid_rate: 0.1
-  maximum_top_base: 500
-  maximum_top_start: 32000
-  maximum_top_rate: 0.2
-property_credit_1985_1986:
-  income_limit: 40000
-  threshold: [[8000, 0.01], [9000, 0.011], [10000, 0.012], [11000, 0.013], [12000, 0.014], [20000, 0.015], [23000, 0.016], [26000, 0.018], [31000, 0.020], [36000, 0.022], [1.0e+20, 0.024]]
-  copay: [[3000, 0.05], [3500, 0.06], [4000, 0.07], [4500, 0.08], [5000, 0.09], [6000, 0.10], [7000, 0.11], [8000, 0.12], [9000, 0.13], [10000, 0.14], [11000, 0.15], [12000, 0.16], [13000, 0.17], [14000, 0.18], [15000, 0.19], [16000, 0.20], [17000, 0.21], [18000, 0.22], [19000, 0.23], [20000, 0.24], [21000, 0.25], [22000, 0.27], [23000, 0.29], [24000, 0.31], [25000, 0.33], [26000, 0.35], [27000, 0.38], [28000, 0.41], [29000, 0.44], [30000, 0.47], [1.0e+20, 0.50]]
-  maximum_flat: 1125
-  maximum_mid_start: 23500
-  maximum_mid_end: 31250
-  maximum_mid_rate: 0.0290322
-  maximum_top_base: 900
-  maximum_top_rate: 0.1
-property_credit_1983_1984:
-  income_limit: 40000
-  threshold: [[3000, 0.005], [4000, 0.006], [5000, 0.007], [6000, 0.008], [7000, 0.009], [8000, 0.010], [9000, 0.011], [10000, 0.012], [11000, 0.013], [12000, 0.014], [20000, 0.015], [23000, 0.016], [26000, 0.018], [31000, 0.020], [36000, 0.022], [1.0e+20, 0.024]]
-  first_step: [[3000, 13], [3500, 15], [4000, 18], [4500, 20], [5000, 23], [6000, 40], [7000, 54], [8000, 70], [9000, 88], [10000, 108], [11000, 130], [12000, 154], [13000, 180], [14000, 195], [15000, 210], [16000, 225], [17000, 240], [18000, 255], [19000, 270], [20000, 285], [21000, 320], [22000, 336], [23000, 352], [24000, 414], [25000, 432], [26000, 450], [27000, 520], [28000, 540], [29000, 560], [30000, 580], [31000, 600], [32000, 620], [33000, 640], [34000, 700]]
-  first_step_table_limit: 34000
-  first_step_top_base: 700
-  first_step_top_start: 33000
-  first_step_top_rate: 0.1
-  copay: [[3000, 0.05], [3500, 0.06], [4000, 0.07], [4500, 0.08], [5000, 0.09], [6000, 0.10], [7000, 0.11], [8000, 0.12], [9000, 0.13], [10000, 0.14], [11000, 0.15], [12000, 0.16], [13000, 0.17], [14000, 0.18], [15000, 0.19], [16000, 0.20], [17000, 0.21], [18000, 0.22], [19000, 0.23], [20000, 0.24], [21000, 0.25], [22000, 0.27], [23000, 0.29], [24000, 0.31], [25000, 0.33], [26000, 0.35], [27000, 0.38], [28000, 0.41], [29000, 0.44], [30000, 0.47], [1.0e+20, 0.50]]
-  maximum_steps: [[24000, 1125], [25000, 1105], [26000, 1080], [27000, 1050], [28000, 1020], [29000, 990], [30000, 960], [31000, 930]]
-  maximum_top_base: 900
-  maximum_top_start: 31000
-  maximum_top_rate: 0.1
-  # Final limits: income 33,000-36,000 caps the credit at property tax
-  # less 2.2% of income; 36,000-40,000 at less 2.4%.
-  final_limits: [[33000, 36000, 0.022], [36000, 40000, 0.024]]
-property_credit_1977_1982:
-  threshold: [[3000, 0.05], [3500, 0.06], [4000, 0.07], [4500, 0.08], [5000, 0.09], [6000, 0.10], [7000, 0.11], [8000, 0.12], [9000, 0.13], [10000, 0.14], [11000, 0.15], [12000, 0.16], [13000, 0.17], [14000, 0.18], [15000, 0.19], [16000, 0.20], [17000, 0.21], [18000, 0.22], [19000, 0.24], [20000, 0.26], [21000, 0.28], [22000, 0.30], [23000, 0.32], [24000, 0.34], [25000, 0.36], [26000, 0.38], [1.0e+20, 0.40]]
-  first_step_table_limit: 21000
-  first_step_top_start: 21000
-  first_step_top_rate: 0.1
-property_credit_1979_1982:
-  first_step: [[3000, 10], [3500, 20], [4000, 30], [4500, 40], [5000, 50], [6000, 70], [7000, 100], [8000, 130], [9000, 150], [10000, 180], [11000, 200], [12000, 220], [13000, 250], [14000, 300], [15000, 350], [16000, 400], [17000, 450], [18000, 500], [19000, 550], [20000, 600], [21000, 650]]
-  first_step_top_base: 650
-  second_step_share: 0.5
-  maximum_steps: [[28000, 1000], [29000, 990], [30000, 960], [31000, 930]]
-  maximum_top_base: 900
-  maximum_top_start: 31000
-  maximum_top_rate: 0.1
-property_credit_1977_1978:
-  first_step: [[3000, 10], [3500, 20], [4000, 30], [4500, 40], [5000, 50], [6000, 70], [7000, 90], [8000, 110], [9000, 130], [10000, 150], [11000, 170], [12000, 190], [13000, 210], [14000, 250], [15000, 300], [16000, 350], [17000, 375], [18000, 400], [19000, 425], [20000, 450], [21000, 475]]
-  first_step_top_base: 475
-  second_step_share: 0.35
-  maximum: 800
-  maximum_top_start: 28000
-  maximum_top_rate: 0.1
-
-# Additional standard deduction per taxpayer 65 or older (`stnd(law,4)`
-# single and head of household, `stnd(law,5)` married).
-standard_deduction_aged_addition:
-  single:
-    1988: 750
-    1990: 800
-    1991: 850
-    1992: 900
-    1994: 950
-    1996: 1000
-    1998: 1050
-    2001: 1100
-    2002: 1150
-    2004: 1200
-    2005: 1250
-    2007: 1300
-    2008: 1350
-    2009: 1400
-    2011: 1450
-    2013: 1500
-    2014: 1550
-    2018: 1600
-    2019: 1650
-    2022: 1700
-    2023: 1850
-    2024: 1950
-    2025: 2000
-  married:
-    1988: 600
-    1990: 650
-    1992: 700
-    1994: 750
-    1996: 800
-    1998: 850
-    2001: 900
-    2003: 950
-    2005: 1000
-    2007: 1050
-    2009: 1100
-    2011: 1150
-    2013: 1200
-    2015: 1250
-    2018: 1300
-    2022: 1350
-    2023: 1450
-    2024: 1550
-    2025: 1600
-standard_deduction_2018_aged_addition:
-  single: 1600
-  married_joint: 1300
-  married_separate: 1300
-  head_of_household: 1600
-# 2018+: a dependent filer's standard deduction is limited to the larger
-# of this floor and earned income plus the addition.
-dependent_standard_deduction_floor: {2018: 1050}
-dependent_standard_deduction_earned_addition: {2018: 350}
-
-# Pension exclusion through 1986: up to the maximum, reduced dollar for
-# dollar by federal AGI over the threshold; 1985-1986 only for taxpayers
-# 65 or older.
-pension_exclusion_max:
-  1977: 0
-  1978: 7200
-  1979: 10000
-  1980: 11000
-pension_exclusion_income_threshold:
-  1977: 0
-  1978: 13000
-  1979: 17000
-
-# Subtraction for the elderly (1988-2016): an amount less nontaxable Social
-# Security and half of federal AGI over a start, for federal AGI up to a
-# limit. [joint both 65+, joint one 65+, single or head of household,
-# married filing separately].
-elderly_subtraction:
-  1988:
-    income_limit: [35000, 32000, 28000, 17500]
-    amount: [10000, 10000, 8000, 5000]
-    reduction_start: [15000, 12000, 12000, 7500]
-  1994:
-    income_limit: [42000, 38500, 33700, 21000]
-    amount: [12000, 12000, 9600, 6000]
-    reduction_start: [18000, 14500, 14500, 9000]
-elderly_subtraction_reduction_rate: 0.5
-
-# 2017+ Social Security subtraction: up to a maximum, less 20% of
-# provisional income (federal AGI less taxable benefits plus half of all
-# benefits) over a threshold; married amounts are halved for separate filers.
-social_security_subtraction_threshold:
-  single:
-    2017: 60200
-    2018: 61400
-    2019: 61080
-    2020: 62090
-    2021: 62710
-  married:
-    2017: 77000
-    2018: 78530
-    2019: 78180
-    2020: 79480
-    2021: 80270
-social_security_subtraction_max:
-  single:
-    2017: 3500
-    2019: 4020
-    2020: 4090
-    2021: 4130
-  married:
-    2017: 4500
-    2019: 5150
-    2020: 5240
-    2021: 5950
-social_security_subtraction_benefit_share: 0.5
-social_security_subtraction_phaseout_rate: 0.2
-
-# 1987: share of the federal credit for the elderly.
-elderly_credit_share_1987: 0.4
-
-# 1978-1984 homemaker credit, for a dependent filer with dependents, no
-# earnings over the limit and federal AGI up to the limit.
-homemaker_credit: 50
-homemaker_credit_earnings_limit: 50
-homemaker_credit_agi_limit: 25000
-
-# Property tax refund for renters (1989+): rent counts at this share.
-property_refund_rent_share:
-  1989: 0.19
-  2009: 0.15
-  2010: 0.19
-  2011: 0.17
-# Household income limit (`rrrent`) and its inflation factor (`aifr`).
+property_refund_aged_subtraction: {1994: [0, 5880, 9065, 12005, 14700, 17150], 1995: null}
+# Renters (instead, when qualifying): rent counts at this share; tables on income
+# divided by `property_refund_renter_inflation`, up to the income limit (times it).
+property_refund_rent_share: {1989: 0.19, 2009: 0.15, 2010: 0.19, 2011: 0.17}
 property_refund_renter_income_limit:
   1989: 28034
   2000: 28117
@@ -1315,124 +1601,606 @@ property_refund_renter_inflation:
   2019: 1.769
   2020: 1.789
   2021: 1.844
-# Maximum refund (`p112r`, 2013-2018 `p116r`), threshold percent of income
-# (`p212r`, 2013-2018 `p216r`) and copayment (`p16r`), by income / `aifr`.
-property_refund_renter_max: [[28000, 995], [29000, 900], [30000, 800], [31000, 700], [32000, 600], [33000, 500], [34000, 300], [35000, 100]]
-property_refund_renter_max_2013_2018: [[4000, 1235], [5000, 1200], [7000, 1175], [10000, 1100], [11000, 1075], [13000, 1050], [28000, 1020], [29000, 925], [30000, 835], [31000, 707], [32000, 617], [33000, 557], [34000, 305], [35000, 125]]
-property_refund_renter_threshold: [[4000, 1.0], [5000, 1.1], [7000, 1.2], [9000, 1.3], [11000, 1.4], [13000, 1.5], [14000, 1.6], [15000, 1.7], [17000, 1.8], [18000, 1.9], [19000, 2.0], [20000, 2.2], [21000, 2.4], [22000, 2.6], [23000, 2.7], [24000, 2.8], [25000, 2.9], [26000, 3.0], [27000, 3.1], [28000, 3.2], [29000, 3.3], [30000, 3.4], [35000, 3.5]]
-property_refund_renter_threshold_2013_2018: [[4000, 1.0], [5000, 1.1], [7000, 1.2], [9000, 1.3], [11000, 1.4], [13000, 1.5], [14000, 1.6], [15000, 1.7], [17000, 1.8], [18000, 1.9], [35000, 2.0]]
-property_refund_renter_copay: [[3000, 0.05], [7000, 0.1], [10000, 0.15], [14000, 0.2], [17000, 0.25], [21000, 0.3], [24000, 0.35], [28000, 0.4], [31000, 0.45], [35000, 0.5]]
-# Refund income for taxpayers 65 or older is also reduced by the
-# exemption amount; in 1994 by this amount by number of dependents
-# (`oldep`) instead.
-property_refund_aged_subtraction_1994: [0, 5880, 9065, 12005, 14700, 17150]
+property_refund_renter_max:
+  1989:
+    - [28000, 995]
+    - [29000, 900]
+    - [30000, 800]
+    - [31000, 700]
+    - [32000, 600]
+    - [33000, 500]
+    - [34000, 300]
+    - [35000, 100]
+  2013:
+    - [4000, 1235]
+    - [5000, 1200]
+    - [7000, 1175]
+    - [10000, 1100]
+    - [11000, 1075]
+    - [13000, 1050]
+    - [28000, 1020]
+    - [29000, 925]
+    - [30000, 835]
+    - [31000, 707]
+    - [32000, 617]
+    - [33000, 557]
+    - [34000, 305]
+    - [35000, 125]
+  2019:
+    - [28000, 995]
+    - [29000, 900]
+    - [30000, 800]
+    - [31000, 700]
+    - [32000, 600]
+    - [33000, 500]
+    - [34000, 300]
+    - [35000, 100]
+property_refund_renter_threshold:
+  1989:
+    - [4000, 1.0]
+    - [5000, 1.1]
+    - [7000, 1.2]
+    - [9000, 1.3]
+    - [11000, 1.4]
+    - [13000, 1.5]
+    - [14000, 1.6]
+    - [15000, 1.7]
+    - [17000, 1.8]
+    - [18000, 1.9]
+    - [19000, 2.0]
+    - [20000, 2.2]
+    - [21000, 2.4]
+    - [22000, 2.6]
+    - [23000, 2.7]
+    - [24000, 2.8]
+    - [25000, 2.9]
+    - [26000, 3.0]
+    - [27000, 3.1]
+    - [28000, 3.2]
+    - [29000, 3.3]
+    - [30000, 3.4]
+    - [35000, 3.5]
+  2013:
+    - [4000, 1.0]
+    - [5000, 1.1]
+    - [7000, 1.2]
+    - [9000, 1.3]
+    - [11000, 1.4]
+    - [13000, 1.5]
+    - [14000, 1.6]
+    - [15000, 1.7]
+    - [17000, 1.8]
+    - [18000, 1.9]
+    - [35000, 2.0]
+  2019:
+    - [4000, 1.0]
+    - [5000, 1.1]
+    - [7000, 1.2]
+    - [9000, 1.3]
+    - [11000, 1.4]
+    - [13000, 1.5]
+    - [14000, 1.6]
+    - [15000, 1.7]
+    - [17000, 1.8]
+    - [18000, 1.9]
+    - [19000, 2.0]
+    - [20000, 2.2]
+    - [21000, 2.4]
+    - [22000, 2.6]
+    - [23000, 2.7]
+    - [24000, 2.8]
+    - [25000, 2.9]
+    - [26000, 3.0]
+    - [27000, 3.1]
+    - [28000, 3.2]
+    - [29000, 3.3]
+    - [30000, 3.4]
+    - [35000, 3.5]
+property_refund_renter_copay:
+  - [3000, 0.05]
+  - [7000, 0.1]
+  - [10000, 0.15]
+  - [14000, 0.2]
+  - [17000, 0.25]
+  - [21000, 0.3]
+  - [24000, 0.35]
+  - [28000, 0.4]
+  - [31000, 0.45]
+  - [35000, 0.5]
 
-# Property tax credit before 1989: rent counts at this share.
+# --- Property tax credit before 1989, on household income ---
+# Property tax (rent at `property_credit_rent_share`) above a threshold share of
+# income: through 1984 a first step plus a share of the rest, up to the
+# maximum (`aged` and `copay_aged` for taxpayers 65 or older); 1985-1988 less a
+# copayment share, up to the maximum.
+property_tax_credit:
+  1977:
+    threshold:
+      - [3000, 0.05]
+      - [3500, 0.06]
+      - [4000, 0.07]
+      - [4500, 0.08]
+      - [5000, 0.09]
+      - [6000, 0.1]
+      - [7000, 0.11]
+      - [8000, 0.12]
+      - [9000, 0.13]
+      - [10000, 0.14]
+      - [11000, 0.15]
+      - [12000, 0.16]
+      - [13000, 0.17]
+      - [14000, 0.18]
+      - [15000, 0.19]
+      - [16000, 0.2]
+      - [17000, 0.21]
+      - [18000, 0.22]
+      - [19000, 0.24]
+      - [20000, 0.26]
+      - [21000, 0.28]
+      - [22000, 0.3]
+      - [23000, 0.32]
+      - [24000, 0.34]
+      - [25000, 0.36]
+      - [26000, 0.38]
+      - [1.0e+20, 0.4]
+    first_step_table_limit: 21000
+    first_step_top_start: 21000
+    first_step_top_rate: 0.1
+    first_step:
+      - [3000, 10]
+      - [3500, 20]
+      - [4000, 30]
+      - [4500, 40]
+      - [5000, 50]
+      - [6000, 70]
+      - [7000, 90]
+      - [8000, 110]
+      - [9000, 130]
+      - [10000, 150]
+      - [11000, 170]
+      - [12000, 190]
+      - [13000, 210]
+      - [14000, 250]
+      - [15000, 300]
+      - [16000, 350]
+      - [17000, 375]
+      - [18000, 400]
+      - [19000, 425]
+      - [20000, 450]
+      - [21000, 475]
+    first_step_top_base: 475
+    second_step_share: 0.35
+    maximum: 800
+    maximum_top_start: 28000
+    maximum_top_rate: 0.1
+    aged:
+      first_step:
+        - [3000, 13]
+        - [3500, 25]
+        - [4000, 50]
+        - [4500, 70]
+        - [5000, 90]
+        - [6000, 110]
+        - [7000, 130]
+        - [8000, 160]
+        - [9000, 200]
+        - [10000, 240]
+        - [11000, 280]
+        - [12000, 320]
+        - [13000, 360]
+        - [14000, 400]
+        - [15000, 440]
+        - [16000, 480]
+        - [17000, 520]
+        - [18000, 560]
+        - [19000, 600]
+        - [20000, 640]
+        - [21000, 675]
+      first_step_top_base: 675
+      second_step_share: 0.5
+  1979:
+    threshold:
+      - [3000, 0.05]
+      - [3500, 0.06]
+      - [4000, 0.07]
+      - [4500, 0.08]
+      - [5000, 0.09]
+      - [6000, 0.1]
+      - [7000, 0.11]
+      - [8000, 0.12]
+      - [9000, 0.13]
+      - [10000, 0.14]
+      - [11000, 0.15]
+      - [12000, 0.16]
+      - [13000, 0.17]
+      - [14000, 0.18]
+      - [15000, 0.19]
+      - [16000, 0.2]
+      - [17000, 0.21]
+      - [18000, 0.22]
+      - [19000, 0.24]
+      - [20000, 0.26]
+      - [21000, 0.28]
+      - [22000, 0.3]
+      - [23000, 0.32]
+      - [24000, 0.34]
+      - [25000, 0.36]
+      - [26000, 0.38]
+      - [1.0e+20, 0.4]
+    first_step_table_limit: 21000
+    first_step_top_start: 21000
+    first_step_top_rate: 0.1
+    first_step:
+      - [3000, 10]
+      - [3500, 20]
+      - [4000, 30]
+      - [4500, 40]
+      - [5000, 50]
+      - [6000, 70]
+      - [7000, 100]
+      - [8000, 130]
+      - [9000, 150]
+      - [10000, 180]
+      - [11000, 200]
+      - [12000, 220]
+      - [13000, 250]
+      - [14000, 300]
+      - [15000, 350]
+      - [16000, 400]
+      - [17000, 450]
+      - [18000, 500]
+      - [19000, 550]
+      - [20000, 600]
+      - [21000, 650]
+    first_step_top_base: 650
+    second_step_share: 0.5
+    maximum_steps: [[28000, 1000], [29000, 990], [30000, 960], [31000, 930]]
+    maximum_top_base: 900
+    maximum_top_start: 31000
+    maximum_top_rate: 0.1
+    aged:
+      first_step:
+        - [3000, 13]
+        - [3500, 25]
+        - [4000, 50]
+        - [4500, 70]
+        - [5000, 100]
+        - [6000, 130]
+        - [7000, 150]
+        - [8000, 200]
+        - [9000, 250]
+        - [10000, 300]
+        - [11000, 350]
+        - [12000, 400]
+        - [13000, 450]
+        - [14000, 500]
+        - [15000, 550]
+        - [16000, 600]
+        - [17000, 650]
+        - [18000, 700]
+        - [19000, 750]
+        - [20000, 800]
+        - [21000, 850]
+      first_step_top_base: 850
+  1983:
+    income_limit: 40000
+    threshold:
+      - [3000, 0.005]
+      - [4000, 0.006]
+      - [5000, 0.007]
+      - [6000, 0.008]
+      - [7000, 0.009]
+      - [8000, 0.01]
+      - [9000, 0.011]
+      - [10000, 0.012]
+      - [11000, 0.013]
+      - [12000, 0.014]
+      - [20000, 0.015]
+      - [23000, 0.016]
+      - [26000, 0.018]
+      - [31000, 0.02]
+      - [36000, 0.022]
+      - [1.0e+20, 0.024]
+    first_step:
+      - [3000, 13]
+      - [3500, 15]
+      - [4000, 18]
+      - [4500, 20]
+      - [5000, 23]
+      - [6000, 40]
+      - [7000, 54]
+      - [8000, 70]
+      - [9000, 88]
+      - [10000, 108]
+      - [11000, 130]
+      - [12000, 154]
+      - [13000, 180]
+      - [14000, 195]
+      - [15000, 210]
+      - [16000, 225]
+      - [17000, 240]
+      - [18000, 255]
+      - [19000, 270]
+      - [20000, 285]
+      - [21000, 320]
+      - [22000, 336]
+      - [23000, 352]
+      - [24000, 414]
+      - [25000, 432]
+      - [26000, 450]
+      - [27000, 520]
+      - [28000, 540]
+      - [29000, 560]
+      - [30000, 580]
+      - [31000, 600]
+      - [32000, 620]
+      - [33000, 640]
+      - [34000, 700]
+    first_step_table_limit: 34000
+    first_step_top_base: 700
+    first_step_top_start: 33000
+    first_step_top_rate: 0.1
+    copay:
+      - [3000, 0.05]
+      - [3500, 0.06]
+      - [4000, 0.07]
+      - [4500, 0.08]
+      - [5000, 0.09]
+      - [6000, 0.1]
+      - [7000, 0.11]
+      - [8000, 0.12]
+      - [9000, 0.13]
+      - [10000, 0.14]
+      - [11000, 0.15]
+      - [12000, 0.16]
+      - [13000, 0.17]
+      - [14000, 0.18]
+      - [15000, 0.19]
+      - [16000, 0.2]
+      - [17000, 0.21]
+      - [18000, 0.22]
+      - [19000, 0.23]
+      - [20000, 0.24]
+      - [21000, 0.25]
+      - [22000, 0.27]
+      - [23000, 0.29]
+      - [24000, 0.31]
+      - [25000, 0.33]
+      - [26000, 0.35]
+      - [27000, 0.38]
+      - [28000, 0.41]
+      - [29000, 0.44]
+      - [30000, 0.47]
+      - [1.0e+20, 0.5]
+    maximum_steps:
+      - [24000, 1125]
+      - [25000, 1105]
+      - [26000, 1080]
+      - [27000, 1050]
+      - [28000, 1020]
+      - [29000, 990]
+      - [30000, 960]
+      - [31000, 930]
+    maximum_top_base: 900
+    maximum_top_start: 31000
+    maximum_top_rate: 0.1
+    final_limits: [[33000, 36000, 0.022], [36000, 40000, 0.024]]
+    copay_aged:
+      - [10000, 0.05]
+      - [11000, 0.06]
+      - [12000, 0.07]
+      - [13000, 0.08]
+      - [14000, 0.09]
+      - [16000, 0.1]
+      - [18000, 0.11]
+      - [20000, 0.12]
+      - [21000, 0.13]
+      - [22000, 0.15]
+      - [23000, 0.18]
+      - [24000, 0.21]
+      - [25000, 0.24]
+      - [26000, 0.27]
+      - [27000, 0.3]
+      - [28000, 0.35]
+      - [29000, 0.4]
+      - [30000, 0.45]
+      - [1.0e+20, 0.5]
+  1985:
+    income_limit: 40000
+    threshold:
+      - [8000, 0.01]
+      - [9000, 0.011]
+      - [10000, 0.012]
+      - [11000, 0.013]
+      - [12000, 0.014]
+      - [20000, 0.015]
+      - [23000, 0.016]
+      - [26000, 0.018]
+      - [31000, 0.02]
+      - [36000, 0.022]
+      - [1.0e+20, 0.024]
+    copay:
+      - [3000, 0.05]
+      - [3500, 0.06]
+      - [4000, 0.07]
+      - [4500, 0.08]
+      - [5000, 0.09]
+      - [6000, 0.1]
+      - [7000, 0.11]
+      - [8000, 0.12]
+      - [9000, 0.13]
+      - [10000, 0.14]
+      - [11000, 0.15]
+      - [12000, 0.16]
+      - [13000, 0.17]
+      - [14000, 0.18]
+      - [15000, 0.19]
+      - [16000, 0.2]
+      - [17000, 0.21]
+      - [18000, 0.22]
+      - [19000, 0.23]
+      - [20000, 0.24]
+      - [21000, 0.25]
+      - [22000, 0.27]
+      - [23000, 0.29]
+      - [24000, 0.31]
+      - [25000, 0.33]
+      - [26000, 0.35]
+      - [27000, 0.38]
+      - [28000, 0.41]
+      - [29000, 0.44]
+      - [30000, 0.47]
+      - [1.0e+20, 0.5]
+    maximum_flat: 1125
+    maximum_mid_start: 23500
+    maximum_mid_end: 31250
+    maximum_mid_rate: 0.0290322
+    maximum_top_base: 900
+    maximum_top_rate: 0.1
+    aged_income_reduction: 2000
+  1987:
+    income_limit: 35000
+    threshold_with_dependents:
+      - [8000, 0.01]
+      - [9000, 0.011]
+      - [10000, 0.012]
+      - [11000, 0.013]
+      - [12000, 0.014]
+      - [13000, 0.015]
+      - [14000, 0.016]
+      - [15000, 0.017]
+      - [16000, 0.018]
+      - [17000, 0.019]
+      - [18000, 0.0195]
+      - [20000, 0.02]
+      - [21000, 0.021]
+      - [24000, 0.022]
+      - [27000, 0.023]
+      - [31000, 0.024]
+      - [1.0e+20, 0.025]
+    threshold_no_dependents:
+      - [8000, 0.025]
+      - [9000, 0.026]
+      - [10000, 0.027]
+      - [11000, 0.028]
+      - [12000, 0.029]
+      - [13000, 0.03]
+      - [14000, 0.031]
+      - [15000, 0.032]
+      - [16000, 0.033]
+      - [17000, 0.034]
+      - [18000, 0.0345]
+      - [20000, 0.035]
+      - [21000, 0.036]
+      - [24000, 0.037]
+      - [27000, 0.038]
+      - [31000, 0.039]
+      - [1.0e+20, 0.04]
+    copay:
+      - [9000, 0.1]
+      - [10000, 0.11]
+      - [11000, 0.12]
+      - [12000, 0.13]
+      - [13000, 0.14]
+      - [14000, 0.15]
+      - [15000, 0.16]
+      - [16000, 0.17]
+      - [17000, 0.18]
+      - [18000, 0.19]
+      - [19000, 0.2]
+      - [20000, 0.22]
+      - [21000, 0.24]
+      - [22000, 0.26]
+      - [23000, 0.28]
+      - [24000, 0.3]
+      - [25000, 0.32]
+      - [26000, 0.34]
+      - [27000, 0.36]
+      - [28000, 0.38]
+      - [29000, 0.4]
+      - [30000, 0.42]
+      - [31000, 0.44]
+      - [32000, 0.46]
+      - [33000, 0.48]
+      - [1.0e+20, 0.5]
+    maximum_steps: [[10000, 1100], [17000, 1075], [23000, 1050], [26500, 1025], [27000, 1013]]
+    maximum_mid_start: 27000
+    maximum_mid_end: 32500
+    maximum_mid_base: 1000
+    maximum_mid_rate: 0.1
+    maximum_top_base: 500
+    maximum_top_start: 32000
+    maximum_top_rate: 0.2
+  1988:
+    income_limit: 35000
+    threshold:
+      - [3000, 0.01]
+      - [4000, 0.011]
+      - [5000, 0.012]
+      - [6000, 0.013]
+      - [7000, 0.014]
+      - [8000, 0.015]
+      - [9000, 0.016]
+      - [10000, 0.017]
+      - [11000, 0.018]
+      - [12000, 0.019]
+      - [13000, 0.02]
+      - [14000, 0.021]
+      - [15000, 0.022]
+      - [16000, 0.023]
+      - [17000, 0.024]
+      - [18000, 0.025]
+      - [19000, 0.026]
+      - [20000, 0.027]
+      - [21000, 0.028]
+      - [22000, 0.027]
+      - [23000, 0.028]
+      - [24000, 0.029]
+      - [25000, 0.03]
+      - [26000, 0.031]
+      - [27000, 0.032]
+      - [28000, 0.033]
+      - [29000, 0.034]
+      - [30000, 0.035]
+      - [31000, 0.036]
+      - [32000, 0.037]
+      - [33000, 0.038]
+      - [34000, 0.039]
+      - [1.0e+20, 0.04]
+    copay:
+      - [9000, 0.1]
+      - [10000, 0.12]
+      - [11000, 0.14]
+      - [12000, 0.16]
+      - [13000, 0.18]
+      - [14000, 0.2]
+      - [15000, 0.22]
+      - [16000, 0.24]
+      - [17000, 0.26]
+      - [18000, 0.28]
+      - [19000, 0.3]
+      - [20000, 0.32]
+      - [21000, 0.34]
+      - [22000, 0.36]
+      - [23000, 0.38]
+      - [24000, 0.4]
+      - [25000, 0.42]
+      - [26000, 0.44]
+      - [27000, 0.46]
+      - [28000, 0.48]
+      - [29000, 0.5]
+      - [30000, 0.52]
+      - [31000, 0.54]
+      - [32000, 0.56]
+      - [33000, 0.58]
+      - [1.0e+20, 0.6]
+    maximum_steps: [[10000, 1100], [17000, 1075], [23000, 1050], [26500, 1025], [27000, 1013]]
+    maximum_mid_start: 27000
+    maximum_mid_end: 32500
+    maximum_mid_base: 1000
+    maximum_mid_rate: 0.1
+    maximum_top_base: 500
+    maximum_top_start: 32000
+    maximum_top_rate: 0.2
+  1989: null
 property_credit_rent_share: 0.2
-# 1985-1986: household income is reduced for taxpayers 65 or older.
-property_credit_1985_1986_aged_income_reduction: 2000
-# 1983-1984 copayment for taxpayers 65 or older (`p2eld`).
-property_credit_1983_1984_copay_aged: [[10000, 0.05], [11000, 0.06], [12000, 0.07], [13000, 0.08], [14000, 0.09], [16000, 0.10], [18000, 0.11], [20000, 0.12], [21000, 0.13], [22000, 0.15], [23000, 0.18], [24000, 0.21], [25000, 0.24], [26000, 0.27], [27000, 0.30], [28000, 0.35], [29000, 0.40], [30000, 0.45], [1.0e+20, 0.50]]
-# 1977-1982 first-step credit for taxpayers 65 or older (`p772`, `p822`).
-property_credit_1977_1978_aged:
-  first_step: [[3000, 13], [3500, 25], [4000, 50], [4500, 70], [5000, 90], [6000, 110], [7000, 130], [8000, 160], [9000, 200], [10000, 240], [11000, 280], [12000, 320], [13000, 360], [14000, 400], [15000, 440], [16000, 480], [17000, 520], [18000, 560], [19000, 600], [20000, 640], [21000, 675]]
-  first_step_top_base: 675
-  second_step_share: 0.5
-property_credit_1979_1982_aged:
-  first_step: [[3000, 13], [3500, 25], [4000, 50], [4500, 70], [5000, 100], [6000, 130], [7000, 150], [8000, 200], [9000, 250], [10000, 300], [11000, 350], [12000, 400], [13000, 450], [14000, 500], [15000, 550], [16000, 600], [17000, 650], [18000, 700], [19000, 750], [20000, 800], [21000, 850]]
-  first_step_top_base: 850
-
-# 1978 personal credit additions for taxpayers 65 or older, and for aged
-# taxpayers beyond the number of taxpayers.
-personal_credit_aged_1978: 20
-personal_credit_extra_aged_1978: 10
-
-# 2022+ statutory brackets (PolicyEngine-US gov.states.mn.tax.income.rates, queried 2026-10-01); unscaled.
-brackets_2022plus:
-  2022:
-    single: [[0, 0.0535], [28080, 0.068], [92230, 0.0785], [171220, 0.0985]]
-    joint: [[0, 0.0535], [41050, 0.068], [163060, 0.0785], [284810, 0.0985]]
-    head_of_household: [[0, 0.0535], [34570, 0.068], [138890, 0.0785], [227600, 0.0985]]
-  2023:
-    single: [[0, 0.0535], [30070, 0.068], [98760, 0.0785], [183340, 0.0985]]
-    joint: [[0, 0.0535], [43950, 0.068], [174610, 0.0785], [304970, 0.0985]]
-    head_of_household: [[0, 0.0535], [37010, 0.068], [148730, 0.0785], [243720, 0.0985]]
-  2024:
-    single: [[0, 0.0535], [31690, 0.068], [104690, 0.0785], [193240, 0.0985]]
-    joint: [[0, 0.0535], [46330, 0.068], [184040, 0.0785], [321450, 0.0985]]
-    head_of_household: [[0, 0.0535], [39690, 0.068], [156760, 0.0785], [256880, 0.0985]]
-  2025:
-    single: [[0, 0.0535], [32570, 0.068], [106990, 0.0785], [198630, 0.0985]]
-    joint: [[0, 0.0535], [47620, 0.068], [189180, 0.0785], [330410, 0.0985]]
-    head_of_household: [[0, 0.0535], [40100, 0.068], [161130, 0.0785], [264050, 0.0985]]
-
-# 2022+ working family and child credits (PolicyEngine-US gov.states.mn.tax.income.credits.cwfc,
-# queried 2026-10-01). Lists are indexed by EITC-qualifying children 0, 1, 2, 3+.
-cwfc_2022plus:
-  pre_cwfc:
-    earnings_maximum: [7570, 12650, 20750, 21170]
-    phase_in_rate: [0.039, 0.0935, 0.11, 0.125]
-    phase_out_threshold_joint: [15430, 30290, 34770, 35090]
-    phase_out_threshold_other: [9240, 24110, 28590, 28900]
-    phase_out_rate: [0.02, 0.06, 0.105, 0.105]
-  child_amount: 1750
-  phase_in_rate: 0.04
-  phase_out_rate: 0.12
-  by_year:
-    2023: {phase_in_end: 8750, phase_out_joint: 35000, phase_out_other: 29500}
-    2024: {phase_in_end: 9220, phase_out_joint: 36880, phase_out_other: 31090}
-    2025: {phase_in_end: 9480, phase_out_joint: 37910, phase_out_other: 31950}
-
-# 2022+ phase-outs (PolicyEngine-US gov.states.mn.tax.income.{deductions,exemptions}, queried 2026-10-01).
-# Standard and itemized deductions fall by `low_rate` of AGI above the low threshold up to the high
-# threshold, then `high_rate` above it, but never by more than `alternate_rate` of the deduction; from 2023
-# above `alternate_income` the full alternate amount applies. Exemptions fall `step_fraction` per step.
-phaseouts_2022plus:
-  2022:
-    low_rate: 0.03
-    high_rate: 0.1
-    alternate_rate: 0.8
-    alternate_applies: false
-    alternate_income: 1000000
-    step_fraction: 0.02
-    low: {single: 206050, married_joint: 206050, married_separate: 103025, head_of_household: 206050}
-    high: {single: 304970, married_joint: 304970, married_separate: 152485, head_of_household: 304970}
-    exemption_start: {single: 206050, married_joint: 309050, married_separate: 154525, head_of_household: 257550}
-    exemption_step: {single: 2500, married_joint: 2500, married_separate: 1250, head_of_household: 2500}
-    itemized_low_equals_standard: true
-  2023:
-    low_rate: 0.03
-    high_rate: 0.1
-    alternate_rate: 0.8
-    alternate_applies: true
-    alternate_income: 1000000
-    step_fraction: 0.02
-    low: {single: 220650, married_joint: 220650, married_separate: 110325, head_of_household: 220650}
-    high: {single: 304970, married_joint: 304970, married_separate: 152485, head_of_household: 304970}
-    exemption_start: {single: 220650, married_joint: 330950, married_separate: 165475, head_of_household: 275800}
-    exemption_step: {single: 2500, married_joint: 2500, married_separate: 1250, head_of_household: 2500}
-    itemized_low_equals_standard: true
-  2024:
-    low_rate: 0.03
-    high_rate: 0.1
-    alternate_rate: 0.8
-    alternate_applies: true
-    alternate_income: 1053750
-    step_fraction: 0.02
-    low: {single: 232500, married_joint: 232500, married_separate: 116250, head_of_household: 232500}
-    high: {single: 321350, married_joint: 321350, married_separate: 160675, head_of_household: 321350}
-    exemption_start: {single: 232550, married_joint: 348850, married_separate: 174425, head_of_household: 290700}
-    exemption_step: {single: 2500, married_joint: 2500, married_separate: 1250, head_of_household: 2500}
-    itemized_low_equals_standard: true
-  2025:
-    low_rate: 0.03
-    high_rate: 0.1
-    alternate_rate: 0.8
-    alternate_applies: true
-    alternate_income: 1083150
-    step_fraction: 0.02
-    low: {single: 238950, married_joint: 238950, married_separate: 119475, head_of_household: 238950}
-    high: {single: 330300, married_joint: 330300, married_separate: 165150, head_of_household: 330300}
-    exemption_start: {single: 239050, married_joint: 358550, married_separate: 179275, head_of_household: 298800}
-    exemption_step: {single: 2500, married_joint: 2500, married_separate: 1250, head_of_household: 2500}
-    itemized_low_equals_standard: true

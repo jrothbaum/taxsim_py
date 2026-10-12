@@ -25,6 +25,7 @@ from taxsim_py.engine.detail import (
 )
 from taxsim_py.engine.federal_state import StateCalculator, resolve_federal_and_state
 from taxsim_py.engine.inputs import SUPPORTED_MSTAT, with_input_defaults
+from taxsim_py.engine.schema import PARAMETERS_ROOT, load_yaml
 
 StateIdType = Literal["taxsim", "fips"]
 
@@ -133,7 +134,7 @@ MARGINAL_INPUTS: dict[MarginalInput, tuple[str, float]] = {
 }
 _MARGINAL_STEP = 0.01
 # The last tax year with coded federal and state law; later years raise an error.
-LAST_SUPPORTED_YEAR = 2025
+LAST_SUPPORTED_YEAR = int(load_yaml(PARAMETERS_ROOT / "national" / "income_tax.yaml")["law_coded_through"])
 # TAXSIM retries with a decrease when an increase gives a rate outside these.
 _FEDERAL_RATE_LIMIT = 100.0
 _STATE_RATE_LIMIT = 25.0

@@ -1,33 +1,11 @@
-# Alaska individual income tax (`aktax`, taxsim_2022_10_21.f:728-808, state
-# id 2). Third state (alphabetical order). Genuinely the smallest possible
-# real range of any state: `aktax` itself returns immediately for
-# `law.gt.1979` ("Personal income tax repealed in 1980 after the oil
-# boom"), and the shared state dispatcher (`statax`) never calls ANY state
-# calculator before 1977 - so Alaska's only ever-reachable years are
-# 1977, 1978, and 1979, exactly 3 years.
+# Alaska individual income tax, 1977-1979 (repealed from 1980).
 #
-# AGI = federal AGI directly (`comnew(2)`), no addbacks/adjustments of any
-# kind - no dividend-exclusion addback, no capital-gains addback, nothing.
-# Standard deduction is a flat, status-based table (no percentage-of-AGI
-# formula, no personal exemption amount at all - `taxinc = agi - deduc`
-# with `deduc` = the standard deduction alone). married_separate is a real,
-# distinct case: it reuses SINGLE's own bracket table (not its own, not
-# married_joint/2) but gets its OWN, smaller standard deduction ($1,600,
-# not $2,200) - confirmed directly from the source's own two separate,
-# independent `if` checks (`if(mst.eq.3.or.mst.eq.6) stded=1600` sets ONLY
-# the deduction; the bracket-table selector `m` is never touched for that
-# status, so it keeps its initialized default of 1 = single's table).
-# head_of_household gets its own bracket table but SINGLE's own $2,200
-# standard deduction (no separate HoH value at all).
-#
-# Scope note, matching this project's established input-schema discipline:
-# `aktax` also reads a "minimum tax" term (`.16*.15*data(81)`) and a
-# small nonrefundable credit (`min(50,data(35))`) - both confirmed inert
-# given this project's schema (data(81)/data(35) never populated by the
-# standard input reader, same fields already confirmed inert for Alabama
-# and law79/law60). The small flat `txcred` (a genuine, real, year-
-# specific credit, doubled for married_joint only) IS reachable and
-# modeled below.
+# Source: NBER TAXSIM (`aktax`). Taxable income is federal AGI less the
+# standard deduction; there are no exemptions. Separate returns use the
+# single schedule with their own standard deduction; heads of household have
+# their own schedule and the single standard deduction. The minimum tax and
+# the small nonrefundable credit have no TAXSIM input.
+
 standard_deduction_single:
   1977: 2200
 standard_deduction_married_joint:
@@ -36,11 +14,13 @@ standard_deduction_married_separate:
   1977: 1600
 standard_deduction_head_of_household:
   1977: 2200
+# Flat credit, doubled on joint returns.
 flat_credit:
   1977: 0
   1978: 100
   1979: 200
 
+# Rate schedules, [start of bracket, rate].
 brackets_single:
   - [0, 0.03]
   - [2000, 0.035]

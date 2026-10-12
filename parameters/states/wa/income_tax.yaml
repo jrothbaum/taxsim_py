@@ -1,8 +1,10 @@
-# Washington has no wage income tax. In statutory mode the port models the
-# Working Families Tax Credit (RCW 82.08.0206), a refundable credit worth a
-# share of the federal EITC maximum, reported as negative state income tax.
+# Washington: no wage income tax. Statutory mode models the Working Families
+# Tax Credit (RCW 82.08.0206), a refundable credit reported as negative
+# state income tax; TAXSIM computes no Washington tax.
+#
+# Sources: RCW 82.08.0206 and PolicyEngine-US `gov.states.wa.tax.income`.
 
-# Maximum credit by number of EITC children (0, 1, 2, 3 or more).
+# Maximum credit by number of EITC children (0, 1, 2, 3 or more), from 2022.
 working_families_credit_amount:
   2022: [300, 600, 900, 1200]
   2023: [315, 625, 940, 1255]

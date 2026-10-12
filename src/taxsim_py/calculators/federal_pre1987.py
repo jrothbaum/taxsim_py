@@ -56,8 +56,7 @@ def compute_federal_income_tax_pre1987(
     )
     df = df.with_columns(earned=(pl.col("wages") + pl.col("gross_se_income")).clip(0, None))
 
-    # Dividend exclusion (`divall`). 1981 also excludes interest. 1979's
-    # exclusion reads `data(13)`, which TAXSIM never sets, so it is 0.
+    # Dividend exclusion (`divall`); 1981 also excludes interest.
     divexc_expr = by_filing_status(
         {status: resolve_year(p["dividend_exclusion"][status], year) for status in FILING_STATUSES}
     )
@@ -96,9 +95,8 @@ def compute_federal_income_tax_pre1987(
         .otherwise(pl.max_horizontal(net_loss, -loss_limit / pl.col("sepret")))
     )
 
-    # Two-earner deduction (1982+): 10% of the lower earner's wages, capped
-    # (5% and $1,500 in 1982).
-    if year >= 1982:
+    # Two-earner deduction: a share of the lower earner's wages, capped.
+    if p.in_effect("two_earner_deduction_rate"):
         two_earner_rate = p.num("two_earner_deduction_rate")
         two_earner_cap = p.num("two_earner_deduction_cap")
         df = df.with_columns(wife=pl.min_horizontal(pl.col("pwages"), pl.col("swages")).clip(0, None))
@@ -123,15 +121,12 @@ def compute_federal_income_tax_pre1987(
         unearned=pl.col("ti") - pl.col("earned") + pl.col("capgn"),
     )
 
-    # Unemployment compensation: excluded before 1979; from 1979 half the
-    # excess over a threshold is taxable, up to the benefit
-    # (taxsim_2022_10_21.f:23437-23443).
-    if year <= 1978:
+    # Unemployment compensation: half the excess over a threshold is
+    # taxable, up to the benefit.
+    if not p.in_effect("unemployment_exclusion_threshold"):
         df = df.with_columns(untax=pl.lit(0.0))
     else:
-        uxemp_expr = by_filing_status(
-            {status: resolve_year(p["unemployment_exclusion_threshold"][status], year) for status in FILING_STATUSES}
-        )
+        uxemp_expr = by_filing_status(p.value("unemployment_exclusion_threshold"))
         df = df.with_columns(uxemp=uxemp_expr)
         df = df.with_columns(
             untax=pl.min_horizontal(
@@ -169,9 +164,8 @@ def compute_federal_income_tax_pre1987(
         deduc=pl.col("proptax") + pl.col("otheritem") + pl.col("mortgage") + pl.col("state_sales_or_income_tax_ded"),
         zbr=zbr_expr,
     )
-    # From 1982 a forced choice (`data(4)`) overrides itemizing
-    # (taxsim_2022_10_21.f:23532); through 1981 itemizing is always
-    # `deduc>zbr`.
+    # From 1982 a forced choice (`data(4)`) overrides itemizing; through 1981
+    # itemizing is always `deduc>zbr`.
     if year <= 1981:
         itemizes_expr = pl.col("deduc") > pl.col("zbr")
     else:
@@ -202,16 +196,13 @@ def compute_federal_income_tax_pre1987(
         taxinc_unclamped=pl.col("taxy") - pl.col("zbr"),
         regtax_raw=bracket_tax_by_status(pl.col("taxable_income_for_bracket"), brackets_by_status),
     )
-    if year == 1981:
-        rrc = p.num("rate_reduction_credit_multiplier")
-        df = df.with_columns(regtax=rrc * pl.col("regtax_raw"))
-    else:
-        df = df.with_columns(regtax=pl.col("regtax_raw"))
+    rrc = p.num("rate_reduction_credit_multiplier") if p.in_effect("rate_reduction_credit_multiplier") else 1.0
+    df = df.with_columns(regtax=rrc * pl.col("regtax_raw") if rrc != 1.0 else pl.col("regtax_raw"))
 
-    # --- Alternative computation of tax on capital gains (`acgtax`):
-    # 1977-1978 (a 25%/50% blend at $50,000/sepret) and 1981 (a 20% cap). ---
-    if year in (1977, 1978):
-        threshold = p.num("alt_capital_gains_tax_threshold_pre1979")
+    # --- Alternative computation of tax on capital gains (`acgtax`) ---
+    alt = p.value("alternative_capital_gains") if p.in_effect("alternative_capital_gains") else {}
+    if "threshold" in alt:
+        threshold = float(alt["threshold"])
         df = df.with_columns(cg1=(pl.col("taxinc_unclamped") - pl.col("capded")).clip(0, None))
         df = df.with_columns(
             cgtx1=bracket_tax_by_status(pl.col("cg1"), brackets_by_status),
@@ -220,8 +211,8 @@ def compute_federal_income_tax_pre1987(
         )
         df = df.with_columns(further_gated=pl.col("gated") & (pl.col("subd") < pl.col("capded") * 2))
         df = df.with_columns(
-            cgtx2=pl.when(pl.col("further_gated")).then(p["alternative_capital_gains_1977_1978"]["subd_rate"] * pl.col("subd")).otherwise(
-                p["alternative_capital_gains_1977_1978"]["capded_rate"] * pl.col("capded")
+            cgtx2=pl.when(pl.col("further_gated")).then(alt["subd_rate"] * pl.col("subd")).otherwise(
+                alt["capded_rate"] * pl.col("capded")
             ),
             cg3=pl.max_horizontal(pl.col("taxinc_unclamped"), pl.col("capded")),
         )
@@ -238,27 +229,22 @@ def compute_federal_income_tax_pre1987(
             .then(pl.col("cgtx1") + pl.col("cgtx2") + pl.col("cgtx3"))
             .otherwise(-1.0)
         )
-    elif year == 1981:
-        rrc = p.num("rate_reduction_credit_multiplier")
+    elif alt:
         df = df.with_columns(cglong=pl.min_horizontal(pl.col("ltcg"), pl.col("fullcg")).clip(0, None))
-        df = df.with_columns(cg1=(pl.col("taxy") - p["alternative_capital_gains_1981"]["excluded_share"] * pl.col("cglong")).clip(0, None))
+        df = df.with_columns(cg1=(pl.col("taxy") - alt["excluded_share"] * pl.col("cglong")).clip(0, None))
         df = df.with_columns(cgtx1_raw=bracket_tax_by_status(pl.col("cg1"), brackets_by_status))
         df = df.with_columns(
             acgtax=pl.when(pl.col("cglong") > 0)
-            .then(rrc * pl.col("cgtx1_raw") + p["alternative_capital_gains_1981"]["rate"] * pl.col("cglong"))
+            .then(rrc * pl.col("cgtx1_raw") + alt["rate"] * pl.col("cglong"))
             .otherwise(-1.0)
         )
     else:
         df = df.with_columns(acgtax=pl.lit(-1.0))
 
-    # --- "Maximum tax on earned income" (`etax`), 1977-1981 only ---
-    if year <= 1981:
-        ebot_expr = by_filing_status(
-            {status: resolve_year(p["max_tax_earned_income_floor"][status], year) for status in FILING_STATUSES}
-        )
-        eacc_expr = by_filing_status(
-            {status: resolve_year(p["max_tax_earned_income_accumulated"][status], year) for status in FILING_STATUSES}
-        )
+    # --- Maximum tax on earned income (`etax`) ---
+    if p.in_effect("max_tax_earned_income_floor"):
+        ebot_expr = by_filing_status(p.value("max_tax_earned_income_floor"))
+        eacc_expr = by_filing_status(p.value("max_tax_earned_income_accumulated"))
         df = df.with_columns(
             ebot=ebot_expr,
             eacc=eacc_expr,
@@ -269,8 +255,7 @@ def compute_federal_income_tax_pre1987(
         )
         # Preference income (`pref`) for `eti`: in 1977-1978 itemizers add
         # back excluded gains, unemployment compensation, wages and excess
-        # itemized deductions; 1979-1981 read `data(164)`, which is 0
-        # (taxsim_2022_10_21.f:23683-23701).
+        # itemized deductions; 1979-1981 read `data(164)`, which is 0.
         if year <= 1978:
             df = df.with_columns(
                 exded_pref=pl.min_horizontal(
@@ -290,8 +275,7 @@ def compute_federal_income_tax_pre1987(
             etop=pl.col("eti") - pl.col("ebot"),
             partax=bracket_tax_by_status(pl.col("eti"), brackets_by_status),
         )
-        if year == 1981:
-            rrc = p.num("rate_reduction_credit_multiplier")
+        if rrc != 1.0:
             df = df.with_columns(
                 etax_raw=rrc * (pl.col("regtax_raw") - pl.col("partax") + pl.col("eacc")) + 0.5 * pl.col("etop")
             )
@@ -321,11 +305,10 @@ def compute_federal_income_tax_pre1987(
         chwage=pl.col("wages").clip(0, None),
     )
     df = df.with_columns(child_expense=pl.min_horizontal(pl.col("chmax"), pl.col("chwage"), pl.col("childcare")))
-    if year <= 1981:
-        chr_rate = p.num("child_care_credit_flat_rate")
-        df = df.with_columns(ccc_rate=pl.lit(chr_rate))
+    ccc = p.value("child_care_credit_rate")
+    if not isinstance(ccc, dict):
+        df = df.with_columns(ccc_rate=pl.lit(float(ccc)))
     else:
-        ccc = p["child_care_credit_rate_1982_1986"]
         df = df.with_columns(
             ccc_rate=(
                 ccc["max_rate"] - ((pl.col("agi") - ccc["agi_floor"]) / ccc["agi_step"]).clip(0, None)
@@ -333,10 +316,9 @@ def compute_federal_income_tax_pre1987(
         )
     df = df.with_columns(chcr=pl.col("child_expense") * pl.col("ccc_rate"))
 
-    # General Tax Credit (1976-1978):
-    # `gencr=max(35*exemps,min(180,.02*taxinc))` (taxsim_2024_09_21.f:23936-23940).
-    if year in (1977, 1978):
-        gtc = p["general_tax_credit_1977_1978"]
+    # General tax credit.
+    if p.in_effect("general_tax_credit"):
+        gtc = p.value("general_tax_credit")
         gencr = pl.max_horizontal(
             gtc["per_exemption"] * pl.col("exemps_count"),
             pl.min_horizontal(float(gtc["maximum"]), gtc["taxable_income_rate"] * pl.col("taxable_income_for_bracket")),
@@ -357,8 +339,8 @@ def compute_federal_income_tax_pre1987(
         r1 = p.num("minimum_tax_tier1_rate")
         r2 = p.num("minimum_tax_tier2_rate")
         r3 = p.num("minimum_tax_tier3_rate")
-        # `alminy = agi - amex - excess - zbr + capded` (taxsim_2022_10_21.f:
-        # 23977-23978); from 1979 `taxy` excludes `zbr` once more.
+        # `alminy = agi - amex - excess - zbr + capded`; from 1979 `taxy`
+        # excludes `zbr` once more.
         df = df.with_columns(alminy=pl.col("taxinc_unclamped") + pl.col("capded"))
         df = df.with_columns(
             mintax_raw=(
@@ -504,18 +486,18 @@ def compute_federal_income_tax_pre1987(
         almrat = pl.lit(0.0)
     elif year <= 1982:
         def tier(n: int) -> pl.Expr:
-            threshold = float(resolve_year(p[f"minimum_tax_tier{n}_threshold"], year))
-            rate_n = float(resolve_year(p[f"minimum_tax_tier{n}_rate"], year))
+            threshold = p.num(f"minimum_tax_tier{n}_threshold")
+            rate_n = p.num(f"minimum_tax_tier{n}_rate")
             return rate_n * (pl.col("alminy") > threshold / pl.col("sepret")).cast(pl.Float64)
 
         almr = tier(1) + tier(2)
-        if year <= 1981:
+        if p.in_effect("minimum_tax_tier3_threshold"):
             almrat = almr + tier(3)
         else:
             # The excess itemized deduction preference nets the rate down.
             salt = pl.col("state_sales_or_income_tax_ded")
             pexded = (pl.col("exded_1979plus") > 0) & ((pl.col("agi") - salt).clip(0, None) > 0)
-            share = float(p["excess_itemized_agi_share_1982"])
+            share = p.num("minimum_tax_excess_itemized_share")
             almrat = almr * (1.0 - share * pexded.cast(pl.Float64)) - almr
     else:
         flat = p.num("minimum_tax_flat_rate")

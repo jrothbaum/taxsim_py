@@ -2,9 +2,9 @@
 
 import polars as pl
 
-from taxsim_py.engine.brackets import bracket_rate, bracket_tax
+from taxsim_py.engine.brackets import bracket_rate, bracket_tax, scale_brackets
 from taxsim_py.engine.inputs import aged_count, files_joint, files_separate, is_dependent_filer, taxpayer_count
-from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml, resolve_year
+from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml
 from taxsim_py.engine.state import checkpoint, interpolate_table, tier_values, with_state_detail
 from taxsim_py.behavior import BehaviorProfile, TAXSIM_BEHAVIOR
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
@@ -12,35 +12,22 @@ from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, reso
 OH_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "oh" / "income_tax.yaml")
 
 
-def _brackets(y: int) -> list[list[float]]:
-    p = YearParams(OH_PARAMS, y)
-    brackets = resolve_year(OH_PARAMS["brackets"], y)
-    if 2008 <= y <= 2012:
-        factor = p.num("bracket_inflation")
-        return [[float(start) * factor, float(rate)] for start, rate in brackets]
-    return brackets
-
-
-def _joint_credit(statax: pl.Expr, taxinc: pl.Expr, businc: pl.Expr, y: int, eligible: pl.Expr) -> pl.Expr:
-    """Tax after the joint filing credit (`ohjoin`)."""
-    p = OH_PARAMS
-    if y < 1983:
-        share = interpolate_table(taxinc, p["joint_credit_1977"])
-    elif y == 1983:
-        share = interpolate_table(taxinc, p["joint_credit_1983"])
+def _joint_credit(statax: pl.Expr, taxinc: pl.Expr, businc: pl.Expr, p: YearParams, eligible: pl.Expr) -> pl.Expr:
+    """Tax after the joint filing credit."""
+    rows = p.value("joint_credit_share")
+    if p.year <= 1983:
+        share = interpolate_table(taxinc, rows)
     else:
-        rows = p["joint_credit_1984"]
         (share,) = tier_values(taxinc + businc, [r[0] for r in rows], [r[1] for r in rows], strict=True)
     jcred = (share * statax).clip(0, None)
-    if y >= 1989:
-        jcred = jcred.clip(None, p["joint_credit_cap_1989"])
+    if p.in_effect("joint_credit_cap"):
+        jcred = jcred.clip(None, p.num("joint_credit_cap"))
     return pl.when(eligible).then((statax - jcred).clip(0, None)).otherwise(statax)
 
 
 def compute_oh_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
     """Calculate Ohio income tax for each row."""
-    state_year = "oh" if behavior.mode.value == "statutory" else None
-    effective_year, flate = resolve_state_year(year, state_year)
+    effective_year, flate = resolve_state_year(year, behavior, OH_PARAMS)
     y = effective_year
     p = YearParams(OH_PARAMS, effective_year)
     df = deflate_for_extrapolation(df, flate)
@@ -54,37 +41,37 @@ def compute_oh_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
 
     # --- AGI and the business income deduction ---
     agi = pl.col("agi")
-    if y <= 1982:
+    if p.in_effect("pension_exclusion"):
         agi = agi - pl.when(aged > 0).then(
-            pl.min_horizontal(pl.col("pensions"), float(p["pension_exclusion_1977_1982"]))
+            pl.min_horizontal(pl.col("pensions"), p.num("pension_exclusion"))
         ).otherwise(0.0)
     if y >= 1984:
         agi = agi - pl.col("taxable_social_security")
     businc = pl.lit(0.0)
     statb = pl.lit(0.0)
     business_rate = pl.lit(0.0)
-    if y >= 2015:
+    if p.in_effect("business_deduction_share"):
         business = (pl.col("psemp") + pl.col("ssemp")).clip(0, None)
         busded = pl.min_horizontal(p.num("business_deduction_share") * business, p.num("business_deduction_cap") / sep)
         agi = agi - busded
         businc = (business - busded).clip(0, None)
-        statb = bracket_tax(businc, p["business_brackets"])
-        business_rate = bracket_rate(businc, p["business_brackets"])
+        statb = bracket_tax(businc, p.value("business_brackets"))
+        business_rate = bracket_rate(businc, p.value("business_brackets"))
     df, (agi, businc) = checkpoint(df, oh_agi=agi, oh_businc=businc)
 
     # --- Exemptions ---
     amount = p.num("exemption")
-    if 1996 <= y <= 1998:
-        exemp = amount * taxpayers + p.num("dependent_exemption_1996_1998") * depx
+    if p.in_effect("dependent_exemption"):
+        exemp = amount * taxpayers + p.num("dependent_exemption") * depx
     else:
-        if y >= 2014:
+        if p.in_effect("exemption_low_income"):
             amount = (
                 pl.when(agi <= p["exemption_low_income_agi"]).then(p.num("exemption_low_income"))
                 .when(agi <= p["exemption_middle_income_agi"]).then(p.num("exemption_middle_income"))
                 .otherwise(amount)
             )
-            if y >= 2025:
-                amount = pl.when(agi > p.num("income_limit_2025plus")).then(0.0).otherwise(amount)
+            if p.in_effect("high_income_limit"):
+                amount = pl.when(agi > p.num("high_income_limit")).then(0.0).otherwise(amount)
         exemp = amount * exemptions
     exemp = pl.when(is_dependent_filer()).then(0.0).otherwise(exemp)
     df, (taxinc,) = checkpoint(df, oh_taxinc=(agi - businc - exemp).clip(0, None))
@@ -93,34 +80,33 @@ def compute_oh_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     chcrbc = pl.col("ccc_uncapped")
     regcr = pl.lit(0.0)
     earncr = pl.lit(0.0)
-    if 1989 <= y <= 1992:
-        c = p["child_care_1989_1992"]
+    c = p.value("child_care_credit") if p.in_effect("child_care_credit") else {}
+    if "cap" in c:
         regcr = pl.when(agi < c["agi_limit"]).then(pl.min_horizontal(c["rate"] * chcrbc, pl.lit(c["cap"]))).otherwise(0.0)
-    elif y >= 1993:
-        c = p["child_care_1993_1996"] if y <= 1996 else p["child_care_1997"]
+    elif c:
         regcr = pl.when(agi < c["agi_limit"]).then(
             pl.when(agi < c["low_agi"]).then(c["low_rate"] * chcrbc).otherwise(c["rate"] * chcrbc)
         ).otherwise(0.0)
 
     # Senior citizen credit, and from 1983 a retirement income credit by
     # pensions, for taxpayers 65 or older.
-    if y <= 1982:
-        senior = pl.lit(float(p["senior_credit_1977_1982"]))
+    if not p.in_effect("retirement_income_credit"):
+        senior = pl.lit(p.num("senior_credit"))
     else:
-        retcr = interpolate_table(pl.col("pensions"), p["retirement_income_credit"])
-        if y >= 1990:
-            retcr = retcr.clip(None, p["retirement_income_credit_cap_1990"])
-        senior = pl.when(taxinc <= p["senior_credit_taxable_income_limit"]).then(
-            float(p["senior_credit"]) + retcr
+        retcr = interpolate_table(pl.col("pensions"), p.value("retirement_income_credit"))
+        if p.in_effect("retirement_income_credit_cap"):
+            retcr = retcr.clip(None, p.num("retirement_income_credit_cap"))
+        senior = pl.when(taxinc <= p.num("senior_credit_taxable_income_limit")).then(
+            p.num("senior_credit") + retcr
         ).otherwise(0.0)
     chcr = regcr
     regcr = regcr + pl.when(aged > 0).then(senior).otherwise(0.0)
 
     excred = pl.lit(0.0)
-    if 1983 <= y <= 2012:
-        excred = p["exemption_credit"] * exemptions
-    elif y >= 2013:
-        excred = pl.when(taxinc < p["exemption_credit_income_limit_2013"]).then(p["exemption_credit"] * exemptions).otherwise(0.0)
+    if p.in_effect("exemption_credit"):
+        excred = p.num("exemption_credit") * exemptions
+        if p.in_effect("exemption_credit_income_limit"):
+            excred = pl.when(taxinc < p.num("exemption_credit_income_limit")).then(excred).otherwise(0.0)
 
     # --- Joint filing credit eligibility: each spouse's income share ---
     wages = pl.col("pwages").clip(0, None) + pl.col("swages").clip(0, None)
@@ -132,31 +118,29 @@ def compute_oh_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     wagi = xlind - hagi
     min_income = p["joint_credit_min_spouse_income"]
     joint_eligible = (hagi >= min_income) & (wagi >= min_income)
-    # TAXSIM also requires earned income; the statute's qualifying income
-    # includes pensions, so actual-law years drop that test.
-    if behavior.mode.value != "statutory" or y < 2022:
-        joint_eligible = joint_eligible & (pl.col("earned_income") >= p["joint_credit_min_earned"])
+    if p.in_effect("joint_credit_min_earned"):
+        joint_eligible = joint_eligible & (pl.col("earned_income") >= p.num("joint_credit_min_earned"))
     df, (joint_eligible,) = checkpoint(df, oh_joint_eligible=joint_eligible)
 
-    brackets = _brackets(y)
+    brackets = scale_brackets(p.value("brackets"), p.num("bracket_inflation"))
     if y <= 1982:
         # Through 1988 the joint filing credit is not limited to joint returns.
         statax = (bracket_tax(taxinc, brackets) - regcr).clip(0, None)
-        statax = _joint_credit(statax, taxinc, businc, y, joint_eligible)
+        statax = _joint_credit(statax, taxinc, businc, p, joint_eligible)
         rate = bracket_rate(taxinc, brackets)
-    elif y <= 1988:
+    elif p.in_effect("exemption_deduction_alternative"):
         # Method 1 (a deduction per exemption, then the joint credit) unless
         # method 2 (a credit per exemption) is lower than method 1 before the
         # joint credit, as the oracle behaves; the exemption credit then
         # applies again.
-        dedy = p["exemption_deduction_1983_1988"] * exemptions
+        dedy = p.num("exemption_deduction_alternative") * exemptions
         stax1 = bracket_tax((taxinc - dedy).clip(0, None), brackets) - regcr
-        stax2 = bracket_tax(taxinc, brackets) - regcr - p["exemption_credit"] * exemptions
+        stax2 = bracket_tax(taxinc, brackets) - regcr - p.num("exemption_credit") * exemptions
         if y != 1983:
             stax1 = stax1.clip(0, None)
             stax2 = stax2.clip(0, None)
         df, (stax1, stax2) = checkpoint(df, oh_stax1=stax1, oh_stax2=stax2)
-        statax = pl.when(stax2 < stax1).then(stax2).otherwise(_joint_credit(stax1, taxinc, businc, y, joint_eligible))
+        statax = pl.when(stax2 < stax1).then(stax2).otherwise(_joint_credit(stax1, taxinc, businc, p, joint_eligible))
         rate = pl.when(stax2 < stax1).then(bracket_rate(taxinc, brackets)).otherwise(
             bracket_rate((taxinc - dedy).clip(0, None), brackets)
         )
@@ -164,28 +148,27 @@ def compute_oh_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     else:
         statax = bracket_tax(taxinc, brackets)
         rate = bracket_rate(taxinc, brackets)
-        if y >= 2017:
+        if p.in_effect("zero_bracket"):
             statax = pl.when(taxinc <= p.num("zero_bracket")).then(0.0).otherwise(statax)
         statax = statax + statb
         statax = (statax - regcr).clip(0, None)
         statax = (statax - excred).clip(0, None)
         df, (statax,) = checkpoint(df, oh_statax=statax)
-        if y >= 2013:
+        if p.in_effect("eitc_rate"):
             earncr = p.num("eitc_rate") * pl.col("eitc")
-            if y <= 2018:
-                earncr = pl.when(taxinc + businc > p["eitc_income_limit"]).then(
+            if p.in_effect("eitc_income_limit"):
+                earncr = pl.when(taxinc + businc > p.num("eitc_income_limit")).then(
                     pl.min_horizontal(earncr, p["eitc_tax_share_limit"] * statax)
                 ).otherwise(earncr)
         joint_ok = is_joint & joint_eligible
-        if y >= 2025:
-            joint_ok = joint_ok & ((taxinc + businc) <= p.num("income_limit_2025plus"))
-        statax = _joint_credit(statax, taxinc, businc, y, joint_ok)
+        if p.in_effect("high_income_limit"):
+            joint_ok = joint_ok & ((taxinc + businc) <= p.num("high_income_limit"))
+        statax = _joint_credit(statax, taxinc, businc, p, joint_ok)
         statax = (statax - earncr).clip(0, None)
 
     credits = regcr + excred + earncr
-    if 2005 <= y <= 2016:
-        # TAXSIM returns before the credits and the tax table.
-        exempt = taxinc <= p["low_income_exemption_2005_2016"]
+    if p.in_effect("no_tax_threshold"):
+        exempt = taxinc <= p.num("no_tax_threshold")
         statax = pl.when(exempt).then(0.0).otherwise(statax)
         chcr = pl.when(exempt).then(0.0).otherwise(chcr)
         earncr = pl.when(exempt).then(0.0).otherwise(earncr)

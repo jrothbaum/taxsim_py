@@ -5,7 +5,7 @@ import polars as pl
 from taxsim_py.calculators.federal_pre1987 import PRE1987_PARAMS
 from taxsim_py.engine.brackets import bracket_rate, bracket_tax
 from taxsim_py.engine.inputs import aged_count, files_joint, separate_divisor, taxpayer_count
-from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml, resolve_year
+from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml
 from taxsim_py.engine.state import (
     dividend_input_adjustment,
     forced_standard,
@@ -20,8 +20,7 @@ from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, reso
 KY_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "ky" / "income_tax.yaml")
 
 def compute_ky_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
-    state_year = "ky" if behavior.mode.value == "statutory" else None
-    effective_year, flate = resolve_state_year(year, state_year)
+    effective_year, flate = resolve_state_year(year, behavior, KY_PARAMS)
     p = YearParams(KY_PARAMS, effective_year)
 
     df = df.with_columns(
@@ -30,31 +29,27 @@ def compute_ky_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     )
     is_joint = files_joint()
 
-    setax = pl.col("payroll_setax")  # `comnew(175)`, real-year and undeflated
-    # The federal child care credit before the liability limit (`comnew(176)`)
-    # is likewise read undeflated.
-    df = df.with_columns(ky_setax=setax, ky_ccc=pl.col("ccc_uncapped"))
+    # Self-employment tax and the federal child care credit before its
+    # liability limit are not deflated in projected years.
+    df = df.with_columns(ky_setax=pl.col("payroll_setax"), ky_ccc=pl.col("ccc_uncapped"))
 
     df = deflate_for_extrapolation(df, flate)
 
-    phas92_base = float(p["itemized_phaseout_base"][1960])
+    phas92_base = float(p["itemized_limitation_threshold"])
     phas92 = phas92_base / pl.col("ky_sep")
     if 1992 <= effective_year <= 2017:
-        aif92 = p.num("itemized_phaseout_aif92_1992_2017")
-        phas92 = phas92_base * aif92 / pl.col("ky_sep")
+        phas92 = phas92_base * p.num("itemized_limitation_index") / pl.col("ky_sep")
 
-    # `fedtax=max(0,comnew(1)-comnew(175)-max(0,comnew(70)-comnew(28)))`:
-    # federal income tax, which can be negative, less self-employment tax
-    # and AMT, floored at 0 only at the end.
+    # Federal income tax, which can be negative, less self-employment tax and
+    # AMT, floored at 0 only at the end.
     ky_fedtax = (pl.col("fiitax") - pl.col("ky_setax") - pl.col("amt").clip(0, None)).clip(0, None)
-
-    # `excli` - 1985's own interest-income exclusion.
-    excli_cap = float(p["interest_exclusion_1985_cap_per_filer"][1960])
-    excli = p["interest_exclusion_1985_rate"] * pl.col("intrec").clip(0, excli_cap * pl.col("ky_taxpayers"))
 
     # --- AGI ---
     if effective_year <= 1989:
-        agi = pl.col("agi") - ky_fedtax - (excli if effective_year == 1985 else 0.0)
+        agi = pl.col("agi") - ky_fedtax
+        if p.in_effect("interest_exclusion"):
+            ie = p.value("interest_exclusion")
+            agi = agi - ie["rate"] * pl.col("intrec").clip(0, float(ie["cap_per_taxpayer"]) * pl.col("ky_taxpayers"))
     else:
         # 1990 adds back federal income tax (`comnew(1)`) even when negative.
         subtra = 0.0 if effective_year != 1990 else pl.col("fiitax")
@@ -65,36 +60,31 @@ def compute_ky_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         agi = agi + ui_total - pl.col("taxable_unemployment")
     if effective_year >= 1984:
         agi = agi - pl.col("taxable_social_security")
-    # The 1987-1989 dividend exclusion (`divexc`) is this same
-    # `min(dividends,100*txp)` subtraction, taken once.
-    if effective_year <= 1997:
-        agi = agi - (pl.col("dividends") + dividend_input_adjustment()).clip(0, 100.0 * pl.col("ky_taxpayers"))
+    if p.in_effect("dividend_exclusion_per_taxpayer"):
+        agi = agi - (pl.col("dividends") + dividend_input_adjustment()).clip(0, p.num("dividend_exclusion_per_taxpayer") * pl.col("ky_taxpayers"))
     if 1982 <= effective_year <= 1986:
-        rate_2e = float(resolve_year(PRE1987_PARAMS["two_earner_deduction_rate"], effective_year))
-        cap_2e = float(resolve_year(PRE1987_PARAMS["two_earner_deduction_cap"], effective_year))
+        p87 = YearParams(PRE1987_PARAMS, effective_year)
+        rate_2e = p87.num("two_earner_deduction_rate")
+        cap_2e = p87.num("two_earner_deduction_cap")
         lesser_wage = pl.min_horizontal(pl.col("pwages"), pl.col("swages")).clip(0, None)
         twoded = pl.when(is_joint).then((rate_2e * lesser_wage).clip(0, cap_2e)).otherwise(0.0)
         agi = agi + twoded
-    if effective_year >= 1995:
+    if p.in_effect("retirement_exclusion_share"):
         share = p.num("retirement_exclusion_share")
         cap = p.num("retirement_exclusion_cap")
-        # The statutory cap is per taxpayer; TAXSIM's single household pension
-        # total is treated as split between joint spouses, so the cap doubles.
-        cap_total = cap * pl.col("ky_taxpayers") if behavior.mode.value == "statutory" else pl.lit(cap)
+        # The statutory cap is per taxpayer, with joint pensions split evenly.
+        cap_total = cap * pl.col("ky_taxpayers") if behavior.apply_kentucky_pension_cap_per_taxpayer else pl.lit(cap)
         agi = agi - pl.min_horizontal(share * pl.col("pensions"), cap_total)
-    if 1987 <= effective_year <= 1989:
-        # 60% LTCG exclusion, gated on a positive net capital gain in AGI.
+    if p.in_effect("capital_gains_exclusion"):
         capgn = pl.col("stcg") + pl.col("ltcg")
-        ltcg_rate = float(p["ltcg_exclusion_rate_1987_1989"][1960])
+        ltcg_rate = p.num("capital_gains_exclusion")
         agi = pl.when(capgn > 0).then(agi - ltcg_rate * pl.col("ltcg").clip(0, None)).otherwise(agi)
 
     df = df.with_columns(ky_agi=agi)
 
     # --- Standard deduction ---
-    ded_pf = p.num("standard_deduction_per_filer")
-    # From the dated 2022+ years a joint return takes one deduction (Form 740
-    # instructions); the historical TAXSIM path doubles it per taxpayer.
-    stded_count = pl.lit(1.0) if effective_year >= 2022 else pl.col("ky_taxpayers")
+    ded_pf = p.num("standard_deduction")
+    stded_count = pl.col("ky_taxpayers") if p.value("standard_deduction_per_taxpayer") else pl.lit(1.0)
     df = df.with_columns(ky_stded=ded_pf * stded_count)
 
     # --- Itemized deduction ---
@@ -109,23 +99,17 @@ def compute_ky_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         reduce_ = pl.min_horizontal(
             p["itemized_phaseout_cap_rate"] * xitded, p["itemized_phaseout_rate"] * (pl.col("ky_agi") - phas92).clip(0, None)
         )
-        if 2006 <= effective_year <= 2007:
-            reduce_ = 2.0 * reduce_ / 3.0
-        elif 2008 <= effective_year <= 2009:
-            reduce_ = reduce_ / 3.0
-        elif effective_year == 2010:
-            # `law.eq.2010.and.law.le.2012` is true only for 2010.
-            reduce_ = pl.lit(0.0)
+        if effective_year >= 1991:
+            reduce_ = reduce_ * p.num("itemized_limitation_reduction_share")
         xitded = pl.when(over_thr).then(xitded - reduce_).otherwise(xitded)
 
-        if effective_year <= 1989:
+        if p.in_effect("child_care_deduction"):
+            ccd = p.value("child_care_deduction")
             ytest = pl.col("ky_agi") + ky_fedtax
-            cap1 = float(p["low_income_child_deduction_cap_1dep"][1960])
-            cap2 = float(p["low_income_child_deduction_cap_2deps"][1960])
-            cap3 = float(p["low_income_child_deduction_cap_3plus_deps"][1960])
-            ceiling = float(p["low_income_child_deduction_income_ceiling"][1960])
-            phaseout_start = float(p["low_income_child_deduction_phaseout_start"][1960])
-            raw_ccc = pl.col("federal_chcr")  # `comnew(53)`
+            cap1, cap2, cap3 = (float(c) for c in ccd["caps"])
+            ceiling = float(ccd["income_ceiling"])
+            phaseout_start = float(ccd["phaseout_start"])
+            raw_ccc = pl.col("federal_chcr")
             child = (
                 pl.when((pl.col("depx") > 0) & (pl.col("depx") < 2)).then(pl.min_horizontal(cap1, raw_ccc))
                 .when((pl.col("depx") > 1) & (pl.col("depx") < 3)).then(pl.min_horizontal(cap2, raw_ccc))
@@ -145,10 +129,9 @@ def compute_ky_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     df = df.with_columns(ky_deduc=pl.max_horizontal(pl.col("ky_stded"), pl.col("ky_xitded")))
     df = df.with_columns(ky_taxinc=(pl.col("ky_agi") - pl.col("ky_deduc")).clip(0, None))
 
-    # --- Married filing combined --- (own explicit split, real through 2017)
-    # Actual-law years also let spouses file combined in separate columns
-    # (each takes the standard deduction) when that is lower.
-    mfc_years = effective_year <= 2017 or (behavior.mode.value == "statutory" and effective_year >= 2022)
+    # --- Married filing combined: each spouse on their own share, with the
+    # full standard deduction each (through 2017 and from 2022) ---
+    mfc_years = effective_year <= 2017 or effective_year >= 2022
     is_mfc = is_joint & (pl.col("ky_agi") > 0) & mfc_years
     agih = higher_earner_share(pl.col("ky_agi"))
     agiw = pl.col("ky_agi") - agih
@@ -160,18 +143,9 @@ def compute_ky_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     taxinw = pl.when(is_mfc).then((agiw - dedw).clip(0, None)).otherwise(pl.lit(0.0))
     df = df.with_columns(ky_taxinh=taxinh, ky_taxinw=taxinw)
 
-    # --- Bracket tax ---
-    if effective_year <= 2004:
-        table = p["brackets_pre2005"]
-        statax = bracket_tax(pl.col("ky_taxinc"), table)
-        stath = bracket_tax(pl.col("ky_taxinh"), table)
-        statw = bracket_tax(pl.col("ky_taxinw"), table)
-        statax = pl.when(is_mfc).then(pl.min_horizontal(statax, stath + statw)).otherwise(statax)
-        rate_expr = pl.when(is_mfc).then(bracket_rate(pl.col("ky_taxinw"), table)).otherwise(
-            bracket_rate(pl.col("ky_taxinc"), table)
-        )
-    elif effective_year <= 2017:
-        table = p["brackets_2005_2017"]
+    # --- Tax ---
+    if p.in_effect("brackets"):
+        table = p.value("brackets")
         statax = bracket_tax(pl.col("ky_taxinc"), table)
         stath = bracket_tax(pl.col("ky_taxinh"), table)
         statw = bracket_tax(pl.col("ky_taxinw"), table)
@@ -180,12 +154,11 @@ def compute_ky_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             bracket_rate(pl.col("ky_taxinc"), table)
         )
     else:
-        flat_rate = p.num("flat_rate_2018plus")
+        flat_rate = p.num("flat_rate")
         statax = flat_rate * pl.col("ky_taxinc")
-        if effective_year >= 2022 and behavior.mode.value == "statutory":
+        if effective_year >= 2022:
             statax = pl.when(is_mfc).then(flat_rate * pl.min_horizontal(pl.col("ky_taxinc"), pl.col("ky_taxinh") + pl.col("ky_taxinw"))).otherwise(statax)
-        # The flat formula does not call TAXSIM's bracket lookup, so its
-        # shared reported-rate variable remains zero.
+        # TAXSIM's reported rate stays zero without a bracket lookup.
         rate_expr = pl.lit(0.0)
     df = df.with_columns(ky_statax=statax)
 
@@ -200,29 +173,20 @@ def compute_ky_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     if effective_year <= 1989:
         df = df.with_columns(ky_statax=pl.col("ky_statax").clip(0, None))
     else:
-        if effective_year < 2004:
-            amt = float(p["personal_credit_amount_pre2004"][1960])
-            count = pl.col("ky_taxpayers") + pl.col("depx") + 2.0 * aged_count()
-            gcred = amt * count
-        elif 2014 <= effective_year <= 2017:
-            amt = float(p["personal_credit_amount_2014_2017"][1960])
-            gcred = amt * (pl.col("ky_taxpayers") + pl.col("depx")) + p["aged_personal_credit_2014"] * aged_count()
-        elif effective_year >= 2018:
-            gcred = p["aged_personal_credit_2014"] * aged_count()
-        else:
-            gcred = pl.lit(0.0)
+        pc = p.value("personal_credit")
+        gcred = float(pc["per_person"]) * (pl.col("ky_taxpayers") + pl.col("depx")) + float(pc["per_aged"]) * aged_count()
         df = df.with_columns(ky_gcred=gcred)
         df = df.with_columns(ky_statax=(pl.col("ky_statax") - pl.col("ky_gcred")).clip(0, None))
 
         raw_ccc_now = pl.col("ky_ccc")
-        chcr_rate = float(p["low_income_care_credit_rate"][1960])
+        chcr_rate = p.num("child_care_credit_federal_share")
         chcr = raw_ccc_now * chcr_rate
         df = df.with_columns(ky_chcr=chcr)
 
-        if 1990 <= effective_year <= 2004:
+        if p.in_effect("low_income_credit"):
             # The first bracket whose ceiling covers AGI applies.
             rate_lc = pl.lit(0.0)
-            for ceiling, rate in reversed(p["low_income_credit_brackets"]):
+            for ceiling, rate in reversed(p.value("low_income_credit")):
                 rate_lc = pl.when(pl.col("ky_agi") <= ceiling).then(pl.lit(float(rate))).otherwise(rate_lc)
             lowcrd = pl.col("ky_statax") * rate_lc
             df = df.with_columns(ky_lowcrd=lowcrd)
@@ -234,41 +198,31 @@ def compute_ky_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             aged_in_family = pl.lit(0.0) if effective_year >= 2022 else aged_count()
             num = pl.min_horizontal(pl.col("ky_taxpayers") + pl.col("depx") + aged_in_family, 4.0)
             modagi = pl.max_horizontal(pl.col("ky_agi"), pl.col("agi"))
-            aif1 = p.num("family_size_credit_aif_1person")
-            aif2 = p.num("family_size_credit_aif_2person")
-            aif3 = p.num("family_size_credit_aif_3person")
-            aif4 = p.num("family_size_credit_aif_4person")
-            perc = (
-                pl.when(num == 1).then(interpolate_table(modagi / aif1, p["family_size_credit_table_1person"]))
-                .when(num == 2).then(interpolate_table(modagi / aif2, p["family_size_credit_table_2person"]))
-                .when(num == 3).then(interpolate_table(modagi / aif3, p["family_size_credit_table_3person"]))
-                .when(num == 4).then(interpolate_table(modagi / aif4, p["family_size_credit_table_4person"]))
-                .otherwise(0.0)
-            )
-            if effective_year >= 2022:
-                # Actual-law years: income as a multiple of the federal poverty
-                # guideline (family size capped at four), by step.
-                fpg = p["family_size_credit_poverty_guideline"]
-                poverty = float(resolve_year(fpg["first_person"], effective_year)) + float(resolve_year(fpg["additional_person"], effective_year)) * (num - 1.0)
+            tables = p["family_size_credit_table"]
+            sizes = ("one", "two", "three", "four")
+            if p.in_effect("family_size_credit_poverty_guideline"):
+                # Income as a multiple of the federal poverty guideline
+                # (family size capped at four), by step.
+                fpg = p.value("family_size_credit_poverty_guideline")
+                poverty = float(fpg["first_person"]) + float(fpg["additional_person"]) * (num - 1.0)
                 share = modagi / poverty
                 perc = pl.lit(0.0)
-                for limit, rate in reversed(p["family_size_credit_rate_2022plus"]):
+                for limit, rate in reversed(p["family_size_credit_poverty_share"]):
                     perc = pl.when(share <= float(limit)).then(float(rate)).otherwise(perc)
+            else:
+                index = [float(v) for v in p.value("family_size_credit_index")]
+                perc = pl.lit(0.0)
+                for n in (4, 3, 2, 1):
+                    perc = pl.when(num == n).then(interpolate_table(modagi / index[n - 1], tables[sizes[n - 1]])).otherwise(perc)
             famcr = pl.col("ky_statax") * perc
             df = df.with_columns(ky_famcr=famcr)
-            if effective_year in (2019, 2020):
-                gapcr = (
-                    pl.when((num == 1) & (pl.col("ky_famcr") > 0)).then(
-                        interpolate_table(modagi / aif1, p["income_gap_credit_table_1person"])
-                    )
-                    .when((num == 2) & (pl.col("ky_famcr") > 0)).then(
-                        interpolate_table(modagi / aif2, p["income_gap_credit_table_2person"])
-                    )
-                    .when((num == 3) & (pl.col("ky_famcr") > 0)).then(
-                        interpolate_table(modagi / aif3, p["income_gap_credit_table_3person"])
-                    )
-                    .otherwise(0.0)
-                )
+            if p.in_effect("income_gap_credit"):
+                gap_tables = p.value("income_gap_credit")
+                gapcr = pl.lit(0.0)
+                for n in (3, 2, 1):
+                    gapcr = pl.when((num == n) & (pl.col("ky_famcr") > 0)).then(
+                        interpolate_table(modagi / index[n - 1], gap_tables[sizes[n - 1]])
+                    ).otherwise(gapcr)
                 df = df.with_columns(ky_gapcr=gapcr)
             # `ky_gapcr` is reported but is deliberately not subtracted.
             df = df.with_columns(

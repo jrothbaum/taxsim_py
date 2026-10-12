@@ -57,22 +57,31 @@ Import these from `taxsim_py.engine.schema`.
 | --- | --- |
 | `PARAMETERS_ROOT` | Building paths under the repository's `parameters/` directory. |
 | `load_yaml(path)` | Loading a YAML parameter file. |
-| `resolve_year(by_year, year)` | Reading the latest sparse parameter value effective on or before a year. |
-| `YearParams(params, year)` | A parameter mapping read at one law year: `p.num("key")` resolves and converts to float, `p.value("key")` resolves, `p["key"]` returns the entry unchanged. |
+| `resolve_year(by_year, year)` | Reading the latest sparse parameter value effective on or before a year; raises if that entry is `null` (the provision has ended). |
+| `YearParams(params, year)` | A parameter mapping read at one law year: `p.value("key", *path)` walks `path`, resolving every year-keyed level (so year keys may sit above or below status keys), `p.num(...)` also converts to float, `p.in_effect("key")` says whether a year-keyed entry has a non-null value, and `p["key"]` returns the entry unchanged. |
 | `validate_brackets(brackets, context)` | Checking that bracket thresholds strictly increase. |
 
-Sparse parameter mappings contain a value only when the law changes:
+Sparse parameter mappings contain a value only when the law changes, and `null`
+ends a provision:
 
 ```yaml
 rate:
   2018: 0.05
   2022: 0.045
+renter_credit:
+  1990: {amount: 75, income_limit: 20000}
+  2010: null
 ```
 
 ```python
 p = YearParams(STATE_PARAMS, effective_year)
 rate = p.num("rate")
+if p.in_effect("renter_credit"):
+    credit = p.value("renter_credit")
 ```
+
+Use `in_effect` where a provision simply starts or stops; keep a year comparison
+only where the formula itself changes shape.
 
 Rates, thresholds, caps, exemption amounts, phaseout values, inflation factors,
 and tax tables must remain in YAML or CSV rather than Python literals.
@@ -83,7 +92,7 @@ Import these from `taxsim_py.engine.state_extrapolation`.
 
 | Function | Use it for |
 | --- | --- |
-| `resolve_state_year(year)` | Getting the last supported state-law year and its inflation factor. |
+| `resolve_state_year(year, behavior, params)` | Getting the effective state-law year and its inflation factor: the year itself through `lastat` (TAXSIM mode) or the state's `law_coded_through` (statutory mode), otherwise that last year with an inflation factor. |
 | `deflate_for_extrapolation(df, flate, extra=())` | Deflating `PROJECTED_YEAR_DEFLATED_COLUMNS` (the inputs and federal results TAXSIM deflates) and any state-derived `extra` columns before applying the last supported state law. |
 
 A state calculator normally resolves the year once, computes the few values
@@ -92,7 +101,7 @@ computes tax using `effective_year`, and multiplies final `siitax` by `flate`.
 Derived columns computed before deflation that TAXSIM deflates go in `extra`.
 
 ```python
-effective_year, flate = resolve_state_year(year)
+effective_year, flate = resolve_state_year(year, behavior, XX_PARAMS)
 df = deflate_for_extrapolation(df, flate, extra=("xx_household_income",))
 # Calculate using effective_year.
 return df.with_columns(siitax=state_tax * flate)
@@ -112,9 +121,7 @@ state calculators should not implement that loop.
 | `engine.brackets` | `scale_brackets` | Multiplying every threshold by an inflation factor. |
 | `engine.eitc` | `trapezoid_credit` | Credits with phase-in, plateau, and phaseout regions. |
 | `engine.eitc` | `federal_eitc` | The federal EITC from one year's `eitc.csv` rows for a chosen AGI (TAXSIM `eitcr`), e.g. a state recomputing it on its own AGI. |
-| `engine.credits` | `child_care_credit_rate` | The post-2020 federal child care credit rate. |
-| `engine.credits` | `child_care_credit_rate_pre2021` | The pre-2021 federal child care credit rate. |
-| `engine.credits` | `phased_out_nonrefundable_credit` | A linearly phased-out credit capped by tax liability. |
+| `engine.credits` | `child_care_credit_rate` | The federal child care credit rate for one year's `rate` parameters (one or two phase-downs). |
 | `engine.capital_gains` | `preferential_rate_tax` | Preferential-rate capital gains and qualified dividends. |
 | `engine.amt` | `alternative_minimum_tax` | Federal AMT calculations. |
 | `engine.niit` | `net_investment_income_tax` | Net Investment Income Tax calculations. |

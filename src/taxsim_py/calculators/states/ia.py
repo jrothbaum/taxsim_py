@@ -23,16 +23,8 @@ IA_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "ia" / "income_tax.yaml")
 _STATUSES = ["single", "married_joint", "married_separate", "head_of_household"]
 
 
-_RAW_INPUT_COLUMNS = [
-    "mstat", "depx", "dep17", "dep18", "dep6", "dep13", "pwages", "swages",
-    "proptax", "otheritem", "mortgage", "childcare", "intrec", "psemp",
-    "ssemp", "dividends", "stcg", "ltcg", "ui", "pui", "sui",
-]
-
-
 def compute_ia_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
-    state_year = "ia" if behavior.mode.value == "statutory" else None
-    effective_year, flate = resolve_state_year(year, state_year)
+    effective_year, flate = resolve_state_year(year, behavior, IA_PARAMS)
     p = YearParams(IA_PARAMS, effective_year)
 
     df = df.with_columns(
@@ -40,35 +32,34 @@ def compute_ia_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         ia_taxpayers=taxpayer_count(),
     )
 
-    setax = pl.col("payroll_setax")  # `comnew(175)`, real-year and undeflated
-    df = df.with_columns(ia_setax=setax)
+    # Self-employment tax is not deflated in projected years.
+    df = df.with_columns(ia_setax=pl.col("payroll_setax"))
 
     df = deflate_for_extrapolation(df, flate)
 
-    phas92_base = float(p["itemized_phaseout_base"][1960])
-    if effective_year <= 2012:
-        aif92 = p.num("itemized_phaseout_aif92_1992_2012") if effective_year >= 1992 else 1.0
-        phas92 = phas92_base * aif92 / pl.col("ia_sep")
+    threshold = p.value("itemized_limitation_threshold")
+    index = p.num("itemized_limitation_index")
+    if isinstance(threshold, dict):
+        phas92 = by_filing_status({s: float(v) * index for s, v in threshold.items()})
     else:
-        aif13 = p.num("itemized_phaseout_aif13_2013plus")
-        mult = by_filing_status(p["itemized_phaseout_multiplier"])
-        phas92 = aif13 * p["itemized_phaseout_base_multiple_2013plus"] * phas92_base * mult
+        phas92 = float(threshold) * index / pl.col("ia_sep")
 
     # --- AGI ---
     df = df.with_columns(ia_agi=pl.col("agi") + 0.5 * pl.col("ia_setax"))
     if 1982 <= effective_year <= 1984:
-        rate_2e = float(resolve_year(PRE1987_PARAMS["two_earner_deduction_rate"], effective_year))
-        cap_2e = float(resolve_year(PRE1987_PARAMS["two_earner_deduction_cap"], effective_year))
+        p87 = YearParams(PRE1987_PARAMS, effective_year)
+        rate_2e = p87.num("two_earner_deduction_rate")
+        cap_2e = p87.num("two_earner_deduction_cap")
         lesser_wage = pl.min_horizontal(pl.col("pwages"), pl.col("swages")).clip(0, None)
         twoded = pl.when(files_joint()).then(
             (rate_2e * lesser_wage).clip(0, cap_2e)
         ).otherwise(0.0)
         df = df.with_columns(ia_agi=pl.col("ia_agi") + twoded)
-    if effective_year == 1981:
+    if p.in_effect("dividend_interest_exclusion_per_taxpayer"):
         excl_table = PRE1987_PARAMS["dividend_exclusion"]
         fed_excl = by_filing_status({s: resolve_year(excl_table[s], effective_year) for s in _STATUSES})
         divexc = pl.min_horizontal(pl.col("dividends") + pl.col("intrec"), fed_excl)
-        own_cap = (pl.col("dividends") + pl.col("intrec")).clip(0, 100.0 * pl.col("ia_taxpayers"))
+        own_cap = (pl.col("dividends") + pl.col("intrec")).clip(0, p.num("dividend_interest_exclusion_per_taxpayer") * pl.col("ia_taxpayers"))
         df = df.with_columns(ia_agi=pl.col("ia_agi") + divexc - own_cap)
     # Social Security: federal taxable benefits out; through 2013 Iowa's own
     # partial taxation in.
@@ -82,7 +73,7 @@ def compute_ia_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     if effective_year <= 2013:
         half = 0.5 * pl.col("gssi")
         ssb = pl.min_horizontal(0.5 * (half + pl.col("ia_agi").clip(0, None) - pha).clip(0, None), half)
-        if effective_year >= 2007:
+        if p.in_effect("social_security_phaseout_share"):
             ssb = ssb * (1 - p.num("social_security_phaseout_share"))
         ssb = pl.when(pl.col("gssi") > 0).then(ssb).otherwise(0.0)
         df = df.with_columns(ia_agi=pl.col("ia_agi") + ssb, ia_addph=pl.col("taxable_social_security") - ssb)
@@ -98,47 +89,43 @@ def compute_ia_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         penexc = pl.when(aged_count() > 0).then(pl.min_horizontal(pl.col("ia_taxpayers") * cap, pl.col("pensions"))).otherwise(0.0)
     else:
         penexc = pl.lit(0.0)
-    if effective_year >= 2022:
-        # Retirement income exclusion from age 55: $6,000 per taxpayer in 2022, unlimited from 2023.
-        pe = p["pension_exclusion_2022plus"]
+    if p.in_effect("retirement_exclusion"):
+        pe = p.value("retirement_exclusion")
         eligible = (pl.col("page") >= float(pe["minimum_age"])) | (pl.col("sage") >= float(pe["minimum_age"]))
-        cap = float(resolve_year(pe["cap_per_taxpayer"], effective_year)) * pl.col("ia_taxpayers")
+        cap = float(pe["cap_per_taxpayer"]) * pl.col("ia_taxpayers")
         penexc = pl.when(eligible).then(pl.min_horizontal(cap, pl.col("pensions"))).otherwise(0.0)
     df = df.with_columns(ia_penexc=penexc, ia_agi=pl.col("ia_agi") - penexc)
     ui_total = unemployment_total()
-    if effective_year == 2009:
-        df = df.with_columns(ia_agi=pl.col("ia_agi") + pl.min_horizontal(ui_total, p["unemployment_addback_2009_per_taxpayer"] * pl.col("ia_taxpayers")))
+    if p.in_effect("unemployment_addback_per_taxpayer"):
+        df = df.with_columns(ia_agi=pl.col("ia_agi") + pl.min_horizontal(ui_total, p.num("unemployment_addback_per_taxpayer") * pl.col("ia_taxpayers")))
 
     fedded = pl.col("fiitax").clip(0, None)
     if effective_year >= 2022:
         fedded = (pl.col("fiitax") - pl.col("addmed")).clip(0, None)  # Additional Medicare tax is not income tax
-    if effective_year >= 2023:
-        fedded = pl.lit(0.0)  # the federal tax deduction ended with 2022
+    if not p.value("federal_tax_deduction"):
+        fedded = pl.lit(0.0)
     dedbus = p.num("qbi_deduction_share") * pl.col("qbi_deduction") if effective_year >= 2019 else pl.lit(0.0)
 
     # --- Standard deduction ---
     pct = p.num("standard_deduction_pct")
-    cap_single = p.num("standard_deduction_cap_single")
-    cap_joint = p.num("standard_deduction_cap_married_joint")
+    cap_single = p.num("standard_deduction_cap", "single")
+    cap_joint = p.num("standard_deduction_cap", "joint_or_hoh")
     is_joint = files_joint()
-    # `if(mst.eq.1.or.mst.eq.3.or.mst.eq.6)` gets the single cap; head of
-    # household (code 4) gets the joint cap.
     gets_single_cap = pl.col("filing_status").is_in(["single", "married_separate"])
     stded = pl.when(gets_single_cap).then(
         (pct * pl.col("ia_agi")).clip(0, cap_single)
     ).otherwise((pct * pl.col("ia_agi")).clip(0, cap_joint))
-    if effective_year >= 2023:
-        stded = pl.col("standard_deduction")  # conforms to the federal standard deduction
+    if p.value("conforms_to_federal_standard_deduction"):
+        stded = pl.col("standard_deduction")
     df = df.with_columns(ia_stded=stded)
 
     # --- Itemized deduction ---
-    # Before 1987 federal gross itemized deductions (`comnew(30)`) include
-    # the state tax deduction, which `xitded=comnew(30)-data(50)` removes,
-    # leaving the itemized inputs.
+    # Federal gross itemized deductions less the state tax deduction (before
+    # 1987, the itemized inputs).
     if effective_year <= 1986:
         salt_capped_plus_mortgage = pl.col("proptax") + pl.col("otheritem") + pl.col("mortgage") + pl.col("state_sales_or_income_tax_ded")
     else:
-        salt_capped_plus_mortgage = pl.col("salt_capped") + pl.col("mortgage")  # comnew(30)
+        salt_capped_plus_mortgage = pl.col("salt_capped") + pl.col("mortgage")
     df = df.with_columns(ia_xitded=(salt_capped_plus_mortgage - pl.col("state_sales_or_income_tax_ded")).clip(0, None))
     over_thr = (pl.col("ia_agi") > phas92) & (1991 <= effective_year <= 2017) & pl.col("itemizes")
     df = df.with_columns(
@@ -166,7 +153,7 @@ def compute_ia_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         ia_taxinc=(pl.col("ia_agi") + pl.col("ia_setax") - fedded - dedbus - pl.col("ia_deduc")
                    # 2025 on: Iowa starts from federal taxable income, which is already
                    # net of the federal senior deduction.
-                   - (pl.col("senior_deduction") if effective_year >= 2025 and behavior.mode.value == "statutory" else 0.0)
+                   - (pl.col("senior_deduction") if effective_year >= 2025 else 0.0)
                    ).clip(0, None),
     )
 
@@ -196,20 +183,12 @@ def compute_ia_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     )
     df = df.with_columns(ia_taxinh=taxinh, ia_taxinw=taxinw, ia_agi_higher_earner=agih, ia_agi_lower_earner=agiw)
 
-    # --- Bracket tax ---
-    aif = p.num("bracket_inflation_factor")
-    if effective_year <= 1986:
-        table = p["brackets_pre1987"]
-    elif effective_year <= 1997:
-        table = p["brackets_1987_1997"]
-    elif effective_year <= 2018:
-        table = p["brackets_1998_2018"]
-    else:
-        table = p["brackets_2019plus"]
-
+    # --- Tax ---
+    aif = p.num("bracket_inflation")
+    table = p.value("brackets")
     statax = bracket_tax(pl.col("ia_taxinc") / aif, table) * aif
-    if effective_year >= 2023:
-        schedules = p["brackets_2023plus"][effective_year]
+    if p.in_effect("brackets_by_status"):
+        schedules = p.value("brackets_by_status")
         statax = pl.when(is_joint).then(bracket_tax(pl.col("ia_taxinc"), schedules["joint"])).otherwise(
             bracket_tax(pl.col("ia_taxinc"), schedules["other"])
         )
@@ -240,13 +219,10 @@ def compute_ia_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     )
 
     # --- Alternate Tax --- (never single)
-    exy_other = p.num("exy_other")
+    exy_other = p.num("no_tax_income_limit", "other")
     not_single = pl.col("filing_status") != "single"
-    if effective_year <= 1997:
-        rate_alt = float(p["alt_tax_rate_pre1998"][1960])
-    else:
-        rate_alt = p.num("alt_tax_rate_1998plus")
-    if effective_year >= 1987:
+    if p.in_effect("alternate_tax_rate"):
+        rate_alt = p.num("alternate_tax_rate")
         if effective_year <= 1997:
             altax = (pl.col("ia_agi") - exy_other).clip(0, None) * rate_alt
         else:
@@ -259,10 +235,10 @@ def compute_ia_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         )
 
     # --- Personal Exemption Credit ---
-    xmp = p.num("personal_exemption_credit_amount")
+    xmp = p.num("personal_exemption_credit")
     is_hoh = files_head_of_household()
-    if effective_year <= 1994:
-        extra = p["personal_credit_taxpayer_addition_pre1995"]
+    if p.in_effect("personal_credit_taxpayer_addition"):
+        extra = p.num("personal_credit_taxpayer_addition")
         gcred = (xmp + extra) * (pl.col("ia_taxpayers") + aged_count()) + xmp * pl.col("depx")
         gcred = pl.when(is_hoh).then(gcred + xmp + extra).otherwise(gcred)
     elif effective_year <= 1997:
@@ -275,10 +251,9 @@ def compute_ia_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     df = df.with_columns(ia_statax=(pl.col("ia_statax") - pl.col("ia_gcred")).clip(0, None))
 
     # --- AMT ---
-    if 1982 <= effective_year <= 2022:  # the Iowa minimum tax ended after 2022
-        amt_federal = pl.col("amt")
-        if effective_year <= 1984:
-            alty = amt_federal * float(resolve_year(p["amt_share_of_federal"], effective_year))
+    if p.in_effect("amt_share_of_federal") or p.in_effect("amt_rate"):
+        if p.in_effect("amt_share_of_federal"):
+            alty = pl.col("amt") * p.num("amt_share_of_federal")
         else:
             # Preferences: property tax only.
             addprf = pl.col("proptax")
@@ -292,7 +267,7 @@ def compute_ia_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             exclnt = pl.when(alminy > exclnt_thr).then((exclnt_base - p["amt_exclusion_phaseout_rate"] * (alminy - exclnt_thr)).clip(0, None)).otherwise(exclnt_base)
             amt_rate_val = p.num("amt_rate")
             alty = (amt_rate_val * (alminy - exclnt) - pl.col("ia_statax")).clip(0, None)
-        exy_single = p.num("exy_single")
+        exy_single = p.num("no_tax_income_limit", "single")
         aged = aged_count() > 0
         aged_limit = p["amt_aged_exempt_income"]
         is_single = files_single()
@@ -307,21 +282,19 @@ def compute_ia_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
 
     # --- Child/Dependent Care Credit ---
     posagi = pl.col("ia_agi").clip(0, None)
-    # Federal credit before its liability limit (`comnew(176)`), read
-    # undeflated; TAXSIM leaves that slot at 0 before 1987.
+    # Federal credit before its liability limit, read undeflated; TAXSIM
+    # leaves it at 0 before 1987.
     ccc_base = pl.col("ccc_uncapped")
-    if effective_year <= 1981:
-        chcr = ccc_base * float(p["child_care_credit_flat_rate_pre1982"][1960])
-    elif effective_year <= 1985:
-        chcr = pl.col("childcare") * float(p["child_care_credit_flat_rate_1982_1985"][1960])
-    elif effective_year <= 1989:
-        chcr = ccc_base * float(p["child_care_credit_flat_rate_1986_1989"][1960])
-    elif effective_year <= 1992:
-        chcr = ccc_base * interpolate_table(pl.col("agi"), p["child_care_credit_table_1990_1992"])
-    elif effective_year <= 2005:
-        chcr = ccc_base * interpolate_table(posagi, p["child_care_credit_table_1993_2005"])
+    if p.in_effect("child_care_credit_expense_rate"):
+        chcr = pl.col("childcare") * p.num("child_care_credit_expense_rate")
     else:
-        chcr = ccc_base * interpolate_table(posagi, p["child_care_credit_table_2006plus"])
+        share = p.value("child_care_credit_federal_share")
+        if not isinstance(share, list):
+            chcr = ccc_base * float(share)
+        elif effective_year <= 1992:
+            chcr = ccc_base * interpolate_table(pl.col("agi"), share)
+        else:
+            chcr = ccc_base * interpolate_table(posagi, share)
     df = df.with_columns(ia_chcr=chcr)
 
     # --- EITC ---
@@ -329,15 +302,12 @@ def compute_ia_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     if effective_year >= 1990:
         rate_eitc = p.num("eitc_rate")
         cap_eitc = p.num("eitc_agi_cap")
-        # Iowa's eligibility test uses Iowa AGI (`comnew(2)` in iatax),
-        # after Iowa's Social Security and pension adjustments. Comparing
-        # the caps with federal AGI incorrectly removed credits from CPS
-        # households whose federal AGI was above the Iowa cap.
+        # Tested against Iowa AGI.
         earncr = pl.when(pl.col("ia_agi") < cap_eitc).then(rate_eitc * pl.col("eitc")).otherwise(0.0)
 
-        if effective_year == 2009:
+        if p.in_effect("eitc_joint_worksheet"):
             nkid = pl.col("depx")
-            e = p["eitc_2009_joint"]
+            e = p.value("eitc_joint_worksheet")
             start, maximum, rate = e["phaseout_start"], e["maximum"], e["phaseout_rate"]
             xlin2 = (
                 pl.when(nkid == 0).then(float(start["none"]))
@@ -352,28 +322,23 @@ def compute_ia_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             )
             earncr = pl.when(is_joint & (earncr > 0)).then(e["share"] * xlin5).otherwise(earncr)
 
-        if effective_year == 2010:
-            cap1 = float(p["eitc_2010_married_joint_eligibility_cap_1kid"][1960])
-            cap2 = float(p["eitc_2010_married_joint_eligibility_cap_2kids"][1960])
-            over_1kid = (pl.col("depx") == 1) & ((pl.col("earned_income") > cap1) | (pl.col("ia_agi") > cap1))
-            over_2kid = (pl.col("depx") == 2) & ((pl.col("earned_income") > cap2) | (pl.col("ia_agi") > cap2))
-            in_2010_branch = is_joint & (earncr > 0)
-            earncr = pl.when(in_2010_branch & (over_1kid | over_2kid)).then(0.0).otherwise(earncr)
-            cap0 = float(p["eitc_flat_eligibility_cap_0kids"][1960])
-            cap1_flat = float(p["eitc_flat_eligibility_cap_1kid"][1960])
-            cap2p_flat = float(p["eitc_flat_eligibility_cap_2plus_kids"][1960])
+        if p.in_effect("eitc_eligibility_caps"):
+            caps = p.value("eitc_eligibility_caps")
+            cap0, cap1_flat, cap2p_flat = float(caps["none"]), float(caps["one"]), float(caps["two_or_more"])
             over_0_flat = (pl.col("depx") == 0) & ((pl.col("earned_income") > cap0) | (pl.col("ia_agi") > cap0))
             over_1_flat = (pl.col("depx") == 1) & ((pl.col("earned_income") > cap1_flat) | (pl.col("ia_agi") > cap1_flat))
             over_2p_flat = (pl.col("depx") >= 2) & ((pl.col("earned_income") > cap2p_flat) | (pl.col("ia_agi") > cap2p_flat))
-            earncr = pl.when(~in_2010_branch & (over_0_flat | over_1_flat | over_2p_flat)).then(0.0).otherwise(earncr)
-        elif 1990 <= effective_year < 2022:  # later years rely on the federal credit's own limits
-            cap0 = float(p["eitc_flat_eligibility_cap_0kids"][1960])
-            cap1_flat = float(p["eitc_flat_eligibility_cap_1kid"][1960])
-            cap2p_flat = float(p["eitc_flat_eligibility_cap_2plus_kids"][1960])
-            over_0_flat = (pl.col("depx") == 0) & ((pl.col("earned_income") > cap0) | (pl.col("ia_agi") > cap0))
-            over_1_flat = (pl.col("depx") == 1) & ((pl.col("earned_income") > cap1_flat) | (pl.col("ia_agi") > cap1_flat))
-            over_2p_flat = (pl.col("depx") >= 2) & ((pl.col("earned_income") > cap2p_flat) | (pl.col("ia_agi") > cap2p_flat))
-            earncr = pl.when(over_0_flat | over_1_flat | over_2p_flat).then(0.0).otherwise(earncr)
+            over_flat = over_0_flat | over_1_flat | over_2p_flat
+            if p.in_effect("eitc_joint_eligibility_caps"):
+                joint_caps = p.value("eitc_joint_eligibility_caps")
+                cap1, cap2 = float(joint_caps["one"]), float(joint_caps["two"])
+                over_1kid = (pl.col("depx") == 1) & ((pl.col("earned_income") > cap1) | (pl.col("ia_agi") > cap1))
+                over_2kid = (pl.col("depx") == 2) & ((pl.col("earned_income") > cap2) | (pl.col("ia_agi") > cap2))
+                in_joint_branch = is_joint & (earncr > 0)
+                earncr = pl.when(in_joint_branch & (over_1kid | over_2kid)).then(0.0).otherwise(earncr)
+                earncr = pl.when(~in_joint_branch & over_flat).then(0.0).otherwise(earncr)
+            else:
+                earncr = pl.when(over_flat).then(0.0).otherwise(earncr)
     df = df.with_columns(ia_earncr=earncr)
 
     if effective_year <= 1989:
@@ -382,7 +347,7 @@ def compute_ia_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         df = df.with_columns(
             ia_statax=(pl.col("ia_statax") - pl.col("ia_earncr")).clip(0, None) - pl.col("ia_chcr")
         )
-    exy_single = p.num("exy_single")
+    exy_single = p.num("no_tax_income_limit", "single")
     is_single = files_single()
     df = df.with_columns(
         ia_statax=pl.when(is_single).then(
@@ -393,7 +358,7 @@ def compute_ia_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         df = df.with_columns(ia_statax=pl.col("ia_statax") - pl.col("ia_earncr") - pl.col("ia_chcr"))
 
     if effective_year >= 1992:
-        exy_other = p.num("exy_other")
+        exy_other = p.num("no_tax_income_limit", "other")
         low_income = pl.when(is_single).then(pl.col("agi") <= exy_single).otherwise(pl.col("agi") <= exy_other)
         if effective_year >= 2022:
             # Actual-law years: a return with a taxpayer 65 or older owes no tax

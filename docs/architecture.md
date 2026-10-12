@@ -6,9 +6,12 @@ Tax calculations are split into policy data and calculation mechanics.
 
 All values set by tax law live under `parameters/` in YAML or CSV files: rates,
 thresholds, caps, exemptions, phaseouts, and year-specific adjustment factors.
-Sparse YAML mappings are forward-filled by `resolve_year`, so a value is repeated
-only when it changes. Adding a tax year should normally need parameter edits and
-test cases; change a calculator only when the shape of the law changes.
+Values are keyed by the first year they apply and forward-filled by
+`resolve_year`, so a value is repeated only when it changes; `null` marks the
+year a provision ended. Parameter names describe the concept, never a year.
+Adding a tax year should normally need parameter edits and test cases; change a
+calculator only when the shape of the law changes (see
+[Updating the Tax Law](updating.md)).
 
 ## Calculators
 
@@ -37,7 +40,8 @@ broad income tax use a zero-tax calculator. Missing inputs default to 0 (`dep13`
 `dep17` and `dep18` default to `depx`, or come from child ages when any age column
 is present). `children_under_3`, `children_under_4` and `children_under_7` are
 optional extensions for age cutoffs TAXSIM's counts cannot express. Tax years after
-`api.LAST_SUPPORTED_YEAR` raise an error.
+`api.LAST_SUPPORTED_YEAR` (`law_coded_through` in
+`parameters/national/income_tax.yaml`) raise an error.
 
 ## Calculation modes
 

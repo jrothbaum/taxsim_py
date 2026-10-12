@@ -16,8 +16,7 @@ UT_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "ut" / "income_tax.yaml")
 
 def compute_ut_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
     """Calculate Utah income tax for each row."""
-    state_year = "ut" if behavior.mode.value == "statutory" else None
-    effective_year, flate = resolve_state_year(year, state_year)
+    effective_year, flate = resolve_state_year(year, behavior, UT_PARAMS)
     y = effective_year
     p = YearParams(UT_PARAMS, effective_year)
     df = deflate_for_extrapolation(df, flate)
@@ -30,27 +29,24 @@ def compute_ut_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     aged = aged_count()
     agi = pl.col("agi")
     single_phase = files_single()
-    phases = p["retirement_deduction_phaseout_start"]
+    phases = p["retirement_phaseout_start"]
     phase = pl.when(single_phase).then(float(phases["single"])).otherwise(float(phases["other"]) / sep)
     salt = pl.col("state_sales_or_income_tax_ded")
 
     # --- Exemptions ---
-    if y <= 1986:
-        exemp = p["exemption_per_person_1986"] * federal_exemption_count(y)
-    elif y == 1987:
-        # TAXSIM sets no exemption in 1987 (logged).
-        exemp = pl.lit(0.0)
-    elif y <= 2017:
-        exemp = p["federal_exemption_share"] * pl.col("personal_exemptions")
+    if p.in_effect("exemption_per_person"):
+        exemp = p.num("exemption_per_person") * federal_exemption_count(y)
+    elif p.in_effect("federal_exemption_share"):
+        exemp = p.num("federal_exemption_share") * pl.col("personal_exemptions")
     else:
         exemp = p.num("dependent_exemption") * pl.col("depx")
 
-    if y <= 2007:
+    if p.in_effect("brackets"):
         # --- Deductions ---
         if y <= 1986:
             gross, fed_itemizes, _ = pre1987_federal_itemizing(y)
             itemized = gross
-            c = p["standard_deduction_1986"]
+            c = p.value("standard_deduction_share")
             stded = (c["rate"] * agi).clip(c["low"] / sep, c["high"] / sep)
             if y > 1980:
                 stded = pl.when(fed_itemizes).then(0.0).otherwise(stded)
@@ -70,9 +66,9 @@ def compute_ut_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
 
         # --- State income tax deduction lost to the federal-style limit (1993 on) ---
         tx = pl.lit(0.0)
-        if y >= 1993:
+        if p.in_effect("itemized_limit_threshold"):
             fed_agi = agi
-            phas92 = p["itemized_limit_threshold"] * p.num("itemized_limit_index") / sep
+            phas92 = p.num("itemized_limit_threshold") * p.num("itemized_limit_index") / sep
             xtot = salt + pl.col("proptax") + pl.col("mortgage") + pl.col("charity_cash")
             over = fed_agi - phas92
             xconst = pl.min_horizontal(p["itemized_limit_share"] * xtot, p["itemized_limit_rate"] * over)
@@ -109,10 +105,10 @@ def compute_ut_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             bracket_rate(taxinc, schedule["single"])
         )
         credits = pl.lit(0.0)
-        if y == 2007:
-            statax = pl.min_horizontal(statax, p["single_rate_2007"] * agi.clip(0, None))
-        if y == 1988:
-            c = p["small_tax_credit_1988"]
+        if p.in_effect("single_rate_alternative"):
+            statax = pl.min_horizontal(statax, p.num("single_rate_alternative") * agi.clip(0, None))
+        if p.in_effect("small_tax_credit"):
+            c = p.value("small_tax_credit")
             credits = pl.when(statax <= c["tax_limit"]).then((c["rate"] * statax).clip(0, c["cap"])).otherwise(0.0)
             statax = (statax - credits).clip(0, None)
         detail = {"standard_deduction": stded, "itemized_deductions": xitded}
@@ -122,82 +118,67 @@ def compute_ut_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         rate = pl.lit(p.num("flat_rate"))
         detail = {}
         fed_itemizes = pl.col("itemizes")
-        if y <= 2017:
+        if not p.in_effect("salt_cap"):
             itemized = (pl.col("itemized_deduction") - salt).clip(0, None)
         else:
             other = pl.col("proptax") + pl.col("otheritem")
-            sttax = pl.min_horizontal(p["salt_cap_2018"] / sep, other + salt)
+            sttax = pl.min_horizontal(p.num("salt_cap") / sep, other + salt)
             stt = pl.min_horizontal(salt, sttax - other)
             itemized = pl.col("itemized_before_limit") - stt
         deduc = pl.when(fed_itemizes).then(itemized).otherwise(pl.col("standard_deduction"))
-        if y >= 2022:
-            actual_thresholds = p["taxpayer_credit_phaseout_threshold_actual"][y]
-            threshold = by_filing_status(actual_thresholds)
-            credit_base = deduc + p.num("taxpayer_credit_personal_exemption") * pl.col("depx")
-            credit = (
-                p["taxpayer_credit_rate"] * credit_base
-                - p["taxpayer_credit_phaseout_rate"] * (taxinc - threshold).clip(0, None)
-            ).clip(0, None)
-        else:
-            t = p["taxpayer_credit_threshold"]
-            index = p.num("taxpayer_credit_index")
+        t = p.value("taxpayer_credit_phaseout_threshold")
+        index = p.num("taxpayer_credit_index")
+        if "per_taxpayer" in t:
             threshold = pl.when(is_hoh).then(t["head_of_household"] * index).otherwise(t["per_taxpayer"] * index * txp)
-            credit = (
-                p["taxpayer_credit_rate"] * (exemp + deduc)
-                - p["taxpayer_credit_phaseout_rate"] * (taxinc - threshold).clip(0, None)
-            ).clip(0, None)
-        # Retirement and Social Security credits are alternatives in current
-        # Utah law. PolicyEngine applies the larger potential credit, rather
-        # than adding both as the old TAXSIM-era implementation did.
+        else:
+            threshold = by_filing_status(t) * index
+        if p.in_effect("taxpayer_credit_personal_exemption"):
+            credit_base = deduc + p.num("taxpayer_credit_personal_exemption") * pl.col("depx")
+        else:
+            credit_base = exemp + deduc
+        credit = (
+            p["taxpayer_credit_rate"] * credit_base
+            - p["taxpayer_credit_phaseout_rate"] * (taxinc - threshold).clip(0, None)
+        ).clip(0, None)
         ss = pl.col("taxable_social_security")
-        if y >= 2022:
-            retirement_age = p["retirement_credit_age"][y]
+        phaseout_rate = float(p["retirement_credit_phaseout_rate"])
+        if p.in_effect("retirement_credit_age"):
+            retirement_age = p.num("retirement_credit_age")
             retirement_taxpayers = (
                 (pl.col("page") >= retirement_age).cast(pl.Float64)
                 + (pl.col("sage") >= retirement_age).cast(pl.Float64)
             )
-            retirement_threshold = by_filing_status(p["retirement_credit_phaseout_start_actual"][y])
             retirement_credit = (
-                p["retirement_credit_max_actual"][y] * retirement_taxpayers
-                - 0.025 * (agi - retirement_threshold).clip(0, None)
+                p.num("retirement_credit_max") * retirement_taxpayers - phaseout_rate * (agi - phase).clip(0, None)
             ).clip(0, None)
-            ss_threshold = by_filing_status(p["social_security_credit_phaseout_start"][y])
-            ss_credit = (p["social_security_credit_rate"] * ss - 0.025 * (agi - ss_threshold).clip(0, None)).clip(0, None)
+            ss_threshold = by_filing_status(p.value("social_security_credit_phaseout_start"))
+            ss_credit = (p["social_security_credit_rate"] * ss - phaseout_rate * (agi - ss_threshold).clip(0, None)).clip(0, None)
             retcrd = pl.max_horizontal(retirement_credit, ss_credit)
         else:
             retcrd = pl.when(aged > 0).then(
-                (float(p["retirement_credit_per_aged_taxpayer"]) * aged
-                 - float(p["retirement_credit_phaseout_rate"]) * (agi - phase).clip(0, None)).clip(0, None)
+                (p.num("retirement_credit_max") * aged - phaseout_rate * (agi - phase).clip(0, None)).clip(0, None)
             ).otherwise(0.0)
             retcrd = retcrd + pl.when(ss > 0).then(
                 pl.min_horizontal(
-                    float(p["social_security_credit_per_taxpayer"]) * (txp - aged),
+                    p.num("social_security_credit_per_taxpayer") * (txp - aged),
                     float(p["social_security_credit_rate"]) * ss,
                 )
             ).otherwise(0.0)
 
-        if y >= 2022:
-            # Survey adapters may provide this semantic extension directly;
-            # it is deliberately outside TAXSIM's 35 inputs.
-            ctc_children = pl.col("children_under_4").cast(pl.Float64)
-            if y >= 2025:
-                # From 2025 every child under 6 (including a newborn) qualifies.
-                ctc_children = pl.col("dep6").cast(pl.Float64)
-            ctc_threshold = by_filing_status(p["child_tax_credit_phaseout_start"][y])
-            # The credit starts with tax year 2024 (UC 59-10-1047).
+        ctc = pl.lit(0.0)
+        if p.in_effect("child_tax_credit"):
+            k = p.value("child_tax_credit")
+            ctc_children = pl.col("children_under_4" if k["child_age_limit"] == 4 else "dep6").cast(pl.Float64)
             ctc = (
-                p["child_tax_credit_amount"][y] * ctc_children
-                - p["child_tax_credit_reduction_rate"][y] * (taxinc - ctc_threshold).clip(0, None)
+                k["amount"] * ctc_children
+                - k["reduction_rate"] * (taxinc - by_filing_status(k["phaseout_start"])).clip(0, None)
             ).clip(0, None)
-            if y < 2024:
-                ctc = pl.lit(0.0)
+        earned_income_credit = pl.lit(0.0)
+        if p.in_effect("earned_income_credit_rate"):
             earned_income_credit = pl.min_horizontal(
-                p["earned_income_credit_rate"][y] * pl.col("eitc"),
+                p.num("earned_income_credit_rate") * pl.col("eitc"),
                 (pl.col("pwages") + pl.col("swages")).clip(0, None),
             )
-        else:
-            ctc = pl.lit(0.0)
-            earned_income_credit = pl.lit(0.0)
 
         statax = (statax - credit - retcrd - ctc - earned_income_credit).clip(0, None)
         credits = credit + retcrd + ctc + earned_income_credit

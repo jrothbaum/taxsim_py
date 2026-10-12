@@ -1,6 +1,8 @@
-# Payroll tax as TAXSIM's `socsec` function computes it for states that
-# read it: employee FICA on each earner's wages (joint returns) or on total
-# wages, at `rate` up to the wage ceiling and the Medicare rate above it.
+# Payroll tax as TAXSIM's `socsec` function computes it for states that read
+# it: employee FICA on each earner's wages (joint returns) or on total wages,
+# at `rate` up to the wage ceiling and the Medicare rate above it.
+#
+# Sources: NBER TAXSIM (`socsec`).
 rate:
   1977: 0.0585
   1978: 0.0605

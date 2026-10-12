@@ -1,233 +1,108 @@
-# Indiana individual income tax (`intax`, taxsim_2024_09_21.f:5870-6077,
-# state id 15). See calculators/states/in.py for the full mechanism.
+# Indiana individual income tax.
 #
-# Not TAXSIM inputs, so always zero: blindness and the solar/wind energy
-# carry-over credit (`data(38)`, repealed since 1995).
-#
-# `comnew(65)` (used in the 1999-2002 EITC-equivalent formula) is real,
-# live-probe-confirmed to be federal AGI itself (identical to `comnew(2)`
-# in every probe tried, including with dividends present) - just this
-# project's own `agi` column, not a separate reconstruction.
-# `comnew(68)` (exemps count) and `comnew(59)` (federal EITC) both reuse
-# this project's own already-established `federal.py` output columns
-# directly (no local reconstruction needed, unlike Idaho's `comnew(83)`).
-rate_by_year:  # rate(law) - Indiana's flat tax rate
-  1977: 0.02
-  1980: 0.019
-  1983: 0.03
-  1987: 0.032
-  1988: 0.034
-  2015: 0.033
-  2017: 0.0323
-  # PolicyEngine-US: gov.states.in.tax.income.agi_rate.
-  2022: 0.0323
-  2023: 0.0315
-  2024: 0.0305
-  2025: 0.03
+# Sources: 1977-2021 NBER TAXSIM (`intax`); 2022 on, IC 6-3 and
+# PolicyEngine-US `gov.states.in.tax.income`. Blindness and the solar/wind
+# credit carryover have no TAXSIM input.
 
-# Renter's deduction cap (`dedr`, real; divided by `sep` for
-# married_separate).
-renter_deduction_cap_1979_1998:
-  1960: 1500
-renter_deduction_cap_1999_2002:
-  1960: 2000
-renter_deduction_cap_2003_2007:
-  1960: 2500
-renter_deduction_cap_2008plus:
-  1960: 3000
+# Statutory mode uses actual law through this year.
+law_coded_through: 2025
 
-# Homeowner's Residential Property Tax Deduction (`dedown`, 1999+, real;
-# divided by `sep` for married_separate).
-homeowner_proptax_deduction_cap_1999plus:
-  1960: 2500
+# A flat rate on Indiana AGI less deductions and exemptions. Source for
+# 2022 on: PolicyEngine-US gov.states.in.tax.income.agi_rate.
+rate: {1977: 0.02, 1980: 0.019, 1983: 0.03, 1987: 0.032, 1988: 0.034, 2015: 0.033, 2017: 0.0323, 2023: 0.0315, 2024: 0.0305, 2025: 0.03}
+# 1979: the tax is this share of the computed tax.
+tax_share: {1979: 0.85, 1980: null}
 
-# 1981-only dividend/interest exclusion swap: federal's own real $200/
-# $400 combined interest+dividends exclusion that year (reused directly
-# from `PRE1987_PARAMS["dividend_exclusion"]`, same real one-year
-# provision Hawaii's own 1981 handling already documents) is ADDED BACK,
-# then Indiana's OWN, smaller, dividends-only $100-per-filer exclusion is
-# subtracted instead - a real, narrow one-year state/federal decoupling.
-dividend_exclusion_indiana_1981_per_filer:
-  1960: 100
+# --- Income ---
+# 1981: the federal interest and dividend exclusion is added back and this
+# dividend exclusion per taxpayer allowed instead.
+dividend_exclusion_per_taxpayer: {1981: 100, 1982: null}
+# Indiana's unemployment compensation exclusion: half of income above the
+# threshold is taxable (capped by what was excluded federally).
+ui_exclusion_threshold: {single: 12000, married_joint: 18000}
+# 2009: the federal unemployment exclusion, up to this amount per taxpayer,
+# is added back.
+ui_addback_per_taxpayer: {2009: 2400, 2010: null}
 
-# Indiana's own Unemployment Compensation exclusion (real, applies every
-# year with nonzero UI, not just 2009/2020) - an AGI-threshold-based
-# worksheet matching the classic pre-1987 FEDERAL UI-exclusion mechanic,
-# but computed on INDIANA'S OWN $12,000/$18,000(joint) threshold and
-# capped by whatever federal itself actually excluded that year
-# (`comnew(78)`, real and nonzero only for 2009's $2,400/filer ARRA
-# exclusion and 2020's CARES/ARPA exclusion - $0, hence this whole
-# mechanism a no-op, for every other year).
-ui_exclusion_threshold_single:
-  1960: 12000
-ui_exclusion_threshold_married_joint:
-  1960: 18000
-# 2009 add-back: Indiana fully disallows federal's own UI exclusion that
-# year (capped at $2,400 per filer) before separately re-applying its own
-# threshold-based version above.
-ui_2009_addback_cap_per_filer:
-  1960: 2400
-
-# 1999-2002 EITC-equivalent (own formula; live-probe-confirmed `comnew(65)`
-# = federal AGI, not a separate figure).
-eitc_1999_2002_rate:
-  1960: 0.034
-eitc_1999_2002_income_cap:
-  1960: 12000
-
-# 2003-2008: percentage of the FEDERAL EITC, gated on a federal-EITC
-# floor.
-eitc_2003_2008_rate:
-  1960: 0.06
-eitc_2003_2008_federal_floor:
-  1960: 9.0
-
-# 2009+: percentage of the federal EITC (federal-EITC floor $6) - 2011+
-# additionally recomputes its OWN separate credit via `crmax`/`ymax`/
-# `rtbase`/`rtless` (by number of EITC-qualifying children, capped at 2)
-# and takes the smaller of the two.
-eitc_2009plus_rate:
-  1960: 0.09
-  # PolicyEngine-US: gov.states.in.tax.income.credits.earned_income.match_rate.
-  2022: 0.10
-  2023: 0.10
-  2024: 0.10
-eitc_2009plus_federal_floor:
-  1960: 6.0
-
-# 2011-2021 own EITC schedule, by EITC-qualifying-child count (0, 1, 2+ -
-# `ieic=min(2,depx)` in the source, though see calculators/states/in.py
-# for why this project uses `dep18` to match federal.py's own EITC
-# child-count convention instead). `rtbase`/`rtless` are flat across
-# every year within each child-count tier (real, not a transcription
-# shortcut - the source's own DATA statement literally repeats the same
-# value 11 times).
-eitc_crmax_0kids:
-  2011: 42.0
-  2012: 43.0
-  2013: 44.0
-  2014: 45.0
-  2016: 46.0
-  2018: 47.0
-  2019: 48.0
-  2021: 49.0
-eitc_crmax_1kid:
-  2011: 279.0
-  2012: 285.0
-  2013: 293.0
-  2014: 297.0
-  2015: 302.0
-  2016: 304.0
-  2017: 306.0
-  2018: 311.0
-  2019: 317.0
-  2020: 323.0
-  2021: 326.0
-eitc_crmax_2kids:
-  2011: 460.0
-  2012: 471.0
-  2013: 483.0
-  2014: 491.0
-  2015: 499.0
-  2016: 501.0
-  2017: 505.0
-  2018: 514.0
-  2019: 525.0
-  2020: 533.0
-  2021: 538.0
-eitc_ymax_0kids:
-  2011: 7600.0
-  2012: 7800.0
-  2013: 8000.0
-  2014: 8200.0
-  2015: 8400.0
-  2018: 8500.0
-  2019: 8650.0
-  2020: 8900.0
-  2021: 8950.0
-eitc_ymax_1kid:
-  2011: 16750.0
-  2012: 17150.0
-  2013: 17550.0
-  2014: 17900.0
-  2015: 18200.0
-  2017: 18350.0
-  2018: 18750.0
-  2019: 19100.0
-  2020: 19350.0
-  2021: 19550.0
-eitc_ymax_2kids:
-  2011: 16750.0
-  2012: 17150.0
-  2013: 17600.0
-  2014: 17950.0
-  2015: 18200.0
-  2017: 18400.0
-  2018: 18700.0
-  2019: 19050.0
-  2020: 19350.0
-  2021: 19550.0
-eitc_rtbase_0kids:
-  1960: 0.006666
-eitc_rtbase_1kid:
-  1960: 0.0304285
-eitc_rtbase_2kids:
-  1960: 0.0358571
-eitc_rtless_0kids:
-  1960: 0.00688
-eitc_rtless_1kid:
-  1960: 0.0144
-eitc_rtless_2kids:
-  1960: 0.019
-
-# 2012-only Automatic Taxpayer Refund Credit - flat, per-filer, only when
-# statax (before this credit) is positive.
-automatic_taxpayer_refund_credit_2012_per_filer:
-  1960: 111
-
-# Through 1980, taxpayers 65 or older: a share of property tax plus 20% of
-# rent, by household income, up to $500.
-property_credit_share_table: [[500, 0.75], [1000, 0.70], [1500, 0.50], [2000, 0.40], [2500, 0.30], [3000, 0.25], [4000, 0.20], [5000, 0.10]]
-property_credit_rent_share: 0.2
-property_credit_cap: 500
-# Credit for taxpayers 65 or older with federal AGI under $10,000: through
-# 1980 $25 when household income is under $15,000; then a table by federal
-# AGI, plus a second-spouse amount on joint returns with two aged.
-elderly_credit_agi_limit: 10000
-elderly_credit_pre1981: 25
-elderly_credit_pre1981_income_limit: 15000
-elderly_credit_table_1981: [[1000, 65], [3000, 35], [10000, 25], [1.0e20, 0]]
-elderly_credit_table_1985: [[1000, 100], [3000, 50], [10000, 40], [1.0e20, 0]]
-elderly_credit_second_aged: {1981: 25, 1985: 40}
-# 1999+: additional exemption per aged taxpayer with federal AGI under $40,000.
-aged_low_income_exemption: 500
-aged_low_income_exemption_agi_limit: 40000
-
+# --- Deductions ---
+# Renter's deduction from 1979: rent up to the cap (halved on separate
+# returns).
+renter_deduction_cap: {1979: 1500, 1999: 2000, 2003: 2500, 2008: 3000}
+# Homeowner's property tax deduction from 1999: property tax up to the cap
+# (halved on separate returns).
+homeowner_property_tax_deduction_cap: {1999: 2500}
 # 1997-1998 earned income deduction: with dependents, income below the
-# limit and earnings above a share of income, the limit less income.
-earned_income_deduction_1997_1998:
-  income_limit: 12000
-  earnings_share: 0.8
+# limit and earnings above `earnings_share` of income, the limit less income.
+earned_income_deduction:
+  1997: {income_limit: 12000, earnings_share: 0.8}
+  1999: null
 
-# Exemptions: per taxpayer (and taxpayer 65 or older) and per dependent
-# through 1979; 1980-1984 a lower amount plus an income-related addition
-# (per spouse share, up to the maximum); later one amount; plus an extra
-# amount per dependent from 1997.
-exemption_per_taxpayer:
-  1977: 1000
-  1980: 500
-  1985: 1000
-exemption_per_dependent_pre1980: 500
-exemption_income_addition_1980_1984:
-  floor: 500
-  maximum: 500
-dependent_exemption_addition:
-  1977: 0
-  1997: 500
-  1999: 1500
+# --- Exemptions ---
+# Per taxpayer and taxpayer 65 or older (and per federal exemption from
+# 1980); through 1979 dependents get `exemption_per_dependent`.
+exemption_per_taxpayer: {1977: 1000, 1980: 500, 1985: 1000}
+exemption_per_dependent: {1977: 500, 1980: null}
+# 1980-1984: plus income above `floor` up to `maximum` (joint returns: per
+# spouse, on a third and two thirds of income).
+exemption_income_addition:
+  1980: {floor: 500, maximum: 500}
+  1985: null
+# Additional exemption per dependent from 1997.
+dependent_exemption_addition: {1977: 0, 1997: 500, 1999: 1500}
+# From 1999: additional exemption per taxpayer 65 or older when federal AGI
+# is under the limit.
+aged_low_income_exemption:
+  1999: {amount: 500, agi_limit: 40000}
 
-# 1979 tax is this share of the computed tax.
-tax_share_1979: 0.85
-
-# 1999-2002 EITC: earned income at least this share of total income.
-eitc_1999_2002_earnings_share: 0.8
+# --- Credits ---
+# Through 1980, property tax credit for taxpayers 65 or older: a share of
+# property tax plus `rent_share` of rent by household income, [income,
+# share] interpolated, up to `cap`.
+property_credit:
+  1977:
+    share_table: [[500, 0.75], [1000, 0.70], [1500, 0.50], [2000, 0.40], [2500, 0.30], [3000, 0.25], [4000, 0.20], [5000, 0.10]]
+    rent_share: 0.2
+    cap: 500
+  1981: null
+# Credit for taxpayers 65 or older with federal AGI under the limit: through
+# 1980 a flat amount when household income is under its limit; from 1981 by
+# federal AGI, [AGI, amount] interpolated (steps from 2022), plus
+# `elderly_credit_second_aged` on joint returns with two aged.
+elderly_credit_agi_limit: 10000
+elderly_credit_flat:
+  1977: {amount: 25, household_income_limit: 15000}
+  1981: null
+elderly_credit_table:
+  1981: [[1000, 65], [3000, 35], [10000, 25], [1.0e20, 0]]
+  1985: [[1000, 100], [3000, 50], [10000, 40], [1.0e20, 0]]
+elderly_credit_second_aged: {1981: 25, 1985: 40}
+# 1999-2002 earned income credit, with dependents: `rate` of the amount by
+# which federal total income falls short of `income_cap`, when earnings are
+# at least `earnings_share` of it.
+eitc_own:
+  1999: {rate: 0.034, income_cap: 12000, earnings_share: 0.8}
+  2003: null
+# From 2003: a share of the federal credit when it is at least
+# `eitc_federal_floor` (no floor from 2022). Source for 2022 on:
+# PolicyEngine-US gov.states.in.tax.income.credits.earned_income.match_rate.
+eitc_federal_share: {2003: 0.06, 2009: 0.09, 2022: 0.10}
+eitc_federal_floor: {2003: 9.0, 2009: 6.0}
+# 2011-2021: at most Indiana's own schedule, by EITC children (0, 1, 2+):
+# `phase_in_rate` of earnings up to `max_credit`, less `phaseout_rate` of
+# the higher of earnings and federal AGI above `phaseout_start`.
+eitc_schedule:
+  2011: {max_credit: [42.0, 279.0, 460.0], phaseout_start: [7600.0, 16750.0, 16750.0]}
+  2012: {max_credit: [43.0, 285.0, 471.0], phaseout_start: [7800.0, 17150.0, 17150.0]}
+  2013: {max_credit: [44.0, 293.0, 483.0], phaseout_start: [8000.0, 17550.0, 17600.0]}
+  2014: {max_credit: [45.0, 297.0, 491.0], phaseout_start: [8200.0, 17900.0, 17950.0]}
+  2015: {max_credit: [45.0, 302.0, 499.0], phaseout_start: [8400.0, 18200.0, 18200.0]}
+  2016: {max_credit: [46.0, 304.0, 501.0], phaseout_start: [8400.0, 18200.0, 18200.0]}
+  2017: {max_credit: [46.0, 306.0, 505.0], phaseout_start: [8400.0, 18350.0, 18400.0]}
+  2018: {max_credit: [47.0, 311.0, 514.0], phaseout_start: [8500.0, 18750.0, 18700.0]}
+  2019: {max_credit: [48.0, 317.0, 525.0], phaseout_start: [8650.0, 19100.0, 19050.0]}
+  2020: {max_credit: [48.0, 323.0, 533.0], phaseout_start: [8900.0, 19350.0, 19350.0]}
+  2021: {max_credit: [49.0, 326.0, 538.0], phaseout_start: [8950.0, 19550.0, 19550.0]}
+  2022: null
+eitc_schedule_rates: {phase_in_rate: [0.006666, 0.0304285, 0.0358571], phaseout_rate: [0.00688, 0.0144, 0.019]}
+# 2012 automatic taxpayer refund credit per taxpayer, when tax is positive.
+automatic_taxpayer_refund_credit: {2012: 111, 2013: null}

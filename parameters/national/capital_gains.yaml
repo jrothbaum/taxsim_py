@@ -1,58 +1,32 @@
-# Qualified dividends + net long-term capital gains preferential rates
-# (the "Qualified Dividends and Capital Gain Tax Worksheet"), 0%/15%/20%.
-# Verified against taxsim_2022_10_21.f:26866-27440 (subroutine `tax01`) -
-# the actual 2022 breakpoints match known published figures exactly for
-# the 0/15% line ($41,675/$55,800/$83,350) and for the HoH/joint/separate
-# 15/20% lines ($488,500/$517,200/$258,600). The SINGLE-filer 15/20% line
-# is $459,650 here (taxsim_2022_10_21.f:27391) - not $459,750, which is
-# what AMT's *own*, separately-coded copy of this same breakpoint uses
-# (taxsim_2022_10_21.f:25410; see amt.yaml's cg_rate_15_ceiling). Every
-# other year 2013-2021 matches exactly between the two copies - this genuinely
-# looks like a $100 typo somewhere in the original source, not an
-# intentional dual breakpoint, but it's real and deterministic (confirmed
-# by a live test mismatch), so both values are replicated as found rather
-# than "corrected" to agree with each other.
+# Federal tax on capital gains and qualified dividends.
 #
-# Scope: dividends are treated as fully qualified (matches the source's own
-# default when no separate "non-qualified dividends" split is given -
-# taxsim_2022_10_21.f:24307-24315). Short- and long-term gains and losses
-# are netted, with a net loss limited by `net_capital_loss_limit` below.
-# Other-property gains (a further, separately-deferred input) are not
-# included.
-# 1994-1996 use yet another, genuinely different vintage subroutine
-# (`tax94`, taxsim_2022_10_21.f:26568-26668) - not a tiered preferential
-# rate at all, but a "cap the marginal rate on net long-term gain at 28%"
-# ALTERNATIVE tax: `tax = min(plain_bracket_tax(taxable_income),
-# bracket_tax(max(bot28, taxable_income-ltg)) + 0.28*(taxable_income - that
-# ordinary-equivalent amount))`, where `bot28` is exactly this same
-# rate_0_ceiling breakpoint (the 15%/28% bracket boundary - `bot28 =
-# toptab(itab+1)`, taxsim_2022_10_21.f:26612). Real, historical law: the
-# 28%-cap alternative tax on LTCG applied 1991-1996 (TRA1986's original
-# scheme), before 1997's Taxpayer Relief Act introduced the modern
-# 10%/20% tiered rates `tax97`/`tax01` use. Implemented as its own
-# `year <= 1996` branch in calculators/federal.py, reusing this same
-# rate_0_ceiling value as `bot28` rather than a new parameter. rate_0/
-# rate_15/rate_20 have no 1994-1996 values on purpose, since that branch
-# doesn't call `preferential_rate_tax()` at all - rate_15_ceiling DOES
-# carry the same inert sentinel back to 1994 only because it (unlike
-# rate_0/15/20) gets resolved unconditionally before the year branch,
-# never actually used by this one.
-# `ttab` (`toptab(itab+3)`) for `tax87` ONLY (`taxsim_2022_10_21.f:
-# 26347-26391`) - the 28%/35% bracket boundary that gates 1987's own,
-# structurally distinct 3-case capital-gains alternative tax (see
-# calculators/federal.py's `year == 1987` branch). Not the same value as
-# rate_0_ceiling/rate_15_ceiling - 1987's bracket schedule has 5 real
-# tiers (11/15/28/35/38.5%), so this is the bracket table's 4th threshold,
-# not its 2nd or 3rd. A large sentinel (never reached) reproduces "this
-# mechanism doesn't exist" for every other year with no extra code branch,
-# same convention as rate_15_ceiling's own inert-elsewhere sentinel.
-rate_28_ceiling:
-  single: {1987: 27000, 1988: 1.0e+15}
-  head_of_household: {1987: 38000, 1988: 1.0e+15}
-  married_separate: {1987: 22500, 1988: 1.0e+15}
-  married_joint: {1987: 45000, 1988: 1.0e+15}
+# Sources: 1987-2021 NBER TAXSIM (`law87`); 2022 on, Internal Revenue Code
+# section 1(h) and the Qualified Dividends and Capital Gain Tax Worksheet,
+# checked against PolicyEngine-US `gov.irs.capital_gains`.
 
-rate_0_ceiling:  # brac15: the 0%/15% breakpoint
+# Net capital loss deductible against other income (halved for married
+# separate).
+net_capital_loss_limit: {1987: 3000}
+# --- Regular tax on long-term gains ---
+# 1987-1996 maximum rate on long-term gains: in 1987 above `rate_28_ceiling`;
+# 1988-1990 none (gains taxed as ordinary income); 1991-1996 an alternative tax
+# at this rate on gains above the start of the 28% bracket (`rate_0_ceiling`),
+# 1991-1993 only when taxable income exceeds the top of that bracket
+# (`rate_15_ceiling`).
+maximum_rate: {1987: 0.28, 1997: null}
+# 1987: the top of the 28% bracket.
+rate_28_ceiling:
+  1987: {single: 27000, married_joint: 45000, married_separate: 22500, head_of_household: 38000}
+  1988: null
+# From 1997, worksheet for net long-term gains (and from 2003 qualified
+# dividends): `rate_0` up to the first ceiling, `rate_15` up to the second and
+# `rate_20` above (the second ceiling is a large sentinel before 2013, when
+# there was no 20% rate). 1997-2002 `rate_0` is 10% and `rate_15` the 20% top
+# rate; 2003 dividends and gains have their own `transition_rates`. Dividends
+# are treated as qualified. TAXSIM's single 2022 second ceiling is $459,650 here
+# and $459,750 in amt.yaml; both kept as found. Source 2024-2025: Rev. Proc.
+# 2023-34 and 2024-40.
+rate_0_ceiling:
   single:
     1987: 1800
     1988: 17850
@@ -91,7 +65,6 @@ rate_0_ceiling:  # brac15: the 0%/15% breakpoint
     2021: 40400
     2022: 41675
     2023: 44625
-    # 2024/2025 (Rev. Proc. 2023-34 p.8, Rev. Proc. 2024-40 p.7).
     2024: 47025
     2025: 48350
   head_of_household:
@@ -214,48 +187,13 @@ rate_0_ceiling:  # brac15: the 0%/15% breakpoint
     2023: 89250
     2024: 94050
     2025: 96700
-rate_15_ceiling:  # topbrk: the 15%/20% breakpoint
-  # Before 2013, there was no 20% capital-gains rate in law at all - the
-  # source's `addtax` (regular tax's 20%-tier add-on) is gated behind
-  # `lawyr.ge.2013` outright (taxsim_2022_10_21.f:25399). A large sentinel
-  # (never reached) reproduces that with no extra code branch.
-  #
-  # EXCEPT 1991-1993: this slot holds a real, meaningfully-used value those
-  # years - `top28` (the 28%/31% bracket boundary, `top28 =
-  # toptab(itab+2)`), which `tax91`/`tax93`'s own capital-gains alternative
-  # tax uses to GATE whether it even attempts the alternative computation at
-  # all (`taxin2.gt.top28` in tax91, taxsim_2022_10_21.f:26456-26457;
-  # `taxin2*sepret.gt.top28` in tax93, taxsim_2022_10_21.f:26513-26514). See
-  # calculators/federal.py's `year in (1991, 1992, 1993)` branch. 1991's
-  # value is `bloc91`'s own toptab entry directly (blowup=1 that year);
-  # 1992's is the same table blown up by CPI (`xndxa(1992)/xndxa(1991)`) -
-  # same driver/technique as income_tax.yaml's 1991-1992 brackets.
+rate_15_ceiling:
   single:
-    1987: 1.0e+15
-    1988: 1.0e+15
-    1989: 1.0e+15
-    1990: 1.0e+15
+    1987: 1000000000000000.0
     1991: 49300
     1992: 51885.66
     1993: 53500
-    1994: 1.0e+15
-    1995: 1.0e+15
-    1996: 1.0e+15
-    1997: 1.0e+15
-    1998: 1.0e+15
-    1999: 1.0e+15
-    2000: 1.0e+15
-    2001: 1.0e+15
-    2002: 1.0e+15
-    2003: 1.0e+15
-    2004: 1.0e+15
-    2005: 1.0e+15
-    2006: 1.0e+15
-    2007: 1.0e+15
-    2008: 1.0e+15
-    2009: 1.0e+15
-    2011: 1.0e+15
-    2012: 1.0e+15
+    1994: 1000000000000000.0
     2013: 400000
     2014: 406750
     2015: 413200
@@ -267,35 +205,14 @@ rate_15_ceiling:  # topbrk: the 15%/20% breakpoint
     2021: 445850
     2022: 459650
     2023: 492300
-    # 2024/2025 (Rev. Proc. 2023-34 p.8, Rev. Proc. 2024-40 p.7).
     2024: 518900
     2025: 533400
   head_of_household:
-    1987: 1.0e+15
-    1988: 1.0e+15
-    1989: 1.0e+15
-    1990: 1.0e+15
+    1987: 1000000000000000.0
     1991: 70450
     1992: 74144.93
     1993: 76400
-    1994: 1.0e+15
-    1995: 1.0e+15
-    1996: 1.0e+15
-    1997: 1.0e+15
-    1998: 1.0e+15
-    1999: 1.0e+15
-    2000: 1.0e+15
-    2001: 1.0e+15
-    2002: 1.0e+15
-    2003: 1.0e+15
-    2004: 1.0e+15
-    2005: 1.0e+15
-    2006: 1.0e+15
-    2007: 1.0e+15
-    2008: 1.0e+15
-    2009: 1.0e+15
-    2011: 1.0e+15
-    2012: 1.0e+15
+    1994: 1000000000000000.0
     2013: 425000
     2014: 432200
     2015: 439000
@@ -310,31 +227,11 @@ rate_15_ceiling:  # topbrk: the 15%/20% breakpoint
     2024: 551350
     2025: 566700
   married_separate:
-    1987: 1.0e+15
-    1988: 1.0e+15
-    1989: 1.0e+15
-    1990: 1.0e+15
+    1987: 1000000000000000.0
     1991: 41075
     1992: 43229.28
     1993: 44575
-    1994: 1.0e+15
-    1995: 1.0e+15
-    1996: 1.0e+15
-    1997: 1.0e+15
-    1998: 1.0e+15
-    1999: 1.0e+15
-    2000: 1.0e+15
-    2001: 1.0e+15
-    2002: 1.0e+15
-    2003: 1.0e+15
-    2004: 1.0e+15
-    2005: 1.0e+15
-    2006: 1.0e+15
-    2007: 1.0e+15
-    2008: 1.0e+15
-    2009: 1.0e+15
-    2011: 1.0e+15
-    2012: 1.0e+15
+    1994: 1000000000000000.0
     2013: 225000
     2014: 228800
     2015: 232425
@@ -346,36 +243,14 @@ rate_15_ceiling:  # topbrk: the 15%/20% breakpoint
     2021: 250800
     2022: 258600
     2023: 276925
-    # 2024/2025 from PolicyEngine-US (see amt.yaml's own cg_rate_15_ceiling
-    # comment for the same $25 pre-existing 2023 discrepancy note).
     2024: 291850
     2025: 300000
   married_joint:
-    1987: 1.0e+15
-    1988: 1.0e+15
-    1989: 1.0e+15
-    1990: 1.0e+15
+    1987: 1000000000000000.0
     1991: 82150
     1992: 86458.57
     1993: 89150
-    1994: 1.0e+15
-    1995: 1.0e+15
-    1996: 1.0e+15
-    1997: 1.0e+15
-    1998: 1.0e+15
-    1999: 1.0e+15
-    2000: 1.0e+15
-    2001: 1.0e+15
-    2002: 1.0e+15
-    2003: 1.0e+15
-    2004: 1.0e+15
-    2005: 1.0e+15
-    2006: 1.0e+15
-    2007: 1.0e+15
-    2008: 1.0e+15
-    2009: 1.0e+15
-    2011: 1.0e+15
-    2012: 1.0e+15
+    1994: 1000000000000000.0
     2013: 450000
     2014: 457600
     2015: 464850
@@ -389,89 +264,11 @@ rate_15_ceiling:  # topbrk: the 15%/20% breakpoint
     2023: 553850
     2024: 583750
     2025: 600050
-# Pre-2003 (2001-2002): the old, pre-JGTRRA flat two-tier LTCG system -
-# 10% up to the rate_0_ceiling breakpoint, 20% above it, no third tier at
-# all. Reuses this same three-tier engine (rate_0/rate_15/rate_0_ceiling)
-# rather than new code: rate_0=0.10 (not the 2003+ 5%), rate_15 holds the
-# TOP rate (0.20, not 0.15) since rate_15_ceiling's sentinel means tier 2
-# never ends, so rate_20 is simply never reached - taxsim_2022_10_21.f:
-# 27199-27200 (default cgrat1=.1*cgmul, cgrate=.2*cgmul, only overridden by
-# `if(lawyr.ge.2003)` to the newer 5%/15% rates). Also note: dividends did
-# NOT get preferential-rate treatment at all before 2003 (JGTRRA introduced
-# it) - `ltg` itself excludes dividends for year<2003 in calculators/
-# federal.py (taxsim_2022_10_21.f:24317-24323: `if(lawyr.ge.2003) ltg = ltg
-# + divq` - unconditionally excluded before that).
-rate_0:  # bottom-bracket ltg/qualified-dividend rate - 10% pre-2003, 5%
-  # through 2007 (TIPRA 2005), cut to 0% starting 2008 -
-  # taxsim_2022_10_21.f:27202-27206. 1994-1996 entries exist only for
-  # AMT's own cg_rate_0 lookup (calculators/federal.py's year<=1996 branch
-  # for the REGULAR tax doesn't touch rate_0/rate_15/rate_20 at all - see
-  # the note above) - AMT's ltg treatment uses this same unconditional
-  # default (`cgrat1=.1*amtmul`) regardless of the regular-tax vintage
-  # boundary, taxsim_2022_10_21.f:25342-25348.
-  1993: 0.10
-  1994: 0.10
-  1995: 0.10
-  1996: 0.10
-  1997: 0.10
-  1998: 0.10
-  1999: 0.10
-  2000: 0.10
-  2001: 0.10
-  2002: 0.10
-  2003: 0.05
-  2004: 0.05
-  2005: 0.05
-  2006: 0.05
-  2007: 0.05
-  2008: 0.0
-rate_15:  # holds the OLD top rate (0.20) for 2001-2002 - see note above
-  1993: 0.20
-  1994: 0.20
-  1995: 0.20
-  1996: 0.20
-  1997: 0.20
-  1998: 0.20
-  1999: 0.20
-  2000: 0.20
-  2001: 0.20
-  2002: 0.20
-  2003: 0.15
-  2004: 0.15
-  2005: 0.15
-  2006: 0.15
-  2007: 0.15
-  2008: 0.15
-  2022: 0.15
-rate_20:  # inert for every year coded here - always shadowed by the
-  # sentinel rate_15_ceiling (pre-2013) or never reached pre-2003 (rate_15
-  # already holds the true top rate those two years)
-  1994: 0.20
-  1995: 0.20
-  1996: 0.20
-  1997: 0.20
-  1998: 0.20
-  1999: 0.20
-  2000: 0.20
-  2001: 0.20
-  2002: 0.20
-  2003: 0.20
-  2004: 0.20
-  2005: 0.20
-  2006: 0.20
-  2007: 0.20
-  2008: 0.20
-  2022: 0.20
-
-# Net capital loss deductible against other income, divided by `sepret`
-# for married filing separately.
-net_capital_loss_limit: {1987: 3000}
-
-# 1987-1996 maximum rate on long-term gains.
-maximum_rate_1987_1996: 0.28
-# 2003 transition: dividends at the new rates, remaining gains at the old.
-rates_2003:
-  dividends_low: 0.05
-  gains_low: 0.10
-  dividends_high: 0.15
-  gains_high: 0.20
+rate_0: {1993: 0.1, 2003: 0.05, 2008: 0.0}
+rate_15: {1993: 0.2, 2003: 0.15}
+rate_20: {1994: 0.2}
+# 2003: dividends at the new low and high rates, then remaining gains at the old
+# ones.
+transition_rates:
+  2003: {dividends_low: 0.05, gains_low: 0.1, dividends_high: 0.15, gains_high: 0.2}
+  2004: null

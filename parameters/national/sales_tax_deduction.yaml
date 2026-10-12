@@ -1,12 +1,13 @@
-# Optional federal deduction for state and local general sales tax, used
-# in place of state income tax when larger (TAXSIM `saletx`,
-# taxsim_2024_09_21.f:29337-29572). Log-linear in household resources
+# Optional federal deduction for state and local general sales tax, used in
+# place of state income tax when larger. Log-linear in household resources
 # (federal AGI) and family size (taxpayers plus dependents):
 #   deduction = exp(a + b*ln(resources) + c*ln(family_size))
-# Coefficients [a, b, c] by year and TAXSIM state code, held at single
-# precision as in the source. Years after `last_coefficient_year` use
-# that year's coefficients with resources deflated to it by `xndxa`
-# (state_cpi_extrapolation.yaml) and the result reinflated.
+# Coefficients [a, b, c] by year and TAXSIM state code, at single precision.
+# Years after `last_coefficient_year` use that year's coefficients with
+# resources deflated to it by `xndxa` (state_cpi_extrapolation.yaml) and the
+# result reinflated.
+#
+# Sources: NBER TAXSIM (`saletx`), from the IRS optional sales tax tables.
 first_year: 2004
 last_coefficient_year: 2015
 coefficients:

@@ -39,8 +39,7 @@ def _federal_tentative_minimum_tax(df: pl.DataFrame, year: int) -> tuple[pl.Data
     sepret = by_filing_status(_SEPRET_BY_STATUS)
 
     amt_income = pl.col("agi") - pl.when(pl.col("itemizes")).then(pl.col("mortgage")).otherwise(0.0)
-    # Married-filing-separately-only AMTI addback (see amt.yaml) - this
-    # helper is only ever called for year>=2013, so it always applies.
+    # The separate-return AMT income addback (2013 on, see amt.yaml).
     sep_addback_cap = float(resolve_year(amt_p["exemption"]["married_separate"], year))
     sep_addback_threshold = amt_p.num("separate_return_addback_threshold")
     sep_addback = pl.min_horizontal(
@@ -96,8 +95,7 @@ def _step_value(income: pl.Expr, rows: list[list[float]]) -> pl.Expr:
 
 
 def compute_ct_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
-    state_year = "ct" if behavior.mode.value == "statutory" else None
-    effective_year, flate = resolve_state_year(year, state_year)
+    effective_year, flate = resolve_state_year(year, behavior, CT_PARAMS)
     p = YearParams(CT_PARAMS, effective_year)
 
     df = df.with_columns(
@@ -115,7 +113,7 @@ def compute_ct_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     agi = pl.col("agi")
     if effective_year >= 2019:
         joint = files_joint()
-        if behavior.mode.value == "statutory" and effective_year >= 2022:
+        if p.in_effect("pension_deduction_rates"):
             pension_rates = p.value("pension_deduction_rates")
             rate = pl.when(joint).then(
                 _step_value(agi, pension_rates["joint"])
@@ -128,9 +126,8 @@ def compute_ct_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             agi = agi - (1 - (agi - limit) / limit).clip(0, 1) * share * pl.col("pensions")
     if effective_year >= 1985:
         couple = pl.col("filing_status").is_in(["married_joint", "head_of_household"])
-        lim = p["social_security_agi_limit"]
-        ssbmax = pl.when(couple).then(float(resolve_year(lim["joint"], effective_year))).otherwise(
-            float(resolve_year(lim["single"], effective_year))
+        ssbmax = pl.when(couple).then(p.num("social_security_agi_limit", "joint")).otherwise(
+            p.num("social_security_agi_limit", "single")
         )
         base_p = p["social_security_base_amount"]
         excl = (
@@ -146,168 +143,79 @@ def compute_ct_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
                 0.5 * (pl.col("ct_household_income") - 0.5 * benefits - adjustments - excl).clip(0, None), 0.5 * benefits
             )
             partial = (taxable_ss - kept).clip(0, None)
+        elif effective_year >= 2022:
+            # A share of the lesser of gross benefits and combined income
+            # above the federal base amount (IRC section 86).
+            combined_income = agi - taxable_ss + 0.5 * benefits
+            combined_excess = (combined_income - excl).clip(0, None)
+            partial = (taxable_ss - p["social_security_partial_share"] * pl.min_horizontal(benefits, combined_excess)).clip(0, None)
         else:
-            if behavior.mode.value == "statutory" and effective_year >= 2022:
-                # PolicyEngine follows IRC section 86: above the state
-                # threshold, CT removes 25% of the lesser of gross SS and
-                # federal combined income in excess of the federal base amount.
-                combined_income = agi - taxable_ss + 0.5 * benefits
-                combined_excess = (combined_income - excl).clip(0, None)
-                partial = (taxable_ss - p["social_security_partial_share"] * pl.min_horizontal(benefits, combined_excess)).clip(0, None)
-            else:
-                partial = pl.when(excl > 0).then(
-                    taxable_ss - p["social_security_partial_share"] * pl.min_horizontal(benefits, excl)
-                ).otherwise(0.0)
+            partial = pl.when(excl > 0).then(
+                taxable_ss - p["social_security_partial_share"] * pl.min_horizontal(benefits, excl)
+            ).otherwise(0.0)
         agi = pl.when(taxable_ss > 0).then(
             agi - pl.when(agi < ssbmax).then(taxable_ss).otherwise(partial)
         ).otherwise(agi)
     df = df.with_columns(ct_agi=agi)
 
     # --- Exemption ---
-    if effective_year <= 1990:
-        df = df.with_columns(ct_exemp=100.0 * (taxpayer_count() + aged_count()))
+    if p.in_effect("exemption_per_person"):
+        df = df.with_columns(ct_exemp=p.num("exemption_per_person") * (taxpayer_count() + aged_count()))
     else:
-        single = p["exemption_single_pre2000"]
-        hoh = p["exemption_hoh_1991plus"]
-        joint = p["exemption_joint_1991plus"]
-        sep_p = p["exemption_married_separate_2000plus"]
-        if effective_year <= 1999:
-            single_amt, single_thr = single["amount"], single["phaseout_start"]
-        elif effective_year <= 2007 and effective_year in p["exemption_single_by_year"]:
-            single_amt, single_thr = p["exemption_single_by_year"][effective_year]
-        elif effective_year <= 2007:
-            single_amt, single_thr = resolve_year(
-                {y: v for y, v in p["exemption_single_by_year"].items()}, effective_year
-            )
-        else:
-            single_amt = None
-        exemp_single = (
-            pl.when(pl.col("ct_agi") >= 2 * float(single_amt) if False else True).then(0.0)
-            if False
-            else pl.lit(0.0)
-        )
-        if effective_year <= 2007:
-            exemp_single = (float(single_amt) - (pl.col("ct_agi") - float(single_thr))).clip(0, float(single_amt))
-        else:
-            xmp = p.num("exemption_single_flat_2008plus")
-            exemp_single = (xmp - (pl.col("ct_agi") - 2 * xmp)).clip(0, xmp)
-        exemp_hoh = (float(hoh["amount"]) - (pl.col("ct_agi") - float(hoh["phaseout_start"]))).clip(0, float(hoh["amount"]))
-        exemp_joint = (float(joint["amount"]) - (pl.col("ct_agi") - float(joint["phaseout_start"]))).clip(0, float(joint["amount"]))
-        exemp_sep = pl.lit(0.0)
-        if effective_year >= 2000:
-            exemp_sep = (float(sep_p["amount"]) - (pl.col("ct_agi") - float(sep_p["phaseout_start"]))).clip(0, float(sep_p["amount"]))
-        if effective_year >= 2022:
-            # The exemption falls $1,000 per $1,000 (or part) of AGI over the
-            # start (PolicyEngine-US gov.states.ct.tax.income.exemptions.personal).
-            def stepped(amount: float, start: float) -> pl.Expr:
+        def exemption(status: str) -> pl.Expr:
+            terms = p.value("exemption", status)
+            amount, start = float(terms["amount"]), float(terms["phaseout_start"])
+            if effective_year >= 2022:
+                # $1,000 less for each $1,000 (or part) of AGI over the start.
                 steps = ((pl.col("ct_agi") - start).clip(0, None) / 1000.0).ceil()
                 return (amount - 1000.0 * steps).clip(0, amount)
+            return (amount - (pl.col("ct_agi") - start)).clip(0, amount)
 
-            exemp_single = stepped(15000.0, 30000.0)
-            exemp_hoh = stepped(float(hoh["amount"]), float(hoh["phaseout_start"]))
-            exemp_joint = stepped(float(joint["amount"]), float(joint["phaseout_start"]))
-            exemp_sep = stepped(float(sep_p["amount"]), float(sep_p["phaseout_start"]))
-        df = df.with_columns(
-            ct_exemp=pl.when(files_joint()).then(exemp_joint)
-            .when(files_head_of_household()).then(exemp_hoh)
-            .when((files_separate()) & (effective_year >= 2000)).then(exemp_sep)
-            .otherwise(exemp_single)
-        )
+        exemp = pl.when(files_joint()).then(exemption("married_joint")).when(files_head_of_household()).then(exemption("head_of_household"))
+        if effective_year >= 2000:
+            exemp = exemp.when(files_separate()).then(exemption("married_separate"))
+        df = df.with_columns(ct_exemp=exemp.otherwise(exemption("single")))
 
-    # --- Pre-1991 capital gains / dividends / interest tax ---
-    # `gain` (`comnew(6)`) is federal taxable gains: net of the federal
-    # long-term exclusion through 1986, all gains 1987-1990. The port
-    # previously clipped `stcg`/`ltcg` to 0 individually before adding
-    # them, throwing away a short-term loss instead of netting it against
-    # a long-term gain, which is what `comnew(6)` actually does (a $12,000
-    # long-term gain with a $4,000 short-term loss was taxed as if the
-    # loss didn't exist) - confirmed against the real oracle, which
-    # already nets correctly, so this applies unconditionally rather than
-    # being calculation_mode-gated.
+    # --- Capital gains, dividends and interest (before 1991) ---
+    # Federal taxable gains: net of the federal long-term exclusion through
+    # 1986, all gains 1987-1990.
     gain = pl.col("pre1987_capgn") if effective_year <= 1986 else federal_capital_gain_in_agi(year, flate)
-    if effective_year in (1987, 1988):
-        # Same bug as above, in CT's own additional 1987-1988 exclusion:
-        # based on raw `ltcg`, ignoring a short-term loss that may have
-        # already reduced `gain` below what raw `ltcg` alone implies.
-        # Capped at `gain` itself so the exclusion can't exceed the
-        # long-term gain actually remaining after netting.
-        gain = (gain - float(p["ltcg_ct_only_exclusion_1987_1988"]) * pl.min_horizontal(pl.col("ltcg"), gain).clip(0, None)).clip(0, None)
+    if p.in_effect("capital_gains_exclusion"):
+        # Limited to the long-term gain remaining after netting.
+        gain = (gain - p.num("capital_gains_exclusion") * pl.min_horizontal(pl.col("ltcg"), gain).clip(0, None)).clip(0, None)
     divint = pl.col("dividends") + pl.col("intrec")
 
-    if effective_year <= 1990:
-        if effective_year <= 1990:
-            cgtax = (float(p["cgtax_rate_pre1991"]) * (gain - pl.col("ct_exemp"))).clip(0, None)
-        if effective_year < 1983:
-            divtax = _flat_rate_step(pl.col("ct_agi"), p["divint_rate_table_pre1983"]) * pl.col("dividends")
-        elif effective_year == 1983:
-            divtax = _flat_rate_step(pl.col("ct_agi"), p["divint_rate_table_pre1983"]) * divint
-        elif effective_year == 1984:
-            divtax = _flat_rate_step(pl.col("ct_agi"), p["divint_rate_table_1984"]) * divint
-        elif effective_year == 1985:
-            divtax = _flat_rate_step(pl.col("ct_agi"), p["divint_rate_table_1985"]) * divint
-        elif effective_year <= 1988:
-            divtax = _flat_rate_step(pl.col("ct_agi"), p["divint_rate_table_1986_1988"]) * divint
-        else:
-            divtax = _flat_rate_step(pl.col("ct_agi"), p["divint_rate_table_1989_1990"]) * divint
-        # Reported taxable income floors a net capital loss at 0 before
-        # adding dividends/interest (confirmed against the real oracle);
-        # `cgtax` above already handles a negative `gain` correctly on its
-        # own, so this floor is a reporting-only detail, not a tax change.
+    if p.in_effect("capital_gains_rate"):
+        cgtax = (p.num("capital_gains_rate") * (gain - pl.col("ct_exemp"))).clip(0, None)
+        rate_expr = _flat_rate_step(pl.col("ct_agi"), p.value("investment_income_rates"))
+        # Interest is taxed from 1983.
+        divtax = rate_expr * (pl.col("dividends") if effective_year < 1983 else divint)
+        # Reported taxable income floors a net capital loss at 0.
         df = df.with_columns(
             ct_statax=cgtax + divtax, ct_taxinc=gain.clip(0, None) + divint, ct_cgtax=cgtax, ct_divtax=divtax
         )
-        table = (
-            "divint_rate_table_pre1983" if effective_year <= 1983
-            else "divint_rate_table_1984" if effective_year == 1984
-            else "divint_rate_table_1985" if effective_year == 1985
-            else "divint_rate_table_1986_1988" if effective_year <= 1988
-            else "divint_rate_table_1989_1990"
-        )
-        rate_expr = _flat_rate_step(pl.col("ct_agi"), p[table])
     else:
         df = df.with_columns(ct_taxinc=(pl.col("ct_agi") - pl.col("ct_exemp")).clip(0, None))
-        if effective_year == 1991:
-            divtax_1991 = _flat_rate_step(pl.col("ct_agi"), p["divint_rate_table_1991"]) * divint
-            t91 = p["tax_1991"]
-            rate = t91["rate"]
-            df = df.with_columns(ct_xtax=pl.col("ct_taxinc") * rate, ct_divtax=divtax_1991)
-            # cgtax=max(0,min(.034*agi,(gain-100*(data(7)+data(9)+data(10)))*.0475)),
-            # with `data(7)` taxpayers and `data(9)` taxpayers 65 or older.
-            exemp_units = taxpayer_count() + aged_count()
-            cgtax_1991 = pl.max_horizontal(
-                pl.min_horizontal(
-                    t91["gains_agi_cap_share"] * pl.col("ct_agi"),
-                    (gain - t91["gains_exemption_per_unit"] * exemp_units) * t91["gains_rate"],
-                ),
-                0.0,
-            )
-            df = df.with_columns(ct_cgtax=cgtax_1991)
-            rate_expr = pl.lit(rate)
-        elif effective_year <= 1995:
-            rate = float(p["flat_rate_1991_1995"])
+        if p.in_effect("flat_rate"):
+            rate = p.num("flat_rate")
             df = df.with_columns(ct_xtax=pl.col("ct_taxinc") * rate, ct_divtax=pl.lit(0.0), ct_cgtax=pl.lit(0.0))
             rate_expr = pl.lit(rate)
+            if p.in_effect("capital_gains_tax"):
+                df = df.with_columns(ct_divtax=_flat_rate_step(pl.col("ct_agi"), p.value("investment_income_rates")) * divint)
+                cg = p.value("capital_gains_tax")
+                exemp_units = taxpayer_count() + aged_count()
+                df = df.with_columns(ct_cgtax=pl.max_horizontal(
+                    pl.min_horizontal(
+                        cg["agi_cap_share"] * pl.col("ct_agi"),
+                        (gain - cg["exemption_per_unit"] * exemp_units) * cg["rate"],
+                    ),
+                    0.0,
+                ))
         else:
-            year_table_map = {
-                1996: "brackets_1996", 1997: "brackets_1997", 1998: "brackets_1998",
-            }
-            if effective_year >= 2024:
-                prefix = "brackets_2024"
-            elif effective_year in year_table_map:
-                prefix = year_table_map[effective_year]
-            elif 1999 <= effective_year <= 2002:
-                prefix = "brackets_1999_2002"
-            elif 2003 <= effective_year <= 2008:
-                prefix = "brackets_2003_2008"
-            elif 2009 <= effective_year <= 2010:
-                prefix = "brackets_2009_2010"
-            elif 2011 <= effective_year <= 2014:
-                prefix = "brackets_2011_2014"
-            else:
-                prefix = "brackets_2015plus"
-            brackets_single = p[f"{prefix}_single"]
-            brackets_hoh = p[f"{prefix}_hoh"]
-            brackets_joint = p[f"{prefix}_joint"]
+            brackets = p.value("brackets")
+            brackets_single = brackets["single"]
+            brackets_hoh = brackets["head_of_household"]
+            brackets_joint = brackets["joint"]
             xtax = pl.when(files_head_of_household()).then(
                 bracket_tax(pl.col("ct_taxinc"), brackets_hoh)
             ).when(files_joint()).then(
@@ -319,14 +227,26 @@ def compute_ct_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
                 bracket_rate(pl.col("ct_taxinc"), brackets_joint)
             ).otherwise(bracket_rate(pl.col("ct_taxinc"), brackets_single))
 
-            if effective_year >= 2011:
-                is_hoh = files_head_of_household()
-                is_joint = files_joint()
-                is_sep = files_separate()
-                ph_single = p["phaseout_3pct_2011plus_single"]
-                ph_sep = p["phaseout_3pct_2011plus_married_separate"]
-                ph_hoh = p["phaseout_3pct_2011plus_hoh"]
-                ph_joint = p["phaseout_3pct_2011plus_joint"]
+            def stepped(table: dict) -> pl.Expr:
+                """Per status [start, amount per increment, increment, maximum], per increment or part."""
+                amount = pl.lit(0.0)
+                for status in _STATUSES:
+                    start, step_amount, increment, maximum = (float(v) for v in table[status])
+                    steps = ((pl.col("ct_agi") - start).clip(0, None) / increment).ceil()
+                    amount = pl.when(pl.col("filing_status") == status).then(
+                        pl.min_horizontal(maximum, steps * step_amount)
+                    ).otherwise(amount)
+                return amount
+
+            if p.in_effect("add_back_steps"):
+                stax = stepped(p.value("add_back_steps"))
+                recapture = pl.lit(0.0)
+                for name, tier in p.value("recapture_steps").items():
+                    if tier.get("in_effect", True):
+                        recapture = recapture + stepped(tier)
+                xtax = xtax + stax + recapture
+            elif p.in_effect("add_back"):
+                ab = p.value("add_back")
 
                 def stax_for(ph):
                     return pl.min_horizontal(
@@ -334,90 +254,45 @@ def compute_ct_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
                         float(ph["per_1000"]) * (pl.col("ct_agi") - float(ph["threshold"])).clip(0, None) / float(ph["denom"]),
                     )
 
-                stax = pl.when(is_hoh).then(stax_for(ph_hoh)).when(is_joint).then(stax_for(ph_joint)).when(
-                    is_sep
-                ).then(stax_for(ph_sep)).otherwise(stax_for(ph_single))
-
-                rmax_s = p.num("recapture_max_single")
-                rmax_h = p.num("recapture_max_hoh")
-                rate_s = p.num("recapture_rate_single")
-                rate_h = p.num("recapture_rate_hoh")
-                ragi_s = float(p["recapture_agi_threshold_single"])
-                ragi_h = float(p["recapture_agi_threshold_hoh"])
-                # Single and separate returns share the single table and
-                # recapture amounts (`mst.eq.1.or.mst.eq.3.or.mst.eq.6`).
+                stax = (
+                    pl.when(files_head_of_household()).then(stax_for(ab["head_of_household"]))
+                    .when(files_joint()).then(stax_for(ab["married_joint"]))
+                    .when(files_separate()).then(stax_for(ab["married_separate"]))
+                    .otherwise(stax_for(ab["single"]))
+                )
+                rc = p.value("recapture")
+                single, hoh = rc["single"], rc["head_of_household"]
+                rmax_s, rate_s, ragi_s = float(single["max"]), float(single["rate"]), float(single["agi_threshold"])
+                rmax_h, rate_h, ragi_h = float(hoh["max"]), float(hoh["rate"]), float(hoh["agi_threshold"])
                 rtax_single = pl.min_horizontal(rate_s * (pl.col("ct_agi") - ragi_s).clip(0, None), rmax_s)
                 rtax_hoh = pl.min_horizontal(rate_h * (pl.col("ct_agi") - ragi_h).clip(0, None), rmax_h)
                 rtax_joint = pl.min_horizontal(rate_s * (pl.col("ct_agi") - 2 * ragi_s).clip(0, None), 2 * rmax_s)
-                rtax = pl.when(is_hoh).then(rtax_hoh).when(is_joint).then(rtax_joint).otherwise(rtax_single)
-                if effective_year >= 2022:
-                    # Dated statutory recapture: stepwise per increment of AGI
-                    # above each tier's start, capped (the low tier only when
-                    # in effect).
-                    tiers = p["recapture_2022plus"][effective_year]
-                    recapture = pl.lit(0.0)
-                    for name in ("low", "middle", "high"):
-                        tier = tiers[name]
-                        if name == "low" and not tier["in_effect"]:
-                            continue
-                        amount = pl.lit(0.0)
-                        for status in ("single", "married_joint", "married_separate", "head_of_household"):
-                            start, step_amount, increment, maximum = (float(v) for v in tier[status])
-                            steps = ((pl.col("ct_agi") - start).clip(0, None) / increment).ceil()
-                            amount = pl.when(pl.col("filing_status") == status).then(
-                                pl.min_horizontal(maximum, steps * step_amount)
-                            ).otherwise(amount)
-                        recapture = recapture + amount
-                    rtax = recapture
-
-                if effective_year >= 2022:
-                    stax = pl.lit(0.0)
-                    for status, (start, step_amount, increment, maximum) in p["add_back_2022plus"][effective_year].items():
-                        steps = ((pl.col("ct_agi") - start).clip(0, None) / increment).ceil()
-                        stax = pl.when(pl.col("filing_status") == status).then(
-                            pl.min_horizontal(float(maximum), steps * step_amount)
-                        ).otherwise(stax)
-
+                rtax = pl.when(files_head_of_household()).then(rtax_hoh).when(files_joint()).then(rtax_joint).otherwise(rtax_single)
                 xtax = xtax + stax + rtax
 
             df = df.with_columns(ct_xtax=xtax, ct_divtax=pl.lit(0.0), ct_cgtax=pl.lit(0.0))
 
-        # --- Personal Tax Credit ---
+        # --- Personal tax credit ---
+        rates = p.value("personal_credit_rates")
+        single_thresholds = p.value("personal_credit_thresholds_single")
+        hoh_thresholds = p.value("personal_credit_thresholds_head_of_household")
+        joint_thresholds = p.value("personal_credit_thresholds_joint")
         if effective_year <= 1994:
             credp = pl.when(files_head_of_household()).then(
-                interpolate_table(pl.col("ct_agi"), p["personal_credit_1991_1994_hoh"])
+                interpolate_table(pl.col("ct_agi"), list(zip(hoh_thresholds, rates)))
             ).when(files_joint()).then(
-                interpolate_table(pl.col("ct_agi"), p["personal_credit_1991_1994_joint"])
-            ).otherwise(interpolate_table(pl.col("ct_agi"), p["personal_credit_1991_1994_single"]))
+                interpolate_table(pl.col("ct_agi"), list(zip(joint_thresholds, rates)))
+            ).otherwise(interpolate_table(pl.col("ct_agi"), list(zip(single_thresholds, rates))))
         else:
-            single_thr_key = None
-            for y in sorted(p["personal_credit_1995plus_single_thresholds"], reverse=True):
-                if effective_year >= y:
-                    single_thr_key = y
-                    break
-            if single_thr_key is None:
-                single_thr_key = min(p["personal_credit_1995plus_single_thresholds"])
-            single_thresholds = p["personal_credit_1995plus_single_thresholds"][single_thr_key]
-            rates = p["personal_credit_1995plus_rates"]
-            single_rows = list(zip(single_thresholds, rates))
-            hoh_rows = list(zip(p["personal_credit_1995plus_hoh_thresholds"], rates))
-            joint_rows_raw = p["personal_credit_1995plus_joint_thresholds"]
-
-            # The historical TAXSIM table interpolates between rows. From
-            # 2022, Connecticut's worksheet applies the first rate whose AGI
-            # threshold has been reached, so a filer exactly at a threshold
-            # must receive that row's discrete rate rather than an average
-            # with the preceding row.
-            if effective_year >= 2022 and behavior.mode.value == "statutory":
+            if effective_year >= 2022:
+                # The rate of the first threshold reached, not interpolated.
                 credp_single = tier_values(pl.col("ct_agi"), single_thresholds, rates)[0]
-                credp_hoh = tier_values(pl.col("ct_agi"), p["personal_credit_1995plus_hoh_thresholds"], rates)[0]
-                credp_joint = tier_values(pl.col("ct_agi") * pl.col("ct_sep"), joint_rows_raw, rates)[0]
+                credp_hoh = tier_values(pl.col("ct_agi"), hoh_thresholds, rates)[0]
+                credp_joint = tier_values(pl.col("ct_agi") * pl.col("ct_sep"), joint_thresholds, rates)[0]
             else:
-                credp_single = interpolate_table(pl.col("ct_agi"), single_rows)
-                credp_hoh = interpolate_table(pl.col("ct_agi"), hoh_rows)
-                # joint/married_separate: thresholds divided by `sep` (2 for MFS)
-                joint_rows_div1 = list(zip([t for t in joint_rows_raw], rates))
-                credp_joint = interpolate_table(pl.col("ct_agi") * pl.col("ct_sep"), joint_rows_div1)
+                credp_single = interpolate_table(pl.col("ct_agi"), list(zip(single_thresholds, rates)))
+                credp_hoh = interpolate_table(pl.col("ct_agi"), list(zip(hoh_thresholds, rates)))
+                credp_joint = interpolate_table(pl.col("ct_agi") * pl.col("ct_sep"), list(zip(joint_thresholds, rates)))
             credp = pl.when(files_head_of_household()).then(credp_hoh).when(
                 pl.col("filing_status").is_in(["married_joint", "married_separate"])
             ).then(credp_joint).otherwise(credp_single)
@@ -425,28 +300,24 @@ def compute_ct_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         df = df.with_columns(ct_credp=credp)
         df = df.with_columns(ct_inctax=pl.col("ct_xtax") * (1.0 - pl.col("ct_credp")))
         df = df.with_columns(ct_statax=pl.col("ct_inctax"))
-        if effective_year == 1991:
+        if p.in_effect("capital_gains_tax"):
             df = df.with_columns(ct_statax=pl.col("ct_statax") + pl.col("ct_cgtax") + pl.col("ct_divtax"))
 
-    # --- AMT (1993+), only when there is federal AMT (`comnew(70).gt.0`) ---
+    # --- Minimum tax (1993+), only when there is federal AMT ---
     if effective_year >= 1993:
-        # `xprefs=comnew(69)-subrac`: federal AMT income before the exemption.
+        # Federal AMT income before the exemption.
         xprefs_base = pl.col("agi") - pl.when(pl.col("itemizes")).then(pl.col("mortgage")).otherwise(0.0)
-        is_sep_amt = files_separate()
-        sep_addback_cap = float(resolve_year(FEDERAL_AMT_PARAMS["exemption"]["married_separate"], effective_year))
-        sep_addback_threshold = float(
-            resolve_year(FEDERAL_AMT_PARAMS["separate_return_addback_threshold"], effective_year)
-        )
+        is_sep = files_separate()
+        fed_amt = YearParams(FEDERAL_AMT_PARAMS, effective_year)
+        sep_addback_cap = fed_amt.num("exemption", "married_separate")
+        sep_addback_threshold = fed_amt.num("separate_return_addback_threshold")
         sep_addback = pl.min_horizontal(
             sep_addback_cap,
-            float(resolve_year(FEDERAL_AMT_PARAMS["separate_return_addback_rate"], effective_year))
-            * (xprefs_base - sep_addback_threshold).clip(0, None),
+            fed_amt.num("separate_return_addback_rate") * (xprefs_base - sep_addback_threshold).clip(0, None),
         )
         df, (xprefs_raw,) = checkpoint(
-            df, ct_xprefs_raw=pl.when(is_sep_amt).then(xprefs_base + sep_addback).otherwise(xprefs_base)
+            df, ct_xprefs_raw=pl.when(is_sep).then(xprefs_base + sep_addback).otherwise(xprefs_base)
         )
-        # `if(mst.eq.3.or.mst.eq.6.and.xprefs.gt.165000.)`: separate returns.
-        is_sep = files_separate()
         a = p["amt"]
         df, (xprefs,) = checkpoint(
             df,
@@ -456,43 +327,39 @@ def compute_ct_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
                 )
             ).otherwise(xprefs_raw),
         )
-        # `sorm(mst,a,b)` is `b` for joint and separate returns.
-        sorm_b_group = pl.col("filing_status").is_in(["married_joint", "married_separate"])
+        # Joint and separate returns use the married amounts.
+        married = pl.col("filing_status").is_in(["married_joint", "married_separate"])
         sep = pl.col("ct_sep")
-        xemp_base = pl.when(sorm_b_group).then(a["exemption_married"] / sep).otherwise(float(a["exemption_other"]))
-        ln9_thr = pl.when(sorm_b_group).then(a["exemption_phaseout_married"] / sep).otherwise(float(a["exemption_phaseout_other"]))
+        xemp_base = pl.when(married).then(a["exemption_married"] / sep).otherwise(float(a["exemption_other"]))
+        ln9_thr = pl.when(married).then(a["exemption_phaseout_married"] / sep).otherwise(float(a["exemption_phaseout_other"]))
         xln9 = (xprefs - ln9_thr).clip(0, None) * a["exemption_phaseout_rate"]
         xemp = (xemp_base - xln9).clip(0, None)
         df, (xln11,) = checkpoint(df, ct_xln11=(xprefs - xemp).clip(0, None))
         ln11_bp = a["rate_breakpoint"] / sep
-        offset = (a["breakpoint_offset_1994"] / sep) if effective_year >= 1994 else 0.0
+        offset = resolve_year(a["breakpoint_offset"], effective_year) / sep
         xln12_hi = (a["tax_at_breakpoint"] / sep) + (xln11 - ln11_bp).clip(0, None) * a["rate_high"] - offset
         xln12_lo = xln11 * a["rate_low"]
-        tentative_share = float(resolve_year(a["tentative_tax_share"], effective_year))
+        tentative_share = p.num("amt", "tentative_tax_share")
         df, (xln12,) = checkpoint(df, ct_xln12=pl.when(xln11 > ln11_bp).then(xln12_hi).otherwise(xln12_lo))
 
         if effective_year <= 1993:
             amt_final = (xln12 * tentative_share - pl.col("ct_statax")).clip(0, None)
             amcred_final = pl.lit(0.0)
         elif effective_year <= 2012:
-            preference_share = float(resolve_year(a["preference_income_share"], effective_year))
+            preference_share = p.num("amt", "preference_income_share")
             amt_final = (pl.min_horizontal(xln12 * tentative_share, xprefs * preference_share) - pl.col("ct_statax")).clip(0, None)
-            # amcred=min(xln12*.19,max(-amt,0)) is always 0 because amt >= 0.
+            # TAXSIM's minimum tax credit is always 0 here because amt >= 0.
             amcred_final = pl.lit(0.0)
         else:
-            # 2013+: `tamt=comnew(88)+comnew(89)`, federal tentative minimum
-            # tax before subtracting regular tax, from a federal recompute
-            # that matches the main one for these inputs.
+            # 2013+: federal tentative minimum tax from a federal recompute.
             df, tamt = _federal_tentative_minimum_tax(df, effective_year)
             amt1 = tentative_share * tamt
-            amt2 = float(resolve_year(a["preference_income_share"], effective_year)) * xprefs_raw
+            amt2 = p.num("amt", "preference_income_share") * xprefs_raw
             amtfin = pl.min_horizontal(amt1, amt2)
             df, (amt_final,) = checkpoint(df, ct_amt_final=(pl.col("ct_statax") - amtfin).clip(0, None))
             amcred_final = pl.min_horizontal(xln12 * tentative_share, amt_final)
 
-        has_amt_pref = xln11 > 0
-        federal_amt_gate = pl.col("amt") > 0
-        gate = has_amt_pref & federal_amt_gate
+        gate = (xln11 > 0) & (pl.col("amt") > 0)
         df = df.with_columns(
             ct_amcred=pl.when(gate).then(amcred_final).otherwise(0.0),
             ct_amt=pl.when(gate).then(amt_final).otherwise(0.0),
@@ -502,23 +369,19 @@ def compute_ct_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     else:
         df = df.with_columns(ct_amcred=pl.lit(0.0))
 
-    # --- Property Tax Credit (1996+) ---
-    if effective_year >= 1996:
-        cap = p.num("property_credit_cap_by_year")
-        pcred = pl.min_horizontal(cap, pl.col("proptax"))
+    # --- Property tax credit (1996+) ---
+    if p.in_effect("property_credit_cap"):
+        pcred = pl.min_horizontal(p.num("property_credit_cap"), pl.col("proptax"))
         if effective_year >= 1997:
             phse = pl.when(files_single()).then(
-                p.num("property_credit_phaseout_single")
+                p.num("property_credit_phaseout_start", "single")
             ).when(files_head_of_household()).then(
-                p.num("property_credit_phaseout_hoh")
-            ).otherwise(p.num("property_credit_phaseout_joint") / pl.col("ct_sep"))
+                p.num("property_credit_phaseout_start", "head_of_household")
+            ).otherwise(p.num("property_credit_phaseout_start", "joint") / pl.col("ct_sep"))
             agix = pl.col("ct_agi").clip(0, None)
             width = float(p["property_credit_phaseout_step_width"])
-            if behavior.mode.value == "statutory" and effective_year >= 2022:
-                # PolicyEngine and the current Connecticut worksheet use a
-                # discrete reduction: each started increment reduces the
-                # credit by 15%. The old TAXSIM path retains its historical
-                # interpolation for compatibility.
+            if effective_year >= 2022:
+                # Each started increment reduces the credit.
                 steps = ((agix - phse).clip(0, None) / width).ceil()
                 pct = (float(p["property_credit_phaseout_rate"]) * steps).clip(0, 1)
                 pcred = pcred * (1.0 - pct)
@@ -527,9 +390,7 @@ def compute_ct_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
                 rows.append(tuple(p["property_credit_phaseout_final"]))
                 pct = interpolate_table(agix - phse, rows)
                 pcred = pcred - pct * pcred
-        # From 2022 the credit is open to every filer; 2017-2021 required a
-        # dependent or a taxpayer 65 or older (kept in TAXSIM mode).
-        if 2017 <= effective_year and not (behavior.mode.value == "statutory" and effective_year >= 2022):
+        if p.value("property_credit_requires_dependent_or_elderly"):
             no_dep_or_elderly = (pl.col("depx") < 1) & (aged_count() < 1)
             pcred = pl.when(no_dep_or_elderly).then(0.0).otherwise(pcred)
         df = df.with_columns(ct_pcred=pcred.clip(0, None))
@@ -537,14 +398,13 @@ def compute_ct_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         df = df.with_columns(ct_pcred=pl.lit(0.0))
     df = df.with_columns(ct_statax=(pl.col("ct_statax") - pl.col("ct_pcred")).clip(0, None))
 
-    # --- EITC (2011+) ---
-    if effective_year >= 2011:
-        rate = p.num("eitc_rate_by_year")
+    # --- Earned income credit (2011+) ---
+    if p.in_effect("eitc_federal_share"):
         eitc_fed = pl.col("eitc").clip(0, None)
-        earncr = rate * eitc_fed
-        if effective_year >= 2025:
-            # A flat bonus for a return with the credit and at least one qualifying child.
-            earncr = earncr + pl.when((eitc_fed > 0) & (pl.col("dep18") > 0)).then(p.num("eitc_child_bonus")).otherwise(0.0)
+        earncr = p.num("eitc_federal_share") * eitc_fed
+        bonus = p.num("eitc_child_bonus")
+        if bonus:
+            earncr = earncr + pl.when((eitc_fed > 0) & (pl.col("dep18") > 0)).then(bonus).otherwise(0.0)
         df = df.with_columns(ct_earncr=earncr)
     else:
         df = df.with_columns(ct_earncr=pl.lit(0.0))

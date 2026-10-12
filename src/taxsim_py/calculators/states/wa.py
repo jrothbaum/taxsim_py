@@ -3,16 +3,17 @@
 import polars as pl
 
 from taxsim_py.behavior import BehaviorProfile, TAXSIM_BEHAVIOR
-from taxsim_py.engine.schema import PARAMETERS_ROOT, load_yaml, resolve_year
+from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml
 
 WA_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "wa" / "income_tax.yaml")
 
 
 def compute_wa_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
     """Return the negative of the Working Families Tax Credit, or zero in TAXSIM mode."""
-    if behavior.mode.value != "statutory" or year < 2022:
+    p = YearParams(WA_PARAMS, year)
+    if not behavior.add_washington_working_families_credit or not p.in_effect("working_families_credit_amount"):
         return df.with_columns(siitax=pl.lit(0.0))
-    amounts = [float(v) for v in resolve_year(WA_PARAMS["working_families_credit_amount"], year)]
+    amounts = [float(v) for v in p.value("working_families_credit_amount")]
     below = [float(v) for v in WA_PARAMS["working_families_credit_phaseout_start_below_ceiling"]]
     minimum = float(WA_PARAMS["working_families_credit_minimum"])
 

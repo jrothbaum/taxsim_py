@@ -1,15 +1,20 @@
-# Missouri individual income tax (`motax`, taxsim_2024_09_21.f:11272-11579,
-# state id 26).
+# Missouri individual income tax.
 #
-# Property tax credit: TAXSIM pays it only to taxpayers 65 or older.
+# Sources: 1977-2021 NBER TAXSIM (`motax`); 2022 on, RSMo Chapter 143,
+# MO-1040 instructions and PolicyEngine-US `gov.states.mo.tax.income`.
 
-# --- Rate schedule (start, rate), times `bracket_inflation` ---
+# Statutory mode uses actual law through this year.
+law_coded_through: 2025
+
+# Rate schedule, [start of bracket, rate], with starts times
+# `bracket_inflation`. Married couples may instead be taxed as two returns,
+# each on their share of income. Source for 2022 on: PolicyEngine-US
+# gov.states.mo.tax.income.rates.
+
 brackets:
   1977: [[0, 0.015], [1000, 0.02], [2000, 0.025], [3000, 0.03], [4000, 0.035], [5000, 0.04], [6000, 0.045], [7000, 0.05], [8000, 0.055], [9000, 0.06]]
   2018: [[0, 0.015], [1000, 0.02], [2000, 0.025], [3000, 0.03], [4000, 0.035], [5000, 0.04], [6000, 0.045], [7000, 0.05], [8000, 0.055], [9000, 0.059]]
   2019: [[0, 0.015], [1000, 0.02], [2000, 0.025], [3000, 0.03], [4000, 0.035], [5000, 0.04], [6000, 0.045], [7000, 0.05], [8000, 0.054]]
-  # 2022+: PolicyEngine-US gov.states.mo.tax.income.rates, queried 2026-10-01 (statutory dollars; the
-  # inflation factor is 1 for these years).
   2022: [[0, 0.015], [1121, 0.02], [2242, 0.025], [3363, 0.03], [4484, 0.035], [5605, 0.04], [6726, 0.045], [7847, 0.05], [8968, 0.053]]
   2023: [[0, 0.0], [1207, 0.02], [2414, 0.025], [3621, 0.03], [4828, 0.035], [6035, 0.04], [7242, 0.045], [8449, 0.0495]]
   2024: [[0, 0.0], [1273, 0.02], [2546, 0.025], [3819, 0.03], [5092, 0.035], [6365, 0.04], [7638, 0.045], [8911, 0.048]]
@@ -22,9 +27,6 @@ bracket_inflation:
   2020: 1.073
   2021: 1.088
   2022: 1.0
-  2023: 1.0
-  2024: 1.0
-  2025: 1.0
 # No tax when taxable income is below this amount (times the inflation factor).
 minimum_taxable_income: {1977: 100}
 
@@ -39,15 +41,15 @@ exemption_head_of_household:
   1977: 2000
   1999: 3500
   2018: 0
-  # 2022+: PolicyEngine-US gov.states.mo.tax.income.exemptions.head_of_household.
   2022: 1400
 exemption_per_dependent:
   1977: 400
   1998: 1200
   2018: 0
 # 2017: an extra exemption for each spouse with income below the limit.
-low_income_exemption: {2017: 500, 2018: 0}
-low_income_exemption_limit: {2017: 20000}
+low_income_exemption:
+  2017: {amount: 500, income_limit: 20000}
+  2018: null
 
 # --- Itemized deductions ---
 # Itemizers add payroll taxes (TAXSIM `socsec`), capped per taxpayer.
@@ -95,19 +97,18 @@ payroll_tax_deduction_cap:
   2019: 8240
   2020: 8537
   2021: 8614
-# `socsec`: employee payroll tax rate up to the wage base, and the rate on
-# wages above it.
 # Itemizers subtract the federal deduction for half of self-employment
-# tax; 1993 instead subtracts self-employment tax capped per taxpayer.
+# tax; 1993 instead self-employment tax capped per taxpayer; 2011-2012 the
+# payroll-tax-holiday deduction as TAXSIM rounds it (`lower_rate` of the tax
+# up to `threshold`, else `upper_rate` plus `amount`).
 self_employment_tax_deduction_rate: {1977: 0.5}
-self_employment_tax_deduction_cap_1993: {1993: 11058}
-self_employment_tax_deduction_threshold: {2011: 14204}
-self_employment_tax_deduction_lower_rate: {2011: 0.5751}
-self_employment_tax_deduction_upper_rate: {2011: 0.5}
-self_employment_tax_deduction_amount: {2011: 1067}
+self_employment_tax_deduction_cap: {1993: 11058, 1994: null}
+self_employment_tax_deduction_holiday:
+  2011: {threshold: 14204, lower_rate: 0.5751, upper_rate: 0.5, amount: 1067}
+  2013: null
 # 1993-2017: the state income tax subtraction is reduced in proportion to
 # the federal high-income limit on itemized deductions.
-itemized_limit_rate: {1993: 0.03}
+itemized_limit_rate: {1993: 0.03, 2018: null}
 itemized_limit_max_share: {1993: 0.8}
 itemized_limit_threshold_base: {1991: 100000, 2013: 250000}
 itemized_limit_inflation:
@@ -144,14 +145,11 @@ itemized_limit_status_multiplier:  # 2013-2017; earlier years divide by `sep`
   head_of_household: 1.1
 
 # --- Deduction for federal income tax ---
-federal_tax_deduction_cap_per_taxpayer: {1994: 5000}  # 1994-2018 only
-# 2019 on: share of federal tax deductible by Missouri AGI, as
-# [AGI upper bound, share]; above the last bound the share is zero.
-federal_tax_deduction_share_2019:
-  - [25000, 0.35]
-  - [50000, 0.25]
-  - [100000, 0.15]
-  - [125000, 0.05]
+# 1994-2018: capped per taxpayer. From 2019: a share by Missouri AGI,
+# [AGI upper bound, share], none above the last bound.
+federal_tax_deduction_cap_per_taxpayer: {1994: 5000, 2019: null}
+federal_tax_deduction_share:
+  2019: [[25000, 0.35], [50000, 0.25], [100000, 0.15], [125000, 0.05]]
 
 # Married couples may be taxed as two separate returns: the higher earner
 # takes their own wages plus this share of the couple's other income.
@@ -179,8 +177,7 @@ social_security_exemption_phaseout_start:
 pension_exemption_income_limit:
   single: 25000
   married: 32000
-pension_exemption_1990_1998: 1000
-pension_exemption_1999_2013: 6000
+pension_exemption_flat: {1990: 1000, 1999: 6000, 2014: null}
 pension_exemption_maximum:
   2007: 32500
   2008: 33703
@@ -224,23 +221,23 @@ property_credit_maximum:
 property_credit_married_subtraction:
   1977: 500
   1989: 2000
-property_credit_married_owner_subtraction_2008: 4000
-property_credit_owner_2008:
-  income_limit: 30000
-  maximum: 1100
-  steps: 54
+property_credit_married_owner_subtraction: {2008: 4000}
+property_credit_owner:
+  2008: {income_limit: 30000, maximum: 1100, steps: 54}
 property_credit_schedule:
   1977: {base: 4300, step: 200, steps: 45}
   1998: {base: 13000, step: 300, steps: 40}
   2008: {base: 14300, step: 300, steps: 45}
 property_credit_rate_step: 0.000625
 
-# Working Family Tax Credit (2023+; PolicyEngine-US gov.states.mo.tax.income.credits.wftc): a share of the
-# federal EITC, nonrefundable, unavailable above the investment income limit.
-working_family_credit_2023plus:
-  match: {2023: 0.1, 2024: 0.2, 2025: 0.2}
-  investment_income_limit: {2023: 4050, 2024: 4300, 2025: 4400}
+# Working Family Tax Credit from 2023: a nonrefundable share of the federal
+# EITC, none above the investment income limit. Source: PolicyEngine-US
+# gov.states.mo.tax.income.credits.wftc.
+working_family_credit:
+  2023: {match: 0.1, investment_income_limit: 4050}
+  2024: {match: 0.2, investment_income_limit: 4300}
+  2025: {match: 0.2, investment_income_limit: 4400}
 
-# 2025 on (PolicyEngine-US gov.states.mo.tax.income.subtractions.net_capital_gain.rate): share of net capital
-# gain subtracted from Missouri taxable income.
-capital_gains_subtraction_2025plus: {2025: 1.0}
+# From 2025: this share of net capital gain is subtracted from taxable income.
+# Source: PolicyEngine-US gov.states.mo.tax.income.subtractions.net_capital_gain.
+capital_gains_subtraction: {2025: 1.0}

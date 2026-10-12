@@ -35,8 +35,7 @@ def alternative_minimum_tax(
     separate_return_addback_rate: float = 0.0,
     exemption_cap: pl.Expr | None = None,
 ) -> pl.Expr:
-    # Separate returns add back part of AMT income from 1990
-    # (taxsim_2022_10_21.f:25214-25217) before the exemption phaseout.
+    # Separate returns add back part of AMT income before the exemption phaseout.
     if separate_return_addback_cap is not None:
         amt_income = separate_return_amt_income(
             amt_income, sepret, separate_return_addback_cap, separate_return_addback_threshold, separate_return_addback_rate

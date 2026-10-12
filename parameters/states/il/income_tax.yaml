@@ -1,105 +1,36 @@
-# Illinois individual income tax (`iltax`, taxsim_2022_10_21.f:5772-5848,
-# state id 14 in the dispatcher's alphabetical numbering). Chosen as this
-# project's first state: the shortest state subroutine (~80 lines) and a
-# genuinely flat-rate tax, matching the design doc's rollout plan (simplest/
-# flat-tax states first, CA/NY/MN last). Real law is coded through 2024 for
-# the rate and personal exemption below; the remaining state provisions still
-# use the existing historical formulas and need separate source review.
+# Illinois individual income tax.
 #
-# `rate`/`personal_exemption_amount`/`eitc_match_rate` extracted via a
-# compiled driver calling `iltax` directly for every year 1977-2021 and
-# reading back the shared `/calc/` common block's `rt`/`exemp`/`earncr`
-# (with `comnew(68)=1`/`comnew(59)=1`/`comnew(2)=200000` fed in so each
-# read-back value equals that year's real rate/per-exemption-dollar-amount/
-# EITC-match-rate directly, not hand-decoded from the source's own dense
-# repeat-count DATA statements) - cross-checked against the live oracle for
-# a $50,000-wages/single 2022 case afterward.
-#
-# The property tax treatment changed FORMULA SHAPE, not just parameters,
-# in 1991: 1977-1982 has no property-tax mechanism at all; 1983-1990 is an
-# AGI-reducing ITEMIZED DEDUCTION for the full amount paid (doubled for
-# 1989-1990 specifically - "you can take twice the property tax
-# subtraction... for tax years 1989 and 1990"); 1991+ switches to a
-# nonrefundable 5%-of-property-tax CREDIT capped at tax liability, with a
-# $250,000 AGI cliff (doubled for married_joint) added 2017+ that zeroes
-# the credit entirely above it. See calculators/states/il.py for the
-# year-gated code implementing all three shapes.
-#
-# Illinois's EITC (a flat percentage match of the FEDERAL eitc amount) is
-# real 2000+ only (didn't exist before); non-refundable 2000-2002
-# (`min(eirt*fed_eitc, statax-pcred)`), refundable from 2003 on.
-#
-# Not TAXSIM inputs, so always zero: data(22) (state income tax refunds),
-# blindness, data(34), and data(143)/(144) (education expenses). The federal
-# dividend-exclusion addback (`divexc` function) and the capital-gains-
-# exclusion addback (`comnew(7)=capded`) are both real, and non-negligible
-# for 1977-1986 specifically - state tax years start at 1977 (`statax`
-# itself returns immediately for `lawyr.lt.1977`), which overlaps `law79`'s
-# own federal range exactly (1977-1986), and law79 has a REAL federal
-# dividend exclusion and capital-gains EXCLUSION that IL doesn't allow -
-# both get added back onto federal AGI for those years (see
-# calculators/states/il.py). For 1987+ (law87-era federal years) there's no
-# federal dividend exclusion or capital-gains exclusion at all, so both
-# addbacks reduce to exactly 0 (not a residual $0.001 - the same `divall`
-# fudge appears on both sides of `divexc`'s own subtraction and cancels).
-rate:
-  1977: 0.0250
-  1983: 0.0300
-  1984: 0.0275
-  1985: 0.0250
-  1989: 0.0275
-  1990: 0.0300
-  2011: 0.0500
-  2015: 0.0375
-  2017: 0.043549
-  2018: 0.0495
-  # PolicyEngine-US gov.states.il.tax.income.rate, queried 2026-09-29.
-  2022: 0.0495
-  2023: 0.0495
-  2024: 0.0495
-personal_exemption_amount:
-  1977: 1000
-  1998: 1300
-  1999: 1650
-  2000: 2000
-  2012: 2050
-  2013: 2100
-  2014: 2125
-  2015: 2150
-  2016: 2175
-  2018: 2225
-  2019: 2275
-  2020: 2325
-  2021: 2375
-  # PolicyEngine-US gov.states.il.tax.income.exemption.personal,
-  # queried 2026-09-29. The state income-limit rule is unchanged here.
-  2022: 2425
-  2023: 2425
-  2024: 2775
-  2025: 2850
-eitc_match_rate:
-  2000: 0.05
-  2012: 0.075
-  2013: 0.10
-  2017: 0.14
-  2018: 0.18
-  # PolicyEngine-US gov.states.il.tax.income.credits.eitc.match,
-  # queried 2026-09-29. 2022 stays at the 18% set in 2018.
-  2022: 0.18
-  2023: 0.20
-  2024: 0.20
-# Childless EITC minimum age from 2023, and the 2024 child tax credit rate
-# (share of the state EITC, children under 12), PolicyEngine-US
-# gov.states.il.tax.income.credits.{eitc.childless_min_age,ctc.rate}.
-eitc_childless_minimum_age: 18
-child_tax_credit_rate: {2024: 0.20, 2025: 0.40}
-property_tax_credit_rate:
-  1991: 0.05
-property_tax_credit_income_cap:
-  2017: 250000
+# Sources: 1977-2021 NBER TAXSIM (`iltax`); 2022 on, 35 ILCS 5 and
+# PolicyEngine-US `gov.states.il.tax.income`. Not modeled (no TAXSIM
+# input): education expense credit and state refund subtraction.
 
-# 2017+: no exemption allowance when base income exceeds these amounts.
+# Statutory mode uses actual law through this year.
+law_coded_through: 2025
+
+# A flat rate on base income less exemptions.
+rate: {1977: 0.0250, 1983: 0.0300, 1984: 0.0275, 1985: 0.0250, 1989: 0.0275, 1990: 0.0300, 2011: 0.0500, 2015: 0.0375, 2017: 0.043549, 2018: 0.0495}
+# Exemption per federal exemption; a dependent filer gets one only when
+# income is at most the amount.
+personal_exemption: {1977: 1000, 1998: 1300, 1999: 1650, 2000: 2000, 2012: 2050, 2013: 2100, 2014: 2125, 2015: 2150, 2016: 2175, 2018: 2225, 2019: 2275, 2020: 2325, 2021: 2375, 2022: 2425, 2024: 2775, 2025: 2850}
+# Additional exemption per taxpayer 65 or older from 1990.
+aged_exemption: {1990: 1000}
+# From 2017 (statutory mode): no exemption allowance when base income
+# exceeds these amounts.
 exemption_income_limit: {joint: 500000, other: 250000}
 
-# 1990+: additional exemption per taxpayer 65 or older.
-aged_exemption_1990: 1000
+# Property tax: 1983-1990 a deduction of this multiple of property tax paid;
+# from 1991 a nonrefundable credit of `property_tax_credit_rate`, none from
+# 2017 when federal AGI exceeds the cap per taxpayer.
+property_tax_deduction_multiple: {1983: 1.0, 1989: 2.0, 1991: null}
+property_tax_credit_rate: {1991: 0.05}
+property_tax_credit_income_cap: {2017: 250000}
+
+# Earned income credit from 2000: a share of the federal credit,
+# nonrefundable through 2002. From 2023 childless filers qualify from
+# `eitc_childless_minimum_age`.
+eitc_match_rate: {2000: 0.05, 2012: 0.075, 2013: 0.10, 2017: 0.14, 2018: 0.18, 2023: 0.20}
+eitc_refundable: {2000: false, 2003: true}
+eitc_childless_minimum_age: {2023: 18}
+# Child tax credit from 2024 (P.A. 103-0592): this share of the state EITC
+# for a return with a child under 12.
+child_tax_credit_rate: {2024: 0.20, 2025: 0.40}

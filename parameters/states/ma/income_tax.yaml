@@ -1,16 +1,14 @@
-# Massachusetts individual income tax (`matax`, taxsim_2024_09_21.f:
-# 8284-8899, state id 22). See calculators/states/ma.py for the mechanism.
-# Every table below is a year-indexed Fortran DATA statement, transcribed
-# with its repeat counts expanded and checked against the array's own
-# declared `dimension` (1977:2023 unless noted) - forward-filled here, so
-# only change points are listed. Years past 2021 are unreachable (the
-# global `lastat=2021` extrapolation cap applies to every state).
+# Massachusetts individual income tax.
 #
-# Not TAXSIM inputs, so always zero: blindness (`data(10)`), medical
-# expenses (`comnew(20)`, the `edxmp` exemption), capital-loss carryovers
-# (`data(67)`/`data(69)`) and the energy credit (`data(38)`).
+# Sources: 1977-2021 NBER TAXSIM (`matax`); 2022 on, M.G.L. Chapter 62,
+# Form 1 instructions and PolicyEngine-US `gov.states.ma.tax.income`. Not
+# modeled (no TAXSIM input): blindness, medical expenses, capital-loss
+# carryovers and the energy credit.
 
-# Part B (wage/"basic") income rate (`tab89`).
+# Statutory mode uses actual law through this year.
+law_coded_through: 2025
+
+# Part B (wages and other "basic" income) rate.
 part_b_rate:
   1977: 0.05
   1989: 0.05375
@@ -31,7 +29,7 @@ part_b_rate:
 part_a_rate:
   1977: 0.10
   1990: 0.12
-  # 2023+: short-term gains rate (PolicyEngine-US gov.states.ma.tax.income.rates.part_a).
+  # Short-term gains rate (PolicyEngine-US gov.states.ma.tax.income.rates.part_a).
   2023: 0.085
 
 # Part C (long-term capital gains, 1997+) rate.
@@ -60,9 +58,9 @@ capital_gains_exclusion:
   1983: 0.50
   1997: 0.0
 
-# Personal exemption (`xmps`), married-joint exemption cap (`xmplim`),
-# 1977-1986 married additional exemption base (`sec`), dependent
-# exemption (`xmpd`), 1994+ head-of-household exemption (`txph`).
+# Personal exemption; the joint exemption cap; 1977-1986 the married
+# additional exemption base (plus the lower wage); the dependent exemption;
+# and from 1994 the head-of-household exemption.
 personal_exemption:
   1977: 2000
   1982: 2200
@@ -100,7 +98,7 @@ dependent_exemption:
   1977: 600
   1978: 700
   1987: 1000
-hoh_exemption_1994plus:
+head_of_household_exemption:
   1994: 3400
   1996: 4520
   1997: 4065
@@ -112,9 +110,8 @@ hoh_exemption_1994plus:
   2007: 6375
   2008: 6800
 
-# No Tax Status income ceilings (`nts(law,1)` single, `nts(law,2)`
-# joint/HoH base), the 1995+ married add-on (`add`), and the Limited
-# Income Credit upper limits (`licrh` HoH, `licrm` married).
+# No Tax Status income ceilings (single; joint and head of household), the
+# 1995+ married add-on, and the 1995+ Limited Income Credit upper limits.
 no_tax_status_single:
   1977: 3000
   1984: 3600
@@ -172,36 +169,38 @@ limited_income_credit_limit_married:
   2007: 27738
   2008: 28700
 
-# Refundable EITC, share of federal (`eicr`, 1997+).
+# Refundable earned income credit from 1997, a share of the federal credit.
+# Source for 2023: PolicyEngine-US gov.states.ma.tax.income.credits.eitc.match.
 eitc_rate:
   1997: 0.10
   2001: 0.15
   2016: 0.23
   2019: 0.30
-  # PolicyEngine-US gov.states.ma.tax.income.credits.eitc.match, queried 2026-10-01.
   2023: 0.40
 
-# 2020+ unemployment exclusion (`povert`, `uithrs`).
+# Unemployment exclusion from 2020: up to the cap per person when household
+# income is at most twice the poverty level for the family size. (Still
+# applied after 2021; to be checked against Form 1.)
 ui_exclusion_poverty_level:
   2020: 12760
   2021: 12880
 ui_exclusion_cap_per_person:
   2020: 10200
 
-# Exemption per taxpayer 65 or older (`xmpo`).
+# Exemption per taxpayer 65 or older.
 aged_exemption:
   1977: 600
   1978: 700
 
-# Part B rent deduction: half of rent paid, capped from 1982 (1997-2000:
-# $1,250 for married filing separately; from 2001 the cap is divided
-# between separate filers).
-rent_deduction_share: 0.5
+# Part B rent deduction from 1981: a share of rent paid, capped from 1982
+# (1997-2000 lower for married filing separately; from 2001 the cap is
+# halved for separate filers).
+rent_deduction_share: {1981: 0.5}
 rent_deduction_cap:
   1982: 2500
   2001: 3000
   2023: 4000  # 2023 tax relief law
-rent_deduction_cap_separate_1997_2000: 1250
+rent_deduction_cap_separate: {1997: 1250, 2001: null}
 
 # Senior circuit breaker credit (2001+, refundable): property tax (rent
 # counts at this share) over 10% of household income, up to a maximum,
@@ -229,7 +228,8 @@ circuit_breaker_max:
   2019: 1130
   2020: 1150
   2021: 1170
-  # 2022+: PolicyEngine-US gov.states.ma.tax.income.credits.senior_circuit_breaker (2023 tax relief law).
+  # Source for 2022 on: PolicyEngine-US
+  # gov.states.ma.tax.income.credits.senior_circuit_breaker.
   2022: 1200
   2023: 2590
   2024: 2730
@@ -327,34 +327,42 @@ dependent_deduction:
   2001: {per_child: 2400}
   2002: {per_child: 3600}
   2021: {flat: 0}
-dependent_deduction_cap_per_child_1982: 2000
+dependent_deduction_cap_per_child: {1982: 2000, 1983: null}
 
 # Child care deduction per child under 13 (through 2010); 2021+ credit.
 child_care_deduction_per_child:
   1977: 2400
   2010: 4800
-child_care_credit_per_child: 240
-# 2021+ dependent credit per dependent (the larger of it and the child care credit).
-dependent_credit_per_dependent: 180
+  2011: null
+child_care_credit_per_child: {2021: 240}
+# 2021-2022 dependent credit per dependent (the larger of it and the child
+# care credit).
+dependent_credit_per_dependent: {2021: 180}
 
-# 1989 Part B rate on the income taxed at the older rate.
-part_b_rate_1989_first_part: 0.05
-# 1984 surtax applies to Part A and Part B income above this amount.
-surtax_income_threshold_1984: 60000
+# 1989: the Part B rate on the income taxed at the older rate.
+part_b_rate_first_part: {1989: 0.05, 1990: null}
+# 1984: the surtax applies to Part A and Part B income above this amount.
+surtax_income_threshold: {1984: 60000, 1985: null}
 
 # Limited Income Credit: tax above a share of income over the no-tax
 # threshold, up to an income limit; thresholds rise per dependent from 1995.
 limited_income_credit_rate: 0.1
 limited_income_credit_limit_single: 14000
-limited_income_credit_limit_joint_1984_1994: 21000
+limited_income_credit_limit_joint: {1984: 21000, 1995: null}
 no_tax_status_per_dependent: 1000
 limited_income_credit_limit_per_dependent: 1750
 
 # Credit before 1984: per taxpayer and per dependent.
-personal_credit_pre1984:
-  per_taxpayer: 8
-  per_dependent: 4
+personal_credit:
+  1977: {per_taxpayer: 8, per_dependent: 4}
+  1984: null
 
-# 2023+ statutory additions (PolicyEngine-US gov.states.ma.tax.income, queried 2026-10-01).
-additional_tax_2023plus: {rate: 0.04, threshold: {2023: 1000000, 2024: 1053750, 2025: 1083150}}
-child_and_family_credit_2023plus: {2023: 310, 2024: 440, 2025: 440}
+# From 2023 (PolicyEngine-US gov.states.ma.tax.income): a 4% surtax on
+# taxable income above the indexed threshold, and the child and family
+# credit per child under 13 in place of the dependent and child care
+# credits.
+additional_tax:
+  2023: {rate: 0.04, threshold: 1000000}
+  2024: {rate: 0.04, threshold: 1053750}
+  2025: {rate: 0.04, threshold: 1083150}
+child_and_family_credit_per_child: {2023: 310, 2024: 440}

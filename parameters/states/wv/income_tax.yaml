@@ -1,32 +1,169 @@
-# West Virginia personal income tax (TAXSIM `wvtax`, taxsim_2024_09_21.f:19567-19817).
-# Brackets are [start, rate] rows converted from TAXSIM's `look2` upper-bound
-# tables (the last rate continues beyond the table).
+# West Virginia personal income tax.
+#
+# Sources: 1977-2021 NBER TAXSIM (`wvtax`); 2022 on, W. Va. Code 11-21, IT-140
+# instructions and PolicyEngine-US `gov.states.wv.tax.income`.
 
-standard_deduction_1986: {rate: 0.1, cap: 1000.0}
-exemption: {1977: 600.0, 1983: 700.0, 1984: 800.0, 1987: 2000.0}
-# 1997 on: earned income excluded (up to the limit) when federal AGI is at most
-# the limit (halved for married filing separately).
-low_income_exclusion: 10000.0
+# Statutory mode uses actual law through this year.
+law_coded_through: 2025
 
+# --- Tax ---
+# [start of bracket, rate]. Through 1986 joint returns use half the income, tax
+# doubled; 1983-1986 heads of household have their own schedule (1984's is read
+# as 17 rows, so the 13% row above $70,000 is never reached). From 1987 married
+# filing separately is taxed on half the joint thresholds. 2023 on: W. Va. Code
+# 11-21-4e; source PolicyEngine-US gov.states.wv.tax.income.rates.
 brackets:
-  # Joint returns use half the income, tax doubled (through 1986).
-  1977: [[0, 0.021], [2000, 0.023], [4000, 0.028], [6000, 0.032], [8000, 0.035], [10000, 0.04], [12000, 0.046], [14000, 0.049], [16000, 0.053], [18000, 0.054], [20000, 0.06], [22000, 0.061], [26000, 0.065], [32000, 0.068], [38000, 0.072], [44000, 0.075], [50000, 0.079], [60000, 0.082], [70000, 0.086], [80000, 0.088], [90000, 0.091], [100000, 0.093], [150000, 0.095], [200000, 0.096]]
-  1983: [[0, 0.021], [2000, 0.023], [4000, 0.028], [6000, 0.032], [8000, 0.035], [10000, 0.04], [12000, 0.0512], [14000, 0.0565], [16000, 0.0642], [18000, 0.069], [20000, 0.0765], [22000, 0.0842], [26000, 0.095], [32000, 0.104], [38000, 0.1125], [44000, 0.1155], [50000, 0.1165], [60000, 0.118], [70000, 0.119], [80000, 0.1195], [90000, 0.1202], [100000, 0.12025], [150000, 0.12125], [200000, 0.1215]]
-  1983_head_of_household: [[0, 0.021], [2000, 0.023], [4000, 0.028], [6000, 0.032], [8000, 0.035], [10000, 0.0385], [12000, 0.0467], [14000, 0.052], [16000, 0.059], [18000, 0.063], [20000, 0.0705], [22000, 0.0767], [26000, 0.0875], [32000, 0.095], [38000, 0.1035], [44000, 0.1057], [50000, 0.1067], [60000, 0.1082], [70000, 0.119], [80000, 0.1195], [90000, 0.1202], [100000, 0.12025], [150000, 0.12125], [200000, 0.1215]]
-  1984: [[0, 0.021], [2000, 0.023], [4000, 0.028], [6000, 0.032], [8000, 0.035], [10000, 0.04], [12000, 0.053], [14000, 0.059], [16000, 0.068], [18000, 0.074], [20000, 0.082], [22000, 0.092], [26000, 0.105], [32000, 0.116], [38000, 0.126], [44000, 0.129], [60000, 0.13]]
-  # Read as 17 rows, so the 13% row above $70,000 is never reached (logged).
-  1984_head_of_household: [[0, 0.021], [2000, 0.023], [4000, 0.028], [6000, 0.032], [8000, 0.035], [10000, 0.038], [12000, 0.047], [14000, 0.053], [16000, 0.061], [18000, 0.066], [20000, 0.074], [22000, 0.082], [26000, 0.095], [32000, 0.104], [38000, 0.114], [44000, 0.116], [60000, 0.117]]
-  # 1987 on: married filing separately on half the joint thresholds.
+  1977:
+    - [0, 0.021]
+    - [2000, 0.023]
+    - [4000, 0.028]
+    - [6000, 0.032]
+    - [8000, 0.035]
+    - [10000, 0.04]
+    - [12000, 0.046]
+    - [14000, 0.049]
+    - [16000, 0.053]
+    - [18000, 0.054]
+    - [20000, 0.06]
+    - [22000, 0.061]
+    - [26000, 0.065]
+    - [32000, 0.068]
+    - [38000, 0.072]
+    - [44000, 0.075]
+    - [50000, 0.079]
+    - [60000, 0.082]
+    - [70000, 0.086]
+    - [80000, 0.088]
+    - [90000, 0.091]
+    - [100000, 0.093]
+    - [150000, 0.095]
+    - [200000, 0.096]
+  1983:
+    general:
+      - [0, 0.021]
+      - [2000, 0.023]
+      - [4000, 0.028]
+      - [6000, 0.032]
+      - [8000, 0.035]
+      - [10000, 0.04]
+      - [12000, 0.0512]
+      - [14000, 0.0565]
+      - [16000, 0.0642]
+      - [18000, 0.069]
+      - [20000, 0.0765]
+      - [22000, 0.0842]
+      - [26000, 0.095]
+      - [32000, 0.104]
+      - [38000, 0.1125]
+      - [44000, 0.1155]
+      - [50000, 0.1165]
+      - [60000, 0.118]
+      - [70000, 0.119]
+      - [80000, 0.1195]
+      - [90000, 0.1202]
+      - [100000, 0.12025]
+      - [150000, 0.12125]
+      - [200000, 0.1215]
+    head_of_household:
+      - [0, 0.021]
+      - [2000, 0.023]
+      - [4000, 0.028]
+      - [6000, 0.032]
+      - [8000, 0.035]
+      - [10000, 0.0385]
+      - [12000, 0.0467]
+      - [14000, 0.052]
+      - [16000, 0.059]
+      - [18000, 0.063]
+      - [20000, 0.0705]
+      - [22000, 0.0767]
+      - [26000, 0.0875]
+      - [32000, 0.095]
+      - [38000, 0.1035]
+      - [44000, 0.1057]
+      - [50000, 0.1067]
+      - [60000, 0.1082]
+      - [70000, 0.119]
+      - [80000, 0.1195]
+      - [90000, 0.1202]
+      - [100000, 0.12025]
+      - [150000, 0.12125]
+      - [200000, 0.1215]
+  1984:
+    general:
+      - [0, 0.021]
+      - [2000, 0.023]
+      - [4000, 0.028]
+      - [6000, 0.032]
+      - [8000, 0.035]
+      - [10000, 0.04]
+      - [12000, 0.053]
+      - [14000, 0.059]
+      - [16000, 0.068]
+      - [18000, 0.074]
+      - [20000, 0.082]
+      - [22000, 0.092]
+      - [26000, 0.105]
+      - [32000, 0.116]
+      - [38000, 0.126]
+      - [44000, 0.129]
+      - [60000, 0.13]
+    head_of_household:
+      - [0, 0.021]
+      - [2000, 0.023]
+      - [4000, 0.028]
+      - [6000, 0.032]
+      - [8000, 0.035]
+      - [10000, 0.038]
+      - [12000, 0.047]
+      - [14000, 0.053]
+      - [16000, 0.061]
+      - [18000, 0.066]
+      - [20000, 0.074]
+      - [22000, 0.082]
+      - [26000, 0.095]
+      - [32000, 0.104]
+      - [38000, 0.114]
+      - [44000, 0.116]
+      - [60000, 0.117]
   1987: [[0, 0.03], [10000, 0.04], [25000, 0.045], [40000, 0.06], [60000, 0.065]]
-  # 2023+: the 21.5% cut (PolicyEngine-US gov.states.wv.tax.income.rates, queried 2026-10-01); same thresholds.
   2023: [[0, 0.0236], [10000, 0.0315], [25000, 0.0354], [40000, 0.0472], [60000, 0.0512]]
   2025: [[0, 0.0222], [10000, 0.0296], [25000, 0.0333], [40000, 0.0444], [60000, 0.0482]]
-surtax: {1983: 1.09, 1984: 1.12, 1985: 1.06}
+# 1983-1985 surtax multiplier on tax when taxable income exceeds the amount per
+# taxpayer.
+surtax: {1983: 1.09, 1984: 1.12, 1985: 1.06, 1986: null}
 surtax_income_per_taxpayer: 10000.0
 
-# Family tax credit (2007 on): tax forgiven at or below an AGI limit by number
-# of exemptions (1-8+, halved for married filing separately), phased out by
-# 10 points (5 in 2007) per $300 above it.
+# --- Income, deductions and exemptions ---
+# From 2020: share of taxable Social Security subtracted when federal AGI is at
+# most the limit per taxpayer; from 2022 the share subtracted above the limit.
+# Source from 2022: PolicyEngine-US
+# gov.states.wv.tax.income.subtractions.social_security_benefits.
+social_security_subtraction_share: {2020: 0.35, 2021: 0.65, 2022: 1.0}
+social_security_above_limit_share: {2022: 0.0, 2024: 0.35, 2025: 0.65}
+social_security_subtraction_agi_per_taxpayer: 50000
+# Senior citizen deduction: up to this per taxpayer 65 or older, from total
+# income (federal total income plus taxable Social Security) split between
+# spouses by wages.
+senior_deduction: 8000
+# Through 1986: a share of AGI up to the cap (no deductions from 1987).
+standard_deduction_share:
+  1977: {rate: 0.1, cap: 1000.0}
+  1987: null
+# Exemption per federal exemption; from 1987 a dependent filer gets its own
+# amount.
+exemption: {1977: 600.0, 1983: 700.0, 1984: 800.0, 1987: 2000.0}
+dependent_filer_exemption: {1987: 500}
+# From 1997: earned income excluded (up to the limit) when federal AGI is at
+# most the limit (halved for married filing separately).
+low_income_exclusion: {1997: 10000.0}
+
+# --- Credits ---
+# Family tax credit from 2007: tax forgiven at or below an AGI limit by number
+# of exemptions (1-8+, halved for married filing separately), phased out by the
+# points per step above it. From 2022 tested on federal AGI, in steps: the first
+# share for the first step over the limit, then `share_per_step` less for each
+# further step.
 family_credit_limit:
   2007: [10210, 13690, 17170, 20650, 24130, 27610, 31090, 34570]
   2008: [10400, 14000, 17600, 21200, 24800, 28400, 32000, 35600]
@@ -49,25 +186,38 @@ family_credit_limit:
 family_credit_full_share: {2007: 0.5, 2008: 1.0}
 family_credit_phaseout_points: {2007: 5.0, 2008: 10.0}
 family_credit_phaseout_step: 300.0
-
-# Homestead excess property tax credit (2008 on, refundable): property tax
-# above 4% of income, up to $1,000, below an AGI limit of a base plus an
+family_credit_stepped_phaseout:
+  2022: {first_share: 0.9, share_per_step: 0.1}
+# Homestead excess property tax credit from 2008 (refundable): property tax
+# above a share of income, up to the cap, below an AGI limit of a base plus an
 # amount per dependent (and for a spouse).
+property_credit_base:
+  2008: 15600.0
+  2009: 16245.0
+  2011: 16335.0
+  2012: 33510.0
+  2013: 34470.0
+  2014: 35010.0
+  2015: 35310.0
+  2016: 35640.0
+  2017: 36180.0
+  2018: 36420.0
+  2019: 37470.0
+  2020: 38280.0
+  2021: 38649.0
+property_credit_per_person:
+  2008: 5400.0
+  2009: 5610.0
+  2011: 5730.0
+  2012: 11880.0
+  2013: 12060.0
+  2014: 12180.0
+  2015: 12480.0
+  2016: 12420.0
+  2017: 12540.0
+  2018: 12960.0
+  2019: 13260.0
+  2020: 13440.0
+  2021: 13620.0
 property_credit_rate: 0.04
 property_credit_cap: 1000.0
-property_credit_base: {2008: 15600.0, 2009: 16245.0, 2011: 16335.0, 2012: 33510.0, 2013: 34470.0, 2014: 35010.0, 2015: 35310.0, 2016: 35640.0, 2017: 36180.0, 2018: 36420.0, 2019: 37470.0, 2020: 38280.0, 2021: 38649.0}
-property_credit_per_person: {2008: 5400.0, 2009: 5610.0, 2011: 5730.0, 2012: 11880.0, 2013: 12060.0, 2014: 12180.0, 2015: 12480.0, 2016: 12420.0, 2017: 12540.0, 2018: 12960.0, 2019: 13260.0, 2020: 13440.0, 2021: 13620.0}
-
-# 2020+: share of taxable Social Security subtracted when federal AGI is at
-# most the limit per taxpayer.
-# 2022+: the whole benefit is exempt below the AGI limit; above it the exempt share phases in (35% in
-# 2024, 65% in 2025, all in 2026) - PolicyEngine-US subtractions.social_security_benefits.
-social_security_subtraction_share: {2020: 0.35, 2021: 0.65, 2022: 1.0}
-social_security_above_limit_share: {2022: 0.0, 2024: 0.35, 2025: 0.65}
-social_security_subtraction_agi_per_taxpayer: 50000
-# Senior citizen deduction: up to this per taxpayer 65 or older, from total
-# income (federal total income plus taxable Social Security) split between
-# spouses by wages.
-senior_deduction: 8000
-# 1987+: a dependent filer's exemption.
-dependent_filer_exemption: 500

@@ -1,4 +1,4 @@
-"""One-off generator for parameters/states/ar/low_income_table.csv, transcribed
+"""One-off generator for parameters/states/ar/low_income_formula_table.csv, transcribed
 directly from artax's own literal if/elseif chains (taxsim_2022_10_21.f:
 ~1595-1770 for 1991-2021; the pre-1991 four-formula table is small/stable
 enough to hardcode directly in calculators/states/ar.py instead).
@@ -145,7 +145,7 @@ for y, tiers in HOH_SPLIT_BY_YEAR.items():
     for dep_tier, (lower, upper, offset, base, rate) in tiers.items():
         add(y, "head_of_household", dep_tier, 1, lower, upper, offset, base, rate)
 
-OUT = "/home/jrothbaum/Coding/claude_code/taxsim_py/parameters/states/ar/low_income_table.csv"
+OUT = "/home/jrothbaum/Coding/claude_code/taxsim_py/parameters/states/ar/low_income_formula_table.csv"
 fieldnames = [
     "year", "status", "dep_tier", "tier_order", "lower_bound", "upper_bound",
     "formula_offset", "base", "rate", "upper_exclusive",

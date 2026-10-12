@@ -1,112 +1,59 @@
-# Itemized deductions (regular tax): SALT + mortgage interest + cash
-# charitable contributions - no non-cash/appreciated-property giving,
-# medical, casualty, or misc (2%-of-AGI-floor) deductions.
-# Verified against taxsim_2022_10_21.f:24607-24631 (SALT cap) and
-# :24703-24730 (itemize-vs-standard decision).
+# Federal itemized deductions: state and local taxes, mortgage interest and
+# cash charitable contributions (no medical, casualty, miscellaneous or
+# non-cash charitable deductions).
 #
-# SALT was uncapped before TCJA - `salt_cap` has no 2017-or-earlier entry
-# on purpose; calculators/federal.py skips the cap entirely for year<2018
-# rather than encoding "uncapped" as some large number.
-salt_cap:
-  2018: 10000
-  2019: 10000
-  2022: 10000
-  # 2024: still $10,000 (OBBBA's SALT change below doesn't take effect
-  # until 2025). 2025: OBBBA (H.R.1, enacted 2025-07-04) raised the cap to
-  # $40,000 (single/joint/HoH/surviving spouse) - modeled here as a flat
-  # cap only. Real 2025+ law phases the cap back down toward a $10,000
-  # floor for MAGI above $500,000 (PolicyEngine-US's parameters/gov/irs/
-  # deductions/itemized/salt_and_real_estate/{cap,phase_out}.yaml); that
-  # income-based phase-out is NOT modeled here - a known gap, not an
-  # oversight (see docs/pending_issues.md).
-  2024: 10000
-  2025: 40000
+# Sources: 1987-2021 NBER TAXSIM (`law87`); 2022 on, Internal Revenue Code
+# sections 63, 68, 164 and 170 and Schedule A instructions, checked against
+# PolicyEngine-US `gov.irs.deductions`.
 
-# Pease limitation (pre-TCJA, reinstated by ATRA 2013, suspended 2018-2025):
-# itemized deductions are reduced by the LESSER of 3% of AGI over a
-# threshold or 80% of the itemized total (excluding investment interest -
-# not in this model's scope, so not netted out here).
-# taxsim_2022_10_21.f:24637-24660. Fully repealed 2010-2012 (`dlim1`/
-# `dlim2` forced to 0 unconditionally, taxsim_2022_10_21.f:24662-24665) -
-# calculators/federal.py special-cases that range directly (itemized_
-# deduction left unreduced, this threshold/rate never fetched for those
-# years), so no 2010-2012 entry is needed here. 2008-2009 only apply 1/3
-# of the reduction this formula gives (calculators/federal.py's own
-# year-in-(2008,2009) special case) - the tail of the same gradual
-# phase-out that preceded the 2010-2012 repeal.
-#
-# Pre-2013, this threshold (`phas(lawyr)`, taxsim_2022_10_21.f:24187-24190)
-# is a SINGLE flat number shared by single/joint/HoH alike (not the
-# per-status table 2013+ uses, and not the same table as the Personal
-# Exemption Phaseout's own pre-2013 thresholds in personal_exemption.yaml,
-# despite those two provisions sharing their thresholds from 2013 on) -
-# only married_separate differs, getting it halved via `sepret`.
-pease_limitation_threshold:
-  single: {1991: 100000, 1992: 105250, 1993: 108450, 1994: 111800, 1995: 114700, 1996: 117950, 1997: 121200, 1998: 124500, 1999: 126600, 2000: 128950, 2001: 132950, 2002: 137300, 2003: 139500, 2004: 142700, 2005: 145950, 2006: 150500, 2007: 156400, 2008: 159950, 2009: 166800, 2013: 250000, 2014: 254200, 2015: 258250, 2016: 259400, 2017: 261500}
-  head_of_household: {1991: 100000, 1992: 105250, 1993: 108450, 1994: 111800, 1995: 114700, 1996: 117950, 1997: 121200, 1998: 124500, 1999: 126600, 2000: 128950, 2001: 132950, 2002: 137300, 2003: 139500, 2004: 142700, 2005: 145950, 2006: 150500, 2007: 156400, 2008: 159950, 2009: 166800, 2013: 275000, 2014: 279650, 2015: 284050, 2016: 285350, 2017: 287650}
-  married_separate: {1991: 50000, 1992: 52625, 1993: 54225, 1994: 55900, 1995: 57350, 1996: 58975, 1997: 60600, 1998: 62250, 1999: 63300, 2000: 64475, 2001: 66475, 2002: 68650, 2003: 69750, 2004: 71350, 2005: 72975, 2006: 75250, 2007: 78200, 2008: 79975, 2009: 83400, 2013: 150000, 2014: 152525, 2015: 154950, 2016: 155650, 2017: 156900}
-  married_joint: {1991: 100000, 1992: 105250, 1993: 108450, 1994: 111800, 1995: 114700, 1996: 117950, 1997: 121200, 1998: 124500, 1999: 126600, 2000: 128950, 2001: 132950, 2002: 137300, 2003: 139500, 2004: 142700, 2005: 145950, 2006: 150500, 2007: 156400, 2008: 159950, 2009: 166800, 2013: 300000, 2014: 305050, 2015: 309900, 2016: 311300, 2017: 313800}
-pease_reduction_rate:  # applied to AGI over the threshold
-  1991: 0.03
-  1994: 0.03
-  1995: 0.03
-  1996: 0.03
-  1997: 0.03
-  1998: 0.03
-  1999: 0.03
-  2000: 0.03
-  2001: 0.03
-  2002: 0.03
-  2003: 0.03
-  2004: 0.03
-  2005: 0.03
-  2006: 0.03
-  2007: 0.03
-  2008: 0.03
-pease_cap_rate:  # applied to the itemized total itself, as an upper bound on the reduction
-  1991: 0.80
-  1994: 0.80
-  1995: 0.80
-  1996: 0.80
-  1997: 0.80
-  1998: 0.80
-  1999: 0.80
-  2000: 0.80
-  2001: 0.80
-  2002: 0.80
-  2003: 0.80
-  2004: 0.80
-  2005: 0.80
-  2006: 0.80
-  2007: 0.80
-  2008: 0.80
-
-# Cash charitable deduction for non-itemizers: 2020 per return (halved for
-# separate returns), 2021 per taxpayer.
-nonitemizer_charity_deduction:
-  2020: 300
-  2021: 300
-
-# Share of the limitation (and of the personal exemption phaseout) that
-# applies while both were being repealed (taxsim_2022_10_21.f:24805-24810).
-limitation_phasedown_share:
-  1991: 1.0
-  2006: 0.6666666666666666
-  2008: 0.3333333333333333
-  2010: 1.0
-
-# Cash charitable contributions are limited to this share of AGI; no limit
-# in 2020-2021 (a very large share).
-cash_charity_agi_limit_share:
-  1987: 0.5
-  2020: 1.0e+20
-  2022: 0.5
-
-# 2025 on (OBBBA, P.L. 119-21 sec. 70120): the SALT cap falls by this share of
-# adjusted gross income over the threshold, but not below the floor. The cap
-# itself is `salt_cap` above (halved for married separate, like the threshold
-# and floor). Scheduled to revert to $10,000 with no phase-out after 2029.
+# State and local tax deduction cap per return from 2018 (halved for married
+# separate); none before.
+salt_cap: {2018: 10000, 2025: 40000}
+# 2025-2029 (P.L. 119-21 sec. 70120): the SALT cap falls by the rate times AGI
+# over the threshold, but not below the floor (all halved for married separate).
 salt_phaseout:
-  rate: {2025: 0.3, 2030: 0.0}
-  threshold: {2025: 500000, 2030: 0}
-  floor: {2025: 10000, 2030: 0}
+  2025: {rate: 0.3, threshold: 500000, floor: 10000}
+  2030: null
+# Limitation on itemized deductions (1991-2009 and 2013-2017): reduced by the
+# lesser of `pease_reduction_rate` of AGI over the threshold and
+# `pease_cap_rate` of itemized deductions, times `limitation_phasedown_share`.
+# Through 2009 one threshold (half for married separate); from 2013 by filing
+# status.
+pease_limitation_threshold:
+  1991: {single: 100000, married_joint: 100000, married_separate: 50000, head_of_household: 100000}
+  1992: {single: 105250, married_joint: 105250, married_separate: 52625, head_of_household: 105250}
+  1993: {single: 108450, married_joint: 108450, married_separate: 54225, head_of_household: 108450}
+  1994: {single: 111800, married_joint: 111800, married_separate: 55900, head_of_household: 111800}
+  1995: {single: 114700, married_joint: 114700, married_separate: 57350, head_of_household: 114700}
+  1996: {single: 117950, married_joint: 117950, married_separate: 58975, head_of_household: 117950}
+  1997: {single: 121200, married_joint: 121200, married_separate: 60600, head_of_household: 121200}
+  1998: {single: 124500, married_joint: 124500, married_separate: 62250, head_of_household: 124500}
+  1999: {single: 126600, married_joint: 126600, married_separate: 63300, head_of_household: 126600}
+  2000: {single: 128950, married_joint: 128950, married_separate: 64475, head_of_household: 128950}
+  2001: {single: 132950, married_joint: 132950, married_separate: 66475, head_of_household: 132950}
+  2002: {single: 137300, married_joint: 137300, married_separate: 68650, head_of_household: 137300}
+  2003: {single: 139500, married_joint: 139500, married_separate: 69750, head_of_household: 139500}
+  2004: {single: 142700, married_joint: 142700, married_separate: 71350, head_of_household: 142700}
+  2005: {single: 145950, married_joint: 145950, married_separate: 72975, head_of_household: 145950}
+  2006: {single: 150500, married_joint: 150500, married_separate: 75250, head_of_household: 150500}
+  2007: {single: 156400, married_joint: 156400, married_separate: 78200, head_of_household: 156400}
+  2008: {single: 159950, married_joint: 159950, married_separate: 79975, head_of_household: 159950}
+  2009: {single: 166800, married_joint: 166800, married_separate: 83400, head_of_household: 166800}
+  2010: null
+  2013: {single: 250000, married_joint: 300000, married_separate: 150000, head_of_household: 275000}
+  2014: {single: 254200, married_joint: 305050, married_separate: 152525, head_of_household: 279650}
+  2015: {single: 258250, married_joint: 309900, married_separate: 154950, head_of_household: 284050}
+  2016: {single: 259400, married_joint: 311300, married_separate: 155650, head_of_household: 285350}
+  2017: {single: 261500, married_joint: 313800, married_separate: 156900, head_of_household: 287650}
+  2018: null
+pease_reduction_rate: {1991: 0.03}
+pease_cap_rate: {1991: 0.8}
+# Share of the limitation (and of the personal exemption phaseout) that applies
+# while both were being repealed.
+limitation_phasedown_share: {1991: 1.0, 2006: 0.6666666666666666, 2008: 0.3333333333333333, 2010: 1.0}
+# Cash charitable deduction for nonitemizers: 2020 per return (halved for
+# separate returns), 2021 per taxpayer.
+nonitemizer_charity_deduction: {2020: 300, 2022: null}
+# Cash charitable contributions are limited to this share of AGI; no limit in
+# 2020-2021 (a very large share).
+cash_charity_agi_limit_share: {1987: 0.5, 2020: 1.0e+20, 2022: 0.5}

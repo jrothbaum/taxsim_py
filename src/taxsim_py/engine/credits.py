@@ -3,54 +3,30 @@
 import polars as pl
 
 
-def child_care_credit_rate(
-    agi: pl.Expr,
-    first_phase_start: float,
-    first_phase_ceiling: float,
-    first_phase_step_amount: float,
-    top_rate: float,
-    mid_rate: float,
-    second_phase_start: float,
-    second_phase_ceiling: float,
-    second_phase_step_amount: float,
-) -> pl.Expr:
-    """Calculate the post-2020 child care credit rate."""
-    first_phase_rate = top_rate - ((agi - first_phase_start) / first_phase_step_amount).clip(0, None) * 0.01
-    second_phase_rate = mid_rate - (
-        (agi - second_phase_start) / second_phase_step_amount
-    ).clip(0, None) * 0.01
+def child_care_credit_rate(agi: pl.Expr, rate: dict) -> pl.Expr:
+    """Child and dependent care credit rate for one year's `rate` parameters.
+
+    The rate falls one point per `step_amount` of AGI above `phase_start`
+    from `top_rate` to `floor_rate`; with a second phase, from `top_rate` to
+    `mid_rate` up to `first_phase_ceiling` and from `mid_rate` to zero up to
+    `second_phase_ceiling`.
+    """
+    top_rate = float(rate["top_rate"])
+    if "second_phase_start" not in rate:
+        stepped_down = top_rate - ((agi - rate["phase_start"]) / rate["step_amount"]).clip(0, None) * 0.01
+        return pl.max_horizontal(stepped_down, pl.lit(float(rate["floor_rate"])))
+    mid_rate = float(rate["mid_rate"])
+    first_start, second_start = float(rate["first_phase_start"]), float(rate["second_phase_start"])
+    first_phase_rate = top_rate - ((agi - first_start) / rate["first_phase_step_amount"]).clip(0, None) * 0.01
+    second_phase_rate = mid_rate - ((agi - second_start) / rate["second_phase_step_amount"]).clip(0, None) * 0.01
     return (
-        pl.when(agi <= first_phase_start)
+        pl.when(agi <= first_start)
         .then(top_rate)
-        .when(agi < first_phase_ceiling)
+        .when(agi < rate["first_phase_ceiling"])
         .then(first_phase_rate)
-        .when(agi <= second_phase_start)
+        .when(agi <= second_start)
         .then(mid_rate)
-        .when(agi < second_phase_ceiling)
+        .when(agi < rate["second_phase_ceiling"])
         .then(second_phase_rate)
         .otherwise(0.0)
     )
-
-
-def child_care_credit_rate_pre2021(
-    agi: pl.Expr,
-    phase_start: float,
-    top_rate: float,
-    floor_rate: float,
-    step_amount: float,
-) -> pl.Expr:
-    """Calculate the pre-2021 child care credit rate."""
-    stepped_down = top_rate - ((agi - phase_start) / step_amount).clip(0, None) * 0.01
-    return pl.max_horizontal(stepped_down, pl.lit(floor_rate))
-
-
-def phased_out_nonrefundable_credit(
-    base_credit: pl.Expr,
-    agi: pl.Expr,
-    phaseout_threshold: pl.Expr,
-    phaseout_rate_per_1000: float,
-    tax_before_credit: pl.Expr,
-) -> pl.Expr:
-    reduction = ((agi - phaseout_threshold).clip(0, None) / 1000.0) * phaseout_rate_per_1000
-    after_phaseout = (base_credit - reduction).clip(0, None)
-    return pl.min_horizontal(after_phaseout, tax_before_credit.clip(0, None))

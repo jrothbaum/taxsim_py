@@ -13,18 +13,13 @@ DE_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "de" / "income_tax.yaml")
 
 
 def compute_de_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
-    # Statutory mode uses Delaware's dated 2022-2024 values. They happen to
-    # equal the existing TAXSIM table, but must not inherit projected-year
-    # extrapolation when a caller asks for a recent year.
-    state_year = "de" if behavior.mode.value == "statutory" else None
-    effective_year, flate = resolve_state_year(year, state_year)
+    effective_year, flate = resolve_state_year(year, behavior, DE_PARAMS)
     p = YearParams(DE_PARAMS, effective_year)
     df = df.with_columns(
         de_sep=separate_divisor(),
-        # Taxpayers (`data(7)`): 2 only on joint returns.
         de_taxpayers=taxpayer_count(),
-        # Federal exemptions (`comnew(68)`), a count TAXSIM nonetheless
-        # deflates in projected years.
+        # Federal exemptions, a count TAXSIM nonetheless deflates in
+        # projected years.
         de_exemps_raw=(
             taxpayer_count() + pl.col("depx") + aged_count()
             if effective_year <= 1986
@@ -55,43 +50,34 @@ def compute_de_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         .otherwise(pl.min_horizontal(pl.lit(2 * aged_cap), pensions + investment))
     ).clip(0, None)
     df = df.with_columns(de_agi=pl.col("de_agi") - penexc)
-    if effective_year >= 1984:
+    if p.in_effect("aged_low_income_exclusion"):
+        ex = p.value("aged_low_income_exclusion")
         low_income = (
             (aged > 0)
-            & (pl.col("earned_income") < p["aged_low_income_earned_limit"] * aged)
-            & (pl.col("de_agi") <= p["aged_low_income_agi_limit"] * aged)
+            & (pl.col("earned_income") < ex["earned_limit"] * aged)
+            & (pl.col("de_agi") <= ex["agi_limit"] * aged)
         )
         df = df.with_columns(
-            de_agi=pl.when(low_income).then(pl.col("de_agi") - p["aged_low_income_exclusion"] * aged).otherwise(pl.col("de_agi"))
+            de_agi=pl.when(low_income).then(pl.col("de_agi") - ex["exclusion"] * aged).otherwise(pl.col("de_agi"))
         )
 
     # --- Standard deduction ---
-    if effective_year <= 1987:
-        cap_per_exemption = p.num("standard_deduction_cap_per_exemption_pre1988")
+    if p.in_effect("standard_deduction_percent"):
+        sd = p.value("standard_deduction_percent")
         df = df.with_columns(
             de_stded=pl.min_horizontal(
-                cap_per_exemption * pl.col("de_taxpayers") / pl.col("de_sep"), p["standard_deduction_agi_share_pre1988"] * pl.col("de_agi").clip(0, None)
+                float(sd["cap_per_taxpayer"]) * pl.col("de_taxpayers") / pl.col("de_sep"), sd["rate"] * pl.col("de_agi").clip(0, None)
             )
         )
-    elif effective_year <= 1998:
-        flat_single = p.num("standard_deduction_flat_single_or_hoh_1988_1998")
-        flat_joint = p.num("standard_deduction_flat_joint_or_sep_1988_1998")
+    elif p.in_effect("standard_deduction"):
+        sd = p.value("standard_deduction")
         df = df.with_columns(
             de_stded=pl.when(pl.col("filing_status").is_in(["single", "head_of_household"]))
-            .then(flat_single)
-            .otherwise(flat_joint / pl.col("de_sep"))
-        )
-    elif effective_year == 1999:
-        flat_single = float(p["standard_deduction_flat_single_or_hoh_1999"][1999])
-        flat_joint = float(p["standard_deduction_flat_joint_or_sep_1999"][1999])
-        df = df.with_columns(
-            de_stded=pl.when(pl.col("filing_status").is_in(["single", "head_of_household"]))
-            .then(flat_single)
-            .otherwise(flat_joint / pl.col("de_sep"))
+            .then(float(sd["single_or_hoh"]))
+            .otherwise(float(sd["married"]) / pl.col("de_sep"))
         )
     else:
-        per_exemption = p.num("standard_deduction_per_exemption_2000plus")
-        df = df.with_columns(de_stded=per_exemption * pl.col("de_taxpayers"))
+        df = df.with_columns(de_stded=p.num("standard_deduction_per_taxpayer") * pl.col("de_taxpayers"))
     if effective_year >= 1987:
         aged_std = p.num("aged_standard_deduction")
         df = df.with_columns(de_stded=pl.col("de_stded") + aged_std * aged)
@@ -107,14 +93,11 @@ def compute_de_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         df = df.with_columns(
             de_xitded_base=(pl.col("de_raw_itemized") - pl.col("state_sales_or_income_tax_ded")).clip(0, None)
         )
-        # `if(law.eq.1987) xitded=xitded*1.12`.
-        if effective_year == 1987:
-            df = df.with_columns(de_xitded_base=pl.col("de_xitded_base") * p["itemized_deduction_multiplier_1987"])
-    elif effective_year == 2018:
-        # 2018: `sttax=min(10000/sep,data51+data50+data54);
-        # xitded=comnew(30)-min(data50,sttax-(data51+data54))` - only the
-        # state tax deduction's share of the $10,000 cap is removed.
-        sttax_cap = p["state_tax_deduction_cap_2018"] / pl.col("de_sep")
+        if p.in_effect("itemized_deduction_multiplier"):
+            df = df.with_columns(de_xitded_base=pl.col("de_xitded_base") * p.num("itemized_deduction_multiplier"))
+    elif p.in_effect("state_tax_deduction_cap"):
+        # Only the state tax deduction's share of the cap is removed.
+        sttax_cap = p.num("state_tax_deduction_cap") / pl.col("de_sep")
         sttax = pl.min_horizontal(
             sttax_cap, pl.col("proptax") + pl.col("state_sales_or_income_tax_ded") + pl.col("otheritem")
         )
@@ -128,45 +111,37 @@ def compute_de_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     else:
         df = df.with_columns(de_xitded_base=pl.col("de_raw_itemized"))
 
-    if 1991 <= effective_year <= 2017:
-        base = float(p["itemized_phaseout_base"][1960])
-        if effective_year <= 2012:
-            aif92 = p.num("itemized_phaseout_aif92_1992_2012") if effective_year >= 1992 else 1.0
-            phas92 = base * aif92 / pl.col("de_sep")
+    if p.in_effect("itemized_limitation"):
+        lim = p.value("itemized_limitation")
+        index = p.num("itemized_limitation_index")
+        if isinstance(lim["threshold"], dict):
+            phas92 = by_filing_status({s: float(v) * index for s, v in lim["threshold"].items()})
         else:
-            aif13 = p.num("itemized_phaseout_aif13_2013_2017")
-            mult = p["itemized_phaseout_2013_2017_multiplier"]
-            mult_expr = by_filing_status(mult)
-            phas92 = aif13 * p["itemized_phaseout_base_multiple_2013_2017"] * base * mult_expr
+            phas92 = float(lim["threshold"]) * index / pl.col("de_sep")
         reduce_amt = pl.when(pl.col("de_agi") > phas92).then(
             pl.min_horizontal(
-                p["itemized_phaseout_cap_rate"] * pl.col("de_xitded_base"),
-                p["itemized_phaseout_rate"] * (pl.col("de_agi") - phas92),
+                lim["cap_rate"] * pl.col("de_xitded_base"),
+                lim["rate"] * (pl.col("de_agi") - phas92),
             )
         ).otherwise(0.0)
-        reduce_amt = reduce_amt * p.num("itemized_phaseout_share")
+        reduce_amt = reduce_amt * float(lim["reduction_share"])
         df = df.with_columns(de_xitded=(pl.col("de_xitded_base") - reduce_amt).clip(0, None))
     else:
         df = df.with_columns(de_xitded=pl.col("de_xitded_base"))
 
-    # `if(ided.eq.-2.and.law.eq.1999) xitded=0`: a forced standard
-    # deduction zeroes itemized deductions in 1999 only.
+    # A forced standard deduction zeroes itemized deductions in 1999 only.
     if effective_year == 1999:
         df = df.with_columns(de_xitded=pl.when(forced_standard()).then(0.0).otherwise(pl.col("de_xitded")))
 
     df = df.with_columns(de_deduc=pl.max_horizontal(pl.col("de_stded"), pl.col("de_xitded")))
 
-    # --- Exemption --- (dies out after 1995 into a flat credit instead,
-    # see EXEMPTIONS/personal-credit sections below)
-    if effective_year <= 1987:
-        # `exemp=(num*xmp(law,1))+twn(comnew(1),0,300*texp)`: plus federal
-        # income tax up to $300 per taxpayer.
-        pe = p.num("personal_exemption_amount")
-        bonus = pl.col("fiitax").clip(0, None).clip(None, p["federal_tax_exemption_per_taxpayer_pre1988"] * pl.col("de_taxpayers"))
-        df = df.with_columns(de_exemp=pl.col("de_num") * pe + bonus)
-    elif effective_year <= 1995:
-        pe = p.num("personal_exemption_amount")
-        df = df.with_columns(de_exemp=pl.col("de_num") * pe)
+    # --- Exemption (through 1995) ---
+    if p.in_effect("personal_exemption"):
+        df = df.with_columns(de_exemp=pl.col("de_num") * p.num("personal_exemption"))
+        if p.in_effect("federal_tax_exemption_per_taxpayer"):
+            # Plus federal income tax up to an amount per taxpayer.
+            bonus = pl.col("fiitax").clip(0, None).clip(None, p.num("federal_tax_exemption_per_taxpayer") * pl.col("de_taxpayers"))
+            df = df.with_columns(de_exemp=pl.col("de_exemp") + bonus)
     else:
         df = df.with_columns(de_exemp=pl.lit(0.0))
 
@@ -188,44 +163,23 @@ def compute_de_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         de_taxinw=(pl.col("de_agi_lower_earner") - pl.col("de_dedw") - 0.5 * pl.col("de_exemp")).clip(0, None),
     )
 
-    # --- Bracket tax ---
-    year_table_map = {
-        (1977, 1978): "brackets_1977_1978",
-        (1979, 1979): "brackets_1979",
-        (1980, 1984): "brackets_1980_1984",
-        (1985, 1985): "brackets_1985",
-        (1986, 1986): "brackets_1986",
-        (1987, 1987): "brackets_1987",
-        (1988, 1995): "brackets_1988_1995",
-        (1996, 1996): "brackets_1996",
-        (1997, 1998): "brackets_1997_1998",
-        (1999, 1999): "brackets_1999",
-        (2000, 2009): "brackets_2000_2009",
-        (2010, 2011): "brackets_2010_2011",
-        (2012, 2013): "brackets_2012_2013",
-    }
-    key = "brackets_2014plus"
-    for (lo, hi), k in year_table_map.items():
-        if lo <= effective_year <= hi:
-            key = k
-            break
-    brackets = p[key]
+    # --- Tax ---
+    brackets = p.value("brackets")
     stat = bracket_tax(pl.col("de_taxinc"), brackets)
     stat_h = bracket_tax(pl.col("de_taxinh"), brackets)
     stat_w = bracket_tax(pl.col("de_taxinw"), brackets)
     df = df.with_columns(de_statax=pl.when(is_joint_relief).then(pl.min_horizontal(stat, stat_h + stat_w)).otherwise(stat))
 
     # --- Child/Dependent Care Credit ---
-    ccc_rate = p.num("child_care_credit_rate")
+    ccc_rate = p.num("child_care_credit_federal_share")
     df = df.with_columns(de_chcr=pl.col("federal_chcr").clip(0, None) * ccc_rate)
-    if effective_year >= 1999:
-        cap = p.num("child_care_credit_cap_1999plus")
+    if p.in_effect("child_care_credit_cap"):
+        cap = p.num("child_care_credit_cap")
         df = df.with_columns(de_chcr=pl.min_horizontal(pl.col("de_chcr"), cap))
 
-    # --- Personal Exemption Credit (1996+) --- The energy credit
-    # (`data(38)`) has no TAXSIM input.
-    if effective_year >= 1996:
-        per_unit = p.num("personal_exemption_credit_per_unit")
+    # --- Personal exemption credit (1996+) ---
+    if p.in_effect("personal_exemption_credit"):
+        per_unit = p.num("personal_exemption_credit")
         df = df.with_columns(de_pecred=(pl.col("de_num") + aged_count()) * per_unit)
     else:
         df = df.with_columns(de_pecred=pl.lit(0.0))
@@ -234,13 +188,9 @@ def compute_de_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     df = df.with_columns(de_statax=(pl.col("de_statax") - pl.col("de_credit")).clip(0, None))
 
     # --- EITC (2006+) ---
-    if 2006 <= effective_year <= 2020:
-        rate = float(p["eitc_nonrefundable_rate_2006_2020"][2006])
-        df = df.with_columns(de_earncr=rate * pl.col("eitc").clip(0, None))
-        df = df.with_columns(de_statax=(pl.col("de_statax") - pl.col("de_earncr")).clip(0, None))
-    elif effective_year >= 2021:
-        refundable_rate = float(p["eitc_refundable_rate_2021plus"][2021])
-        nonrefundable_rate = float(p["eitc_nonrefundable_rate_2021plus"][2021])
+    if p.in_effect("eitc_refundable_share"):
+        refundable_rate = p.num("eitc_refundable_share")
+        nonrefundable_rate = p.num("eitc_federal_share")
         refundable_amt = refundable_rate * pl.col("eitc").clip(0, None)
         nonrefundable_amt = nonrefundable_rate * pl.col("eitc").clip(0, None)
         use_refundable = refundable_amt > pl.col("de_statax")
@@ -250,6 +200,9 @@ def compute_de_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             .then(pl.col("de_statax") - pl.col("de_earncr"))
             .otherwise((pl.col("de_statax") - pl.col("de_earncr")).clip(0, None))
         )
+    elif p.in_effect("eitc_federal_share"):
+        df = df.with_columns(de_earncr=p.num("eitc_federal_share") * pl.col("eitc").clip(0, None))
+        df = df.with_columns(de_statax=(pl.col("de_statax") - pl.col("de_earncr")).clip(0, None))
     else:
         df = df.with_columns(de_earncr=pl.lit(0.0))
 

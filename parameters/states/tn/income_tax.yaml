@@ -1,10 +1,13 @@
-# Tennessee Hall income tax on interest and dividends (TAXSIM `tntax`,
-# taxsim_2024_09_21.f:18543-18598). No tax from 2021.
+# Tennessee Hall income tax on interest and dividends.
+#
+# Source: NBER TAXSIM (`tntax`). Repealed from 2021.
+
 rate: {1977: 0.06, 2016: 0.05, 2017: 0.04, 2018: 0.03, 2019: 0.02, 2020: 0.01, 2021: 0.0}
-# Through 1985 no tax when interest and dividends are at most this per taxpayer.
-minimum_income_1985: 25.0
-# 1986 on: exemption per taxpayer.
-exemption: 1250.0
+# Through 1985 no tax when interest and dividends are at most this per
+# taxpayer.
+minimum_income_per_taxpayer: {1977: 25.0, 1986: null}
+# 1986-2020: exemption per taxpayer.
+exemption: {1986: 1250.0, 2021: null}
 # No tax for a return with a taxpayer 65 or older and household income up
 # to (through 1985: at most; later: below) the limit.
 aged_household_income_limit:

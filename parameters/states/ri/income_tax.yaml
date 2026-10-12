@@ -1,28 +1,71 @@
-# Rhode Island personal income tax (TAXSIM `ritax`, taxsim_2024_09_21.f:17822-18228).
-# Brackets are [start, rate] rows converted from TAXSIM's `look2` upper-bound
-# tables (the last rate continues beyond the table).
+# Rhode Island personal income tax.
+#
+# Sources: 1977-2021 NBER TAXSIM (`ritax`); 2022 on, R.I. Gen. Laws 44-30,
+# RI-1040 instructions and PolicyEngine-US `gov.states.ri.tax.income`.
 
-# --- Through 2000: a share of federal tax ---
-federal_tax_share: {1977: 0.19, 1981: 0.1924, 1982: 0.219, 1983: 0.2675, 1984: 0.255, 1985: 0.2315, 1986: 0.2221, 1987: 0.2346, 1988: 0.2296, 1992: 0.275, 1998: 0.270, 1999: 0.2650, 2000: 0.260}
+# Statutory mode uses actual law through this year.
+law_coded_through: 2025
 
-# --- 2001-2010: own schedule ---
-brackets_2001:
-  single: [[0, 0.03825], [27050, 0.0714], [65550, 0.07905], [136750, 0.0918], [297350, 0.10098]]
-  head_of_household: [[0, 0.03825], [36250, 0.0714], [93650, 0.07905], [151650, 0.0918], [297350, 0.10098]]
-  married: [[0, 0.03825], [45200, 0.0714], [109250, 0.07905], [166500, 0.0918], [297350, 0.10098]]
-# 2002-2010, thresholds scaled by `bracket_index`.
-brackets_2002:
-  single: [[0, 0.0375], [27950, 0.07], [67700, 0.0775], [141250, 0.09], [307050, 0.099]]
-  head_of_household: [[0, 0.0375], [37450, 0.07], [96700, 0.0775], [156600, 0.09], [307050, 0.099]]
-  married: [[0, 0.0375], [46700, 0.07], [112850, 0.0775], [171950, 0.09], [307050, 0.099]]
-bracket_index: {2002: 1.0, 2003: 1.016, 2004: 1.0385, 2005: 1.063, 2006: 1.0966, 2007: 1.138, 2008: 1.165, 2009: 1.2147, 2010: 1.216, 2011: 1.0, 2012: 1.039, 2013: 1.066, 2014: 1.084, 2015: 1.101, 2016: 1.1063636, 2017: 1.115, 2018: 1.1372, 2019: 1.16454545455, 2020: 1.1868571, 2021: 1.203}
-# Standard deduction (2003 on; married also for married filing separately,
-# halved from 2011).
-standard_deduction:
-  single: {2003: 4750.0, 2004: 4850.0, 2005: 5000.0, 2006: 5150.0, 2007: 5350.0, 2008: 5450.0, 2009: 5700.0, 2011: 7500.0, 2012: 7800.0, 2013: 8000.0, 2014: 8100.0, 2015: 8275.0, 2016: 8300.0, 2017: 8375.0, 2018: 8525.0, 2019: 8750.0, 2020: 8900.0, 2021: 9050.0, 2022: 9300.0, 2023: 10000.0, 2024: 10550.0, 2025: 10900}
-  head_of_household: {2003: 7000.0, 2004: 7150.0, 2005: 7300.0, 2006: 7550.0, 2007: 7850.0, 2008: 8000.0, 2009: 8350.0, 2010: 8400.0, 2011: 11250.0, 2012: 11700.0, 2013: 12000.0, 2014: 12200.0, 2015: 12400.0, 2016: 12450.0, 2017: 12550.0, 2018: 12800.0, 2019: 13100.0, 2020: 13350.0, 2021: 13550.0, 2022: 13950.0, 2023: 15050.0, 2024: 15850.0, 2025: 16350}
-  married: {2003: 7950.0, 2004: 8150.0, 2005: 8300.0, 2006: 8600.0, 2007: 8900.0, 2008: 9100.0, 2009: 9500.0, 2010: 9550.0, 2011: 15000.0, 2012: 15600.0, 2013: 16000.0, 2014: 16250.0, 2015: 16550.0, 2016: 16600.0, 2017: 16750.0, 2018: 17050.0, 2019: 17500.0, 2020: 17800.0, 2021: 18100.0, 2022: 18600.0, 2023: 20050.0, 2024: 21150.0, 2025: 21800}
-# Capital gains worksheet 2003-2009: 2.5% / 5% rates, with the bracket by
+# --- Tax ---
+# Through 2000: a share of federal tax (less the child care credit, the credit
+# for the elderly from 1987 and the EITC from 1986).
+federal_tax_share:
+  1977: 0.19
+  1981: 0.1924
+  1982: 0.219
+  1983: 0.2675
+  1984: 0.255
+  1985: 0.2315
+  1986: 0.2221
+  1987: 0.2346
+  1988: 0.2296
+  1992: 0.275
+  1998: 0.27
+  1999: 0.265
+  2000: 0.26
+  2001: null
+# From 2001, [start of bracket, rate] with thresholds times `bracket_index`:
+# 2001-2010 by filing class (the married table at income times two, halved, for
+# separate returns); from 2011 one schedule. 2022 on: R.I. Gen. Laws 44-30-2.6;
+# source PolicyEngine-US gov.states.ri.tax.income.rate.
+brackets:
+  2001:
+    single: [[0, 0.03825], [27050, 0.0714], [65550, 0.07905], [136750, 0.0918], [297350, 0.10098]]
+    head_of_household: [[0, 0.03825], [36250, 0.0714], [93650, 0.07905], [151650, 0.0918], [297350, 0.10098]]
+    married: [[0, 0.03825], [45200, 0.0714], [109250, 0.07905], [166500, 0.0918], [297350, 0.10098]]
+  2002:
+    single: [[0, 0.0375], [27950, 0.07], [67700, 0.0775], [141250, 0.09], [307050, 0.099]]
+    head_of_household: [[0, 0.0375], [37450, 0.07], [96700, 0.0775], [156600, 0.09], [307050, 0.099]]
+    married: [[0, 0.0375], [46700, 0.07], [112850, 0.0775], [171950, 0.09], [307050, 0.099]]
+  2011: [[0, 0.0375], [55000, 0.0475], [125000, 0.0599]]
+  2022: [[0, 0.0375], [68200, 0.0475], [155050, 0.0599]]
+  2023: [[0, 0.0375], [73450, 0.0475], [166950, 0.0599]]
+  2024: [[0, 0.0375], [77450, 0.0475], [176050, 0.0599]]
+  2025: [[0, 0.0375], [79900, 0.0475], [181650, 0.0599]]
+bracket_index:
+  2001: 1.0
+  2002: 1.0
+  2003: 1.016
+  2004: 1.0385
+  2005: 1.063
+  2006: 1.0966
+  2007: 1.138
+  2008: 1.165
+  2009: 1.2147
+  2010: 1.216
+  2011: 1.0
+  2012: 1.039
+  2013: 1.066
+  2014: 1.084
+  2015: 1.101
+  2016: 1.1063636
+  2017: 1.115
+  2018: 1.1372
+  2019: 1.16454545455
+  2020: 1.1868571
+  2021: 1.203
+  2022: 1.0
+# 2003-2009 capital gains worksheet: low and high rates, with the bracket by
 # filing class (married halved for married filing separately).
 capital_gains_bracket:
   2003: {single: 28400.0, married: 47450.0, head_of_household: 38050.0}
@@ -32,13 +75,160 @@ capital_gains_bracket:
   2007: {single: 31850.0, married: 53150.0, head_of_household: 42650.0}
   2008: {single: 32550.0, married: 54400.0, head_of_household: 43650.0}
   2009: {single: 33950.0, married: 56700.0, head_of_household: 45500.0}
+  2010: null
 capital_gains_low_rate: 0.025
 capital_gains_high_rate: 0.05
 
+# --- Deductions and exemptions ---
+# Standard deduction from 2003 (married also for married filing separately,
+# halved from 2011).
+standard_deduction:
+  single:
+    2003: 4750.0
+    2004: 4850.0
+    2005: 5000.0
+    2006: 5150.0
+    2007: 5350.0
+    2008: 5450.0
+    2009: 5700.0
+    2011: 7500.0
+    2012: 7800.0
+    2013: 8000.0
+    2014: 8100.0
+    2015: 8275.0
+    2016: 8300.0
+    2017: 8375.0
+    2018: 8525.0
+    2019: 8750.0
+    2020: 8900.0
+    2021: 9050.0
+    2022: 9300.0
+    2023: 10000.0
+    2024: 10550.0
+    2025: 10900
+  head_of_household:
+    2003: 7000.0
+    2004: 7150.0
+    2005: 7300.0
+    2006: 7550.0
+    2007: 7850.0
+    2008: 8000.0
+    2009: 8350.0
+    2010: 8400.0
+    2011: 11250.0
+    2012: 11700.0
+    2013: 12000.0
+    2014: 12200.0
+    2015: 12400.0
+    2016: 12450.0
+    2017: 12550.0
+    2018: 12800.0
+    2019: 13100.0
+    2020: 13350.0
+    2021: 13550.0
+    2022: 13950.0
+    2023: 15050.0
+    2024: 15850.0
+    2025: 16350
+  married:
+    2003: 7950.0
+    2004: 8150.0
+    2005: 8300.0
+    2006: 8600.0
+    2007: 8900.0
+    2008: 9100.0
+    2009: 9500.0
+    2010: 9550.0
+    2011: 15000.0
+    2012: 15600.0
+    2013: 16000.0
+    2014: 16250.0
+    2015: 16550.0
+    2016: 16600.0
+    2017: 16750.0
+    2018: 17050.0
+    2019: 17500.0
+    2020: 17800.0
+    2021: 18100.0
+    2022: 18600.0
+    2023: 20050.0
+    2024: 21150.0
+    2025: 21800
+# 2003-2010 additional standard deduction per taxpayer 65 or older, and the
+# dependent filer standard deduction (at least earned income plus the addition).
+standard_deduction_aged_addition:
+  single: {2003: 1150, 2004: 1200, 2005: 1250, 2007: 1300, 2008: 1350, 2009: 1400, 2011: null}
+  married: {2003: 950, 2005: 1000, 2007: 1050, 2009: 1100, 2011: null}
+dependent_standard_deduction_floor: {2003: 750, 2004: 800, 2006: 850, 2008: 900, 2009: 950}
+dependent_standard_deduction_earned_addition: 250
+# From 2011, exemption per federal exemption.
+exemption_amount:
+  2011: 3500.0
+  2012: 3650.0
+  2013: 3750.0
+  2014: 3800.0
+  2015: 3850.0
+  2016: 3900.0
+  2018: 4000.0
+  2019: 4100.0
+  2020: 4150.0
+  2021: 4250.0
+  2022: 4350.0
+  2023: 4700.0
+  2024: 4950.0
+  2025: 5100
+# 2011-2021: the standard deduction and exemptions phase out in steps (shares
+# kept) per step of AGI between the start and end (times the bracket index),
+# then also by a smooth rate per step.
+deduction_phaseout_start: {2011: 175000.0, 2022: null}
+deduction_phaseout_end: 195000.0
+deduction_phaseout_step: 5000.0
+deduction_phaseout_shares: [0.8, 0.6, 0.4, 0.2]
+deduction_phaseout_smooth_rate: 0.02
+# From 2022: `share_per_step` of the standard deduction and exemptions lost
+# per increment (or part) of AGI above the start. Source: PolicyEngine-US
+# gov.states.ri.tax.income.adjust_for_inflation and deductions.standard.
+deduction_phaseout:
+  2022: {start: 217050, increment: 6200, share_per_step: 0.2}
+  2023: {start: 233750, increment: 6700, share_per_step: 0.2}
+  2024: {start: 246450, increment: 7050, share_per_step: 0.2}
+  2025: {start: 254250, increment: 7250, share_per_step: 0.2}
+
+# --- Income ---
+# From 2016: taxable Social Security of returns with a taxpayer 65 or older is
+# subtracted below an AGI limit (joint returns with one such taxpayer subtract
+# half); from 2017 retirement income up to an amount per taxpayer 65 or older
+# below an AGI limit. Limits are times the index.
+social_security_agi_limit: {single: 80000, married_joint: 100000}
+social_security_index:
+  2016: 1.0
+  2017: 1.0195
+  2018: 1.0445
+  2019: 1.054
+  2020: 1.0795
+  2021: 1.112
+  2022: 1.1975
+  2023: 1.2625
+  2024: 1.3025
+  2025: 1.3375
+retirement_exclusion_per_aged_taxpayer: {2017: 15000, 2023: 20000, 2025: 50000}
+retirement_exclusion_agi_limit: {single: 80000, married: 100000}
+retirement_exclusion_index:
+  2017: 1.0
+  2018: 1.024
+  2019: 1.0435
+  2020: 1.0585
+  2021: 1.0905
+  2022: 1.1975
+  2023: 1.2625
+  2024: 1.3025
+  2025: 1.3375
+
 # --- Minimum tax ---
-# 2001-2002: a quarter of the federal minimum tax.
-federal_amt_share: 0.25
-# 2003-2010: exemption by filing class, phased out 25% above a threshold.
+# 2001-2002: a share of the federal minimum tax.
+federal_amt_share: {2001: 0.25, 2003: null}
+# 2003-2010: exemption by filing class, phased out above a start; the low rate
+# below the breakpoint, otherwise the high rate less the backout.
 amt_exemption:
   2003: {single: 35750.0, married: 49000.0, head_of_household: 35750.0}
   2005: {single: 36550.0, married: 50100.0, head_of_household: 36550.0}
@@ -47,6 +237,7 @@ amt_exemption:
   2008: {single: 40050.0, married: 54900.0, head_of_household: 40050.0}
   2009: {single: 41750.0, married: 57250.0, head_of_household: 41750.0}
   2010: {single: 41850.0, married: 57350.0, head_of_household: 41850.0}
+  2011: null
 amt_exemption_phaseout_start:
   2003: {single: 112500.0, married: 150000.0, head_of_household: 112500.0}
   2005: {single: 115050.0, married: 153450.0, head_of_household: 115050.0}
@@ -61,55 +252,21 @@ amt_rate_high: 0.07
 amt_rate_breakpoint: 175000.0
 amt_rate_backout: 875.0
 # 2006-2010 alternative flat tax on federal AGI.
-flat_tax_rate: {2006: 0.08, 2007: 0.075, 2008: 0.07, 2009: 0.065, 2010: 0.06}
-
-# --- 2011 on ---
-brackets_2011: [[0, 0.0375], [55000, 0.0475], [125000, 0.0599]]
-exemption_amount: {2022: 4350.0, 2023: 4700.0, 2024: 4950.0, 2011: 3500.0, 2012: 3650.0, 2013: 3750.0, 2014: 3800.0, 2015: 3850.0, 2016: 3900.0, 2018: 4000.0, 2019: 4100.0, 2020: 4150.0, 2021: 4250.0, 2025: 5100}
-# Standard deduction and exemptions phase out in 20% steps per $5,000 of AGI
-# between $175,000 and $195,000 (scaled by the bracket index), then also by a
-# smooth 2% per step.
-deduction_phaseout_start: 175000.0
-deduction_phaseout_end: 195000.0
-deduction_phaseout_step: 5000.0
-deduction_phaseout_shares: [0.8, 0.6, 0.4, 0.2]
-deduction_phaseout_smooth_rate: 0.02
+flat_tax_rate: {2006: 0.08, 2007: 0.075, 2008: 0.07, 2009: 0.065, 2010: 0.06, 2011: null}
 
 # --- Credits ---
+# From 2001, child care credit as a share of the federal credit.
 child_care_share: {2001: 0.255, 2002: 0.25}
-eitc_share: {2001: 0.255, 2002: 0.25}
-# 2003 on: the nonrefundable credit is 25% of the federal EITC; a share of
-# the rest is refunded (2015 on the refundable share applies to the whole
-# federal credit).
-eitc_nonrefundable_share: 0.25
-eitc_refundable_share: {2003: 0.05, 2005: 0.1, 2006: 0.15, 2015: 0.1, 2016: 0.125, 2017: 0.15, 2022: 0.15, 2023: 0.15, 2024: 0.16}
-
-# 2016+: taxable Social Security of returns with a taxpayer 65 or older is
-# subtracted below an AGI limit (joint returns with one such taxpayer
-# subtract half); 2017+: retirement income up to $15,000 per taxpayer 65 or
-# older below an AGI limit. Limits are indexed.
-social_security_agi_limit:
-  single: 80000
-  married_joint: 100000
-social_security_index: {2016: 1.0, 2017: 1.0195, 2018: 1.0445, 2019: 1.054, 2020: 1.0795, 2021: 1.112, 2022: 1.1975, 2023: 1.2625, 2024: 1.3025, 2025: 1.3375}
-retirement_exclusion_per_aged_taxpayer: {2017: 15000, 2023: 20000, 2025: 50000}
-retirement_exclusion_agi_limit:
-  single: 80000
-  married: 100000
-retirement_exclusion_index: {2017: 1.0, 2018: 1.024, 2019: 1.0435, 2020: 1.0585, 2021: 1.0905, 2022: 1.1975, 2023: 1.2625, 2024: 1.3025, 2025: 1.3375}
-
-# 2003-2010 additional standard deduction per taxpayer 65 or older, and
-# the dependent filer standard deduction floor (earned income plus $250).
-standard_deduction_aged_addition:
-  single: {2003: 1150, 2004: 1200, 2005: 1250, 2007: 1300, 2008: 1350, 2009: 1400}
-  married: {2003: 950, 2005: 1000, 2007: 1050, 2009: 1100}
-dependent_standard_deduction_floor: {2003: 750, 2004: 800, 2006: 850, 2008: 900, 2009: 950}
-dependent_standard_deduction_earned_addition: 250
-
-# Property tax relief credit for taxpayers 65 or older: property tax (rent
-# at 20%) over a share of household income, up to a maximum. The share
-# table depends on whether the return has more than one person, and each
-# period has a household income limit (strict except 1998 multi-person).
+# Earned income credit 2001-2002: a share of the federal credit. 2003-2014 the
+# nonrefundable credit is a share of the federal EITC with a share of the rest
+# refunded; from 2015 the refundable share of the whole federal credit.
+eitc_share: {2001: 0.255, 2002: 0.25, 2003: null}
+eitc_nonrefundable_share: {2003: 0.25, 2015: null}
+eitc_refundable_share: {2003: 0.05, 2005: 0.1, 2006: 0.15, 2015: 0.1, 2016: 0.125, 2017: 0.15, 2024: 0.16}
+# Property tax relief credit for taxpayers 65 or older: property tax (rent at
+# the share) over a share of household income, up to a maximum. The share table
+# depends on whether the return has more than one person, and each period has a
+# household income limit (strict unless `inclusive`).
 property_relief_rent_share: 0.2
 property_relief_max:
   1977: 150
@@ -127,32 +284,45 @@ property_relief_max:
   2021: 415
 property_relief:
   1977:
-    single: {limit: 8000, table: [[1000, 0.03], [1500, 0.04], [2000, 0.05], [2500, 0.06], [8000, 0.07], [1.0e+20, 0.0]]}
-    multi: {limit: 8000, table: [[1500, 0.03], [2000, 0.04], [2500, 0.05], [8000, 0.06], [1.0e+20, 0.0]]}
+    single:
+      limit: 8000
+      table: [[1000, 0.03], [1500, 0.04], [2000, 0.05], [2500, 0.06], [8000, 0.07], [1.0e+20, 0.0]]
+    multi:
+      limit: 8000
+      table: [[1500, 0.03], [2000, 0.04], [2500, 0.05], [8000, 0.06], [1.0e+20, 0.0]]
   1984:
-    single: {limit: 11000, table: [[1200, 0.03], [2000, 0.04], [2500, 0.05], [3000, 0.06], [11000, 0.07], [1.0e+20, 0.0]]}
-    multi: {limit: 12500, table: [[2000, 0.03], [2500, 0.04], [3000, 0.05], [12500, 0.06], [1.0e+20, 0.0]]}
+    single:
+      limit: 11000
+      table: [[1200, 0.03], [2000, 0.04], [2500, 0.05], [3000, 0.06], [11000, 0.07], [1.0e+20, 0.0]]
+    multi:
+      limit: 12500
+      table: [[2000, 0.03], [2500, 0.04], [3000, 0.05], [12500, 0.06], [1.0e+20, 0.0]]
   1988:
-    single: {limit: 12500, table: [[4000, 0.03], [6000, 0.04], [8000, 0.05], [12500, 0.06], [1.0e+20, 0.0]]}
-    multi: {limit: 12500, table: [[4000, 0.03], [6000, 0.04], [11000, 0.05], [12500, 0.06], [1.0e+20, 0.0]]}
+    single:
+      limit: 12500
+      table: [[4000, 0.03], [6000, 0.04], [8000, 0.05], [12500, 0.06], [1.0e+20, 0.0]]
+    multi:
+      limit: 12500
+      table: [[4000, 0.03], [6000, 0.04], [11000, 0.05], [12500, 0.06], [1.0e+20, 0.0]]
   1997:
-    single: {limit: 18000, table: [[4000, 0.03], [6000, 0.04], [8000, 0.05], [18000, 0.06], [1.0e+20, 0.0]]}
-    multi: {limit: 18000, table: [[4000, 0.03], [6000, 0.04], [11000, 0.05], [18000, 0.06], [1.0e+20, 0.0]]}
+    single:
+      limit: 18000
+      table: [[4000, 0.03], [6000, 0.04], [8000, 0.05], [18000, 0.06], [1.0e+20, 0.0]]
+    multi:
+      limit: 18000
+      table: [[4000, 0.03], [6000, 0.04], [11000, 0.05], [18000, 0.06], [1.0e+20, 0.0]]
   1998:
-    single: {limit: 25000, table: [[6000, 0.03], [9000, 0.04], [12000, 0.05], [25000, 0.06], [1.0e+20, 0.0]]}
-    multi: {limit: 25000, inclusive: true, table: [[6000, 0.03], [9000, 0.04], [15000, 0.05], [25000, 0.06], [1.0e+20, 0.0]]}
+    single:
+      limit: 25000
+      table: [[6000, 0.03], [9000, 0.04], [12000, 0.05], [25000, 0.06], [1.0e+20, 0.0]]
+    multi:
+      limit: 25000
+      inclusive: true
+      table: [[6000, 0.03], [9000, 0.04], [15000, 0.05], [25000, 0.06], [1.0e+20, 0.0]]
   1999:
-    single: {limit: 30000, table: [[6000, 0.03], [9000, 0.04], [12000, 0.05], [30000, 0.06], [1.0e+20, 0.0]]}
-    multi: {limit: 30000, table: [[6000, 0.03], [9000, 0.04], [15000, 0.05], [30000, 0.06], [1.0e+20, 0.0]]}
-
-# 2022+ statutory values (PolicyEngine-US gov.states.ri.tax.income, queried 2026-10-01).
-brackets_2022plus:
-  2022: [[0, 0.0375], [68200, 0.0475], [155050, 0.0599]]
-  2023: [[0, 0.0375], [73450, 0.0475], [166950, 0.0599]]
-  2024: [[0, 0.0375], [77450, 0.0475], [176050, 0.0599]]
-  2025: [[0, 0.0375], [79900, 0.0475], [181650, 0.0599]]
-phaseout_2022plus:
-  2022: {start: 217050, increment: 6200, share_per_step: 0.2}
-  2023: {start: 233750, increment: 6700, share_per_step: 0.2}
-  2024: {start: 246450, increment: 7050, share_per_step: 0.2}
-  2025: {start: 254250, increment: 7250, share_per_step: 0.2}
+    single:
+      limit: 30000
+      table: [[6000, 0.03], [9000, 0.04], [12000, 0.05], [30000, 0.06], [1.0e+20, 0.0]]
+    multi:
+      limit: 30000
+      table: [[6000, 0.03], [9000, 0.04], [15000, 0.05], [30000, 0.06], [1.0e+20, 0.0]]

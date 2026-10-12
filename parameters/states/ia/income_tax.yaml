@@ -1,434 +1,143 @@
-# Iowa individual income tax (`iatax`, taxsim_2024_09_21.f:6085-6503,
-# state id 16). See calculators/states/ia.py for the full mechanism.
+# Iowa individual income tax.
 #
-# Not TAXSIM inputs, so always zero: blindness, `data(34)` in the
-# personal-exemption-credit section, and casualty, medical, misc-itemized,
-# investment-interest, political and charitable amounts (`data(47)`-`(49)`,
-# `(53)`, `(57)`-`(61)`, `(63)`, `(65)`, `(66)`, `(81)`, `(168)`), which
-# leaves the 2018-2019 itemized worksheet as property tax, other itemized
-# deductions and mortgage interest. `comnew(20)` and `comnew(97)` are $0 in
-# the oracle.
-#
-# `comnew(34)` in the AMT section (`addprf`) is a genuine, ACKNOWLEDGED
-# GAP, not confirmed inert - a live probe showed it real and nonzero
-# ($6,632 in one high-income/large-LTCG probe) but its exact source-level
-# meaning wasn't identified within this build's scope; treated as $0
-# here (a real simplification, not a silent one) since Iowa's own AMT is
-# already a narrow, high-preference-income-only provision the source's
-# own comments flag as partly a "guess" (`rat(law)` for 1986-1995).
-# `comnew(181)` (QBI deduction, `dedbus`) inherits the same acknowledged
-# federal-level scope gap already documented for Idaho - federal.py has
-# never implemented QBI at all, so `dedbus` is always $0 here too.
+# Sources: 1977-2021 NBER TAXSIM (`iatax`); 2022 on, Iowa Code Chapter 422,
+# IA 1040 instructions and PolicyEngine-US `gov.states.ia.tax.income`. Not
+# modeled (no TAXSIM input): blindness and casualty, medical,
+# miscellaneous, investment-interest and charitable deductions. The
+# minimum tax's preference income is property tax only.
 
-# Bracket tables, four eras. `look`'s own (upper_bound, rate%) DATA-
-# statement pairs shifted into this project's own (start, rate_fraction)
-# `bracket_tax()` convention - verified against the source's own
-# `dimension` declarations (13/9/9/9 entries).
-brackets_pre1987:
-  - [0, 0.005]
-  - [1000, 0.0125]
-  - [2000, 0.0275]
-  - [3000, 0.035]
-  - [4000, 0.05]
-  - [7000, 0.06]
-  - [9000, 0.07]
-  - [15000, 0.08]
-  - [20000, 0.09]
-  - [25000, 0.10]
-  - [30000, 0.11]
-  - [40000, 0.12]
-  - [75000, 0.13]
-brackets_1987_1997:
-  - [0, 0.004]
-  - [1000, 0.008]
-  - [2000, 0.027]
-  - [4000, 0.05]
-  - [9000, 0.068]
-  - [15000, 0.072]
-  - [20000, 0.0755]
-  - [30000, 0.088]
-  - [45000, 0.0998]
-brackets_1998_2018:  # in 1998 the tax rate was reduced 10%
-  - [0, 0.0036]
-  - [1000, 0.0072]
-  - [2000, 0.0243]
-  - [4000, 0.045]
-  - [9000, 0.0612]
-  - [15000, 0.0648]
-  - [20000, 0.068]
-  - [30000, 0.0792]
-  - [45000, 0.0898]
-brackets_2019plus:  # 2019 rate reduction
-  - [0, 0.0033]
-  - [1000, 0.0067]
-  - [2000, 0.0225]
-  - [4000, 0.0414]
-  - [9000, 0.0563]
-  - [15000, 0.0596]
-  - [20000, 0.0625]
-  - [30000, 0.0744]
-  - [45000, 0.0853]
+# Statutory mode uses actual law through this year.
+law_coded_through: 2025
 
-# `aif(law)` - bracket-table inflation-adjustment factor (deflate-then-
-# reinflate around each bracket lookup, same `look`/`look2` mechanic
-# already documented for AZ/ID's own bracket tables).
-bracket_inflation_factor:
-  1977: 1.0
-  1979: 1.023
-  1987: 1.0
-  1989: 1.016
-  1990: 1.038
-  1991: 1.060
-  1995: 1.068
-  1996: 1.089
-  1997: 1.112
-  1998: 1.136
-  1999: 1.148
-  2000: 1.162
-  2001: 1.185
-  2002: 1.211
-  2003: 1.224
-  2004: 1.242
-  2005: 1.269
-  2006: 1.30
-  2007: 1.343
-  2008: 1.379
-  2009: 1.407
-  2010: 1.428
-  2011: 1.439
-  2012: 1.469
-  2013: 1.494
-  2014: 1.515
-  2015: 1.539
-  2016: 1.554
-  2017: 1.573
-  2018: 1.598
-  2019: 1.638
-  2020: 1.666
-  2021: 1.676
-  2022: 1.743
-  2023: 1.743
-  2024: 1.743
-
-# Standard deduction: `stded=twn(stnd(law,1)*agi, 0, stnd(law,2 or 3))` -
-# a percentage-of-AGI formula (100% since 1987, meaning the cap alone
-# effectively acts as a flat deduction for anyone with AGI above it) with
-# a real dollar cap, single/HoH/married_separate vs married_joint.
-standard_deduction_pct:
-  1977: 0.10
-  1979: 0.15
-  1987: 1.0
-standard_deduction_cap_single:
-  1977: 1000
-  1979: 1200
-  1987: 1230
-  1990: 1260
-  1991: 1280
-  1992: 1310
-  1993: 1330
-  1994: 1340
-  1995: 1360
-  1996: 1380
-  1997: 1410
-  1998: 1440
-  1999: 1460
-  2000: 1470
-  2001: 1500
-  2002: 1540
-  2003: 1550
-  2004: 1580
-  2005: 1610
-  2006: 1650
-  2007: 1700
-  2008: 1750
-  2009: 1780
-  2010: 1810
-  2011: 1830
-  2012: 1860
-  2013: 1900
-  2014: 1920
-  2015: 1950
-  2016: 1970
-  2017: 2000
-  2018: 2030
-  2019: 2080
-  2020: 2110
-  2021: 2130
-  2022: 2210
-standard_deduction_cap_married_joint:
-  1977: 1000
-  1979: 3000
-  1987: 3030
-  1990: 3100
-  1991: 3160
-  1992: 3220
-  1993: 3270
-  1994: 3310
-  1995: 3350
-  1996: 3400
-  1997: 3480
-  1998: 3550
-  1999: 3590
-  2000: 3630
-  2001: 3700
-  2002: 3780
-  2003: 3830
-  2004: 3880
-  2005: 3970
-  2006: 4060
-  2007: 4200
-  2008: 4310
-  2009: 4390
-  2010: 4460
-  2011: 4500
-  2012: 4590
-  2013: 4670
-  2014: 4740
-  2015: 4810
-  2016: 4860
-  2017: 4920
-  2018: 5000
-  2019: 5120
-  2020: 5210
-  2021: 5240
-  2022: 5450
-
-# Itemized-deduction phaseout threshold (1991+), same aif92/aif13
-# CPI-adjustment tables other states already carry their own copy of -
-# Iowa's own `aif13` runs through 2018 (not just 2017 like Idaho's copy),
-# forward-filling at 1.0 for 2019-2021 (the phaseout itself is a dead
-# letter those years anyway, superseded by the 2018-2019-only worksheet
-# and the law>=2020 `xitded=comnew(30)` override).
-itemized_phaseout_base:
-  1960: 100000
-itemized_phaseout_aif92_1992_2012:
-  1992: 1.0525
-  1993: 1.0845
-  1994: 1.118
-  1995: 1.147
-  1996: 1.1795
-  1997: 1.212
-  1998: 1.245
-  1999: 1.266
-  2000: 1.2895
-  2001: 1.3295
-  2002: 1.373
-  2003: 1.395
-  2004: 1.427
-  2005: 1.4595
-  2006: 1.505
-  2007: 1.564
-  2008: 1.5995
-  2009: 1.668
-  2010: 1.6955
-  2011: 1.6955
-  2012: 1.7365
-itemized_phaseout_aif13_2013plus:
-  2013: 1.0
-  2014: 1.0168
-  2015: 1.033
-  2016: 1.0376
-  2017: 1.046
-  2018: 1.067
-  2019: 1.0
-itemized_phaseout_multiplier:
-  single: 1.0
-  married_joint: 1.2
-  head_of_household: 1.1
-  married_separate: 0.6
-
-# `exy(law,1/2)` - the AGI level below which NO Iowa tax is owed at all
-# (single vs "other": married_joint/HoH/married_separate), also used as
-# the Alternate Tax's own exemption-equivalent threshold.
-exy_single:
-  1977: 4000
-  1979: 5000
-  1992: 7500
-  1993: 9000
-exy_other:
-  1977: 4000
-  1979: 5000
-  1987: 7500
-  1992: 11500
-  1993: 13500
-
-# Alternate Tax (`altax`, married/HoH/separate only - never single).
-alt_tax_rate_pre1998:
-  1960: 0.0998
-alt_tax_rate_1998plus:
-  1998: 0.0898
-  2019: 0.0853
-  # 2022+: PolicyEngine-US gov.states.ia.tax.income.alternate_tax.rate, queried 2026-10-01.
-  2022: 0.0853
-  2023: 0.06
-  2024: 0.057
-  2025: 0.043
-
-# AMT (`alty`, Form 6251-style since 1985).
-amt_rate:
-  1985: 0.09
-  1986: 0.075
-  1998: 0.068
-  1999: 0.067
-amt_exclusion_base_by_status:  # `alt1(mst)`
-  single: 26000
-  married_joint: 35000
-  head_of_household: 26000
-  married_separate: 17500
-amt_exclusion_phaseout_threshold_by_status:  # `alt2(mst)`
-  single: 112500
-  married_joint: 150000
-  head_of_household: 112500
-  married_separate: 75000
-
-# Personal Exemption Credit (`gcred`) - `xmp(law)` per-exemption base.
-personal_exemption_credit_amount:
-  1977: 10
-  1979: 11
-  1980: 12
-  1981: 13
-  1982: 14
-  1983: 15
-  1995: 40
-
-# Child/Dependent Care Credit - a real percentage of federal's OWN CCC
-# (`comnew(176)`, reused as this project's own `ccc` column, same
-# approximation DC's own docstring already documents), phased down by
-# income for 1990+ via linear-interpolation tables (same `tablki` shape
-# HI/GA's own `_tablki` helper already uses - all three tables' own real
-# trailing (huge_threshold, rate) sentinel rows kept, per the lesson
-# learned building Hawaii's own bracket tables).
-child_care_credit_flat_rate_pre1982:
-  1960: 0.05
-child_care_credit_flat_rate_1982_1985:  # applied to RAW childcare
-  # expenses (`data(64)`), not `comnew(176)`
-  1960: 0.10
-child_care_credit_flat_rate_1986_1989:
-  1960: 0.45
-child_care_credit_table_1990_1992:
-  - [10000, 0.75]
-  - [20000, 0.65]
-  - [25000, 0.55]
-  - [35000, 0.50]
-  - [40000, 0.40]
-  - [45000, 0.30]
-  - [50000, 0.20]
-  - [100000000, 0.10]
-child_care_credit_table_1993_2005:
-  - [10000, 0.75]
-  - [20000, 0.65]
-  - [25000, 0.55]
-  - [35000, 0.50]
-  - [40000, 0.40]
-  - [100000000, 0.0]
-child_care_credit_table_2006plus:
-  - [10000, 0.75]
-  - [20000, 0.65]
-  - [25000, 0.55]
-  - [35000, 0.50]
-  - [40000, 0.40]
-  - [45000, 0.30]
-  - [100000000, 0.0]
-
-# EITC - a real percentage of federal EITC (`comnew(59)`), $0 before
-# 1990. The 2010 (and, oddly, EVERY OTHER year's) eligibility caps below
-# are a real, replicated-as-found ORACLE QUIRK: the source's own
-# eligibility check is NOT year-indexed at all (flat, hardcoded dollar
-# caps applied identically to every single year 1990-2021, not just a
-# specific vintage) - confirmed via direct source reading, not "fixed"
-# to be year-varying.
-eitc_rate:
-  1977: 0.0
-  1990: 0.05
-  1991: 0.06
-  1992: 0.065
-  2007: 0.07
-  2013: 0.14
-  2014: 0.15
-eitc_agi_cap:  # `eicr(law,1)` - 1e20 (unlimited) except 1990-1993
-  1977: 100000000
-  1990: 20264
-  1991: 21250
-  1992: 22370
-  1993: 23050
-  1994: 100000000
-eitc_2009_married_joint_worksheet_earned_income_threshold:
-  0: 10590
-  1: 19540
-  3: 16420
-eitc_flat_eligibility_cap_0kids:
-  1960: 13460
-eitc_flat_eligibility_cap_1kid:
-  1960: 35535
-eitc_flat_eligibility_cap_2plus_kids:
-  1960: 40363
-# 2010/married_joint's own eligibility caps (see calculators/states/ia.py
-# for why depx==0 and depx>=3 get NO cap at all in this branch, and why
-# the source's own second `data(8).eq.2` check at $43,493 is dead code -
-# a real, replicated-as-found source bug, not a transcription error here).
-eitc_2010_married_joint_eligibility_cap_1kid:
-  1960: 16590
-eitc_2010_married_joint_eligibility_cap_2kids:
-  1960: 38665
-
-# Through 2013 Iowa taxes half of benefits above a base ($25,000; $32,000
-# joint; none for married separate), less a phase-out share 2007-2013,
-# in place of the federal amount.
-social_security_base: {single: 25000, joint: 32000, married_separate: 0}
-social_security_phaseout_share: {2007: 0.68, 2009: 0.57, 2010: 0.55, 2011: 0.67, 2012: 0.77, 2013: 0.89}
-# 1995+: pension exclusion per taxpayer when a taxpayer is 65 or older.
-pension_exclusion: {1995: 3000, 1998: 5000, 2001: 6000}
-# Alternate tax income floor for returns with an aged taxpayer.
-alternate_tax_aged_floor: {2007: 24000, 2009: 32000}
-# Minimum tax exempt below these incomes for returns with an aged taxpayer.
-amt_aged_exempt_income: {single: 24000, other: 32000}
-# 2019+: share of the federal QBI deduction allowed.
-qbi_deduction_share: {2019: 0.25, 2021: 0.5}
-
-# 2013+ itemized limitation threshold multiple of the base (times the
-# inflation factor and the status multiplier); limitation rates.
-itemized_phaseout_base_multiple_2013plus: 2.5
-itemized_phaseout_rate: 0.03
-itemized_phaseout_cap_rate: 0.8
-
-# 2009: unemployment compensation excluded federally, up to this amount per
-# taxpayer, is taxable.
-unemployment_addback_2009_per_taxpayer: 2400
-
-# Through 1994 each taxpayer credit is this much more than a dependent's.
-personal_credit_taxpayer_addition_pre1995: 5
-
-# 1982-1984 minimum tax as a share of federal AMT; 1985+ exclusion phaseout rate.
-amt_share_of_federal:
-  1982: 0.25
-  1983: 0.7
-amt_exclusion_phaseout_rate: 0.25
-
-# 2009 joint EITC: a share of the credit figured under the federal schedule
-# without the 2009 changes, by number of children (0, 1-2 phaseout start
-# groups as in TAXSIM).
-eitc_2009_joint:
-  share: 0.07
-  phaseout_start: {none: 10590, one_or_two: 19540, more: 16420}
-  maximum: {none: 457, one: 3043, more: 5028}
-  phaseout_rate: {none: 0.0765, one: 0.1598, more: 0.2106}
-
-# 2023+ rate schedules by filing status (PolicyEngine-US gov.states.ia.tax.income.rates.by_filing_status,
-# queried 2026-10-01): [taxable income above, rate]; `other` covers every non-joint status.
-brackets_2023plus:
+# Rate schedules, [start of bracket, rate], applied to taxable income
+# divided by `bracket_inflation` (the tax multiplied back). Joint returns
+# may instead file combined, each spouse on their own share.
+brackets:
+  1977: [[0, 0.005], [1000, 0.0125], [2000, 0.0275], [3000, 0.035], [4000, 0.05], [7000, 0.06], [9000, 0.07], [15000, 0.08], [20000, 0.09], [25000, 0.1], [30000, 0.11], [40000, 0.12], [75000, 0.13]]
+  1987: [[0, 0.004], [1000, 0.008], [2000, 0.027], [4000, 0.05], [9000, 0.068], [15000, 0.072], [20000, 0.0755], [30000, 0.088], [45000, 0.0998]]
+  1998: [[0, 0.0036], [1000, 0.0072], [2000, 0.0243], [4000, 0.045], [9000, 0.0612], [15000, 0.0648], [20000, 0.068], [30000, 0.0792], [45000, 0.0898]]
+  2019: [[0, 0.0033], [1000, 0.0067], [2000, 0.0225], [4000, 0.0414], [9000, 0.0563], [15000, 0.0596], [20000, 0.0625], [30000, 0.0744], [45000, 0.0853]]
+bracket_inflation: {1977: 1.0, 1979: 1.023, 1987: 1.0, 1989: 1.016, 1990: 1.038, 1991: 1.06, 1995: 1.068, 1996: 1.089, 1997: 1.112, 1998: 1.136, 1999: 1.148, 2000: 1.162, 2001: 1.185, 2002: 1.211, 2003: 1.224, 2004: 1.242, 2005: 1.269, 2006: 1.3, 2007: 1.343, 2008: 1.379, 2009: 1.407, 2010: 1.428, 2011: 1.439, 2012: 1.469, 2013: 1.494, 2014: 1.515, 2015: 1.539, 2016: 1.554, 2017: 1.573, 2018: 1.598, 2019: 1.638, 2020: 1.666, 2021: 1.676, 2022: 1.743, 2023: 1.743, 2024: 1.743}
+# From 2023 the main tax uses these schedules by filing status (not
+# inflated); `other` covers every non-joint status. 2025: a flat 3.8%
+# (S.F. 2442). Source: PolicyEngine-US
+# gov.states.ia.tax.income.rates.by_filing_status. Combined filing and the
+# reported rate still use `brackets`.
+brackets_by_status:
   2023:
     other: [[0, 0.044], [6000, 0.0482], [30000, 0.057], [75000, 0.06]]
     joint: [[0, 0.044], [12000, 0.0482], [60000, 0.057], [150000, 0.06]]
   2024:
     other: [[0, 0.044], [6210, 0.0482], [31050, 0.057]]
     joint: [[0, 0.044], [12420, 0.0482], [62100, 0.057]]
-  # 2025: a flat 3.8% rate (S.F. 2442).
   2025:
     other: [[0, 0.038]]
     joint: [[0, 0.038]]
+# AGI at or below which no tax is owed (`single`; `other` for the rest),
+# also the alternate tax exemption.
+no_tax_income_limit:
+  single: {1977: 4000, 1979: 5000, 1992: 7500, 1993: 9000}
+  other: {1977: 4000, 1979: 5000, 1987: 7500, 1992: 11500, 1993: 13500}
+# Alternate tax for non-single returns from 1987: this rate on AGI (from
+# 1998 plus excluded pensions and Social Security) above `no_tax_income_limit`
+# (from 2007 `alternate_tax_aged_floor` with a taxpayer 65 or older), when
+# lower. Source for 2022 on: PolicyEngine-US gov.states.ia.tax.income.alternate_tax.
+alternate_tax_rate: {1987: 0.0998, 1998: 0.0898, 2019: 0.0853, 2023: 0.06, 2024: 0.057, 2025: 0.043}
+alternate_tax_aged_floor: {2007: 24000, 2009: 32000}
 
-# Retirement income exclusion, 2022+ (PolicyEngine-US gov.states.ia.tax.income.pension_exclusion, queried
-# 2026-10-01): age 55 and over; capped per taxpayer in 2022, unlimited from 2023.
-pension_exclusion_2022plus:
-  minimum_age: 55
-  cap_per_taxpayer: {2022: 6000, 2023: 1.0e+12}
+# --- Income ---
+# Through 2013 Iowa taxes half of Social Security benefits above a base
+# (none for married separate), less `social_security_phaseout_share`
+# 2007-2013, in place of the federal amount.
+social_security_base: {single: 25000, joint: 32000, married_separate: 0}
+social_security_phaseout_share: {2007: 0.68, 2009: 0.57, 2010: 0.55, 2011: 0.67, 2012: 0.77, 2013: 0.89, 2014: null}
+# From 1995: pension exclusion per taxpayer when a taxpayer is 65 or older.
+pension_exclusion: {1995: 3000, 1998: 5000, 2001: 6000}
+# From 2022, replacing it: retirement income excluded from `minimum_age`, up
+# to the cap per taxpayer (unlimited from 2023). Source: PolicyEngine-US
+# gov.states.ia.tax.income.pension_exclusion.
+retirement_exclusion:
+  2022: {minimum_age: 55, cap_per_taxpayer: 6000}
+  2023: {minimum_age: 55, cap_per_taxpayer: 1.0e+12}
+# 1981: interest and dividends excluded up to this amount per taxpayer, in
+# place of the federal exclusion.
+dividend_interest_exclusion_per_taxpayer: {1981: 100, 1982: null}
+# 2009: unemployment compensation excluded federally, up to this amount per
+# taxpayer, is taxable.
+unemployment_addback_per_taxpayer: {2009: 2400, 2010: null}
+# Federal income tax is deductible through 2022.
+federal_tax_deduction: {1977: true, 2023: false}
+# Share of the federal QBI deduction allowed, from 2019.
+qbi_deduction_share: {2019: 0.25, 2021: 0.5}
+
+# --- Deductions ---
+# Standard deduction: a share of AGI up to the cap (single and separate
+# returns; joint and head of household). From 2023 the federal standard
+# deduction.
+standard_deduction_pct: {1977: 0.1, 1979: 0.15, 1987: 1.0}
+standard_deduction_cap:
+  single: {1977: 1000, 1979: 1200, 1987: 1230, 1990: 1260, 1991: 1280, 1992: 1310, 1993: 1330, 1994: 1340, 1995: 1360, 1996: 1380, 1997: 1410, 1998: 1440, 1999: 1460, 2000: 1470, 2001: 1500, 2002: 1540, 2003: 1550, 2004: 1580, 2005: 1610, 2006: 1650, 2007: 1700, 2008: 1750, 2009: 1780, 2010: 1810, 2011: 1830, 2012: 1860, 2013: 1900, 2014: 1920, 2015: 1950, 2016: 1970, 2017: 2000, 2018: 2030, 2019: 2080, 2020: 2110, 2021: 2130, 2022: 2210}
+  joint_or_hoh: {1977: 1000, 1979: 3000, 1987: 3030, 1990: 3100, 1991: 3160, 1992: 3220, 1993: 3270, 1994: 3310, 1995: 3350, 1996: 3400, 1997: 3480, 1998: 3550, 1999: 3590, 2000: 3630, 2001: 3700, 2002: 3780, 2003: 3830, 2004: 3880, 2005: 3970, 2006: 4060, 2007: 4200, 2008: 4310, 2009: 4390, 2010: 4460, 2011: 4500, 2012: 4590, 2013: 4670, 2014: 4740, 2015: 4810, 2016: 4860, 2017: 4920, 2018: 5000, 2019: 5120, 2020: 5210, 2021: 5240, 2022: 5450}
+conforms_to_federal_standard_deduction: {1977: false, 2023: true}
+# Itemized deduction limitation 1991-2019: `itemized_phaseout_rate` of AGI
+# above the threshold (times `itemized_limitation_index`; before 2013 halved
+# on separate returns), at most `itemized_phaseout_cap_rate` of itemized
+# deductions.
+itemized_limitation_threshold:
+  1977: 100000
+  2013: {single: 250000, married_joint: 300000, head_of_household: 275000, married_separate: 150000}
+itemized_limitation_index: {1977: 1.0, 1992: 1.0525, 1993: 1.0845, 1994: 1.118, 1995: 1.147, 1996: 1.1795, 1997: 1.212, 1998: 1.245, 1999: 1.266, 2000: 1.2895, 2001: 1.3295, 2002: 1.373, 2003: 1.395, 2004: 1.427, 2005: 1.4595, 2006: 1.505, 2007: 1.564, 2008: 1.5995, 2009: 1.668, 2010: 1.6955, 2011: 1.6955, 2012: 1.7365, 2013: 1.0, 2014: 1.0168, 2015: 1.033, 2016: 1.0376, 2017: 1.046, 2018: 1.067, 2019: 1.0}
+itemized_phaseout_rate: 0.03
+itemized_phaseout_cap_rate: 0.8
+
+# --- Minimum tax (1982-2022) ---
+# 1982-1984: a share of federal AMT.
+amt_share_of_federal: {1982: 0.25, 1983: 0.7, 1985: null}
+# 1985-2022: `amt_rate` on taxable income plus preferences less the
+# exemption, which falls by `amt_exclusion_phaseout_rate` above the
+# threshold. None at incomes up to `no_tax_income_limit`, or with a
+# taxpayer 65 or older up to `amt_aged_exempt_income`.
+amt_rate: {1985: 0.09, 1986: 0.075, 1998: 0.068, 1999: 0.067, 2023: null}
+amt_exclusion_base_by_status: {single: 26000, married_joint: 35000, head_of_household: 26000, married_separate: 17500}
+amt_exclusion_phaseout_threshold_by_status: {single: 112500, married_joint: 150000, head_of_household: 112500, married_separate: 75000}
+amt_exclusion_phaseout_rate: 0.25
+# Also, from 2022, the no-tax limits with a taxpayer 65 or older.
+amt_aged_exempt_income: {single: 24000, other: 32000}
+
+# --- Credits ---
+# Personal exemption credit per exemption; through 1994 each taxpayer (and
+# taxpayer 65 or older) gets `personal_credit_taxpayer_addition` more.
+personal_exemption_credit: {1977: 10, 1979: 11, 1980: 12, 1981: 13, 1982: 14, 1983: 15, 1995: 40}
+personal_credit_taxpayer_addition: {1977: 5, 1995: null}
+# Child care credit: 1982-1985 a share of expenses; otherwise a share of the
+# federal credit before its liability limit, a single share or by AGI,
+# [AGI, share] interpolated (1990-1992 on federal AGI, then Iowa AGI).
+child_care_credit_expense_rate: {1982: 0.10, 1986: null}
+child_care_credit_federal_share:
+  1977: 0.05
+  1986: 0.45
+  1990: [[10000, 0.75], [20000, 0.65], [25000, 0.55], [35000, 0.5], [40000, 0.4], [45000, 0.3], [50000, 0.2], [100000000, 0.1]]
+  1993: [[10000, 0.75], [20000, 0.65], [25000, 0.55], [35000, 0.5], [40000, 0.4], [100000000, 0.0]]
+  2006: [[10000, 0.75], [20000, 0.65], [25000, 0.55], [35000, 0.5], [40000, 0.4], [45000, 0.3], [100000000, 0.0]]
+# Earned income credit from 1990: a share of the federal credit below the
+# Iowa AGI cap.
+eitc_rate: {1977: 0.0, 1990: 0.05, 1991: 0.06, 1992: 0.065, 2007: 0.07, 2013: 0.14, 2014: 0.15}
+eitc_agi_cap: {1977: 100000000, 1990: 20264, 1991: 21250, 1992: 22370, 1993: 23050, 1994: 100000000}
+# 1990-2021: none when earned income or Iowa AGI exceeds the cap for the
+# number of dependents (TAXSIM's caps, the same every year).
+eitc_eligibility_caps:
+  1990: {none: 13460, one: 35535, two_or_more: 40363}
+  2022: null
+# 2010 joint returns with one or two dependents use these caps instead.
+eitc_joint_eligibility_caps:
+  2010: {one: 16590, two: 38665}
+  2011: null
+# 2009 joint returns: `share` of the credit figured under the federal
+# schedule without the 2009 changes.
+eitc_joint_worksheet:
+  2009:
+    share: 0.07
+    phaseout_start: {none: 10590, one_or_two: 19540, more: 16420}
+    maximum: {none: 457, one: 3043, more: 5028}
+    phaseout_rate: {none: 0.0765, one: 0.1598, more: 0.2106}
+  2010: null

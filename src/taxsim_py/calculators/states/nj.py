@@ -16,24 +16,24 @@ CAPITAL_GAINS_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "capital_gains.y
 
 
 def _schedule_tax(income: pl.Expr, uses_married: pl.Expr, y: int) -> pl.Expr:
-    if y <= 1990:
-        return bracket_tax(income, resolve_year(NJ_PARAMS["brackets_through_1990"], y))
-    tables = YearParams(NJ_PARAMS["brackets"], y)
+    tables = YearParams(NJ_PARAMS, y).value("brackets")
+    if isinstance(tables, list):
+        return bracket_tax(income, tables)
     return (
         pl.when(uses_married)
-        .then(bracket_tax(income, tables.value("married")))
-        .otherwise(bracket_tax(income, tables.value("single")))
+        .then(bracket_tax(income, tables["married"]))
+        .otherwise(bracket_tax(income, tables["single"]))
     )
 
 
 def _schedule_rate(income: pl.Expr, uses_married: pl.Expr, y: int) -> pl.Expr:
-    if y <= 1990:
-        return bracket_rate(income, resolve_year(NJ_PARAMS["brackets_through_1990"], y))
-    tables = YearParams(NJ_PARAMS["brackets"], y)
+    tables = YearParams(NJ_PARAMS, y).value("brackets")
+    if isinstance(tables, list):
+        return bracket_rate(income, tables)
     return (
         pl.when(uses_married)
-        .then(bracket_rate(income, tables.value("married")))
-        .otherwise(bracket_rate(income, tables.value("single")))
+        .then(bracket_rate(income, tables["married"]))
+        .otherwise(bracket_rate(income, tables["single"]))
     )
 
 
@@ -59,7 +59,7 @@ def _homestead_rebate(
         .otherwise(0.0)
     )
     renter_min = a.num("renter_minimum")
-    renter_middle_married = float(a["renter_middle_flat"][2001]) if y >= 2001 else between(renter_min)
+    renter_middle_married = a.num("renter_middle_flat") if y >= 2001 else between(renter_min)
     renter = (
         pl.when(agi <= low).then(between(renter_min))
         .when(agi <= middle).then(pl.when(married).then(renter_middle_married).otherwise(a.num("renter_middle_other")))
@@ -79,17 +79,16 @@ def _homestead_rebate(
 
 def compute_nj_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
     """Calculate New Jersey gross income tax for each row."""
-    state_year = "nj" if behavior.mode.value == "statutory" else None
-    effective_year, flate = resolve_state_year(year, state_year)
+    effective_year, flate = resolve_state_year(year, behavior, NJ_PARAMS)
     y = effective_year
     p = YearParams(NJ_PARAMS, effective_year)
     dividend_adjustment = dividend_input_adjustment()
     df = df.with_columns(
         nj_dividends=pl.col("dividends") + dividend_adjustment,
-        # Household income (`hy`) is read before TAXSIM's projected-year deflation.
+        # Household income is read before projected-year deflation.
         nj_household_income_undeflated=household_income(),
-        # Federal Schedule E income (`comnew(8)`): other property income, plus
-        # S corporation income from 1987.
+        # Federal Schedule E income: other property income, plus S
+        # corporation income from 1987.
         nj_schede=pl.col("otherprop") + (pl.col("scorp") if year >= 1987 else 0.0),
     )
     df = deflate_for_extrapolation(df, flate, extra=("nj_dividends", "nj_schede"))
@@ -128,8 +127,7 @@ def compute_nj_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     deduct = by_filing_status(
         {status: resolve_year(amounts, y) for status, amounts in NJ_PARAMS["pension_exclusion"].items()}
     )
-    if y >= 2022:
-        # Actual-law years: the exclusion phases down in steps with household income.
+    if p.in_effect("pension_exclusion_phaseout"):
         household = pl.col("nj_household_income_undeflated")
         def phased(rows):
             share = pl.lit(0.0)
@@ -137,10 +135,10 @@ def compute_nj_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
                 share = pl.when(household <= float(limit)).then(float(fraction)).otherwise(share)
             return share
         share = pl.lit(0.0)
-        for status, rows in NJ_PARAMS["pension_exclusion_phaseout_2022plus"].items():
+        for status, rows in p.value("pension_exclusion_phaseout").items():
             share = pl.when(pl.col("filing_status") == status).then(phased(rows)).otherwise(share)
         deduct = deduct * share
-    elif y >= 2005:
+    elif p.in_effect("pension_exclusion_household_income_limit"):
         deduct = pl.when(pl.col("nj_household_income_undeflated") <= p.num("pension_exclusion_household_income_limit")).then(deduct).otherwise(0.0)
     pensions = pl.col("pensions")
     excluded = agi - pensions.clip(0, deduct)
@@ -153,15 +151,15 @@ def compute_nj_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     df, (agi, capgn) = checkpoint(df, nj_agi=agi - capgn + fullcg, nj_capgn=capgn)
 
     # --- No-tax status ---
-    if y <= 1999:
-        threshold = p.num("no_tax_threshold") / sep
+    limits = p.value("no_tax_threshold")
+    if not isinstance(limits, dict):
+        threshold = float(limits) / sep
         no_tax = agi < threshold if 1994 <= y <= 1996 else agi <= threshold
-    elif y == 2000:
-        limits = NJ_PARAMS["no_tax_threshold_2000"]
+    elif "single" in limits:
         no_tax = pl.when(is_single).then(agi <= limits["single"]).otherwise(agi <= limits["other"] / sep)
     else:
         nts = pl.when(is_hoh).then(float(NJ_PARAMS["head_of_household_no_tax_taxpayers"])).otherwise(txp)
-        no_tax = agi <= p.num("no_tax_threshold_per_taxpayer") * nts
+        no_tax = agi <= float(limits["per_taxpayer"]) * nts
 
     # --- Taxable income and tax ---
     exemp = (
@@ -170,14 +168,15 @@ def compute_nj_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     df, (taxinc,) = checkpoint(df, nj_taxinc=(agi - exemp).clip(0, None))
     rentpaid = pl.col("rentpaid")
     rescr = pl.lit(0.0)
-    if 1985 <= y <= 1989:
-        floor = interpolate_table(taxinc, NJ_PARAMS["property_tax_floor_1985_1989"]) / sep
+    if p.in_effect("property_tax_floor"):
+        floor = interpolate_table(taxinc, p.value("property_tax_floor")) / sep
+        rd = p.value("rent_deduction")
         pded = pl.when(proptax > 0).then(pl.max_horizontal(floor, proptax)).otherwise(0.0)
         # Renters without property tax deduct part of their rent.
         rded = pl.when((proptax < 1) & (rentpaid > 0)).then(
             pl.max_horizontal(
-                float(NJ_PARAMS["rent_deduction_floor_share_1985_1989"]) * floor,
-                float(NJ_PARAMS["rent_deduction_share_1985_1989"]) * rentpaid,
+                float(rd["floor_share"]) * floor,
+                float(rd["share"]) * rentpaid,
             )
         ).otherwise(0.0)
         applies = agi > p.num("no_tax_threshold") / sep
@@ -195,25 +194,27 @@ def compute_nj_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     )
 
     # --- Property tax credits and rebates ---
-    # Property tax counts rent (`comnew(68) > 0`: any federal exemption).
+    # Property tax counts rent (with any federal exemption).
     ptax = proptax.clip(0, None) + pl.when((rentpaid > 0) & (federal_exemption_count(y) > 0)).then(
         float(NJ_PARAMS["property_tax_rent_share"]) * rentpaid
     ).otherwise(0.0)
     pcred = pl.lit(0.0)
-    if y <= 1984:
+    if p.in_effect("renter_credit"):
+        rc = p.value("renter_credit")
         pcred = pl.when(rentpaid > 0).then(
-            float(NJ_PARAMS["renter_credit_through_1984"])
-            + pl.when(aged > 0).then(float(NJ_PARAMS["renter_credit_aged_addition_through_1984"])).otherwise(0.0)
+            float(rc["amount"])
+            + pl.when(aged > 0).then(float(rc["aged_addition"])).otherwise(0.0)
         ).otherwise(0.0)
-    elif y <= 1989:
+    elif p.in_effect("low_income_property_credit"):
+        lc = p.value("low_income_property_credit")
         low = agi <= p.num("no_tax_threshold") / sep
         pcred = (
-            pl.when(low & (proptax > 0)).then(float(NJ_PARAMS["low_income_homeowner_credit_1985_1989"]))
-            .when(low & (rentpaid > 0)).then(float(NJ_PARAMS["low_income_renter_credit_1985_1989"]))
+            pl.when(low & (proptax > 0)).then(float(lc["homeowner"]))
+            .when(low & (rentpaid > 0)).then(float(lc["renter"]))
             .otherwise(0.0)
         )
     rebate = pl.lit(0.0)
-    if 1990 <= y <= 2008:
+    if p.in_effect("homestead_rebate"):
         rebate = _homestead_rebate(agi, ptax, proptax, rentpaid, aged, uses_married, sep, y)
         if y >= 2004:
             rebate = pl.when(rentpaid > 0).then(rebate).otherwise(0.0)
@@ -260,14 +261,14 @@ def compute_nj_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             .then(0.0)
             .otherwise(earncr)
         )
-    if 2000 <= y <= 2006:
+    if p.in_effect("eitc_income_limit"):
         earncr = pl.when(
-            (agi <= float(NJ_PARAMS["eitc_income_limit_2000_2006"])) & (depx > 0)
+            (agi <= p.num("eitc_income_limit")) & (depx > 0)
         ).then(earncr).otherwise(0.0)
     statax = statax - earncr
-    if y >= 2022:
-        # Refundable child tax credit for children under six, by NJ taxable income.
-        credit_rows = p["child_tax_credit_2022plus"][y]
+    if p.in_effect("child_tax_credit"):
+        # Refundable, per child under six, by NJ taxable income.
+        credit_rows = p.value("child_tax_credit")
         statax = statax - bracket_rate(taxinc - 0.005, credit_rows) * pl.col("dep6")
 
     return with_state_detail(

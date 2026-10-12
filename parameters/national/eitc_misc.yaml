@@ -1,12 +1,15 @@
-# EITC disqualified (investment) income limit - taxsim_2022_10_21.f:27751-27765.
-# Above this, the credit is reduced dollar-for-dollar (not a hard cliff).
-# Confirmed empirically for 2022: exactly $10,000 does not trigger it,
-# $10,001 reduces the credit by $1. This is a real, PERMANENT law change
-# (ARPA 2021), not just a temporary bump - 2019/2020's limits ($3,600/
-# $3,650, confirmed the same way via the source's own `dy` array,
-# taxsim_2022_10_21.f:27643-27646) are genuinely different, not an
-# inflation-indexed variant of the same rule. The jump to $10,000 took
-# effect in 2021 itself, not just 2022.
+# Federal earned income credit rules other than the schedule (eitc.csv:
+# rate_in, max_credit, phaseout_start and rate_out by year, filing status and
+# number of children).
+#
+# Sources: 1975-2021 NBER TAXSIM; 2022 on, Internal Revenue Code section 32
+# and Revenue Procedures, checked against PolicyEngine-US
+# `gov.irs.credits.eitc`.
+
+# Disqualified (investment) income limit: income above it reduces the credit
+# dollar for dollar. 2022-2023 use the published limits ($10,300, $11,000);
+# TAXSIM has $10,300 and an extrapolated 2023 value. Source 2024-2025: Rev.
+# Proc. 2023-34 and 2024-40.
 dylim:
   1996: 2200
   1997: 2250
@@ -22,53 +25,28 @@ dylim:
   2007: 2900
   2008: 2950
   2009: 3100
-  2010: 3100
   2011: 3150
   2012: 3200
   2013: 3300
   2014: 3350
   2015: 3400
-  2016: 3400
   2017: 3450
   2018: 3500
   2019: 3600
   2020: 3650
   2021: 10000
-  # 2022 corrected from $10,000 to the real, inflation-adjusted $10,300 -
-  # taxsim_2022_10_21.f's own `dy` array had `3*10000.d0` for the last 3
-  # entries (2021-2023, a same-as-2021 placeholder since 2022/2023 weren't
-  # yet finalized as of that release); taxsim_2024_09_21.f corrects this
-  # to `10000.d0,2*10300.d0` (2021=10000 real, 2022=10300 real, 2023=10300
-  # placeholder). Confirmed empirically against taxsim2024.exe: intrec=
-  # $10,300 does not trigger the reduction, $10,301 reduces the credit by
-  # $1 - the same pattern originally used to confirm $10,000 for 2021.
   2022: 10300
-  # 2023: the oracle itself computes $11,029.22 here (2022's real value
-  # extrapolated by `xndxa(2023)/xndxa(2022)` - same `lawend=2022` cap
-  # this section's own crmax/ymax table extrapolation uses, see
-  # federal.py's own FEDERAL_EITC_PARAMS comment). The source's own `dy`
-  # array DOES have a real, distinct 2023 entry too, but it's just
-  # $10,300 (same as 2022, unreachable here regardless) - NOT the real,
-  # IRS-published 2023 EITC investment-income limit of $11,000 (Rev.
-  # Proc. 2022-38). Neither the oracle's extrapolated figure nor its own
-  # stale table entry is correct; per user direction ("if the model is
-  # wrong, use the real parameters that are known"), this project uses
-  # the real $11,000 - a deliberate departure from the oracle, not a bug.
   2023: 11000
-  # 2024/2025: real, IRS-published limits (Rev. Proc. 2023-34 p.10, Rev.
-  # Proc. 2024-40 p.9) - confirmed against PolicyEngine-US's parameters/
-  # gov/irs/credits/eitc/phase_out/max_investment_income.yaml.
   2024: 11600
   2025: 11950
-
-# Filers without qualifying children (from 1994): the youngest age at which
-# at least one taxpayer qualifies. TAXSIM keeps 2021's 19 for 2022 on; the
+# Filers without qualifying children (from 1994): the youngest age at which at
+# least one taxpayer qualifies. TAXSIM keeps 2021's 19 for 2022 on; the
 # published law returns to 25.
 childless_minimum_age: {1994: 25, 2021: 19, 2022: 25}
-# Above this age a childless taxpayer does not qualify (not in 2021);
-# TAXSIM tests "65 or older" for everyone on the return, and "over 65"
-# together with a spouse under the minimum age.
+# Above this age a childless taxpayer does not qualify (not in 2021); TAXSIM
+# tests "65 or older" for everyone on the return, and "over 65" together with a
+# spouse under the minimum age.
 childless_aged_age: 65
 # 1997-2002: business losses are added back to the phaseout income at this
-# share (1997: 50%, 1998-2002: 75%), as are capital and Schedule E losses.
+# share, as are capital and Schedule E losses (through 2002).
 loss_addback_share: {1997: 0.5, 1998: 0.75, 2003: 0.0}

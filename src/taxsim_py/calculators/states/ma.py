@@ -8,35 +8,29 @@ from taxsim_py.engine.inputs import aged_count, files_head_of_household, files_j
 from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml
 from taxsim_py.engine.state import unemployment_total, with_state_detail
 from taxsim_py.behavior import BehaviorProfile, TAXSIM_BEHAVIOR
-from taxsim_py.engine.schema import resolve_year
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
 MA_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "ma" / "income_tax.yaml")
 
 
 def compute_ma_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
-    state_year = "ma" if behavior.mode.value == "statutory" else None
-    effective_year, flate = resolve_state_year(year, state_year)
+    effective_year, flate = resolve_state_year(year, behavior, MA_PARAMS)
     y = effective_year
     p = YearParams(MA_PARAMS, effective_year)
 
     df = df.with_columns(ma_untax=pl.col("taxable_unemployment"))
-    # Payroll figures come from the federal run: the real year's wages and
-    # rates, never deflated (TAXSIM's `sstax` call here writes the shared
-    # federal block, not the state's deflated copy).
-    # `comnew(183)`: the primary earner's payroll tax as TAXSIM credits the
-    # taxpayer.
+    # Payroll figures come from the federal run and are never deflated.
     own_fica = pl.col("own_fica_primary")
     own_fica_spouse = pl.lit(0.0)
-    if behavior.mode.value == "statutory":
-        # The statute allows only the employee half of the wage payroll tax,
-        # and each spouse on a joint return their own, up to the cap;
-        # TAXSIM credits both halves and only the primary earner's.
+    if behavior.deduct_massachusetts_employee_payroll_tax_per_spouse:
+        # MA-001: only the employee half of wage payroll tax, for each spouse
+        # up to the cap; TAXSIM credits both halves and only the primary
+        # earner's.
         own_fica = own_fica - 0.5 * pl.col("own_wage_fica_primary")
         own_fica_spouse = pl.col("own_fica_secondary") - 0.5 * pl.col("own_wage_fica_secondary")
     df = df.with_columns(ma_c183=own_fica, ma_c183_spouse=own_fica_spouse, ma_setax=pl.col("payroll_setax"))
-    # Federal Schedule E income (`comnew(8)`): other property income, plus S
-    # corporation income from 1987.
+    # Federal Schedule E income: other property income, plus S corporation
+    # income from 1987.
     schede = pl.col("otherprop") + (pl.col("scorp") if y >= 1987 else 0.0)
     df = df.with_columns(ma_schede=schede)
 
@@ -50,16 +44,16 @@ def compute_ma_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     n_tp = taxpayer_count()
     x_flag = pl.lit(1.0) if y >= 1985 else pl.when(is_joint).then(1.0).otherwise(0.0)
 
-    # Negative wages fold into `data(17)` rather than `data(85)/(86)`.
+    # Negative wages count as self-employment income.
     w1 = pl.col("pwages").clip(0, None)
     w2 = pl.col("swages").clip(0, None)
-    wages = w1 + w2  # `data(11)`
+    wages = w1 + w2
     semp = pl.col("psemp") + pl.col("ssemp") + pl.col("pwages").clip(None, 0) + pl.col("swages").clip(None, 0)
     # Business income is not deflated in projected years.
     business_h = pl.col("pbusinc") + pl.col("pprofinc")
     business_w = pl.col("sbusinc") + pl.col("sprofinc")
     d17 = semp + business_h + business_w
-    ui_total = unemployment_total()  # `data(82)`
+    ui_total = unemployment_total()
 
     # --- Exemptions ---
     xmps = p.num("personal_exemption")
@@ -71,7 +65,7 @@ def compute_ma_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         txp_joint = pl.lit(min(2.0 * xmps, xmplim))
     txp = pl.when(is_joint).then(txp_joint).otherwise(xmps)
     if y >= 1994:
-        txp = pl.when(is_hoh).then(p.num("hoh_exemption_1994plus")).otherwise(txp)
+        txp = pl.when(is_hoh).then(p.num("head_of_household_exemption")).otherwise(txp)
     ageex = aged_count() * p.num("aged_exemption")
     depex = pl.col("depx") * p.num("dependent_exemption")
     exemp = depex + ageex + txp
@@ -89,7 +83,7 @@ def compute_ma_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         binc = b1inc + b2inc + pl.col("ma_schede") + untax
         if y == 2009:
             binc = binc - untax + ui_total
-        if y >= 2020:
+        if p.in_effect("ui_exclusion_cap_per_person"):
             nsize = pl.when(is_joint).then(2.0).otherwise(1.0) + pl.col("depx").floor()
             ulevel = 2.0 * p.num("ui_exclusion_poverty_level") * nsize
             hyun = pl.col("agi") + pl.col("gssi") - pl.col("taxable_social_security") + ui_total - untax
@@ -102,7 +96,7 @@ def compute_ma_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             binc = binc + (pl.col("intrec") - p["interest_exclusion_per_taxpayer"] * n_tp).clip(0, None)
 
     # --- Part B deductions ---
-    # Payroll tax and Social Security benefits (`comnew(84)`), each up to $2,000.
+    # Payroll tax and Social Security benefits, each up to the cap.
     fica_cap = pl.lit(float(p["payroll_tax_deduction_cap"]))
     fica = (
         pl.min_horizontal(pl.col("ma_c183"), fica_cap)
@@ -119,15 +113,15 @@ def compute_ma_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         ch = pl.lit(float(dependent_deduction["flat"]))
     else:
         ch = dependent_deduction["per_child"] * ndep13
-    if y == 1982:
-        ch = pl.min_horizontal(ch, p["dependent_deduction_cap_per_child_1982"] * pl.col("dep13"))
+    if p.in_effect("dependent_deduction_cap_per_child"):
+        ch = pl.min_horizontal(ch, p.num("dependent_deduction_cap_per_child") * pl.col("dep13"))
     ch = pl.when(is_sep).then(0.0).otherwise(ch)
     ch1 = pl.lit(0.0)
     chcred = pl.lit(0.0)
-    if y <= 2010:
+    if p.in_effect("child_care_deduction_per_child"):
         ch1 = pl.min_horizontal(pl.col("childcare"), p.num("child_care_deduction_per_child") * ndep13)
-    elif y >= 2021:
-        chcred = pl.min_horizontal(pl.col("childcare"), p["child_care_credit_per_child"] * ndep13)
+    elif p.in_effect("child_care_credit_per_child"):
+        chcred = pl.min_horizontal(pl.col("childcare"), p.num("child_care_credit_per_child") * ndep13)
     earned = pl.col("earned_income")
     # A joint return splits earnings by spouse, with self-employment tax
     # shared by business income.
@@ -147,19 +141,18 @@ def compute_ma_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     ch = pl.when(has_dep).then(ch).otherwise(0.0)
     chcred = pl.when(has_dep).then(chcred).otherwise(0.0)
 
-    # Half of rent paid, from 1981.
     rnt = pl.lit(0.0)
-    if y >= 1981:
-        rnt = float(MA_PARAMS["rent_deduction_share"]) * pl.col("rentpaid")
+    if p.in_effect("rent_deduction_share"):
+        rnt = p.num("rent_deduction_share") * pl.col("rentpaid")
         if y >= 2001:
             rnt = pl.min_horizontal(rnt, p.num("rent_deduction_cap") / pl.when(is_sep).then(2.0).otherwise(1.0))
         elif y >= 1982:
             rnt = pl.min_horizontal(rnt, p.num("rent_deduction_cap"))
-            if y >= 1997:
+            if p.in_effect("rent_deduction_cap_separate"):
                 rnt = pl.when(is_sep).then(
-                    pl.min_horizontal(rnt, float(MA_PARAMS["rent_deduction_cap_separate_1997_2000"]))
+                    pl.min_horizontal(rnt, p.num("rent_deduction_cap_separate"))
                 ).otherwise(rnt)
-    # Non-property income enters as a negative deduction (`data(30)`).
+    # Non-property income enters as a negative deduction.
     bded = fica + ch + rnt - pl.col("nonprop")
     df = df.with_columns(
         _ma_binc=binc,
@@ -233,7 +226,7 @@ def compute_ma_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         capgn = stcg + ltcg
         capgn = pl.when(capgn >= 0).then(capgn).otherwise(
             pl.max_horizontal(capgn, pl.when(is_sep).then(-p["federal_capital_loss_limit"] / 2.0).otherwise(-float(p["federal_capital_loss_limit"])))
-        )  # `comnew(6)`: net gain actually in federal AGI
+        )  # the net gain in federal AGI
         schedule_b_limit = pl.lit(float(p["schedule_b_offset_limit"]))
         xlin4 = (pl.min_horizontal(divrec, schedule_b_limit) - (-stcg.clip(None, 0))).clip(0, None)
         binc1 = pl.when(capgn >= 0).then(divrec).otherwise(divrec - pl.min_horizontal(xlin4, capgn.abs()))
@@ -273,7 +266,7 @@ def compute_ma_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         dxl20 = pl.when((wdxl4 <= 0) | (wdxl6 <= 0)).then(0.0).otherwise(pl.min_horizontal(dxl19, wdxl6))
         cinc = (dxl19 - dxl20).clip(0, None)
     elif y >= 1997:
-        cinc = pl.col("ltg")  # `comnew(15)` (1987+ federal `ltg`)
+        cinc = pl.col("ltg")
 
     df = df.with_columns(
         _ma_binc_for_agi=binc_for_agi,
@@ -292,24 +285,24 @@ def compute_ma_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
 
     taxbin = tbinc2 + tbinc3
     rate_b = p.num("part_b_rate")
-    if y == 1989:
-        statxb = p["part_b_rate_1989_first_part"] * b2_1989 + rate_b * b1_1989.clip(0, None)
+    if p.in_effect("part_b_rate_first_part"):
+        statxb = p.num("part_b_rate_first_part") * b2_1989 + rate_b * b1_1989.clip(0, None)
     else:
         statxb = rate_b * taxbin
     statxa = p.num("part_a_rate") * ainc
     statxc = p.num("part_c_rate") * cinc.clip(0, None) if y >= 1997 else pl.lit(0.0)
     surtax = p.num("surtax")
-    if y == 1984:
-        statxb = pl.when(binc_for_agi > p["surtax_income_threshold_1984"]).then(surtax * statxb).otherwise(statxb)
-        statxa = pl.when(ainc > p["surtax_income_threshold_1984"]).then(surtax * statxa).otherwise(statxa)
+    if p.in_effect("surtax_income_threshold"):
+        threshold = p.num("surtax_income_threshold")
+        statxb = pl.when(binc_for_agi > threshold).then(surtax * statxb).otherwise(statxb)
+        statxa = pl.when(ainc > threshold).then(surtax * statxa).otherwise(statxa)
         pretax = statxa + statxb
     else:
         pretax = (statxa + statxb + statxc) * surtax
-        if y >= 2023:
-            # 4% surtax on taxable income above the indexed threshold.
-            additional = p["additional_tax_2023plus"]
+        if p.in_effect("additional_tax"):
+            additional = p.value("additional_tax")
             pretax = pretax + float(additional["rate"]) * (
-                taxbin + ainc + cinc.clip(0, None) - float(resolve_year(additional["threshold"], y))
+                taxbin + ainc + cinc.clip(0, None) - float(additional["threshold"])
             ).clip(0, None)
 
     # --- Massachusetts AGI and No Tax Status / Limited Income Credit ---
@@ -332,7 +325,7 @@ def compute_ma_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
                 & (pretax >= lic_rate * (ma_agi - nts1))
             )
             .then((pretax - lic_rate * (ma_agi - nts1)).clip(0, None))
-            .when(is_joint & (ma_agi > nts2) & (ma_agi <= p["limited_income_credit_limit_joint_1984_1994"]))
+            .when(is_joint & (ma_agi > nts2) & (ma_agi <= p.num("limited_income_credit_limit_joint")))
             .then((pretax - lic_rate * (ma_agi - nts2)).clip(0, None))
             .otherwise(0.0)
         )
@@ -356,17 +349,16 @@ def compute_ma_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             .otherwise(0.0)
         )
     else:
-        credit = p["personal_credit_pre1984"]
+        credit = p.value("personal_credit")
         scred = credit["per_taxpayer"] * n_tp + credit["per_dependent"] * pl.col("depx")
 
     statax = (pretax - (ntscr + txcr + scred)).clip(0, None)
     if y >= 1997:
         statax = statax - p.num("eitc_rate") * pl.col("eitc")
-    if y >= 2023:
-        # Child and family tax credit replaces the dependent and child care credits.
-        statax = statax - float(resolve_year(p["child_and_family_credit_2023plus"], y)) * pl.col("dep13")
-    elif y >= 2021:
-        statax = statax - pl.max_horizontal(chcred, ndep * p["dependent_credit_per_dependent"])
+    if p.in_effect("child_and_family_credit_per_child"):
+        statax = statax - p.num("child_and_family_credit_per_child") * pl.col("dep13")
+    elif p.in_effect("dependent_credit_per_dependent"):
+        statax = statax - pl.max_horizontal(chcred, ndep * p.num("dependent_credit_per_dependent"))
 
     # Senior circuit breaker credit (2001+, refundable).
     cbcred = pl.lit(0.0)
@@ -386,10 +378,15 @@ def compute_ma_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         statax = statax - cbcred
 
     earncr = p.num("eitc_rate") * pl.col("eitc") if y >= 1997 else pl.lit(0.0)
-    dependent_credit = pl.max_horizontal(chcred, ndep * p["dependent_credit_per_dependent"]) if y >= 2021 else pl.lit(0.0)
-    state_chcr = pl.when(chcred > ndep * p["dependent_credit_per_dependent"]).then(chcred).otherwise(0.0) if y >= 2021 else pl.lit(0.0)
-    if y >= 2023:
-        dependent_credit = float(resolve_year(p["child_and_family_credit_2023plus"], y)) * pl.col("dep13")
+    if p.in_effect("child_and_family_credit_per_child"):
+        dependent_credit = p.num("child_and_family_credit_per_child") * pl.col("dep13")
+        state_chcr = pl.lit(0.0)
+    elif p.in_effect("dependent_credit_per_dependent"):
+        per_dependent = p.num("dependent_credit_per_dependent")
+        dependent_credit = pl.max_horizontal(chcred, ndep * per_dependent)
+        state_chcr = pl.when(chcred > ndep * per_dependent).then(chcred).otherwise(0.0)
+    else:
+        dependent_credit = pl.lit(0.0)
         state_chcr = pl.lit(0.0)
     result = with_state_detail(
         df.with_columns(siitax=statax * flate),

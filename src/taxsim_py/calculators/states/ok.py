@@ -26,21 +26,16 @@ FEDERAL_EITC_PARAMS = pl.read_csv(PARAMETERS_ROOT / "national" / "eitc.csv")
 FEDERAL_EITC_MISC = load_yaml(PARAMETERS_ROOT / "national" / "eitc_misc.yaml")
 
 
-def _table(kind: str, suffix: str) -> list[list[float]]:
-    return OK_PARAMS["brackets"][f"{kind}{suffix}"]
-
-
-def _by_table(income: pl.Expr, suffix: str, single_like: pl.Expr, lookup=bracket_tax) -> pl.Expr:
+def _by_table(income: pl.Expr, tables: dict, single_like: pl.Expr, lookup=bracket_tax) -> pl.Expr:
     """Tax (or `lookup`) on the single table for single and separate filers, else the married table."""
-    return pl.when(single_like).then(lookup(income, _table("s", suffix))).otherwise(
-        lookup(income, _table("m", suffix))
+    return pl.when(single_like).then(lookup(income, tables["single"])).otherwise(
+        lookup(income, tables["married"])
     )
 
 
 def compute_ok_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
     """Calculate Oklahoma income tax for each row."""
-    state_year = "ok" if behavior.mode.value == "statutory" else None
-    effective_year, flate = resolve_state_year(year, state_year)
+    effective_year, flate = resolve_state_year(year, behavior, OK_PARAMS)
     y = effective_year
     p = YearParams(OK_PARAMS, effective_year)
     dividend_input_adjustment()
@@ -72,15 +67,15 @@ def compute_ok_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         agi = agi - pl.col("taxable_social_security")
     # Retirement income exclusion.
     pensions = pl.col("pensions")
-    if y <= 2006:
-        limit = float(p["pension_exclusion_agi_limit_per_aged_taxpayer"]) * aged
-        penmax = pl.when(agi <= limit).then(p.num("pension_exclusion_per_aged_taxpayer") * aged).otherwise(0.0)
-    elif y <= 2009:
-        limits = p["pension_exclusion_agi_limit_2007_2009"][y]
+    amount = p.num("pension_exclusion")
+    limits = p.value("pension_exclusion_agi_limit") if p.in_effect("pension_exclusion_agi_limit") else None
+    if limits is None:
+        penmax = amount * txp
+    elif isinstance(limits, dict):
         under = pl.when(txp == 1).then(agi <= limits["one"]).when(txp == 2).then(agi <= limits["two"]).otherwise(False)
-        penmax = pl.when(under).then(float(p["pension_exclusion_per_taxpayer_2010"]) * aged).otherwise(0.0)
+        penmax = pl.when(under).then(amount * aged).otherwise(0.0)
     else:
-        penmax = float(p["pension_exclusion_per_taxpayer_2010"]) * txp
+        penmax = pl.when(agi <= float(limits) * aged).then(amount * aged).otherwise(0.0)
     agi = pl.when(pensions > 0).then((agi - pl.min_horizontal(penmax, pensions)).clip(0, None)).otherwise(agi)
     if y == 2009:
         # Unemployment compensation is taxed in full.
@@ -88,10 +83,10 @@ def compute_ok_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     df, (agi,) = checkpoint(df, ok_agi=agi)
 
     exemp = (txp + depx) * p.num("exemption_amount")
-    if y <= 1986:
+    if not p.in_effect("aged_exemption_agi_limit"):
         exemp = exemp + aged * p.num("exemption_amount")
     else:
-        aged_limit = by_filing_status(p["aged_exemption_agi_limit_1987"])
+        aged_limit = by_filing_status(p.value("aged_exemption_agi_limit"))
         exemp = exemp + pl.when(fed_agi <= aged_limit).then(aged * p.num("exemption_amount")).otherwise(0.0)
     exemp = pl.when(dependent_filer).then(0.0).otherwise(exemp)
 
@@ -110,11 +105,11 @@ def compute_ok_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         fed_ccc = pl.col("federal_chcr")
 
     # --- Standard deduction ---
-    if y <= 2005:
-        low, high = p["standard_deduction_limits_2005"]
-        stded = (p["standard_deduction_rate_2005"] * agi).clip(low / sep, high / sep)
-    elif y == 2006:
-        amounts = p["standard_deduction_2006"]
+    if p.in_effect("standard_deduction_share"):
+        c = p.value("standard_deduction_share")
+        stded = (c["rate"] * agi).clip(c["minimum"] / sep, c["maximum"] / sep)
+    elif p.in_effect("standard_deduction_flat"):
+        amounts = p.value("standard_deduction_flat")
         stded = pl.when(single_like).then(amounts["single"]).otherwise(amounts["married"])
     else:
         stded = pl.when(is_hoh).then(p.num("standard_deduction_head_of_household")).otherwise(
@@ -124,8 +119,8 @@ def compute_ok_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     perc2 = pl.lit(1.0)
     if y <= 2005:
         # --- Federal tax deducted ---
-        if y <= 1978:
-            c = p["federal_tax_deduction_1977_1978"]
+        if p.in_effect("federal_tax_deduction_cap"):
+            c = p.value("federal_tax_deduction_cap")
             five = (pl.col("fiitax") - c["threshold"]).clip(0, None)
             fedtax = pl.when(five > 0).then(c["threshold"] + c["rate"] * five).otherwise(taxbc.clip(0, None))
             fedtax = fedtax.clip(None, c["cap"])
@@ -137,27 +132,27 @@ def compute_ok_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         df, (taxya, perc2) = checkpoint(df, ok_taxya=taxya, ok_perc2=perc2)
         df, (taxyb,) = checkpoint(df, ok_taxyb=(taxya - perc2 * fedtax).clip(0, None))
         detail_xitded = xitded_federal
-        if y <= 1978:
+        tables = p.value("brackets")
+        if not p.in_effect("federal_tax_brackets"):
             def by_status(lookup) -> pl.Expr:
                 return (
-                    pl.when(is_joint).then(lookup(taxyb, _table("m", "77")))
-                    .when(is_hoh).then(lookup(taxyb, _table("h", "77")))
-                    .otherwise(lookup(taxyb, _table("s", "77")))
+                    pl.when(is_joint).then(lookup(taxyb, tables["married"]))
+                    .when(is_hoh).then(lookup(taxyb, tables["head_of_household"]))
+                    .otherwise(lookup(taxyb, tables["single"]))
                 )
 
             statax = by_status(bracket_tax)
             detail_taxinc = taxyb
             rate = by_status(bracket_rate)
         else:
-            long_suffix = p.value("long_form_tables")
-            short_suffix = p.value("short_form_tables")
-            stax1 = _by_table(taxya, long_suffix, single_like)
-            stax2 = _by_table(taxyb, short_suffix, single_like)
+            federal_tables = p.value("federal_tax_brackets")
+            stax1 = _by_table(taxya, tables, single_like)
+            stax2 = _by_table(taxyb, federal_tables, single_like)
             statax = pl.min_horizontal(stax1, stax2)
             short = stax2 < stax1
             detail_taxinc = pl.when(short).then(taxyb).otherwise(taxya)
-            rate = pl.when(short).then(_by_table(taxyb, short_suffix, single_like, bracket_rate)).otherwise(
-                _by_table(taxya, long_suffix, single_like, bracket_rate)
+            rate = pl.when(short).then(_by_table(taxyb, federal_tables, single_like, bracket_rate)).otherwise(
+                _by_table(taxya, tables, single_like, bracket_rate)
             )
     else:
         xitded = pl.col("itemized_deduction")
@@ -172,25 +167,25 @@ def compute_ok_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
                 xitded = pl.when(salt > 0).then((xitded - salt * xitded / deducp).clip(0, None)).otherwise(xitded)
             else:
                 other = pl.col("proptax") + pl.col("otheritem")
-                sttax = pl.min_horizontal(p["salt_cap_2018"] / sep, other + salt)
+                sttax = pl.min_horizontal(p.num("salt_cap") / sep, other + salt)
                 stt = pl.min_horizontal(salt, sttax - other)
                 charity = pl.col("charity_cash")
-                xitded = pl.when(deducp - stt - charity > p["itemized_cap_2018"]).then(
-                    p["itemized_cap_2018"] + charity
+                xitded = pl.when(deducp - stt - charity > p.num("itemized_cap")).then(
+                    p.num("itemized_cap") + charity
                 ).otherwise(deducp - stt)
             deduc = pl.when(fed_itemizes & (deducp > 0)).then(xitded).otherwise(stded)
             detail_xitded = pl.when(fed_itemizes & (deducp > 0)).then(xitded).otherwise(detail_xitded)
         taxinc = pl.when(fed_agi > 0).then((agi - deduc - exemp).clip(0, None)).otherwise(0.0)
         df, (taxinc,) = checkpoint(df, ok_taxinc=taxinc)
-        suffix = "56" if y == 2006 else p.value("long_form_tables")
-        statax = _by_table(taxinc, suffix, single_like)
+        tables = p.value("brackets")
+        statax = _by_table(taxinc, tables, single_like)
         detail_taxinc = taxinc
-        rate = _by_table(taxinc, suffix, single_like, bracket_rate)
+        rate = _by_table(taxinc, tables, single_like, bracket_rate)
     df, (statax,) = checkpoint(df, ok_tax_before_credits=statax)
 
     # --- Credits ---
     chcr = pl.lit(0.0)
-    if y <= 2007:
+    if not p.in_effect("child_credit_agi_limit"):
         chcr = p["child_care_credit_rate"] * perc2 * pl.min_horizontal(fed_ccc, taxbc.clip(0, None))
     else:
         perc = (agi / fed_agi).clip(None, 1)
@@ -205,25 +200,24 @@ def compute_ok_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         else:
             chtax = pl.min_horizontal(federal_credit + pl.col("actc"), room)
         credit = pl.max_horizontal(p["child_care_credit_rate"] * chcare, p["child_tax_credit_rate"] * chtax) * perc
-        eligible = (fed_agi <= p["child_credit_agi_limit_2008"]) & (fed_agi > 0) & (agi >= 0)
+        eligible = (fed_agi <= p.num("child_credit_agi_limit")) & (fed_agi > 0) & (agi >= 0)
         chcr = pl.when(eligible).then(credit).otherwise(0.0)
 
     earncr = pl.lit(0.0)
-    if y >= 2002:
+    if p.in_effect("eitc_rate"):
         eitc_base = pl.col("eitc")
-        if y >= 2022:
-            # 68 O.S. 2357.43: the federal credit is computed under the rules
-            # in effect for tax year 2020, whatever the current year.
+        if p.in_effect("eitc_federal_law_year"):
+            law = int(p.value("eitc_federal_law_year"))
             nkids = pl.col("dep18").clip(0, 3)
             disqy = (pl.col("stcg") + pl.col("ltcg")).clip(0, None) + pl.col("dividends") + pl.col("intrec") + pl.col("otherprop").clip(0, None)
             childless = nkids == 0
-            eitc_base = pl.when(eitc_filer_eligible(childless, 2020) & eitc_age_eligible(childless, 2020)).then(
+            eitc_base = pl.when(eitc_filer_eligible(childless, law) & eitc_age_eligible(childless, law)).then(
                 federal_eitc(
                     pl.col("earned_income"), pl.col("agi"), disqy, pl.col("filing_status"), nkids,
-                    FEDERAL_EITC_PARAMS.filter(pl.col("year") == 2020), float(resolve_year(FEDERAL_EITC_MISC["dylim"], 2020)),
+                    FEDERAL_EITC_PARAMS.filter(pl.col("year") == law), float(resolve_year(FEDERAL_EITC_MISC["dylim"], law)),
                 )
             ).otherwise(0.0)
-        earncr = pl.when(fed_agi > 0).then(p["eitc_rate"] * eitc_base * agi / fed_agi).otherwise(0.0)
+        earncr = pl.when(fed_agi > 0).then(p.num("eitc_rate") * eitc_base * agi / fed_agi).otherwise(0.0)
 
     # Property tax credit for taxpayers 65 or older.
     hhy_prop = pl.col("ok_household_income_undeflated") + pl.col("eitc")
@@ -233,20 +227,18 @@ def compute_ok_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
 
     scred = pl.lit(0.0)
     per_person = p["sales_tax_credit"]
-    if 1990 <= y <= 1998 or y == 2003:
-        scred = pl.when(pl.col("ok_household_income_undeflated") < p["sales_tax_credit_income_limit_1990"]).then(per_person * (txp + depx)).otherwise(0.0)
-    if 1999 <= y <= 2002 or y >= 2004:
-        limits = p["sales_tax_credit_income_limit"]
+    limits = p.value("sales_tax_credit_income_limit") if p.in_effect("sales_tax_credit_income_limit") else None
+    if limits is not None and not isinstance(limits, dict):
+        scred = pl.when(pl.col("ok_household_income_undeflated") < float(limits)).then(per_person * (txp + depx)).otherwise(0.0)
+    elif limits is not None:
         hhy = pl.col("ok_household_income") + pl.col("eitc")
         with_dependents = (depx > 0) | (aged > 0)
-        limit = pl.when(with_dependents).then(_p_nested(limits["with_dependents"], y)).otherwise(_p_nested(limits["alone"], y))
+        limit = pl.when(with_dependents).then(float(limits["with_dependents"])).otherwise(float(limits["alone"]))
         amount = pl.when(with_dependents).then(per_person * (txp + depx)).otherwise(per_person * txp)
         scred = pl.when(hhy <= limit).then(amount).otherwise(scred)
 
     scred = pl.when(dependent_filer).then(0.0).otherwise(scred)
-    if y <= 2015 or y >= 2022:
-        # The EITC is refundable before the 2016 nonrefundable change and
-        # again from 2022 (dated statutory years only).
+    if not p.in_effect("eitc_refundable") or p.value("eitc_refundable"):
         statax = (statax - chcr).clip(0, None) - pcred - scred - earncr
     else:
         statax = (statax - chcr - earncr).clip(0, None) - pcred - scred
@@ -265,7 +257,3 @@ def compute_ok_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         credits=chcr + pcred + scred + earncr,
         rate=rate,
     )
-
-
-def _p_nested(values: dict, year: int) -> float:
-    return float(resolve_year(values, year))

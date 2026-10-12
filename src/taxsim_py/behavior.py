@@ -30,6 +30,15 @@ class BehaviorProfile:
     exclude_hawaii_pensions: bool
     pay_california_yctc_per_young_child: bool
     apply_state_childless_eitc_minimum_age: bool
+    count_additional_medicare_once_in_alabama_fica_deduction: bool
+    limit_arizona_property_credit_per_statute: bool
+    ignore_federal_salt_cap_in_california: bool
+    use_age_qualified_children_for_dc_eitc: bool
+    apply_illinois_exemption_income_limit: bool
+    add_washington_working_families_credit: bool
+    allow_kansas_itemizing_after_2020: bool
+    apply_kentucky_pension_cap_per_taxpayer: bool
+    deduct_massachusetts_employee_payroll_tax_per_spouse: bool
 
 
 TAXSIM_BEHAVIOR = BehaviorProfile(
@@ -46,6 +55,15 @@ TAXSIM_BEHAVIOR = BehaviorProfile(
     exclude_hawaii_pensions=False,
     pay_california_yctc_per_young_child=True,
     apply_state_childless_eitc_minimum_age=False,
+    count_additional_medicare_once_in_alabama_fica_deduction=False,
+    limit_arizona_property_credit_per_statute=False,
+    ignore_federal_salt_cap_in_california=False,
+    use_age_qualified_children_for_dc_eitc=False,
+    apply_illinois_exemption_income_limit=False,
+    add_washington_working_families_credit=False,
+    allow_kansas_itemizing_after_2020=False,
+    apply_kentucky_pension_cap_per_taxpayer=False,
+    deduct_massachusetts_employee_payroll_tax_per_spouse=False,
 )
 
 STATUTORY_BEHAVIOR = BehaviorProfile(
@@ -62,6 +80,15 @@ STATUTORY_BEHAVIOR = BehaviorProfile(
     exclude_hawaii_pensions=True,
     pay_california_yctc_per_young_child=False,
     apply_state_childless_eitc_minimum_age=True,
+    count_additional_medicare_once_in_alabama_fica_deduction=True,
+    limit_arizona_property_credit_per_statute=True,
+    ignore_federal_salt_cap_in_california=True,
+    use_age_qualified_children_for_dc_eitc=True,
+    apply_illinois_exemption_income_limit=True,
+    add_washington_working_families_credit=True,
+    allow_kansas_itemizing_after_2020=True,
+    apply_kentucky_pension_cap_per_taxpayer=True,
+    deduct_massachusetts_employee_payroll_tax_per_spouse=True,
 )
 
 

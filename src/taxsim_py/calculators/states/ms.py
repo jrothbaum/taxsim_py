@@ -6,7 +6,6 @@ from taxsim_py.engine.brackets import bracket_rate, bracket_tax
 from taxsim_py.engine.inputs import aged_count, files_joint, files_separate, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml, resolve_year
 from taxsim_py.engine.state import (
-    dividend_input_adjustment,
     forced_standard,
     by_filing_status,
     checkpoint,
@@ -27,13 +26,12 @@ def _by_status_year(name: str, year: int) -> pl.Expr:
 
 def compute_ms_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
     """Calculate Mississippi income tax for each row."""
-    state_year = "ms" if behavior.mode.value == "statutory" else None
-    effective_year, flate = resolve_state_year(year, state_year)
+    effective_year, flate = resolve_state_year(year, behavior, MS_PARAMS)
     y = effective_year
     p = YearParams(MS_PARAMS, effective_year)
 
-    setax = pl.col("payroll_setax")  # `comnew(175)`, real-year and undeflated
-    dividend_input_adjustment()
+    # Self-employment tax is not deflated in projected years.
+    setax = pl.col("payroll_setax")
     df = df.with_columns(ms_setax=setax, ms_divexc=dividend_exclusion_addback(y))
     df = deflate_for_extrapolation(df, flate, extra=("ms_divexc",))
 
@@ -58,17 +56,16 @@ def compute_ms_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         )
 
     # --- Mississippi AGI ---
-    if y in (2011, 2012):
-        halfse = pl.when(setax <= p.num("self_employment_tax_addback_threshold")).then(
-            p.num("self_employment_tax_addback_lower_rate") * setax
-        ).otherwise(
-            p.num("self_employment_tax_addback_upper_rate") * setax + p.num("self_employment_tax_addback_amount")
+    if p.in_effect("self_employment_tax_addback_holiday"):
+        holiday = p.value("self_employment_tax_addback_holiday")
+        halfse = pl.when(setax <= holiday["threshold"]).then(holiday["lower_rate"] * setax).otherwise(
+            holiday["upper_rate"] * setax + float(holiday["amount"])
         )
     else:
         halfse = p.num("self_employment_tax_addback_rate") * setax
     agi = fed_agi + pl.col("ms_divexc") + halfse - p.num("self_employment_tax_deduction_rate") * setax
     # Retirement income is exempt, up to a cap per taxpayer through 1993.
-    if y <= 1993:
+    if p.in_effect("retirement_exclusion_per_taxpayer"):
         agi = agi - pl.min_horizontal(pl.col("pensions"), p.num("retirement_exclusion_per_taxpayer") * txp)
     else:
         agi = agi - pl.col("pensions")
@@ -96,7 +93,7 @@ def compute_ms_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     ) / sep
 
     # --- Standard deduction ---
-    if y <= 1979:
+    if p.in_effect("standard_deduction_pct"):
         stded = pl.min_horizontal(
             p.num("standard_deduction_cap_per_taxpayer") * txp,
             p.num("standard_deduction_pct") * agi.clip(0, None),
@@ -115,7 +112,7 @@ def compute_ms_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         xitded = deducp
     else:
         xitded = (deducp - salt_ded).clip(0, None)
-        if y <= 2017:
+        if p.in_effect("itemized_limit_threshold_base"):
             if y >= 2013:
                 threshold = (
                     p.num("itemized_limit_threshold_base")
@@ -129,7 +126,7 @@ def compute_ms_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
                 deducp - dedphs - (salt_ded - salt_ded * dedphs / deducp)
             ).clip(0, None)
             xitded = pl.when((agi > threshold) & (deducp > 0)).then(limited).otherwise(xitded)
-    if y <= 1978:
+    if p.in_effect("charity_agi_limit"):
         contributions = -p.num("charity_agi_limit") * agi.clip(0, None)
         xitded = (xitded - contributions).clip(0, None)
     if y == 1999:
@@ -143,7 +140,7 @@ def compute_ms_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         ms_exemp=exemp,
     )
     df, (taxinc,) = checkpoint(df, ms_taxinc=(agi - deduc - exemp).clip(0, None))
-    brackets = resolve_year(MS_PARAMS["brackets"], y)
+    brackets = p.value("brackets")
     df, (statax,) = checkpoint(df, ms_table_tax=bracket_tax(taxinc, brackets))
 
     # --- Married couples: tax as separate returns if lower ---

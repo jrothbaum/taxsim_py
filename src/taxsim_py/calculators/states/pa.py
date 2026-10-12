@@ -5,7 +5,7 @@ from __future__ import annotations
 import polars as pl
 
 from taxsim_py.engine.inputs import aged_count, files_joint, taxpayer_count
-from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml, resolve_year
+from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml
 from taxsim_py.engine.state import with_state_detail, dividend_input_adjustment
 from taxsim_py.behavior import BehaviorProfile, TAXSIM_BEHAVIOR
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
@@ -15,13 +15,12 @@ PA_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "pa" / "income_tax.yaml")
 
 def compute_pa_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
     """Calculate Pennsylvania income tax for each row."""
-    state_year = "pa" if behavior.mode.value == "statutory" else None
-    effective_year, flate = resolve_state_year(year, state_year)
+    effective_year, flate = resolve_state_year(year, behavior, PA_PARAMS)
     y = effective_year
     p = YearParams(PA_PARAMS, effective_year)
     dividend_adjustment = dividend_input_adjustment()
-    # Federal Schedule E income (`comnew(8)`): other property income, plus S
-    # corporation income from 1987.
+    # Federal Schedule E income: other property income, plus S corporation
+    # income from 1987.
     df = df.with_columns(pa_schede=pl.col("otherprop") + (pl.col("scorp") if year >= 1987 else 0.0))
     df = deflate_for_extrapolation(df, flate, extra=("pa_schede",))
 
@@ -55,7 +54,7 @@ def compute_pa_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     else:
         dep1 = taxpayers
         dep2 = nkid
-    a = resolve_year(PA_PARAMS["forgiveness_allowance"], y)
+    a = p.value("forgiveness_allowance")
     if y <= 1993:
         allow = a["base"] + dep1 * a["first"] + dep2 * a["other"]
     elif y == 1994:
@@ -69,14 +68,13 @@ def compute_pa_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         allow = a["first"] * dep1 + a["other"] * dep2
     remain = (taxinc - allow).clip(0, None)
     forgiven_share = (1.0 - remain / p.num("forgiveness_phaseout")).clip(0, None)
-    if y >= 2022:
-        # Actual-law years: forgiveness falls 10 points for each $250 (or part) over the allowance.
-        step = PA_PARAMS["forgiveness_step_2022plus"]
+    if p.in_effect("forgiveness_step"):
+        step = p.value("forgiveness_step")
         forgiven_share = (1.0 - float(step["share"]) * (remain / float(step["income"])).ceil()).clip(0, None)
     credit = statax * forgiven_share
     statax = statax - credit
-    if y >= 2025 and behavior.mode.value == "statutory":
-        eitc_credit = float(resolve_year(PA_PARAMS["eitc_match_2025plus"], y)) * pl.col("eitc")
+    if p.in_effect("eitc_federal_share"):
+        eitc_credit = p.num("eitc_federal_share") * pl.col("eitc")
         statax = statax - eitc_credit
         credit = credit + eitc_credit
 

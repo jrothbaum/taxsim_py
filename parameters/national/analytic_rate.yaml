@@ -1,7 +1,9 @@
 # Constants of TAXSIM's analytic federal marginal rate (`comnew(72)`, the
-# `rate` variable of law79/law87), which state calculators read for their
-# own reported rates. Only 1977-2000 is modeled: no state reads the rate for
-# a later year. Rates are fractions unless noted.
+# `rate` variable of law79/law87), which state calculators read for their own
+# reported rates. Only 1977-2000 is modeled: no state reads the rate for a
+# later year. Rates are fractions unless noted.
+#
+# Sources: NBER TAXSIM (`law79`, `law87`).
 
 # Social Security: share of the bracket rate added while benefits phase in.
 social_security_first_tier_share: 0.5

@@ -1,31 +1,19 @@
-# Alternative Minimum Tax, wages + itemized-deductions scope (no ISO
-# exercises, private activity bond interest, or other preference items -
-# not in the model yet). Verified against taxsim_2022_10_21.f:25068-25475.
+# Federal alternative minimum tax: AMT income is regular income without
+# itemized deductions other than mortgage interest (no preference items).
 #
-# 1991-1992 use a genuinely SMALLER exemption ($30,000/$40,000/$30,000/
-# $20,000) than the 1993-2000 static block below - confirmed directly from
-# the source's own exemption cascade (taxsim_2022_10_21.f:25113-25123): the
-# final, unconditional `else` branch (i.e. lawyr<1993) gives
-# `filing(mstat,30000.,40000.,30000.,20000.)`, distinct from the
-# `lawyr.ge.1993.and.lawyr.le.2000` branch just above it.
+# Sources: 1987-2021 NBER TAXSIM (`law87`); 2022 on, Internal Revenue Code
+# section 55, Form 6251 instructions and Revenue Procedures, checked against
+# PolicyEngine-US `gov.irs.income.amt`.
+
+# Exemption by filing status, phased out at `exemption_phaseout_rate` of AMT
+# income over the threshold. 2023 head of household uses the published amount
+# (equal to single); TAXSIM keeps 2022's.
 exemption:
   single:
     1987: 30000
-    1991: 30000
-    1992: 30000
     1993: 33750
-    1994: 33750
-    1995: 33750
-    1996: 33750
-    1997: 33750
-    1998: 33750
-    1999: 33750
-    2000: 33750
     2001: 35750
-    2002: 35750
     2003: 40250
-    2004: 40250
-    2005: 40250
     2006: 42500
     2007: 44350
     2008: 46200
@@ -48,21 +36,9 @@ exemption:
     2025: 88100
   head_of_household:
     1987: 30000
-    1991: 30000
-    1992: 30000
     1993: 33750
-    1994: 33750
-    1995: 33750
-    1996: 33750
-    1997: 33750
-    1998: 33750
-    1999: 33750
-    2000: 33750
     2001: 35750
-    2002: 35750
     2003: 40250
-    2004: 40250
-    2005: 40250
     2006: 42500
     2007: 44350
     2008: 46200
@@ -80,41 +56,14 @@ exemption:
     2020: 72900
     2021: 73600
     2022: 75900
-    # The source's own `filing(mstat,81300.,126500.,75900.,63250.)` call
-    # for lawyr.eq.2023 leaves this (the "hoh" slot) at 2022's $75,900
-    # while single/joint/married_separate all genuinely increase - real
-    # law gives head_of_household the SAME AMT exemption as single (both
-    # are "unmarried individuals" for this purpose), so this looks like a
-    # real transcription oversight in the source. Per user direction ("if
-    # the model is wrong, use the real parameters that are known"), this
-    # project uses the real $81,300 here (matching single) rather than
-    # the oracle's own stale figure - expect taxsim2024.exe itself to
-    # disagree for any 2023 HoH case where this exemption amount actually
-    # binds (high AMT preference income); that mismatch is intentional.
     2023: 81300
-    # 2024/2025: real law continues to give HoH the same exemption as
-    # single (Rev. Proc. 2023-34 p.11, Rev. Proc. 2024-40 p.10; confirmed
-    # against PolicyEngine-US's parameters/gov/irs/income/amt/exemption/
-    # amount.yaml, which also lists HEAD_OF_HOUSEHOLD == SINGLE).
     2024: 85700
     2025: 88100
   married_separate:
     1987: 20000
-    1991: 20000
-    1992: 20000
     1993: 22500
-    1994: 22500
-    1995: 22500
-    1996: 22500
-    1997: 22500
-    1998: 22500
-    1999: 22500
-    2000: 22500
     2001: 24500
-    2002: 24500
     2003: 29000
-    2004: 29000
-    2005: 29000
     2006: 31275
     2007: 33125
     2008: 34975
@@ -137,21 +86,9 @@ exemption:
     2025: 68500
   married_joint:
     1987: 40000
-    1991: 40000
-    1992: 40000
     1993: 45000
-    1994: 45000
-    1995: 45000
-    1996: 45000
-    1997: 45000
-    1998: 45000
-    1999: 45000
-    2000: 45000
     2001: 49000
-    2002: 49000
     2003: 58000
-    2004: 58000
-    2005: 58000
     2006: 62550
     2007: 66250
     2008: 69950
@@ -172,25 +109,9 @@ exemption:
     2023: 126500
     2024: 133300
     2025: 137000
-
 exemption_phaseout_threshold:
   single:
     1987: 112500
-    1994: 112500
-    1995: 112500
-    1996: 112500
-    1997: 112500
-    1998: 112500
-    1999: 112500
-    2000: 112500
-    2001: 112500
-    2002: 112500
-    2003: 112500
-    2004: 112500
-    2005: 112500
-    2006: 112500
-    2008: 112500
-    2009: 112500  # static default, unindexed before ATRA 2013 - taxsim_2022_10_21.f:25125
     2013: 115400
     2014: 117300
     2015: 119200
@@ -206,21 +127,6 @@ exemption_phaseout_threshold:
     2025: 626350
   head_of_household:
     1987: 112500
-    1994: 112500
-    1995: 112500
-    1996: 112500
-    1997: 112500
-    1998: 112500
-    1999: 112500
-    2000: 112500
-    2001: 112500
-    2002: 112500
-    2003: 112500
-    2004: 112500
-    2005: 112500
-    2006: 112500
-    2008: 112500
-    2009: 112500
     2013: 115400
     2014: 117300
     2015: 119200
@@ -236,21 +142,6 @@ exemption_phaseout_threshold:
     2025: 626350
   married_separate:
     1987: 75000
-    1994: 75000
-    1995: 75000
-    1996: 75000
-    1997: 75000
-    1998: 75000
-    1999: 75000
-    2000: 75000
-    2001: 75000
-    2002: 75000
-    2003: 75000
-    2004: 75000
-    2005: 75000
-    2006: 75000
-    2008: 75000
-    2009: 75000
     2013: 76950
     2014: 78250
     2015: 79450
@@ -262,27 +153,10 @@ exemption_phaseout_threshold:
     2021: 523600
     2022: 539900
     2023: 578150
-    # 2024/2025: real law keeps single/HoH/married_separate equal here too
-    # (Rev. Proc. 2023-34 p.13, Rev. Proc. 2024-40 p.11).
     2024: 609350
     2025: 626350
   married_joint:
     1987: 150000
-    1994: 150000
-    1995: 150000
-    1996: 150000
-    1997: 150000
-    1998: 150000
-    1999: 150000
-    2000: 150000
-    2001: 150000
-    2002: 150000
-    2003: 150000
-    2004: 150000
-    2005: 150000
-    2006: 150000
-    2008: 150000
-    2009: 150000
     2013: 153900
     2014: 156500
     2015: 158900
@@ -296,51 +170,12 @@ exemption_phaseout_threshold:
     2023: 1156300
     2024: 1218700
     2025: 1252700
-
-exemption_phaseout_rate:
-  1987: 0.25
-  1994: 0.25
-  1995: 0.25
-  1996: 0.25
-  1997: 0.25
-  1998: 0.25
-  1999: 0.25
-  2000: 0.25
-  2001: 0.25
-  2002: 0.25
-  2003: 0.25
-  2004: 0.25
-  2005: 0.25
-  2006: 0.25
-  2008: 0.25
-  2009: 0.25
-  2022: 0.25
-
-rate_breakpoint:  # almspf: below this AMT base, 26%; above, 28% - static default (unindexed) before ATRA 2013
-  # 1988-1992: this value is mathematically INERT (see rate_below/above_
-  # breakpoint below - both rates are equal to each other every one of
-  # those years, so the breakpoint cancels out of engine/amt.py's formula
-  # regardless of its value). Kept at the same $175,000 sentinel rather
-  # than a special-cased value purely for anchor-continuity; the source
-  # itself has no two-tier concept at all for lawyr<1993 (`almrat` is a
-  # single flat constant per year-range - .21 for lawyr<1991, .24 for
-  # 1991-1992 - taxsim_2022_10_21.f:25277-25282).
+exemption_phaseout_rate: {1987: 0.25}
+# `rate_below_breakpoint` on AMT income after the exemption up to the breakpoint
+# (halved for married separate), `rate_above_breakpoint` above it; through 1992
+# the two rates are equal (a flat rate).
+rate_breakpoint:
   1987: 175000
-  1994: 175000
-  1995: 175000
-  1996: 175000
-  1997: 175000
-  1998: 175000
-  1999: 175000
-  2000: 175000
-  2001: 175000
-  2002: 175000
-  2003: 175000
-  2004: 175000
-  2005: 175000
-  2006: 175000
-  2008: 175000
-  2009: 175000
   2013: 179500
   2014: 182500
   2015: 185400
@@ -354,66 +189,10 @@ rate_breakpoint:  # almspf: below this AMT base, 26%; above, 28% - static defaul
   2023: 220700
   2024: 232600
   2025: 239100
-
-rate_below_breakpoint:
-  # 1987-1990: a flat 21% AMT rate (the source's final, unconditional
-  # `else` branch - taxsim_2022_10_21.f:25280-25282). 1991-1992: a flat
-  # 24% rate (`almrat=.24d0`, taxsim_2022_10_21.f:25277-25279). Neither
-  # has a two-tier structure at all - both reproduced with no engine code
-  # change by setting both rates equal, which makes engine/amt.py's
-  # breakpoint-dependent formula collapse algebraically to a flat rate
-  # regardless of rate_breakpoint's value.
-  1987: 0.21
-  1991: 0.24
-  1993: 0.26
-  1994: 0.26
-  1995: 0.26
-  1996: 0.26
-  1997: 0.26
-  1998: 0.26
-  1999: 0.26
-  2000: 0.26
-  2001: 0.26
-  2002: 0.26
-  2003: 0.26
-  2004: 0.26
-  2005: 0.26
-  2006: 0.26
-  2008: 0.26
-  2009: 0.26
-  2022: 0.26
-
-rate_above_breakpoint:
-  1987: 0.21
-  1991: 0.24
-  1993: 0.28
-  1994: 0.28
-  1995: 0.28
-  1996: 0.28
-  1997: 0.28
-  1998: 0.28
-  1999: 0.28
-  2000: 0.28
-  2001: 0.28
-  2002: 0.28
-  2003: 0.28
-  2004: 0.28
-  2005: 0.28
-  2006: 0.28
-  2008: 0.28
-  2009: 0.28
-  2022: 0.28
-
-# Married-filing-separately-only AMTI addback (`alminy = alminy +
-# min(almsep(law),.25*max(0,alminy-amtsep(law)))`, 1990+ -
-# taxsim_2022_10_21.f:24223-24234,25214-25217): a real, distinct
-# preference-income addback that only applies to married_separate, on
-# top of (and computed before) the ordinary exemption phaseout every
-# status gets. The cap (`almsep`) is numerically identical to
-# `exemption.married_separate` above for every year checked, so reused
-# directly there rather than duplicated; this threshold (`amtsep`) is
-# its own separate table, unrelated to
-# `exemption_phaseout_threshold.married_separate`.
+rate_below_breakpoint: {1987: 0.21, 1991: 0.24, 1993: 0.26}
+rate_above_breakpoint: {1987: 0.21, 1991: 0.24, 1993: 0.28}
+# From 1990 married-separate returns add back `separate_return_addback_rate` of
+# AMT income above this threshold, up to the separate exemption.
 separate_return_addback_threshold:
   1990: 155000
   1993: 165000
@@ -434,53 +213,45 @@ separate_return_addback_threshold:
   2018: 718800
   2019: 733700
   2020: 745200
-
-# SALT itemized-deduction cap - shared with parameters/national/itemized.yaml,
-# repeated here for AMT's own SALT-addback computation.
-salt_cap:
-  2018: 10000
-  2019: 10000
-  2022: 10000
-
-# AMT's own 15%/20% capital-gains breakpoint (`topbrk`, Form 6251 Part
-# III) - a separate copy in the source (taxsim_2022_10_21.f:25397-25453)
-# from the regular-tax one in capital_gains.yaml. Identical for
-# head_of_household/married_joint/married_separate for every year checked
-# so far, but $100 higher for single specifically in 2022 ($459,750 vs
-# $459,650). Genuinely used (not inert, despite an earlier investigation
-# concluding otherwise): it marks where AMT's ltg treatment steps from a
-# flat 15% up to an effective ~20% (implemented as 15% plus a further 5%
-# surtax on the slice above this breakpoint - see engine/amt.py's
-# docstring). Only shows up once ltg is large enough to reach that top
-# slice, which is rare enough that it took a specific high-income,
-# multi-source-of-preferential-income 2017 test case to expose it.
-#
-# Before 2013, this whole mechanism doesn't exist: the source's `alm20`/
-# `addamt` block (and, in the regular-tax worksheet, its `addtax` twin -
-# see capital_gains.yaml) is gated behind `lawyr.ge.2013` outright - there
-# was no 20% capital-gains rate in law at all before ATRA. A large
-# sentinel ceiling (never reached) reproduces that with no code branch:
-# `top_slice` in engine/amt.py's formula is always 0 below it.
+separate_return_addback_rate: {1990: 0.25}
+# From 1990 the exemption of a dependent filer, or of a filer whose (older)
+# reported age is under `young_filer_age`, is capped at earned income plus this
+# amount (2023 the published amount). Age 0 means only dependent filers without
+# a reported age are capped.
+young_filer_exemption_addition:
+  1990: 1000
+  1996: 1300
+  1998: 5000
+  1999: 5100
+  2000: 5200
+  2001: 5350
+  2002: 5500
+  2003: 5600
+  2004: 5750
+  2005: 5850
+  2006: 6050
+  2007: 6250
+  2008: 6400
+  2009: 6700
+  2011: 6800
+  2012: 6950
+  2013: 7150
+  2014: 7250
+  2015: 7400
+  2017: 7500
+  2018: 7600
+  2019: 7700
+  2020: 7800
+  2021: 7900
+  2022: 8200
+  2023: 8800
+young_filer_age: {1990: 14, 2006: 18, 2008: 24, 2018: 0}
+# From 1997 gains and qualified dividends use the regular-tax rates
+# (capital_gains.yaml) with this as the second ceiling (a large sentinel before
+# 2013), plus `gains_top_rate_addition` above it.
 cg_rate_15_ceiling:
   single:
-    1993: 1.0e+15
-    1994: 1.0e+15
-    1995: 1.0e+15
-    1996: 1.0e+15
-    1997: 1.0e+15
-    1998: 1.0e+15
-    1999: 1.0e+15
-    2000: 1.0e+15
-    2001: 1.0e+15
-    2002: 1.0e+15
-    2003: 1.0e+15
-    2004: 1.0e+15
-    2005: 1.0e+15
-    2006: 1.0e+15
-    2008: 1.0e+15
-    2009: 1.0e+15
-    2011: 1.0e+15
-    2012: 1.0e+15
+    1993: 1000000000000000.0
     2013: 400000
     2014: 406750
     2015: 413200
@@ -492,29 +263,10 @@ cg_rate_15_ceiling:
     2021: 445850
     2022: 459750
     2023: 492300
-    # 2024/2025: same source as capital_gains.yaml's rate_15_ceiling (this
-    # is the AMT's own copy of the same 15%/20% breakpoint).
     2024: 518900
     2025: 533400
   head_of_household:
-    1993: 1.0e+15
-    1994: 1.0e+15
-    1995: 1.0e+15
-    1996: 1.0e+15
-    1997: 1.0e+15
-    1998: 1.0e+15
-    1999: 1.0e+15
-    2000: 1.0e+15
-    2001: 1.0e+15
-    2002: 1.0e+15
-    2003: 1.0e+15
-    2004: 1.0e+15
-    2005: 1.0e+15
-    2006: 1.0e+15
-    2008: 1.0e+15
-    2009: 1.0e+15
-    2011: 1.0e+15
-    2012: 1.0e+15
+    1993: 1000000000000000.0
     2013: 425000
     2014: 432200
     2015: 439000
@@ -529,24 +281,7 @@ cg_rate_15_ceiling:
     2024: 551350
     2025: 566700
   married_separate:
-    1993: 1.0e+15
-    1994: 1.0e+15
-    1995: 1.0e+15
-    1996: 1.0e+15
-    1997: 1.0e+15
-    1998: 1.0e+15
-    1999: 1.0e+15
-    2000: 1.0e+15
-    2001: 1.0e+15
-    2002: 1.0e+15
-    2003: 1.0e+15
-    2004: 1.0e+15
-    2005: 1.0e+15
-    2006: 1.0e+15
-    2008: 1.0e+15
-    2009: 1.0e+15
-    2011: 1.0e+15
-    2012: 1.0e+15
+    1993: 1000000000000000.0
     2013: 225000
     2014: 228800
     2015: 232425
@@ -558,32 +293,10 @@ cg_rate_15_ceiling:
     2021: 250800
     2022: 258600
     2023: 276925
-    # 2024/2025 from PolicyEngine-US's parameters/gov/irs/capital_gains/
-    # thresholds.yaml (SEPARATE bracket 2). Note: that same source gives
-    # 2023 as $276,900, $25 below this table's pre-existing $276,925 -
-    # a small, unresolved discrepancy already present before this edit,
-    # not something introduced here; not chased down further.
     2024: 291850
     2025: 300000
   married_joint:
-    1993: 1.0e+15
-    1994: 1.0e+15
-    1995: 1.0e+15
-    1996: 1.0e+15
-    1997: 1.0e+15
-    1998: 1.0e+15
-    1999: 1.0e+15
-    2000: 1.0e+15
-    2001: 1.0e+15
-    2002: 1.0e+15
-    2003: 1.0e+15
-    2004: 1.0e+15
-    2005: 1.0e+15
-    2006: 1.0e+15
-    2008: 1.0e+15
-    2009: 1.0e+15
-    2011: 1.0e+15
-    2012: 1.0e+15
+    1993: 1000000000000000.0
     2013: 450000
     2014: 457600
     2015: 464850
@@ -597,18 +310,4 @@ cg_rate_15_ceiling:
     2023: 553850
     2024: 583750
     2025: 600050
-
-# 1990+: the exemption of a dependent filer, or of a filer whose reported
-# (older) age is under `young_filer_age`, is capped at earned income plus
-# this amount (TAXSIM `exclds`; 2023 uses the published $8,800).
-young_filer_exemption_addition: {1990: 1000, 1996: 1300, 1998: 5000, 1999: 5100, 2000: 5200, 2001: 5350, 2002: 5500, 2003: 5600, 2004: 5750, 2005: 5850, 2006: 6050, 2007: 6250, 2008: 6400, 2009: 6700, 2011: 6800, 2012: 6950, 2013: 7150, 2014: 7250, 2015: 7400, 2017: 7500, 2018: 7600, 2019: 7700, 2020: 7800, 2021: 7900, 2022: 8200, 2023: 8800}
-# TAXSIM `amtage`; 0 means only unreported-age dependent filers are capped.
-young_filer_age: {1990: 14, 2006: 18, 2008: 24, 2018: 0}
-
-# Separate returns add back this share of AMT income above the threshold,
-# up to the separate exemption (1990+).
-separate_return_addback_rate:
-  1990: 0.25
-# Long-term gains above the 15% ceiling pay this rate on top of 15% (1997+).
-gains_top_rate_addition:
-  1997: 0.05
+gains_top_rate_addition: {1997: 0.05}

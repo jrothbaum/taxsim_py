@@ -1,171 +1,114 @@
-# Georgia individual income tax (`gatax`, taxsim_2024_09_21.f:4712-4955,
-# state id 11). See calculators/states/ga.py for the full mechanism.
+# Georgia individual income tax.
 #
-# Not TAXSIM inputs, so always zero: blindness, the solar-energy credit
-# (`data(38)`), the 2021 cash-contribution addback (`data(58)`), the
-# 1982-1986 stock-loss-carryover terms (`data(28)`, `data(13)`), the
-# <=1986 medical/casualty addback (`data(47)`-`(49)`, `comnew(20)`) and
-# `data(55)`.
-#
-# `nfile=filing(mst,1,2,3,2)` - single=1, married_joint=2, head_of_
-# household=3, married_separate=2 (SAME as joint) - matches DC's own
-# identical convention exactly.
-#
-# Brackets: SINGLE (only) uses `brackets_single_*` directly. Married_joint,
-# married_separate, AND head_of_household (nfile 2/2/3, i.e. anything
-# other than single) all multiply taxable income by `sep` (1 for joint/
-# HoH, 2 for separate) before running it through the SAME doubled-
-# threshold married table, then divide the resulting tax back down by
-# `sep` - so married_separate ends up on an effectively per-spouse-halved
-# version of the joint table (numerically identical to the single table's
-# own thresholds), and HoH runs straight through the married table
-# unscaled (a real, easy-to-miss detail - HoH is NOT grouped with single
-# here despite being grouped with it elsewhere, e.g. the standard
-# deduction's own `nfile.ne.2` check).
-brackets_single_thru_2018:
-  - [0, 0.01]
-  - [750, 0.02]
-  - [2250, 0.03]
-  - [3750, 0.04]
-  - [5250, 0.05]
-  - [7000, 0.06]
-brackets_married_thru_2018:
-  - [0, 0.01]
-  - [1000, 0.02]
-  - [3000, 0.03]
-  - [5000, 0.04]
-  - [7000, 0.05]
-  - [10000, 0.06]
-brackets_single_2019plus:
-  - [0, 0.01]
-  - [750, 0.02]
-  - [2250, 0.03]
-  - [3750, 0.04]
-  - [5250, 0.05]
-  - [7000, 0.0575]
-brackets_married_2019plus:
-  - [0, 0.01]
-  - [1000, 0.02]
-  - [3000, 0.03]
-  - [5000, 0.04]
-  - [7000, 0.05]
-  - [10000, 0.0575]
+# Sources: 1977-2021 NBER TAXSIM (`gatax`); 2022 on, Georgia Code Title 48
+# Chapter 7 as encoded in PolicyEngine-US `gov.states.ga.tax.income`.
+# Solar-energy and other credits with no TAXSIM input are not modeled.
 
-# PolicyEngine-US: gov.states.ga.tax.income.main. Georgia's 2024 law is a
-# single 5.39% rate; the 2022-2023 schedule remains the 5.75% top rate.
-flat_rate_2024plus: {2024: 0.0539, 2025: 0.0519}
-# PolicyEngine-US gov.states.ga.tax.income.exemptions.dependent, 2024.
-dependent_exemption_2024plus: 4000
+# Statutory mode uses actual law through this year.
+law_coded_through: 2025
 
-# Exemption: five genuinely different formula eras, plus a real, flat
-# $800 head-of-household-with-dependents bonus through 1986.
-personal_exemption_flat_pre1994:  # `data(7)*1500`, <=1986 only
-  1960: 1500
-hoh_dependent_bonus_pre1987:
-  1960: 800
-personal_exemption_amount_xmp:  # `xmp(law)` - dependent exemption <=1986,
-  # personal exemption 1987+ (used differently by era, see ga.py)
-  1977: 700
-  1987: 1500
-  1994: 2000
-  1995: 2500
-  1998: 2700
-dependent_exemption_flat_2003plus:
-  2003: 3000
-personal_exemption_married_separate_2013plus:
-  2013: 3700
+# Rate schedules, [start of bracket, rate]. Single returns use `single`;
+# joint, separate and head-of-household returns use `married`, with separate
+# returns taxed on twice their income and the tax halved. Replaced by a flat
+# rate in 2024.
+brackets:
+  1977:
+    single: [[0, 0.01], [750, 0.02], [2250, 0.03], [3750, 0.04], [5250, 0.05], [7000, 0.06]]
+    married: [[0, 0.01], [1000, 0.02], [3000, 0.03], [5000, 0.04], [7000, 0.05], [10000, 0.06]]
+  2019:
+    single: [[0, 0.01], [750, 0.02], [2250, 0.03], [3750, 0.04], [5250, 0.05], [7000, 0.0575]]
+    married: [[0, 0.01], [1000, 0.02], [3000, 0.03], [5000, 0.04], [7000, 0.05], [10000, 0.0575]]
+  2024: null
+# Source: PolicyEngine-US gov.states.ga.tax.income.main.
+flat_rate: {2024: 0.0539, 2025: 0.0519}
 
-# Standard deduction: three eras.
-standard_deduction_pct_pre1983:
-  1960: 0.15
-standard_deduction_floor_pre1983:
-  1960: 1300
-standard_deduction_ceiling_pre1983:
-  1960: 2000
-standard_deduction_pct_1983_1986_single_or_hoh:
-  1983: 0.15
-standard_deduction_floor_1983_1986_single_or_hoh:
-  1983: 1500
-standard_deduction_ceiling_1983_1986_single_or_hoh:
-  1983: 2000
-standard_deduction_pct_1983_1986_married:
-  1983: 0.18
-standard_deduction_floor_1983_1986_married:
-  1983: 1700
-standard_deduction_ceiling_1983_1986_married:
-  1983: 3000
-standard_deduction_flat_1987plus_single_or_hoh:  # `std(law,1)`
-  1987: 2300
-  2018: 4600
-  2022: 5400
-  2024: 12000
-standard_deduction_flat_1987plus_married:  # `std(law,2)`, /sep
-  1987: 3000
-  2018: 6000
-  2022: 7100
-  2024: 24000
+# --- Exemptions ---
+# The exemption amount. Before 1987 it applies to dependents and taxpayers
+# 65 or older; from 1987 to taxpayers, and also to dependents through 2002.
+# Personal exemptions were repealed with the 2024 flat-rate law.
+exemption: {1977: 700, 1987: 1500, 1994: 2000, 1995: 2500, 1998: 2700, 2024: null}
+# Flat exemption per taxpayer before 1987 and in 1994-1997.
+taxpayer_exemption: {1977: 1500, 1987: null, 1994: 1500, 1998: null}
+# Extra exemption for a head of household with dependents before 1987.
+head_of_household_dependent_exemption: {1977: 800, 1987: null}
+# Exemption per dependent from 2003 (source for 2024: PolicyEngine-US
+# gov.states.ga.tax.income.exemptions.dependent).
+dependent_exemption: {2003: 3000, 2024: 4000}
+# Exemption per taxpayer on joint and separate returns, 2013-2023.
+married_exemption: {2013: 3700, 2024: null}
 
-# Child/Dependent Care Credit: real 1978-1986 (2% of qualifying expenses,
-# capped $2,000-$4,000/dep-scaled), NOT allowable 1987-2005, then a
-# percentage of the federal credit (pre-cap) 2006+.
-child_care_credit_expense_cap_floor_pre1987:
-  1960: 2000
-child_care_credit_expense_cap_ceiling_pre1987:
-  1960: 4000
-child_care_credit_rate_pre1987:
-  1960: 0.02
-child_care_credit_rate_2006plus:  # `perch(law)`
-  2006: 0.10
-  2007: 0.20
-  2008: 0.30
-  2025: 0.5
-
-# Low Income Credit: real flat-formula <=1986, does NOT exist 1987-1991,
-# a real per-exemption-unit interpolation table 1992+ (`lic`/`tablki`).
-low_income_credit_flat_per_txp_pre1987:
-  1960: 15
-low_income_credit_agi_threshold_per_txp_pre1987:
-  1960: 3000
-low_income_credit_table_1992plus:  # (agi_threshold, rate_per_exemption) -
-  # the final (huge-threshold, 0) row is real (`lic/...,1.e20,0.d0/`) -
-  # without it, `tablki`'s own "beyond the last real threshold" default
-  # collapses to $5/exemption forever instead of phasing to $0 above
-  # $20,000.
-  - [6000, 26]
-  - [8000, 20]
-  - [10000, 14]
-  - [15000, 8]
-  - [20000, 5]
-  - [100000000, 0]
-
-# Retirement income exclusion per taxpayer 65 or older (TAXSIM `rtmax`).
-# Before 1989 it is the lesser of federal AGI and this amount per aged
-# taxpayer (none in 1986-1988 when earned income exceeds $1,200 per
-# taxpayer); from 1989 it covers up to $4,000 of earnings plus retirement
-# and investment income, with TAXSIM's own split for couples.
-retirement_exclusion_max: {1977: 0, 1982: 2000, 1986: 4000, 1989: 8000, 1993: 10000, 1994: 11000, 1995: 12000, 1999: 13000, 2000: 13500, 2001: 14000, 2002: 14500, 2003: 15000, 2006: 25000, 2007: 30000, 2008: 35000, 2012: 65000}
-retirement_exclusion_earned_limit_1986: 1200
-retirement_exclusion_earnings_cap: 4000
-# Additional standard deduction per taxpayer 65 or older (1987+).
+# --- Standard deduction ---
+# Before 1987: a percentage of Georgia AGI between a floor and a ceiling,
+# both halved on separate returns. `single` covers head of household.
+standard_deduction_percent:
+  1977:
+    single: {rate: 0.15, floor: 1300, ceiling: 2000}
+    married: {rate: 0.15, floor: 1300, ceiling: 2000}
+  1983:
+    single: {rate: 0.15, floor: 1500, ceiling: 2000}
+    married: {rate: 0.18, floor: 1700, ceiling: 3000}
+  1987: null
+# From 1987: a flat amount, halved on separate returns. `single` covers head
+# of household.
+standard_deduction:
+  1987: {single: 2300, married: 3000}
+  2018: {single: 4600, married: 6000}
+  2022: {single: 5400, married: 7100}
+  2024: {single: 12000, married: 24000}
+# Additional standard deduction per taxpayer 65 or older.
 aged_standard_deduction: {1987: 700, 1998: 1300, 2024: 0}
 
-# 1982-1986 IRA adjustment (`stira`): this amount less the federal IRA
-# limit (earnings up to the limit per return) is added back when positive.
-ira_addback_1982_1986:
-  amount: 500
-  limit_joint: 4000
-  limit_other: 2000
-
-# 1982-1986 unemployment compensation thresholds, Georgia's (`gmp`) and the
-# federal ones (`fmp`), by filing status.
-unemployment_threshold_1982_1986:
-  georgia: {single: 20000, married_joint: 25000, head_of_household: 20000, married_separate: 0}
-  federal: {single: 12000, married_joint: 18000, head_of_household: 20000, married_separate: 0}
-
-# Retirement exclusion: the federal net capital loss limit (halved for
-# separate returns), and the share of losses counted for a spouse.
+# --- Retirement income exclusion ---
+# Per taxpayer 65 or older. Before 1989: the lesser of federal AGI and this
+# amount, and none in 1986-1988 when earned income exceeds `earned_limit`
+# per taxpayer. From 1989 it covers up to `earnings_cap` of earnings plus
+# retirement and investment income, split between spouses.
+retirement_exclusion_max: {1977: 0, 1982: 2000, 1986: 4000, 1989: 8000, 1993: 10000, 1994: 11000, 1995: 12000, 1999: 13000, 2000: 13500, 2001: 14000, 2002: 14500, 2003: 15000, 2006: 25000, 2007: 30000, 2008: 35000, 2012: 65000}
+retirement_exclusion_earned_limit: {1986: 1200, 1989: null}
+retirement_exclusion_earnings_cap: {1989: 4000}
+# The federal net capital loss limit (halved on separate returns) and the
+# share of losses counted for a spouse.
 retirement_exclusion_capital_loss_limit: 3000
 retirement_exclusion_spouse_loss_share: 0.25
 
-# 1978-1986 child care expense cap per dependent.
-child_care_credit_expense_per_dependent_pre1987: 2000
+# --- 1982-1986 additions (Georgia kept 1981 federal law) ---
+# IRA adjustment: `amount` less the federal IRA limit (earnings up to the
+# limit) is added back when positive.
+ira_addback:
+  1982: {amount: 500, limit_joint: 4000, limit_other: 2000}
+  1987: null
+# Unemployment compensation: the difference between the taxable amounts
+# under Georgia's and the federal income thresholds is added back.
+unemployment_threshold:
+  1982:
+    georgia: {single: 20000, married_joint: 25000, head_of_household: 20000, married_separate: 0}
+    federal: {single: 12000, married_joint: 18000, head_of_household: 20000, married_separate: 0}
+  1987: null
+
+# --- Credits ---
+# Child and dependent care credit, 1978-1986: a share of expenses up to a
+# cap per dependent, kept between a minimum and maximum, and up to wages.
+child_care_credit_expenses:
+  1978: {rate: 0.02, cap_per_dependent: 2000, cap_min: 2000, cap_max: 4000}
+  1987: null
+# From 2006: a share of the federal credit before its liability limit.
+child_care_credit_federal_share: {2006: 0.10, 2007: 0.20, 2008: 0.30, 2025: 0.5}
+
+# Low-income credit before 1987: an amount per taxpayer (heads of household
+# count as two), reduced dollar for dollar above an AGI threshold.
+low_income_credit_flat:
+  1977: {per_taxpayer: 15, agi_threshold_per_taxpayer: 3000}
+  1987: null
+# From 1992: an amount per exemption (taxpayers, dependents and taxpayers
+# 65 or older) by federal AGI, [AGI, amount], interpolated. None for
+# dependent filers.
+low_income_credit_per_exemption:
+  1992:
+    - [6000, 26]
+    - [8000, 20]
+    - [10000, 14]
+    - [15000, 8]
+    - [20000, 5]
+    - [100000000, 0]
+# Whether the low-income credit is refundable.
+low_income_credit_refundable: {1977: true, 2010: false}

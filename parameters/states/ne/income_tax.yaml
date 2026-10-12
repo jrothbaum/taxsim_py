@@ -1,10 +1,13 @@
-# Nebraska individual income tax (`netax`, taxsim_2024_09_21.f:12010-12847,
-# state id 28).
+# Nebraska individual income tax.
 #
-# Not TAXSIM inputs, so always zero: the residential energy credit and
-# blindness.
+# Sources: 1977-2021 NBER TAXSIM (`netax`); 2022 on, Neb. Rev. Stat. Chapter 77
+# Article 27 and PolicyEngine-US `gov.states.ne.tax.income`. The residential
+# energy credit and blindness have no TAXSIM input.
 
-# --- Through 1986: a share of federal income tax (`pretax`) ---
+# Statutory mode uses actual law through this year.
+law_coded_through: 2025
+
+# Through 1986 the tax is this share of federal income tax.
 federal_tax_share:
   1977: 0.18
   1978: 0.16
@@ -15,70 +18,79 @@ federal_tax_share:
   1984: 0.19
   1985: 0.2
   1986: 0.19
+  1987: null
 
-# --- Rate schedules (start, rate) ---
-# 1987-1992 by filing status (single, joint, married separate, head of
-# household); 1993 on single, joint (separate filers use half the joint
-# schedule at double income) and head of household.
-brackets_1987_1992:
-  single:
-    1987: [[0, 0.02], [1800, 0.0315], [16800, 0.05], [27000, 0.059]]
-    1989: [[0, 0.02], [1800, 0.031], [16800, 0.048], [27000, 0.059]]
-    1990: [[0, 0.022], [1800, 0.0336], [16800, 0.0521], [27000, 0.0641]]
-    1991: [[0, 0.0237], [1800, 0.0363], [16800, 0.0562], [27000, 0.0692]]
-  married_joint:
-    1987: [[0, 0.02], [3000, 0.0315], [28000, 0.05], [45000, 0.059]]
-    1989: [[0, 0.02], [3000, 0.031], [28000, 0.048], [45000, 0.059]]
-    1990: [[0, 0.022], [3000, 0.0336], [28000, 0.0521], [45000, 0.0641]]
-    1991: [[0, 0.0237], [3000, 0.0363], [28000, 0.0562], [45000, 0.0692]]
-  married_separate:
-    1987: [[0, 0.02], [1500, 0.0315], [14000, 0.05], [22500, 0.059]]
-    1989: [[0, 0.02], [1500, 0.031], [14000, 0.048], [22500, 0.059]]
-    1990: [[0, 0.022], [1500, 0.0336], [14000, 0.0521], [22500, 0.0641]]
-    1991: [[0, 0.0237], [1500, 0.0363], [14000, 0.0562], [22500, 0.0692]]
-  head_of_household:
-    1987: [[0, 0.02], [2500, 0.0315], [23000, 0.05], [38000, 0.059]]
-    1989: [[0, 0.02], [2500, 0.031], [23000, 0.048], [38000, 0.059]]
-    1990: [[0, 0.022], [2500, 0.0336], [23000, 0.0521], [38000, 0.0641]]
-    1991: [[0, 0.0237], [2500, 0.0363], [23000, 0.0562], [38000, 0.0692]]
-brackets_1993plus:  # 2014 on times `bracket_inflation`
-  single:
-    1993: [[0, 0.0262], [2400, 0.0365], [17000, 0.0524], [26500, 0.0699]]
-    1997: [[0, 0.0251], [2400, 0.0349], [17000, 0.0501], [26500, 0.0668]]
-    2003: [[0, 0.0256], [2400, 0.0357], [17000, 0.0512], [26500, 0.0684]]
-    2006: [[0, 0.0256], [2400, 0.0357], [17500, 0.0512], [27000, 0.0684]]
-    2007: [[0, 0.0256], [2400, 0.0357], [17500, 0.0512], [27000, 0.0684]]
-    2013: [[0, 0.0246], [2400, 0.0351], [17500, 0.0501], [27000, 0.0684]]
-    2014: [[0, 0.0246], [3000, 0.0351], [18000, 0.0501], [29000, 0.0684]]
-    2022: [[0, 0.0246], [3440, 0.0351], [20590, 0.0501], [33180, 0.0684]]
-    2023: [[0, 0.0246], [3700, 0.0351], [22170, 0.0501], [35730, 0.0664]]
-    2024: [[0, 0.0246], [3900, 0.0351], [23370, 0.0501], [37670, 0.0584]]
-    2025: [[0, 0.0246], [4030, 0.0351], [24120, 0.0501], [38870, 0.052]]
-  married_joint:
-    1993: [[0, 0.0262], [4000, 0.0365], [30000, 0.0524], [46750, 0.0699]]
-    1997: [[0, 0.0251], [4000, 0.0349], [30000, 0.0501], [46750, 0.0668]]
-    2003: [[0, 0.0256], [4000, 0.0357], [30000, 0.0512], [46750, 0.0684]]
-    2006: [[0, 0.0256], [4000, 0.0357], [31000, 0.0512], [50000, 0.0684]]
-    2007: [[0, 0.0256], [4800, 0.0357], [35000, 0.0512], [54000, 0.0684]]
-    2013: [[0, 0.0246], [4800, 0.0351], [35000, 0.0501], [54000, 0.0684]]
-    2014: [[0, 0.0246], [6000, 0.0351], [36000, 0.0501], [58000, 0.0684]]
-    2022: [[0, 0.0246], [6860, 0.0351], [41190, 0.0501], [66360, 0.0684]]
-    2023: [[0, 0.0246], [7390, 0.0351], [44350, 0.0501], [71460, 0.0664]]
-    2024: [[0, 0.0246], [7790, 0.0351], [46760, 0.0501], [75340, 0.0584]]
-    2025: [[0, 0.0246], [8040, 0.0351], [48250, 0.0501], [77730, 0.052]]
-  head_of_household:
-    1993: [[0, 0.0262], [3800, 0.0365], [24100, 0.0524], [35000, 0.0699]]
-    1997: [[0, 0.0251], [3800, 0.0349], [24000, 0.0501], [35000, 0.0668]]
-    2003: [[0, 0.0256], [3800, 0.0357], [24000, 0.0512], [35000, 0.0684]]
-    2006: [[0, 0.0256], [3800, 0.0357], [25000, 0.0512], [35000, 0.0684]]
-    2007: [[0, 0.0256], [4500, 0.0357], [28000, 0.0512], [40000, 0.0684]]
-    2013: [[0, 0.0246], [4500, 0.0351], [28000, 0.0501], [40000, 0.0684]]
-    2014: [[0, 0.0246], [5600, 0.0351], [28800, 0.0501], [43000, 0.0684]]
-    2022: [[0, 0.0246], [6410, 0.0351], [32950, 0.0501], [49200, 0.0684]]
-    2023: [[0, 0.0246], [6900, 0.0351], [35480, 0.0501], [52980, 0.0664]]
-    2024: [[0, 0.0246], [7270, 0.0351], [37400, 0.0501], [55850, 0.0584]]
-    2025: [[0, 0.0246], [7510, 0.0351], [38590, 0.0501], [57630, 0.052]]
+# Rate schedules, [start of bracket, rate], from 1987 by filing status; from
+# 1993 separate returns use half the joint schedule on twice their income, and
+# from 2014 starts are times `bracket_inflation`. Source for 2022 on:
+# PolicyEngine-US gov.states.ne.tax.income.rates.
+brackets:
+  1987:
+    single: [[0, 0.02], [1800, 0.0315], [16800, 0.05], [27000, 0.059]]
+    married_joint: [[0, 0.02], [3000, 0.0315], [28000, 0.05], [45000, 0.059]]
+    married_separate: [[0, 0.02], [1500, 0.0315], [14000, 0.05], [22500, 0.059]]
+    head_of_household: [[0, 0.02], [2500, 0.0315], [23000, 0.05], [38000, 0.059]]
+  1989:
+    single: [[0, 0.02], [1800, 0.031], [16800, 0.048], [27000, 0.059]]
+    married_joint: [[0, 0.02], [3000, 0.031], [28000, 0.048], [45000, 0.059]]
+    married_separate: [[0, 0.02], [1500, 0.031], [14000, 0.048], [22500, 0.059]]
+    head_of_household: [[0, 0.02], [2500, 0.031], [23000, 0.048], [38000, 0.059]]
+  1990:
+    single: [[0, 0.022], [1800, 0.0336], [16800, 0.0521], [27000, 0.0641]]
+    married_joint: [[0, 0.022], [3000, 0.0336], [28000, 0.0521], [45000, 0.0641]]
+    married_separate: [[0, 0.022], [1500, 0.0336], [14000, 0.0521], [22500, 0.0641]]
+    head_of_household: [[0, 0.022], [2500, 0.0336], [23000, 0.0521], [38000, 0.0641]]
+  1991:
+    single: [[0, 0.0237], [1800, 0.0363], [16800, 0.0562], [27000, 0.0692]]
+    married_joint: [[0, 0.0237], [3000, 0.0363], [28000, 0.0562], [45000, 0.0692]]
+    married_separate: [[0, 0.0237], [1500, 0.0363], [14000, 0.0562], [22500, 0.0692]]
+    head_of_household: [[0, 0.0237], [2500, 0.0363], [23000, 0.0562], [38000, 0.0692]]
+  1993:
+    single: [[0, 0.0262], [2400, 0.0365], [17000, 0.0524], [26500, 0.0699]]
+    married_joint: [[0, 0.0262], [4000, 0.0365], [30000, 0.0524], [46750, 0.0699]]
+    head_of_household: [[0, 0.0262], [3800, 0.0365], [24100, 0.0524], [35000, 0.0699]]
+  1997:
+    single: [[0, 0.0251], [2400, 0.0349], [17000, 0.0501], [26500, 0.0668]]
+    married_joint: [[0, 0.0251], [4000, 0.0349], [30000, 0.0501], [46750, 0.0668]]
+    head_of_household: [[0, 0.0251], [3800, 0.0349], [24000, 0.0501], [35000, 0.0668]]
+  2003:
+    single: [[0, 0.0256], [2400, 0.0357], [17000, 0.0512], [26500, 0.0684]]
+    married_joint: [[0, 0.0256], [4000, 0.0357], [30000, 0.0512], [46750, 0.0684]]
+    head_of_household: [[0, 0.0256], [3800, 0.0357], [24000, 0.0512], [35000, 0.0684]]
+  2006:
+    single: [[0, 0.0256], [2400, 0.0357], [17500, 0.0512], [27000, 0.0684]]
+    married_joint: [[0, 0.0256], [4000, 0.0357], [31000, 0.0512], [50000, 0.0684]]
+    head_of_household: [[0, 0.0256], [3800, 0.0357], [25000, 0.0512], [35000, 0.0684]]
+  2007:
+    single: [[0, 0.0256], [2400, 0.0357], [17500, 0.0512], [27000, 0.0684]]
+    married_joint: [[0, 0.0256], [4800, 0.0357], [35000, 0.0512], [54000, 0.0684]]
+    head_of_household: [[0, 0.0256], [4500, 0.0357], [28000, 0.0512], [40000, 0.0684]]
+  2013:
+    single: [[0, 0.0246], [2400, 0.0351], [17500, 0.0501], [27000, 0.0684]]
+    married_joint: [[0, 0.0246], [4800, 0.0351], [35000, 0.0501], [54000, 0.0684]]
+    head_of_household: [[0, 0.0246], [4500, 0.0351], [28000, 0.0501], [40000, 0.0684]]
+  2014:
+    single: [[0, 0.0246], [3000, 0.0351], [18000, 0.0501], [29000, 0.0684]]
+    married_joint: [[0, 0.0246], [6000, 0.0351], [36000, 0.0501], [58000, 0.0684]]
+    head_of_household: [[0, 0.0246], [5600, 0.0351], [28800, 0.0501], [43000, 0.0684]]
+  2022:
+    single: [[0, 0.0246], [3440, 0.0351], [20590, 0.0501], [33180, 0.0684]]
+    married_joint: [[0, 0.0246], [6860, 0.0351], [41190, 0.0501], [66360, 0.0684]]
+    head_of_household: [[0, 0.0246], [6410, 0.0351], [32950, 0.0501], [49200, 0.0684]]
+  2023:
+    single: [[0, 0.0246], [3700, 0.0351], [22170, 0.0501], [35730, 0.0664]]
+    married_joint: [[0, 0.0246], [7390, 0.0351], [44350, 0.0501], [71460, 0.0664]]
+    head_of_household: [[0, 0.0246], [6900, 0.0351], [35480, 0.0501], [52980, 0.0664]]
+  2024:
+    single: [[0, 0.0246], [3900, 0.0351], [23370, 0.0501], [37670, 0.0584]]
+    married_joint: [[0, 0.0246], [7790, 0.0351], [46760, 0.0501], [75340, 0.0584]]
+    head_of_household: [[0, 0.0246], [7270, 0.0351], [37400, 0.0501], [55850, 0.0584]]
+  2025:
+    single: [[0, 0.0246], [4030, 0.0351], [24120, 0.0501], [38870, 0.052]]
+    married_joint: [[0, 0.0246], [8040, 0.0351], [48250, 0.0501], [77730, 0.052]]
+    head_of_household: [[0, 0.0246], [7510, 0.0351], [38590, 0.0501], [57630, 0.052]]
 bracket_inflation:
+  1977: 1
   2014: 1
   2015: 1.016
   2016: 1.02
@@ -88,15 +100,17 @@ bracket_inflation:
   2020: 1.097
   2021: 1.113
   2022: 1
-  2023: 1
-  2024: 1
-  2025: 1
+# 1987: the schedule applies to taxable income above a zero bracket.
+zero_bracket:
+  1987: {single: 2600, married_joint: 3800, married_separate: 1900, head_of_household: 2600}
+  1988: null
 
-# --- 1993-2017 additional tax on high incomes, by federal AGI ---
-# Upper bounds of four bands (the first band is untaxed); applies when
-# federal AGI exceeds the itemized-limit threshold and taxable income is
-# at least `additional_tax_min_taxable_income`. 2013-2017 bounds are the
-# 2013 values times `itemized_limit_inflation`.
+# 1993-2017 additional tax on high incomes, by federal AGI (doubled on separate
+# returns): upper bounds of four bands (the first untaxed; 2013-2017 the 2013
+# bounds times `itemized_limit_inflation`) and rates for bands 2-4, when federal
+# AGI exceeds the high-income threshold and taxable income is at least the
+# minimum; below it the bracket rate applies when taxable income is under
+# `additional_tax_agi_share` of AGI above the threshold.
 additional_tax_bounds:
   single:
     1993: [108450, 132450, 278450, 373450]
@@ -164,75 +178,20 @@ additional_tax_bounds:
     2011: [169550, 214550, 449550, 569550]
     2012: [173650, 218650, 453650, 573650]
     2013: [275000, 320000, 555000, 675000]
-additional_tax_rates:  # rates for bands 2-4
+additional_tax_rates:
   1993: [0.00437, 0.00334, 0.00175]
   1997: [0.00417, 0.00319, 0.00167]
   2003: [0.00428, 0.00327, 0.00172]
   2013: [0.00438, 0.00333, 0.00183]
-additional_tax_min_taxable_income:
-  1993: 46750
-  2010: 54000
-  2014: 58000
-  2015: 58920
-  2016: 59180
-  2017: 59660
-
-# 1987 only: the rate schedule applies to taxable income above a zero
-# bracket.
-zero_bracket_1987:
-  single: 2600
-  married_joint: 3800
-  married_separate: 1900
-  head_of_household: 2600
+  2018: null
+additional_tax_min_taxable_income: {1993: 46750, 2010: 54000, 2014: 58000, 2015: 58920, 2016: 59180, 2017: 59660}
+additional_tax_agi_share: 0.1
 
 # --- Deductions ---
-# 1993-2017: the standard deduction falls by this share of federal AGI above
-# the high-income threshold.
-standard_deduction_phaseout_rate: {1993: 0.1}
-# Nebraska's own standard deduction where it differs from the federal one.
-standard_deduction_override:
-  married:  # married joint (married separate gets half)
-    2003: 7950
-    2004: 8140
-    2005: 8320
-    2006: 8580
-  single:
-    2005: 4980
-    2006: 5130
-standard_deduction_2018plus:
-  single:
-    2018: 6750
-    2019: 6900
-    2020: 7000
-    2021: 7100
-    2022: 7350
-    2023: 7900
-    2024: 8350
-    2025: 8600
-  married:  # married separate gets half
-    2018: 13500
-    2019: 13800
-    2020: 14000
-    2021: 14200
-    2022: 14700
-    2023: 15800
-    2024: 16700
-    2025: 17200
-  head_of_household:
-    2018: 9900
-    2019: 10100
-    2020: 10300
-    2021: 10450
-    2022: 10750
-    2023: 11600
-    2024: 12250
-    2025: 12600
-# 2008-2009: the federal real property tax addition is removed.
-standard_deduction_property_tax_cap_2008_2009: {2008: 500}
-salt_cap: {2018: 10000}
-# High-income threshold (`phas92`) shared by the standard deduction
-# phaseout and the additional tax.
-itemized_limit_threshold_base: {1977: 100000, 2013: 250000}
+# High-income threshold for the standard deduction phaseout and the additional
+# tax (times the inflation factor from 1992; before 2013 halved on separate
+# returns, then times the status multiplier).
+itemized_limit_threshold_base: {1977: 100000, 2013: 250000, 2018: null}
 itemized_limit_inflation:
   1977: 1.0
   1992: 1.0525
@@ -260,24 +219,50 @@ itemized_limit_inflation:
   2015: 1.033
   2016: 1.0376
   2017: 1.08
-itemized_limit_status_multiplier:  # 2013-2017; earlier years divide by `sep`
-  single: 1.0
-  married_joint: 1.2
-  married_separate: 0.6
-  head_of_household: 1.1
+itemized_limit_status_multiplier: {single: 1.0, married_joint: 1.2, married_separate: 0.6, head_of_household: 1.1}
+# 1993-2017: the standard deduction falls by this share of federal AGI above the
+# threshold.
+standard_deduction_phaseout_rate: {1993: 0.1, 2018: null}
+# Nebraska's own standard deduction where it differs from the federal one (married
+# separate gets half).
+standard_deduction_override_married: {2003: 7950, 2004: 8140, 2005: 8320, 2006: 8580, 2007: null}
+standard_deduction_override_single: {2005: 4980, 2006: 5130, 2007: null}
+# 2008-2009: the federal real property tax addition is removed.
+standard_deduction_property_tax_cap: {2008: 500, 2010: null}
+# From 2018 Nebraska's own standard deduction (married separate gets half), plus
+# `standard_deduction_aged_addition` per taxpayer 65 or older.
+standard_deduction:
+  single: {2018: 6750, 2019: 6900, 2020: 7000, 2021: 7100, 2022: 7350, 2023: 7900, 2024: 8350, 2025: 8600}
+  married:
+    2018: 13500
+    2019: 13800
+    2020: 14000
+    2021: 14200
+    2022: 14700
+    2023: 15800
+    2024: 16700
+    2025: 17200
+  head_of_household:
+    2018: 9900
+    2019: 10100
+    2020: 10300
+    2021: 10450
+    2022: 10750
+    2023: 11600
+    2024: 12250
+    2025: 12600
+standard_deduction_aged_addition:
+  single: {2018: 1600, 2020: 1650, 2022: 1700, 2023: 1850, 2024: 1950, 2025: 2000}
+  married: {2018: 1300, 2020: 1350, 2022: 1400, 2023: 1500, 2024: 1600, 2025: 1650}
+  head_of_household: {2018: 1600, 2020: 1650, 2022: 1700, 2023: 1850, 2024: 1950, 2025: 2000}
+# From 2018 state taxes are deductible up to this amount (halved on separate returns).
+salt_cap: {2018: 10000}
 
-# --- Exemptions (1987-1992, per taxpayer and dependent) ---
-exemption:
-  1987: 1100
-  1988: 1130
-  1989: 1180
-  1990: 1230
-  1991: 1290
-  1992: 1360
-  1993: 0
-
-# --- Credits ---
-personal_credit:  # per taxpayer and dependent
+# --- Exemptions and credits ---
+# 1987-1992 exemption per federal exemption.
+exemption: {1987: 1100, 1988: 1130, 1989: 1180, 1990: 1230, 1991: 1290, 1992: 1360, 1993: null}
+# Personal credit per taxpayer and dependent (from 1993 per federal exemption).
+personal_credit:
   1977: 20
   1980: 28
   1983: 21
@@ -309,152 +294,56 @@ personal_credit:  # per taxpayer and dependent
   2019: 137
   2020: 140
   2021: 142
-# 1993-2005: the personal credit falls by `personal_credit_phaseout_amount`
-# per `personal_credit_phaseout_step` (halved for married separate) of
-# federal AGI above the threshold.
   2022: 146
   2023: 157
   2024: 166
   2025: 171
+# 1993-2005: the personal credit falls by `personal_credit_phaseout_amount` per
+# `personal_credit_phaseout_step` (halved on separate returns) of federal AGI
+# above the threshold.
 personal_credit_phaseout_threshold:
-  single:
-    1993: 54000
-    1994: 56000
-    1995: 58000
-    1996: 59000
-    1997: 61000
-    1998: 62000
-    1999: 64000
-    2000: 65000
-    2001: 67000
-    2002: 69000
-    2003: 70000
-    2004: 72000
-    2005: 73000
-    2006: 1.0e+20
-  married_joint:
-    1993: 90000
-    1994: 93000
-    1995: 96000
-    1996: 98000
-    1997: 101000
-    1998: 104000
-    1999: 106000
-    2000: 107000
-    2001: 111000
-    2002: 114000
-    2003: 116000
-    2004: 119000
-    2005: 122000
-    2006: 1.0e+20
-  head_of_household:
-    1993: 75000
-    1994: 78000
-    1995: 80000
-    1996: 82000
-    1997: 84000
-    1998: 87000
-    1999: 88000
-    2000: 90000
-    2001: 92000
-    2002: 95000
-    2003: 97000
-    2004: 99000
-    2005: 101000
-    2006: 1.0e+20
-  married_separate:
-    1993: 45000
-    1994: 46500
-    1995: 48000
-    1996: 49000
-    1997: 50500
-    1998: 52000
-    1999: 53000
-    2000: 53500
-    2001: 55500
-    2002: 57000
-    2003: 58000
-    2004: 59500
-    2005: 61000
-    2006: 1.0e+20
+  1993: {single: 54000, married_joint: 90000, head_of_household: 75000, married_separate: 45000}
+  1994: {single: 56000, married_joint: 93000, head_of_household: 78000, married_separate: 46500}
+  1995: {single: 58000, married_joint: 96000, head_of_household: 80000, married_separate: 48000}
+  1996: {single: 59000, married_joint: 98000, head_of_household: 82000, married_separate: 49000}
+  1997: {single: 61000, married_joint: 101000, head_of_household: 84000, married_separate: 50500}
+  1998: {single: 62000, married_joint: 104000, head_of_household: 87000, married_separate: 52000}
+  1999: {single: 64000, married_joint: 106000, head_of_household: 88000, married_separate: 53000}
+  2000: {single: 65000, married_joint: 107000, head_of_household: 90000, married_separate: 53500}
+  2001: {single: 67000, married_joint: 111000, head_of_household: 92000, married_separate: 55500}
+  2002: {single: 69000, married_joint: 114000, head_of_household: 95000, married_separate: 57000}
+  2003: {single: 70000, married_joint: 116000, head_of_household: 97000, married_separate: 58000}
+  2004: {single: 72000, married_joint: 119000, head_of_household: 99000, married_separate: 59500}
+  2005: {single: 73000, married_joint: 122000, head_of_household: 101000, married_separate: 61000}
+  2006: null
 personal_credit_phaseout_amount: {1993: 5}
 personal_credit_phaseout_step: {1993: 5000}
-# Child care credit: share of the federal credit (1989 on); from 1998 it is
-# refundable at a sliding share for federal AGI up to the limit.
+# Credit for the elderly: a share of the federal credit (from 1987).
+elderly_credit_share: {1981: 0.5, 1989: 1.0}
+# Child care credit: a share of the federal credit; from 1998 refundable instead
+# at federal AGI up to `agi_limit`, at a share falling `share_step` per dollar above
+# `full_share_agi`.
 child_care_credit_share: {1977: 0.0, 1989: 0.25}
-child_care_refundable_agi_limit: {1998: 29000}
-child_care_refundable_full_share_agi: {1998: 22000}
-child_care_refundable_share_step: {1998: 0.0001}  # per dollar of AGI
+child_care_refundable:
+  1998: {agi_limit: 29000, full_share_agi: 22000, share_step: 0.0001}
 # Share of the federal minimum tax added (through 2013).
-minimum_tax_share:
-  1977: 0.0
-  1987: 0.2205
-  1990: 0.2401
-  1991: 0.259
-  1993: 0.296
-  2014: 0.0
-eitc_match_rate: {1977: 0.0, 2006: 0.08, 2007: 0.10}
-
-# 2018+ additional standard deduction per taxpayer 65 or older (`addst`,
-# not divided for separate filers).
-standard_deduction_aged_addition_2018plus:
-  single:
-    2018: 1600
-    2020: 1650
-    2022: 1700
-    2023: 1850
-    2024: 1950
-    2025: 2000
-  married:
-    2018: 1300
-    2020: 1350
-    2022: 1400
-    2023: 1500
-    2024: 1600
-    2025: 1650
-  head_of_household:
-    2018: 1600
-    2020: 1650
-    2022: 1700
-    2023: 1850
-    2024: 1950
-    2025: 2000
-
-# Social Security subtraction: all taxable benefits for federal AGI up to
-# the limit (2015+); from 2021 5% of them above it.
+minimum_tax_share: {1977: 0.0, 1987: 0.2205, 1990: 0.2401, 1991: 0.259, 1993: 0.296, 2014: 0.0}
+eitc_match_rate: {1977: 0.0, 2006: 0.08, 2007: 0.1}
+# From 2015 taxable Social Security is subtracted in full at federal AGI up to
+# the limit, and this share of it above.
 social_security_exclusion_agi_limit:
-  single:
-    2015: 43000
-    2021: 44460
-    2022: 45790
-    2023: 49310
-    2024: 1.0e+20
-  married_joint:
-    2015: 58000
-    2021: 59960
-    2022: 61760
-    2023: 66510
-    2024: 1.0e+20
-social_security_exclusion_share_above_limit:
-  2015: 0.0
-  2021: 0.05
-  2022: 0.4
-  2023: 0.6
-  2024: 1.0
-
-# Credit for the elderly: share of the federal credit (1981+).
-elderly_credit_share:
-  1981: 0.5
-  1989: 1.0
-
-# Additional tax: below the minimum taxable income, the bracket rate applies
-# when taxable income is under this share of AGI above the threshold.
-additional_tax_agi_share: 0.1
-
-# 2024+ refundable child tax credit for dependents 5 or younger (PolicyEngine-US
-# gov.states.ne.tax.income.credits.ctc.refundable and gov.hhs.fpg, queried 2026-10-01):
-# [AGI above, amount per child].
-child_tax_credit_2024plus:
-  amount: [[-1.0e+18, 2000], [75000, 1000], [150000, 0]]
-  poverty_first_person: {2024: 15060, 2025: 15650}
-  poverty_additional_person: {2024: 5380, 2025: 5500}
+  single: {2015: 43000, 2021: 44460, 2022: 45790, 2023: 49310, 2024: 1.0e+20}
+  married_joint: {2015: 58000, 2021: 59960, 2022: 61760, 2023: 66510, 2024: 1.0e+20}
+social_security_exclusion_share_above_limit: {2015: 0.0, 2021: 0.05, 2022: 0.4, 2023: 0.6, 2024: 1.0}
+# From 2024, refundable child tax credit per dependent 5 or younger, [AGI above,
+# amount], with child care expenses or income at or below the federal poverty
+# guideline. Source: PolicyEngine-US gov.states.ne.tax.income.credits.ctc.
+child_tax_credit:
+  2024:
+    amount: [[-1.0e+18, 2000], [75000, 1000], [150000, 0]]
+    poverty_first_person: 15060
+    poverty_additional_person: 5380
+  2025:
+    amount: [[-1.0e+18, 2000], [75000, 1000], [150000, 0]]
+    poverty_first_person: 15650
+    poverty_additional_person: 5500

@@ -15,13 +15,6 @@ NE_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "ne" / "income_tax.yaml")
 FEDERAL_INCOME_TAX_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "income_tax.yaml")
 
 
-def _p_in(table: dict, year: int) -> float:
-    return float(resolve_year(table, year))
-
-
-def _status_values(section: dict, year: int) -> dict[str, float]:
-    return {status: float(resolve_year(values, year)) for status, values in section.items()}
-
 
 def _additional_tax(dagi: pl.Expr, bounds: list[float], rates: list[float]) -> tuple[pl.Expr, pl.Expr]:
     """High-income additional tax on federal AGI, and its amount at the top bound."""
@@ -34,8 +27,7 @@ def _additional_tax(dagi: pl.Expr, bounds: list[float], rates: list[float]) -> t
 
 def compute_ne_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
     """Calculate Nebraska income tax for each row."""
-    state_year = "ne" if behavior.mode.value == "statutory" else None
-    effective_year, flate = resolve_state_year(year, state_year)
+    effective_year, flate = resolve_state_year(year, behavior, NE_PARAMS)
     y = effective_year
     p = YearParams(NE_PARAMS, effective_year)
     df = deflate_for_extrapolation(df, flate)
@@ -51,8 +43,9 @@ def compute_ne_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     ne_agi = fed_agi
     if y >= 2015:
         # Taxable Social Security is subtracted in full up to an AGI limit.
-        limits = p["social_security_exclusion_agi_limit"]
-        limit = pl.when(is_joint).then(_p_in(limits["married_joint"], y)).otherwise(_p_in(limits["single"], y))
+        limit = pl.when(is_joint).then(p.num("social_security_exclusion_agi_limit", "married_joint")).otherwise(
+            p.num("social_security_exclusion_agi_limit", "single")
+        )
         above = p.num("social_security_exclusion_share_above_limit")
         ne_agi = ne_agi - pl.when(fed_agi <= limit).then(pl.col("taxable_social_security")).otherwise(
             above * pl.col("taxable_social_security")
@@ -70,7 +63,7 @@ def compute_ne_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             * by_filing_status(p["itemized_limit_status_multiplier"])
         )
     else:
-        phas92 = float(resolve_year(p["itemized_limit_threshold_base"], 1977)) / sep
+        phas92 = None
 
     if y <= 1986:
         statax = p.num("federal_tax_share") * pl.col("pre1987_pretax").clip(0, None)
@@ -97,8 +90,8 @@ def compute_ne_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         else:
             stit = pl.min_horizontal(p.num("salt_cap") / sep, salt_ded)
             xitded = (fed_itemized - stit).abs() * itemizes.cast(pl.Float64)
-            std = p["standard_deduction_2018plus"]
-            aged_add = p["standard_deduction_aged_addition_2018plus"]
+            std = p["standard_deduction"]
+            aged_add = p["standard_deduction_aged_addition"]
             stded = by_filing_status({
                 "single": resolve_year(std["single"], y),
                 "married_joint": resolve_year(std["married"], y),
@@ -110,17 +103,16 @@ def compute_ne_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
                 "married_separate": resolve_year(aged_add["married"], y),
                 "head_of_household": resolve_year(aged_add["head_of_household"], y),
             }) * aged_count()
-        if 1993 <= y <= 2017:
+        if p.in_effect("standard_deduction_phaseout_rate"):
             reduction = p.num("standard_deduction_phaseout_rate") * (fed_agi - phas92).clip(0, None)
             stded = (fed_std - reduction).clip(0, None)
-            override = p["standard_deduction_override"]
-            if y in override["married"]:
-                married_value = (float(override["married"][y]) / sep - reduction).clip(0, None)
+            if p.in_effect("standard_deduction_override_married"):
+                married_value = (p.num("standard_deduction_override_married") / sep - reduction).clip(0, None)
                 stded = pl.when(is_joint | is_sep).then(married_value).otherwise(stded)
-            if y in override["single"]:
-                stded = pl.when(is_single).then((float(override["single"][y]) - reduction).clip(0, None)).otherwise(stded)
-        if y in (2008, 2009):
-            cap = p.num("standard_deduction_property_tax_cap_2008_2009")
+            if p.in_effect("standard_deduction_override_single"):
+                stded = pl.when(is_single).then((p.num("standard_deduction_override_single") - reduction).clip(0, None)).otherwise(stded)
+        if p.in_effect("standard_deduction_property_tax_cap"):
+            cap = p.num("standard_deduction_property_tax_cap")
             stded = pl.when(pl.col("proptax") > 0).then(
                 fed_std - pl.min_horizontal(pl.col("proptax"), cap * txp)
             ).otherwise(stded)
@@ -133,10 +125,10 @@ def compute_ne_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
 
         # --- Tax ---
         if y <= 1992:
-            tables = {status_name: resolve_year(values, y) for status_name, values in p["brackets_1987_1992"].items()}
+            tables = p.value("brackets")
             income = taxinc
-            if y == 1987:
-                income = (taxinc - by_filing_status(p["zero_bracket_1987"])).clip(0, None)
+            if p.in_effect("zero_bracket"):
+                income = (taxinc - by_filing_status(p.value("zero_bracket"))).clip(0, None)
             statax = pl.lit(0.0)
             for status_name, brackets in tables.items():
                 statax = pl.when(status == status_name).then(bracket_tax(income, brackets)).otherwise(statax)
@@ -144,11 +136,8 @@ def compute_ne_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             for status_name, brackets in tables.items():
                 rt = pl.when(status == status_name).then(bracket_rate(income, brackets)).otherwise(rt)
         else:
-            factor = p.num("bracket_inflation") if y >= 2014 else 1.0
-            tables = {
-                status_name: scale_brackets(resolve_year(values, y), factor)
-                for status_name, values in p["brackets_1993plus"].items()
-            }
+            factor = p.num("bracket_inflation")
+            tables = {status_name: scale_brackets(values, factor) for status_name, values in p.value("brackets").items()}
             taxy = pl.when(is_sep).then(2.0 * taxinc).otherwise(taxinc)
             dagi = pl.when(is_sep).then(2.0 * fed_agi).otherwise(fed_agi)
             table_of = {"single": "single", "married_joint": "married_joint",
@@ -160,15 +149,14 @@ def compute_ne_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
                 statax = pl.when(status == status_name).then(bracket_tax(taxy, brackets) / sep).otherwise(statax)
                 rt = pl.when(status == status_name).then(bracket_rate(taxy, brackets)).otherwise(rt)
             df, (statax, rt) = checkpoint(df, ne_table_tax=statax, ne_rt=rt)
-            if y <= 2017:
-                bounds_year = min(y, 2013)
+            if p.in_effect("additional_tax_rates"):
                 bound_factor = p.num("itemized_limit_inflation") if y >= 2013 else 1.0
                 rates = p.value("additional_tax_rates")
                 surtax = pl.lit(0.0)
                 cap_amount = pl.lit(0.0)
                 top = pl.lit(0.0)
                 for status_name, table_name in table_of.items():
-                    bounds = [float(b) * bound_factor for b in p["additional_tax_bounds"][table_name][bounds_year]]
+                    bounds = [float(b) * bound_factor for b in p.value("additional_tax_bounds", table_name)]
                     amount, capped = _additional_tax(dagi, bounds, rates)
                     surtax = pl.when(status == status_name).then(amount).otherwise(surtax)
                     cap_amount = pl.when(status == status_name).then(capped).otherwise(cap_amount)
@@ -190,11 +178,14 @@ def compute_ne_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     if y <= 1992:
         stxcr = cred * exemps
     else:
-        threshold = by_filing_status(_status_values(p["personal_credit_phaseout_threshold"], y))
-        agdiff = (fed_agi - threshold).clip(0, None)
-        xcred = (
-            cred - p.num("personal_credit_phaseout_amount") * agdiff / (p.num("personal_credit_phaseout_step") / sep)
-        ).clip(0, None)
+        if p.in_effect("personal_credit_phaseout_threshold"):
+            threshold = by_filing_status(p.value("personal_credit_phaseout_threshold"))
+            agdiff = (fed_agi - threshold).clip(0, None)
+            xcred = (
+                cred - p.num("personal_credit_phaseout_amount") * agdiff / (p.num("personal_credit_phaseout_step") / sep)
+            ).clip(0, None)
+        else:
+            xcred = pl.lit(cred).clip(0, None)
         # The federal exemption count is deflated with the other federal
         # values when a later year is projected.
         stxcr = xcred * federal_exemption_count(y) / flate
@@ -204,11 +195,10 @@ def compute_ne_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     chcr = p.num("child_care_credit_share") * fed_ccc
     chcref = pl.lit(0.0)
     refundable_zone = pl.lit(False)
-    if y >= 1998:
-        refundable_zone = fed_agi <= p.num("child_care_refundable_agi_limit")
-        share = 1.0 - p.num("child_care_refundable_share_step") * (
-            fed_agi - p.num("child_care_refundable_full_share_agi")
-        ).clip(0, None)
+    if p.in_effect("child_care_refundable"):
+        ref = p.value("child_care_refundable")
+        refundable_zone = fed_agi <= float(ref["agi_limit"])
+        share = 1.0 - ref["share_step"] * (fed_agi - float(ref["full_share_agi"])).clip(0, None)
         chcref = pl.when(refundable_zone).then(share * fed_ccc).otherwise(0.0)
     credit = credit + pl.when(refundable_zone).then(0.0).otherwise(chcr)
     df, (statax,) = checkpoint(df, ne_tax_before_credits=statax)
@@ -217,12 +207,12 @@ def compute_ne_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     statax = pl.min_horizontal(taxbc + almtax, statax)
     earncr = p.num("eitc_match_rate") * pl.col("eitc")
     ctc = pl.lit(0.0)
-    if y >= 2024:
-        # Refundable child tax credit for dependents 5 or younger: any income when child care
-        # expenses are paid, otherwise income at or below the federal poverty guideline.
-        c = p["child_tax_credit_2024plus"]
+    if p.in_effect("child_tax_credit"):
+        # Any income when child care expenses are paid, otherwise income at or
+        # below the federal poverty guideline.
+        c = p.value("child_tax_credit")
         household = taxpayer_count() + pl.col("depx")
-        poverty = float(resolve_year(c["poverty_first_person"], effective_year)) + float(resolve_year(c["poverty_additional_person"], effective_year)) * (household - 1)
+        poverty = float(c["poverty_first_person"]) + float(c["poverty_additional_person"]) * (household - 1)
         eligible = (pl.col("childcare") > 0) | (pl.col("agi") <= poverty)
         amount = bracket_rate(pl.col("agi"), c["amount"])
         ctc = pl.when(eligible).then(amount * pl.col("dep6")).otherwise(0.0)

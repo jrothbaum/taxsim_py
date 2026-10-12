@@ -1,3 +1,7 @@
+# Values shared by several state calculators.
+#
+# Sources: NBER TAXSIM.
+
 # Inflation factors shared by state itemized-deduction phaseouts.
 itemized_phaseout_inflation:
   1991: 1.0

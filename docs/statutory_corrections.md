@@ -65,13 +65,36 @@ tests: `tests/test_calculation_modes.py` (the `single_high_se`, `wage_se_cap`,
   rounded ($224 for 2022, $601 for 2021; NJ-1040 line 58); others get 40% of their
   federal credit. An unreported age passes. Switch:
   `apply_state_childless_eitc_minimum_age`; code: `states.ca`, `states.nj`.
+- **CA-006 (2018+).** TAXSIM starts California itemized deductions from the
+  federal SALT-capped total. California never adopted the cap (Schedule CA (540)):
+  real estate and other taxes are deductible in full, its own income tax not at
+  all. Switch: `ignore_federal_salt_cap_in_california`.
 
 ## Other states
 
+- **AL-001 (2013+).** The itemized deduction for federal payroll tax takes half of
+  FICA and then adds the employee-only Additional Medicare tax, which TAXSIM's FICA
+  total already includes, so it is counted one and a half times. Statutory mode
+  counts it once. Switch: `count_additional_medicare_once_in_alabama_fica_deduction`.
+- **AZ-001.** The senior property tax credit: the income test excludes Social
+  Security (which TAXSIM's household income includes) and the credit is limited to
+  property tax paid (A.R.S. 43-1072). Applied in every statutory year. Switch:
+  `limit_arizona_property_credit_per_statute`.
+- **IL-001 (2017+).** No exemption allowance when income exceeds $250,000
+  ($500,000 joint) (35 ILCS 5/204(g)); TAXSIM allows it at any income. Switch:
+  `apply_illinois_exemption_income_limit`.
+- **KS-001 (2021+).** TAXSIM stops letting Kansas filers itemize after 2020.
+  Kansas itemizing follows the federal choice in every year (K-40 Schedule A).
+  Switch: `allow_kansas_itemizing_after_2020`.
+- **KY-001 (1995+).** The pension exclusion cap is per taxpayer (KRS
+  141.010(10)), with a joint return's pensions split evenly; TAXSIM applies one cap
+  per return. Applied in every statutory year. Switch:
+  `apply_kentucky_pension_cap_per_taxpayer`.
 - **MA-001.** TAXSIM deducts only the primary earner's payroll tax, capped at
   $2,000 for the return. Each spouse deducts their own employee payroll tax up to
   $2,000 (Form 1 lines 11a/11b), so a couple earning $50,000 and $75,000 gets the
-  second $2,000 ($100 of tax at 5%).
+  second $2,000 ($100 of tax at 5%). Switch:
+  `deduct_massachusetts_employee_payroll_tax_per_spouse`.
 - **CO-001 (2022+).** TAXSIM subtracts pensions plus Social Security only when
   someone is 65 or older, under one combined cap. Each taxpayer subtracts pension
   income up to $20,000 (55-64) or $24,000 (65+), less their Social Security
@@ -88,12 +111,13 @@ tests: `tests/test_calculation_modes.py` (the `single_high_se`, `wage_se_cap`,
   with a $50 floor, as negative state tax. The 7% capital gains excise tax over
   $250,000 is not modelled: TAXSIM's `ltcg` cannot separate the exempt real estate
   and retirement gains. PolicyEngine taxes all `ltcg`, so large-gain households differ
-  by about 7% of the gain above the threshold.
+  by about 7% of the gain above the threshold. Switch:
+  `add_washington_working_families_credit`.
 - **CT-001 (2022+).** The personal-credit worksheet is read as discrete AGI bands (the
   first threshold reached), not TAXSIM's linear interpolation between rows
   ([2022 CT-1040 instructions](https://portal.ct.gov/-/media/drs/forms/2022/income/2022-ct-1040-instructions_1222.pdf)).
 - **DC-002 (2015+).** The EITC with-child track uses the age-qualified child count
-  `dep18`, not `depx > 0`.
+  `dep18`, not `depx > 0`. Switch: `use_age_qualified_children_for_dc_eitc`.
 - **OR-002.** The 12% under-three EITC match uses `children_under_3`, and the care
   credit cap uses `dep13`.
 
@@ -119,8 +143,9 @@ for (see the [PolicyEngine comparison](policyengine_recent_state_comparison.md))
 ## Age-65+ rules in actual-law years (STATE-2022-AGED)
 
 Statutory mode only, 2022 onward; each follows the state's form or statute. AZ senior
-property-tax credit limited to taxes paid; IN elderly credit as a step schedule; NM
-low-income rebate tables; KY pension cap per spouse, combined filing, and
+property-tax credit limited to taxes paid (all statutory years, AZ-001); IN elderly
+credit as a step schedule; NM low-income rebate tables; KY pension cap per spouse (all
+statutory years, KY-001), combined filing, and
 poverty-guideline family-size credit; OH joint-filing credit for pension income; NJ
 pension exclusion phase-down; CA credit for age 65+; MN subtraction for the elderly or
 disabled; ND marriage credit with shared pensions; MI tier-three standard deduction and

@@ -31,30 +31,32 @@ def _step_down(value: pl.Expr, rows: list[list[float]]) -> pl.Expr:
     return result
 
 
-def _look_1977(income: pl.Expr) -> pl.Expr:
-    return bracket_tax(income.clip(0, None), NC_PARAMS["brackets_1977"])
-
-
-def _rate_1977(income: pl.Expr) -> pl.Expr:
-    return bracket_rate(income.clip(0, None), NC_PARAMS["brackets_1977"])
-
-
 def _pre1989(df: pl.DataFrame, y: int, agi: pl.Expr) -> tuple[pl.DataFrame, pl.Expr, pl.Expr]:
     """Tax through 1988; returns the frame and the joint spouses' separate taxes."""
     p = YearParams(NC_PARAMS, y)
+    brackets = p.value("brackets")
+
+    def _look_1977(income: pl.Expr) -> pl.Expr:
+        return bracket_tax(income.clip(0, None), brackets)
+
+    def _rate_1977(income: pl.Expr) -> pl.Expr:
+        return bracket_rate(income.clip(0, None), brackets)
+
     is_joint = files_joint()
     depx = pl.col("depx")
     agi_joint = agi
     ag = agi.clip(0, None)
-    charity = pl.min_horizontal(pl.col("charity_cash"), p["charity_limit_share_pre1989"] * ag)
+    charity = pl.min_horizontal(pl.col("charity_cash"), p.num("charity_agi_limit") * ag)
     xitded = charity + pl.col("proptax") + pl.col("mortgage")
     ch = pl.when(depx >= 2).then(2.0).when(depx > 0).then(1.0).otherwise(0.0)
-    if y <= 1978:
-        xitded = xitded + pl.col("childcare").clip(None, p["childcare_deduction_cap_1977_1978"])
-    elif y <= 1980:
-        xitded = xitded + pl.min_horizontal(pl.col("childcare"), ch * p["childcare_deduction_per_child_1979_1980"])
-    std_cap = p.num("standard_deduction_cap_pre1989")
-    std_rate = p["standard_deduction_rate_pre1989"]
+    if p.in_effect("child_care_deduction"):
+        ccd = p.value("child_care_deduction")
+        if "cap" in ccd:
+            xitded = xitded + pl.col("childcare").clip(None, ccd["cap"])
+        else:
+            xitded = xitded + pl.min_horizontal(pl.col("childcare"), ch * ccd["per_child"])
+    std_cap = p.num("standard_deduction_cap")
+    std_rate = p.num("standard_deduction_rate")
     xmp = p.num("exemption_taxpayer")
     xmp2 = p.num("exemption_additional")
     xmpc = p.num("exemption_dependent")
@@ -65,8 +67,8 @@ def _pre1989(df: pl.DataFrame, y: int, agi: pl.Expr) -> tuple[pl.DataFrame, pl.E
     sw = pl.col("swages").clip(0, None)
     df, (yh,) = checkpoint(df, nc_yh=pl.min_horizontal(agi, pl.max_horizontal(pw, sw) + (agi - pw - sw) / 2.0))
     yw = agi - yh
-    if 1980 <= y <= 1982:
-        exclusion = pl.min_horizontal(pl.lit(p["interest_exclusion_1980_1982"]), pl.col("intrec") / 2.0)
+    if p.in_effect("interest_exclusion"):
+        exclusion = pl.min_horizontal(pl.lit(p.num("interest_exclusion")), pl.col("intrec") / 2.0)
         yh = (yh - exclusion).clip(0, None)
         yw = (yw - exclusion).clip(0, None)
     df, (yh, yw) = checkpoint(df, nc_yh_net=yh, nc_yw_net=yw)
@@ -91,8 +93,8 @@ def _pre1989(df: pl.DataFrame, y: int, agi: pl.Expr) -> tuple[pl.DataFrame, pl.E
     df, (staxh, staxw) = checkpoint(df, nc_staxh=_look_1977(taxyh), nc_staxw=_look_1977(taxyw))
 
     # Other returns.
-    if 1980 <= y <= 1982:
-        agi = (agi - pl.col("intrec").clip(None, p["interest_exclusion_1980_1982"])).clip(0, None)
+    if p.in_effect("interest_exclusion"):
+        agi = (agi - pl.col("intrec").clip(None, p.num("interest_exclusion"))).clip(0, None)
     stded = pl.min_horizontal(std_rate * agi.clip(0, None), pl.lit(std_cap))
     exemp = xmp + aged * xmp2 + depx * xmpc
     single_taxinc = (agi - pl.max_horizontal(stded, xitded) - exemp).clip(0, None)
@@ -101,8 +103,8 @@ def _pre1989(df: pl.DataFrame, y: int, agi: pl.Expr) -> tuple[pl.DataFrame, pl.E
 
     # Low income credit 1986-1988.
     lcred = pl.lit(0.0)
-    if 1986 <= y <= 1988:
-        rows = p["low_income_credit"]
+    if p.in_effect("low_income_credit"):
+        rows = p.value("low_income_credit")
         single_tax = (single_tax - _step_down(single_agi, rows)).clip(0, None)
         staxh = (staxh - _step_down(yh, rows)).clip(0, None)
         staxw = (staxw - _step_down(yw, rows)).clip(0, None)
@@ -129,8 +131,7 @@ def _pre1989(df: pl.DataFrame, y: int, agi: pl.Expr) -> tuple[pl.DataFrame, pl.E
 
 def compute_nc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
     """Calculate North Carolina income tax for each row."""
-    state_year = "nc" if behavior.mode.value == "statutory" else None
-    effective_year, flate = resolve_state_year(year, state_year)
+    effective_year, flate = resolve_state_year(year, behavior, NC_PARAMS)
     y = effective_year
     p = YearParams(NC_PARAMS, effective_year)
     dividend_adjustment = dividend_input_adjustment()
@@ -147,18 +148,19 @@ def compute_nc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     depx = pl.col("depx")
     fed_agi = pl.col("agi")
     ss_taxable = pl.col("taxable_social_security")
-    # Retirement income deduction through 2013: $2,000 per taxpayer (per
-    # taxpayer 65 or older when there is one).
-    pens = pl.lit(0.0)
-    if y <= 2013:
+    # Retirement income deduction through 2013, per taxpayer (per taxpayer
+    # 65 or older when there is one).
+    if p.in_effect("retirement_deduction_per_taxpayer"):
         pens = pl.when(pl.col("pensions") > 0).then(pl.when(aged > 0).then(aged).otherwise(txp)).otherwise(0.0)
-    pension_deduction = pl.min_horizontal(pl.col("pensions"), float(p["retirement_deduction_per_taxpayer"]) * pens)
+        pension_deduction = pl.min_horizontal(pl.col("pensions"), p.num("retirement_deduction_per_taxpayer") * pens)
+    else:
+        pension_deduction = pl.min_horizontal(pl.col("pensions"), pl.lit(0.0))
 
     # --- North Carolina AGI (used through 1988) ---
     agi = fed_agi
     if y <= 1986:
-        # `data(12) - divall`, floored at 0. In 1981 `divall` nets the joint
-        # dividend and interest exclusion, so interest can use it all up.
+        # The federal dividend exclusion is added back. In 1981 it is the
+        # joint dividend and interest exclusion, so interest can use it all up.
         dividend_addback = dividend_exclusion_addback(y)
         if y == 1981:
             dividends = pl.col("dividends") + dividend_adjustment
@@ -189,14 +191,14 @@ def compute_nc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             .when(is_hoh).then(float(resolve_year(std["head_of_household"], y)))
             .otherwise(float(resolve_year(std["married"], y)) / sep)
         )
-        if y <= 2013:
-            aged_add = p["standard_deduction_aged_addition"]
+        if p.in_effect("standard_deduction_aged_addition"):
+            aged_add = p.value("standard_deduction_aged_addition")
             stded = stded + aged * pl.when(is_joint | is_sep).then(float(aged_add["married"])).otherwise(
                 float(aged_add["single"])
             )
-        if 1994 <= y <= 2013:
+        if p.in_effect("dependent_standard_deduction_floor"):
             earned = pl.col("earned_income") + p.num("dependent_standard_deduction_earned_addition")
-            limit = pl.max_horizontal(pl.lit(float(p["dependent_standard_deduction_floor"])), earned)
+            limit = pl.max_horizontal(pl.lit(p.num("dependent_standard_deduction_floor")), earned)
             stded = pl.when(is_dependent_filer()).then(pl.min_horizontal(stded, limit)).otherwise(stded)
         fed_itemizes = pl.col("itemizes")
         fed_deduc = pl.col("itemized_deduction")
@@ -213,7 +215,7 @@ def compute_nc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             ).otherwise(stded)
         else:
             xitded = (
-                pl.min_horizontal(pl.lit(p["mortgage_property_tax_cap_2014plus"]), pl.col("mortgage") + pl.col("proptax"))
+                pl.min_horizontal(pl.lit(p.num("itemized_mortgage_property_tax_cap")), pl.col("mortgage") + pl.col("proptax"))
                 + pl.col("charity_cash")
             )
             deduc = pl.max_horizontal(stded, xitded)
@@ -223,9 +225,9 @@ def compute_nc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         # later year is projected.
         exemps = federal_exemption_count(y) / flate
         exemp = pl.lit(0.0)
-        if 1990 <= y <= 1994:
-            exemp = exemps * p.num("exemption_1990_1994")
-        elif 1995 <= y <= 2013:
+        if p.in_effect("exemption_amount"):
+            exemp = exemps * p.num("exemption_amount")
+        elif p.in_effect("exemption_addition_a"):
             amex = pl.col("personal_exemptions")
             addition_b = p.num("exemption_addition_b")
             phaseout = by_filing_status(p["exemption_phaseout_agi"])
@@ -233,8 +235,8 @@ def compute_nc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             above = exemps * addition_b
             if y != 2010:
                 above = pl.when(fedxf > amex).then(addition_b * amex / p.num("federal_exemption_amount")).otherwise(above)
-                if 2006 <= y <= 2009:
-                    fedphl = by_filing_status(p["exemption_partial_phaseout_start"][y])
+                if p.in_effect("exemption_partial_phaseout_start"):
+                    fedphl = by_filing_status(p.value("exemption_partial_phaseout_start"))
                     partial = (fed_agi > fedphl) & (fed_agi - fedphl <= p["exemption_partial_phaseout_width"] / sep)
                     above = pl.when((fedxf > amex) & partial).then(
                         p.num("exemption_partial_share") * exemps * addition_b
@@ -243,10 +245,10 @@ def compute_nc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         df, (deduc,) = checkpoint(df, nc_deduc=deduc + exemp)
         # Reported AGI nets taxable Social Security and the pension deduction.
         detail_agi = fed_agi - ss_taxable - pension_deduction
-        if y == 2020:
+        if p.in_effect("charity_nonitemizer_addback"):
             detail_agi = detail_agi + pl.col("nc_ui") - pl.col("taxable_unemployment") + pl.when(fed_itemizes).then(
                 0.0
-            ).otherwise(pl.col("charity_cash").clip(None, p["charity_nonitemizer_addback_2020"]))
+            ).otherwise(pl.col("charity_cash").clip(None, p.num("charity_nonitemizer_addback")))
         if y <= 2011:
             detail_xitded = pl.when(fed_itemizes).then(deduc - exemp).otherwise(0.0)
             detail_exemp = pl.col("personal_exemptions") - exemp
@@ -263,27 +265,28 @@ def compute_nc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             taxinc = (fed_taxable + deduc - ss_taxable - pension_deduction).clip(0, None)
         else:
             adjbus = pl.lit(0.0)
-            if y <= 2013:
+            if p.in_effect("business_income_deduction"):
                 adjbus = pl.min_horizontal(
-                    txp * p["business_income_deduction_2012_2013"],
+                    txp * p.num("business_income_deduction"),
                     (pl.col("psemp") + pl.col("ssemp")).clip(0, None),
                 )
             nc_agi = fed_agi - ss_taxable - pension_deduction
-            if y == 2020:
+            if p.in_effect("charity_nonitemizer_addback"):
                 nc_agi = nc_agi + pl.col("nc_ui") - pl.col("taxable_unemployment") + pl.when(fed_itemizes).then(0.0).otherwise(
-                    pl.col("charity_cash").clip(None, p["charity_nonitemizer_addback_2020"])
+                    pl.col("charity_cash").clip(None, p.num("charity_nonitemizer_addback"))
                 )
             taxinc = (nc_agi - adjbus - deduc).clip(0, None)
-        if y >= 2018:
-            table = p["child_deduction"]
+        if p.in_effect("child_deduction") or p.in_effect("child_deduction_steps"):
             fed_agix = fed_agi.clip(0, None)
-            per_child = (
-                pl.when(is_joint).then(interpolate_table(fed_agix, table["married_joint"]))
-                .when(is_hoh).then(interpolate_table(fed_agix, table["head_of_household"]))
-                .otherwise(interpolate_table(fed_agix, table["single"]))
-            )
-            if y >= 2022:
-                steps = p["child_deduction_2022plus"][y]
+            if p.in_effect("child_deduction"):
+                table = p.value("child_deduction")
+                per_child = (
+                    pl.when(is_joint).then(interpolate_table(fed_agix, table["married_joint"]))
+                    .when(is_hoh).then(interpolate_table(fed_agix, table["head_of_household"]))
+                    .otherwise(interpolate_table(fed_agix, table["single"]))
+                )
+            else:
+                steps = p.value("child_deduction_steps")
                 per_child = (
                     pl.when(is_joint).then(bracket_rate(fed_agix, steps["married_joint"]))
                     .when(is_hoh).then(bracket_rate(fed_agix, steps["head_of_household"]))
@@ -293,7 +296,7 @@ def compute_nc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         df, (taxinc,) = checkpoint(df, nc_taxinc=taxinc)
 
         # --- Tax ---
-        if y >= 2014:
+        if not p.in_effect("brackets"):
             statax = p.num("flat_rate") * taxinc
             rate = pl.lit(0.0)
         else:
@@ -325,8 +328,8 @@ def compute_nc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
                 .when(is_hoh).then(bracket_rate(taxinc, tables["head_of_household"]))
                 .otherwise(married_rate)
             )
-        if 2009 <= y <= 2010:
-            surtax = p["surtax_2009_2010"]
+        if p.in_effect("surtax"):
+            surtax = p.value("surtax")
 
             def multiplier(rows: list[list[float]], divisor: pl.Expr | float = 1.0) -> pl.Expr:
                 result = pl.lit(1.0)
@@ -356,12 +359,12 @@ def compute_nc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
 
     # --- Child care credit ---
     chcr = pl.lit(0.0)
-    if 1981 <= y <= 2013:
+    if p.in_effect("child_care_expense_per_child"):
         eligible = pl.min_horizontal(ch * p.num("child_care_expense_per_child"), pl.col("childcare"))
-        if y <= 1993:
+        if p.in_effect("child_care_rate"):
             chcr = p.num("child_care_rate") * eligible
         else:
-            rates = p["child_care_rate_1994"]
+            rates = p.value("child_care_rate_by_agi")
             chcr = eligible * (
                 pl.when(is_hoh).then(interpolate_table(fed_agi, rates["head_of_household"]))
                 .when(is_single).then(interpolate_table(fed_agi, rates["single"]))
@@ -378,16 +381,17 @@ def compute_nc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
 
     # --- Child tax credit 1995-2017 ---
     chld = pl.lit(0.0)
-    if 1995 <= y <= 2017:
+    if p.in_effect("child_credit"):
         children = pl.col("dep17") if y >= 1998 else depx
         amount = p.num("child_credit")
-        if y <= 2013:
+        if not p.in_effect("child_credit_low_income"):
             chld = pl.when(fed_agi < by_filing_status(p["child_credit_agi_limit"])).then(children * amount).otherwise(0.0)
         else:
-            low = by_filing_status(p["child_credit_low_agi_2014"])
-            high = by_filing_status(p["child_credit_high_agi_2014"])
+            lowc = p.value("child_credit_low_income")
+            low = by_filing_status(lowc["low_agi"])
+            high = by_filing_status(lowc["high_agi"])
             chld = (
-                pl.when(fed_agi <= low).then(children * p["child_credit_low_amount_2014"])
+                pl.when(fed_agi <= low).then(children * lowc["amount"])
                 .when(fed_agi <= high).then(children * amount)
                 .otherwise(0.0)
             )
@@ -395,7 +399,7 @@ def compute_nc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
 
     # --- Charitable credit for federal non-itemizers 1997-2013 ---
     contr = pl.lit(0.0)
-    if 1997 <= y <= 2013:
+    if p.in_effect("charity_credit_rate"):
         contr = pl.when(pl.col("itemizes")).then(0.0).otherwise(
             (pl.col("charity_cash") - p["charity_credit_floor_share"] * fed_agi).clip(0, None) * p.num("charity_credit_rate")
         )
@@ -403,7 +407,7 @@ def compute_nc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
 
     # --- Earned income credit 2008-2013 (refundable) ---
     earncr = pl.lit(0.0)
-    if 2008 <= y <= 2013:
+    if p.in_effect("eitc_rate"):
         earncr = p.num("eitc_rate") * pl.col("eitc")
         statax = statax - earncr
 

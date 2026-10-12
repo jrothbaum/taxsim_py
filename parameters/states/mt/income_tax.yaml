@@ -1,8 +1,12 @@
-# Montana individual income tax (`mttax`, taxsim_2024_09_21.f:11584-12005,
-# state id 27).
+# Montana individual income tax.
 #
-# Not TAXSIM inputs, so always zero: the 1981-1986 spouse annuity
-# exclusion (`data(72)`), investment credit recapture and energy credits.
+# Sources: 1977-2021 NBER TAXSIM (`mttax`); 2022 on, MCA Title 15 Chapter 30,
+# Form 2 instructions and PolicyEngine-US `gov.states.mt.tax.income`. Not
+# modeled (no TAXSIM input): the 1981-1986 spouse annuity exclusion,
+# investment credit recapture and energy credits.
+
+# Statutory mode uses actual law through this year.
+law_coded_through: 2025
 
 # --- Income ---
 capital_gains_exclusion_rate: {1977: 0.0, 1987: 0.4, 2003: 0.0}
@@ -88,16 +92,21 @@ standard_deduction_floor:
   2022: 2260
   2023: 2460
 head_of_household_standard_deduction_taxpayers: 2
+# From 2024 the federal standard deduction.
+conforms_to_federal_standard_deduction: {1977: false, 2024: true}
 
 # --- Itemized deductions ---
-# Federal income tax paid is deductible, capped per taxpayer from 2005.
-federal_tax_deduction_cap_per_taxpayer: {2005: 5000}  # 2005 on
-# 2008: federal tax is reduced by the stimulus rebate before the cap.
-federal_tax_rebate_2008:
-  per_taxpayer: 600
-  per_dependent: 300
-# 1991-2017 high-income limit on itemized deductions.
-itemized_limit_rate: {1991: 0.03}
+# Federal income tax paid is deductible through 2023, capped per taxpayer from
+# 2005; in 2008 reduced by the stimulus rebate first.
+federal_tax_deduction: {1977: true, 2024: false}
+federal_tax_deduction_cap_per_taxpayer: {2005: 5000}
+federal_tax_rebate:
+  2008: {per_taxpayer: 600, per_dependent: 300}
+  2009: null
+# 1991-2017 high-income limit on itemized deductions: `itemized_limit_rate` of
+# AGI above the threshold (times the inflation factor; before 2013 halved on
+# separate returns), at most `itemized_limit_max_share`, times the fraction.
+itemized_limit_rate: {1991: 0.03, 2018: null}
 itemized_limit_max_share: {1991: 0.8}
 itemized_limit_fraction:  # share of the limit applied
   1991: 1.0
@@ -138,9 +147,9 @@ itemized_limit_status_multiplier:  # 2013-2017; earlier years divide by `sep`
   married_joint: 1.2
   married_separate: 0.6
   head_of_household: 1.1
-# Child care expenses (itemized): cap by number of dependents (1, 2, 3+),
-# reduced by a share of AGI above a threshold.
-child_care_expense_cap: [2400, 3600, 4800]
+# Child care expenses (itemized) through 2023: cap by number of dependents
+# (1, 2, 3+), reduced by a share of AGI above a threshold.
+child_care_expense_cap: {1977: [2400, 3600, 4800], 2024: null}
 child_care_phaseout_start: {1977: 18000}
 child_care_phaseout_rate: {1977: 0.5}
 
@@ -194,45 +203,47 @@ exemption:
   2024: 0
 
 # --- Rate schedules ---
-# Through 2004: these rates on brackets whose upper bounds are
-# `bracket_bounds` (1977-1989 times `bracket_inflation`).
-rates_through_2004: [0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.08, 0.09, 0.10, 0.11]
-bracket_bounds:
-  1977: [1000, 2000, 4000, 6000, 8000, 10000, 14000, 20000, 35000]
-  1990: [1600, 3100, 6300, 9400, 12600, 15700, 22000, 31400, 55000]
-  1991: [1600, 3300, 6600, 9900, 13200, 16400, 23000, 32900, 57600]
-  1992: [1700, 3400, 6800, 10200, 13600, 17000, 23700, 33900, 59400]
-  1993: [1700, 3500, 7000, 10500, 14000, 17500, 24400, 34900, 61100]
-  1994: [1800, 3600, 7200, 10700, 14300, 17900, 25100, 35800, 62700]
-  1995: [1800, 3700, 7400, 11100, 14800, 18400, 25800, 36900, 64600]
-  1996: [1900, 3800, 7600, 11400, 15200, 19000, 26500, 37900, 66400]
-  1997: [1900, 3900, 7800, 11600, 15500, 19400, 27200, 38800, 67900]
-  1998: [2000, 3900, 7900, 11800, 15800, 19700, 27600, 39400, 69000]
-  1999: [2000, 4000, 8000, 12100, 16100, 20100, 28200, 40200, 70400]
-  2000: [2100, 4200, 8300, 12500, 16700, 20800, 29200, 41700, 73000]
-  2001: [2200, 4300, 8600, 12900, 17200, 21500, 30200, 43100, 75400]
-  2002: [2200, 4400, 8700, 13100, 17400, 21800, 30500, 43500, 76200]
-  2003: [2200, 4400, 8900, 13300, 17800, 22200, 31100, 44500, 77800]
-  2004: [2300, 4600, 9200, 13800, 18400, 22900, 32100, 45900, 80300]
-  2005: [2300, 4100, 6200, 8400, 10800, 13900]
-  2006: [2400, 4300, 6500, 8800, 11300, 14600]
-  2007: [2500, 4400, 6600, 9000, 11600, 14900]
-  2008: [2600, 4600, 7000, 9500, 12200, 15600]
-  2009: [2600, 4500, 6900, 9300, 12000, 15400]
-  2010: [2600, 4600, 6900, 9400, 12100, 15600]
-  2011: [2700, 4700, 7200, 9700, 12500, 16000]
-  2012: [2700, 4800, 7300, 9900, 12700, 16400]
-  2013: [2800, 4900, 7400, 10100, 13000, 16700]
-  2014: [2800, 5000, 7600, 10300, 13300, 17100]
-  2015: [2800, 5000, 7600, 10300, 13300, 17100]
-  2016: [2900, 5100, 7800, 10500, 13500, 17400]
-  2017: [2900, 5200, 7900, 10600, 13600, 17600]
-  2018: [3000, 5200, 8000, 10800, 13900, 17900]
-  2019: [3100, 5400, 8200, 11100, 14300, 18400]
-  2020: [3100, 5500, 8400, 11300, 14500, 18700]
-  2021: [3100, 5500, 8400, 11400, 14600, 18800]
-# 2005 on: these rates on brackets bounded by `bracket_bounds`.
-rates_from_2005: [0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.069]
+# Through 2023: [start of bracket, rate], with starts times
+# `bracket_inflation` (1977-1989). Source for 2022-2023: PolicyEngine-US
+# gov.states.mt.tax.income.main. Married couples may instead be taxed as two
+# returns (through 2023).
+brackets:
+  1977: [[0, 0.02], [1000, 0.03], [2000, 0.04], [4000, 0.05], [6000, 0.06], [8000, 0.07], [10000, 0.08], [14000, 0.09], [20000, 0.1], [35000, 0.11]]
+  1990: [[0, 0.02], [1600, 0.03], [3100, 0.04], [6300, 0.05], [9400, 0.06], [12600, 0.07], [15700, 0.08], [22000, 0.09], [31400, 0.1], [55000, 0.11]]
+  1991: [[0, 0.02], [1600, 0.03], [3300, 0.04], [6600, 0.05], [9900, 0.06], [13200, 0.07], [16400, 0.08], [23000, 0.09], [32900, 0.1], [57600, 0.11]]
+  1992: [[0, 0.02], [1700, 0.03], [3400, 0.04], [6800, 0.05], [10200, 0.06], [13600, 0.07], [17000, 0.08], [23700, 0.09], [33900, 0.1], [59400, 0.11]]
+  1993: [[0, 0.02], [1700, 0.03], [3500, 0.04], [7000, 0.05], [10500, 0.06], [14000, 0.07], [17500, 0.08], [24400, 0.09], [34900, 0.1], [61100, 0.11]]
+  1994: [[0, 0.02], [1800, 0.03], [3600, 0.04], [7200, 0.05], [10700, 0.06], [14300, 0.07], [17900, 0.08], [25100, 0.09], [35800, 0.1], [62700, 0.11]]
+  1995: [[0, 0.02], [1800, 0.03], [3700, 0.04], [7400, 0.05], [11100, 0.06], [14800, 0.07], [18400, 0.08], [25800, 0.09], [36900, 0.1], [64600, 0.11]]
+  1996: [[0, 0.02], [1900, 0.03], [3800, 0.04], [7600, 0.05], [11400, 0.06], [15200, 0.07], [19000, 0.08], [26500, 0.09], [37900, 0.1], [66400, 0.11]]
+  1997: [[0, 0.02], [1900, 0.03], [3900, 0.04], [7800, 0.05], [11600, 0.06], [15500, 0.07], [19400, 0.08], [27200, 0.09], [38800, 0.1], [67900, 0.11]]
+  1998: [[0, 0.02], [2000, 0.03], [3900, 0.04], [7900, 0.05], [11800, 0.06], [15800, 0.07], [19700, 0.08], [27600, 0.09], [39400, 0.1], [69000, 0.11]]
+  1999: [[0, 0.02], [2000, 0.03], [4000, 0.04], [8000, 0.05], [12100, 0.06], [16100, 0.07], [20100, 0.08], [28200, 0.09], [40200, 0.1], [70400, 0.11]]
+  2000: [[0, 0.02], [2100, 0.03], [4200, 0.04], [8300, 0.05], [12500, 0.06], [16700, 0.07], [20800, 0.08], [29200, 0.09], [41700, 0.1], [73000, 0.11]]
+  2001: [[0, 0.02], [2200, 0.03], [4300, 0.04], [8600, 0.05], [12900, 0.06], [17200, 0.07], [21500, 0.08], [30200, 0.09], [43100, 0.1], [75400, 0.11]]
+  2002: [[0, 0.02], [2200, 0.03], [4400, 0.04], [8700, 0.05], [13100, 0.06], [17400, 0.07], [21800, 0.08], [30500, 0.09], [43500, 0.1], [76200, 0.11]]
+  2003: [[0, 0.02], [2200, 0.03], [4400, 0.04], [8900, 0.05], [13300, 0.06], [17800, 0.07], [22200, 0.08], [31100, 0.09], [44500, 0.1], [77800, 0.11]]
+  2004: [[0, 0.02], [2300, 0.03], [4600, 0.04], [9200, 0.05], [13800, 0.06], [18400, 0.07], [22900, 0.08], [32100, 0.09], [45900, 0.1], [80300, 0.11]]
+  2005: [[0, 0.01], [2300, 0.02], [4100, 0.03], [6200, 0.04], [8400, 0.05], [10800, 0.06], [13900, 0.069]]
+  2006: [[0, 0.01], [2400, 0.02], [4300, 0.03], [6500, 0.04], [8800, 0.05], [11300, 0.06], [14600, 0.069]]
+  2007: [[0, 0.01], [2500, 0.02], [4400, 0.03], [6600, 0.04], [9000, 0.05], [11600, 0.06], [14900, 0.069]]
+  2008: [[0, 0.01], [2600, 0.02], [4600, 0.03], [7000, 0.04], [9500, 0.05], [12200, 0.06], [15600, 0.069]]
+  2009: [[0, 0.01], [2600, 0.02], [4500, 0.03], [6900, 0.04], [9300, 0.05], [12000, 0.06], [15400, 0.069]]
+  2010: [[0, 0.01], [2600, 0.02], [4600, 0.03], [6900, 0.04], [9400, 0.05], [12100, 0.06], [15600, 0.069]]
+  2011: [[0, 0.01], [2700, 0.02], [4700, 0.03], [7200, 0.04], [9700, 0.05], [12500, 0.06], [16000, 0.069]]
+  2012: [[0, 0.01], [2700, 0.02], [4800, 0.03], [7300, 0.04], [9900, 0.05], [12700, 0.06], [16400, 0.069]]
+  2013: [[0, 0.01], [2800, 0.02], [4900, 0.03], [7400, 0.04], [10100, 0.05], [13000, 0.06], [16700, 0.069]]
+  2014: [[0, 0.01], [2800, 0.02], [5000, 0.03], [7600, 0.04], [10300, 0.05], [13300, 0.06], [17100, 0.069]]
+  2015: [[0, 0.01], [2800, 0.02], [5000, 0.03], [7600, 0.04], [10300, 0.05], [13300, 0.06], [17100, 0.069]]
+  2016: [[0, 0.01], [2900, 0.02], [5100, 0.03], [7800, 0.04], [10500, 0.05], [13500, 0.06], [17400, 0.069]]
+  2017: [[0, 0.01], [2900, 0.02], [5200, 0.03], [7900, 0.04], [10600, 0.05], [13600, 0.06], [17600, 0.069]]
+  2018: [[0, 0.01], [3000, 0.02], [5200, 0.03], [8000, 0.04], [10800, 0.05], [13900, 0.06], [17900, 0.069]]
+  2019: [[0, 0.01], [3100, 0.02], [5400, 0.03], [8200, 0.04], [11100, 0.05], [14300, 0.06], [18400, 0.069]]
+  2020: [[0, 0.01], [3100, 0.02], [5500, 0.03], [8400, 0.04], [11300, 0.05], [14500, 0.06], [18700, 0.069]]
+  2021: [[0, 0.01], [3100, 0.02], [5500, 0.03], [8400, 0.04], [11400, 0.05], [14600, 0.06], [18800, 0.069]]
+  2022: [[0, 0.01], [3300, 0.02], [5800, 0.03], [8900, 0.04], [12000, 0.05], [15400, 0.06], [19800, 0.0675]]
+  2023: [[0, 0.01], [3600, 0.02], [6300, 0.03], [9700, 0.04], [13000, 0.05], [16800, 0.06], [21600, 0.0675]]
+  2024: null
 bracket_inflation:
   1977: 1.0
   1981: 1.1
@@ -256,8 +267,11 @@ surtax:
   1994: 1.0
 
 # --- Credits ---
+# A credit of this share of net capital gains.
 capital_gains_credit_rate: {1977: 0.0, 2005: 0.01, 2007: 0.02}
-homeowner_credit_2007: 140
+# 2007 homeowner credit.
+homeowner_credit: {2007: 140, 2008: null}
+# Earned income credit: a share of the federal credit.
 eitc_match_rate: {1977: 0.0, 2019: 0.03, 2022: 0.03, 2023: 0.03, 2024: 0.1}
 
 # Married couples may be taxed as two separate returns: the higher earner
@@ -266,13 +280,13 @@ eitc_match_rate: {1977: 0.0, 2019: 0.03, 2022: 0.03, 2023: 0.03, 2024: 0.1}
 joint_split_other_income_share: {1977: 0.5}
 joint_split_itemized_share: {1977: 0.5}
 
-# Interest exclusion per taxpayer 65 or older (1981+).
-aged_interest_exclusion: {1981: 800}
+# Interest exclusion per taxpayer 65 or older, 1981-2023.
+aged_interest_exclusion: {1981: 800, 2024: null}
 
-# Retirement income exclusion for taxpayers 65 or older (1991+): up to the
-# maximum, per taxpayer 65 or older from 2010; reduced by twice federal
+# Retirement income exclusion for taxpayers 65 or older (1991-2023): up to
+# the maximum, per taxpayer 65 or older from 2010; reduced by twice federal
 # AGI (per taxpayer 65 or older) over the income start. From 2010 the
-# amounts are indexed (`aifret`).
+# amounts are indexed.
 retirement_exclusion_max: {1991: 3600}
 retirement_exclusion_per_taxpayer: {1991: 1800}
 retirement_exclusion_income_start: {1991: 30000}
@@ -307,29 +321,26 @@ social_security_rate_2: 0.85
 # Elderly homeowner/renter credit (1981+), for taxpayers 65 or older. Rent
 # counts at this share (in 1981 the larger of property tax and rent share).
 elderly_credit_rent_share: 0.15
-elderly_credit_max_1981_1982: 150
-# 1983+: property tax less a share (`tabred`) of household income over an
-# exclusion, up to a maximum.
+# 1981-1982: up to the maximum. From 1983: property tax less a share of
+# household income over an exclusion, up to the maximum.
 elderly_credit_income_exclusion:
   1983: 4000
   1998: 6300
 elderly_credit_income_share: [[1999, 0.0], [2999, 0.006], [3999, 0.016], [4999, 0.024], [5999, 0.028], [6999, 0.032], [7999, 0.035], [8999, 0.039], [9999, 0.042], [10999, 0.045], [11999, 0.048], [1.0e+20, 0.05]]
 elderly_credit_max:
+  1981: 150
   1983: 400
   1995: 1000
-# 1998: no credit at household income of $35,000 or more.
-elderly_credit_income_limit_1998: 35000
-# 1999+ multiplier by household income (`ptab`); in 1981-1982 the same
-# table is a share of income subtracted from property tax.
+# 1998: no credit at household income of this amount or more.
+elderly_credit_income_limit: {1998: 35000, 1999: null}
+# From 1999 a multiplier by household income; in 1981-1982 the same table is
+# a share of income subtracted from property tax.
 elderly_credit_multiplier: [[35000, 1.0], [37500, 0.4], [40000, 0.3], [42500, 0.2], [44999, 0.1], [1.0e+20, 0.0]]
 
-# 2022-2023 statutory bracket tables, one scale for every filing status (PolicyEngine-US
-# gov.states.mt.tax.income.main, queried 2026-10-01); [taxable income above, rate].
-brackets_2022_2023:
-  2022: [[0, 0.01], [3300, 0.02], [5800, 0.03], [8900, 0.04], [12000, 0.05], [15400, 0.06], [19800, 0.0675]]
-  2023: [[0, 0.01], [3600, 0.02], [6300, 0.03], [9700, 0.04], [13000, 0.05], [16800, 0.06], [21600, 0.0675]]
-# 2024+: two ordinary rates and a separate gains scale below/above `threshold` (same thresholds).
-schedule_2024plus:
+# From 2024: two ordinary rates below and above `threshold`, and net
+# long-term gains on their own two rates stacked above ordinary income.
+# Source: PolicyEngine-US gov.states.mt.tax.income.main.
+two_rate_schedule:
   2024:
     single: {threshold: 20500, rate_low: 0.047, rate_high: 0.059}
     married_separate: {threshold: 20500, rate_low: 0.047, rate_high: 0.059}
@@ -345,6 +356,7 @@ schedule_2024plus:
     gains_rate_low: 0.03
     gains_rate_high: 0.041
 
-# Subtraction for each taxpayer 65 or older, 2024+ (PolicyEngine-US gov.states.mt.tax.income.subtractions.old_age,
-# queried 2026-10-01).
-old_age_subtraction_2024plus: {2024: 5500, 2025: 5660}
+# From 2024, a subtraction for each taxpayer 65 or older replaces the
+# retirement exclusion. Source: PolicyEngine-US
+# gov.states.mt.tax.income.subtractions.old_age.
+old_age_subtraction: {2024: 5500, 2025: 5660}

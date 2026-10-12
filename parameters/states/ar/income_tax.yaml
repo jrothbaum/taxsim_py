@@ -1,96 +1,74 @@
-# Arkansas individual income tax (`artax`, taxsim_2022_10_21.f:1172-2197,
-# state id 4). Sixth state (alphabetical order) - by far the largest so
-# far: a fully hand-coded, per-year "low income table" override for
-# 1991-2021 (parameters/states/ar/low_income_table.csv, verified row-by-row
-# against a live compiled probe of `artax` itself - see
-# scripts/gen_ar_low_income_csv.py's own docstring for the verification
-# method), on top of the usual bracket-table eras, a Personal Tax Credit
-# (flat $/exemption, year-indexed `pcr` table), a Child/Dependent Care
-# Credit (20%/10% of the FEDERAL credit), and a genuine "married filing
-# splitting" relief mechanic (split AGI/deductions ~evenly between
-# spouses, tax each half separately through the SAME single-filer bracket
-# table, take whichever of {joint, split} is smaller) that runs through
-# every bracket era from 1987 on.
+# Arkansas individual income tax.
 #
-# Given this project's schema, the following `data()` fields the source
-# references in `artax` are NEVER assigned anywhere in the whole 29,414-
-# line file (confirmed via grep) and so are always exactly $0 for every
-# test case this project can construct: data(17), (19), (20), (21), (23),
-# (24), (26), (62), (72), (91), (124). This collapses AR's own AGI formula
-# (which nominally sums ~15 terms) down to just wages + (dividends+0.001)
-# + interest + capgn (+ ui for 2018-2019 only), and collapses the whole
-# 1983-1990 pension-income-exclusion mechanism to a permanent no-op.
-# `comnew(8)` (Schedule E) and `comnew(14)` (Keogh) are federal-computed
-# but likewise always $0 given no such input exists in this schema.
-#
-# Confirmed inert for the same reason: the 1982 two-earner-style addback
-# (`comnew(12)`=ira, `comnew(14)`=keogh, both $0); the non-itemizer
-# charitable deduction 1983-1986 (`comnew(81)`, gated on `charity_cash`,
-# federal.py's own disclosed non-drivable gap); `data(9)`/`data(10)`
-# (elderly/blind counts, never populated - matches every other state).
+# Sources: 1977-2021 NBER TAXSIM (`artax`); 2022 on, Arkansas Code Title 26
+# Chapter 51, the AR1000F tax tables and PolicyEngine-US
+# `gov.states.ar.tax.income`. Low-income tax tables are in
+# low_income_formula_table.csv (1991-2021) and low_income_step_table.csv (2022 on).
 
-brackets_base:  # `tbase`, used 1987-2015 (thresholds year-overridden 1999+)
-  - [0, 0.01]
-  - [3000, 0.025]
-  - [6000, 0.035]
-  - [9000, 0.045]
-  - [15000, 0.06]
-  - [25000, 0.07]
+# Statutory mode uses actual law through this year.
+law_coded_through: 2025
 
-# 1999-2015: same table/rates as brackets_base, only the first 5 bracket
-# THRESHOLDS change by year (bracket 6 stays [25000, 0.07] throughout;
-# 2014+ also drops bracket 1's rate to 0.9%, 2015 also drops brackets
-# 2-4's rates to 2.4/3.4/4.4%).
-bracket_thresholds_by_year:
-  1999: [3100, 6100, 9200, 15300, 25400]
-  2000: [3100, 6200, 9300, 15500, 25900]
-  2001: [3200, 6400, 9600, 16000, 26700]
-  2002: [3300, 6600, 9900, 16500, 27500]
-  2003: [3300, 6700, 10000, 16700, 27900]
-  # 2004 deliberately has NO entry: the source's own elseif chain has a
-  # real bug (`else if(law.eq.2003) ...tab03...; else if(law.eq.2002)
-  # ...tab04...` - the tab04 branch is gated on `law.eq.2002`, a duplicate
-  # of the earlier, already-matched 2002 condition, not `law.eq.2004`).
-  # Since elseif chains take the first match, this branch is dead code -
-  # year 2004 falls through with NO threshold override at all, silently
-  # using `brackets_base`'s default (1987-1997-era) thresholds instead of
-  # tab04's. Confirmed via live oracle probe (single, wages=50000, 2004:
-  # real siitax=$2750.70 matches the DEFAULT-threshold bracket calc
-  # exactly, not tab04's). Replicated as found, not "fixed".
-  2005: [3500, 7000, 10500, 17500, 29200]
-  2006: [3600, 7200, 10800, 18000, 30100]
-  2007: [3700, 7400, 11100, 18600, 31000]
-  2008: [3800, 7600, 11400, 18900, 31700]
-  2009: [3900, 7800, 11700, 19600, 32600]
-  2010: [3900, 7800, 11800, 19600, 32700]
-  2011: [4000, 8000, 11900, 19900, 33200]
-  2012: [4100, 8200, 12200, 20400, 34000]
-  2013: [4100, 8200, 12200, 20400, 34000]  # law.eq.2012.or.law.eq.2013 reuse tab12
-  2014: [4200, 8300, 12400, 20700, 34600]
-  2015: [4300, 8400, 12700, 21100, 35300]
-bracket_rate1_override_2014plus: 0.009
-bracket_rates_2_3_4_override_2015: [0.024, 0.034, 0.044]
+# Joint returns may instead split income and deductions between spouses,
+# tax each half on the same schedule and pay the lesser total.
 
-brackets_2016:  # `tab16`, a real 8-bracket "bubble" table (16.9% spike
-  # then back down to 6.9%, a genuine recapture bracket, not a typo)
-  - [0, 0.009]
-  - [4300, 0.024]
-  - [8500, 0.034]
-  - [12700, 0.044]
-  - [21200, 0.05]
-  - [35100, 0.06]
-  - [75000, 0.169]
-  - [80000, 0.069]
+# Through 1997, returns taking the standard deduction are taxed on AGI with
+# these schedules, [upper bound, rate %]; `separate` is for married filing
+# separately, `other` for everyone else.
+standard_deduction_tables:
+  1977:
+    other:
+      - [3000, 0.90]
+      - [4000, 1.70]
+      - [5000, 2.20]
+      - [6000, 2.30]
+      - [7000, 2.50]
+      - [10000, 3.150]
+      - [16000, 4.50]
+      - [17000, 5.90]
+      - [25000, 6.0]
+      - [1.0e+20, 7.0]
+    separate:
+      - [3000, 0.90]
+      - [4000, 1.70]
+      - [5000, 2.20]
+      - [6000, 2.50]
+      - [7000, 3.0]
+      - [9000, 3.50]
+      - [10000, 3.90]
+      - [15000, 4.50]
+      - [16000, 5.20]
+      - [24000, 6.0]
+      - [25000, 6.50]
+      - [1.0e+20, 7.0]
+  1998: null
 
-# 2017-2021: a direct rate/subtraction lookup (`tab17t`..`tab21t`), not a
-# cumulative bracket table - "find the first row whose threshold exceeds
-# taxinc, then tax = rate*taxinc/100 - subtraction" (taxsim_2022_10_21.f:
-# ~1479-1565). The subtraction amounts genuinely DECREASE across the last
-# several rows despite a flat marginal rate there - a real, deliberate
-# recapture/compression mechanic (mirrors the 2016 bubble bracket's
-# intent via a different encoding), not a transcription artifact.
-# Columns per row: [upper_threshold, rate_pct, subtraction].
-rate_lookup_table:
+# Rate schedule on taxable income, [start of bracket, rate]; through 1997
+# only for itemizers. TAXSIM uses the 1987 thresholds again in 2004.
+brackets:
+  1977: [[0, 0.01], [3000, 0.025], [6000, 0.035], [9000, 0.045], [15000, 0.06], [25000, 0.07]]
+  1999: [[0, 0.01], [3100, 0.025], [6100, 0.035], [9200, 0.045], [15300, 0.06], [25400, 0.07]]
+  2000: [[0, 0.01], [3100, 0.025], [6200, 0.035], [9300, 0.045], [15500, 0.06], [25900, 0.07]]
+  2001: [[0, 0.01], [3200, 0.025], [6400, 0.035], [9600, 0.045], [16000, 0.06], [26700, 0.07]]
+  2002: [[0, 0.01], [3300, 0.025], [6600, 0.035], [9900, 0.045], [16500, 0.06], [27500, 0.07]]
+  2003: [[0, 0.01], [3300, 0.025], [6700, 0.035], [10000, 0.045], [16700, 0.06], [27900, 0.07]]
+  2004: [[0, 0.01], [3000, 0.025], [6000, 0.035], [9000, 0.045], [15000, 0.06], [25000, 0.07]]
+  2005: [[0, 0.01], [3500, 0.025], [7000, 0.035], [10500, 0.045], [17500, 0.06], [29200, 0.07]]
+  2006: [[0, 0.01], [3600, 0.025], [7200, 0.035], [10800, 0.045], [18000, 0.06], [30100, 0.07]]
+  2007: [[0, 0.01], [3700, 0.025], [7400, 0.035], [11100, 0.045], [18600, 0.06], [31000, 0.07]]
+  2008: [[0, 0.01], [3800, 0.025], [7600, 0.035], [11400, 0.045], [18900, 0.06], [31700, 0.07]]
+  2009: [[0, 0.01], [3900, 0.025], [7800, 0.035], [11700, 0.045], [19600, 0.06], [32600, 0.07]]
+  2010: [[0, 0.01], [3900, 0.025], [7800, 0.035], [11800, 0.045], [19600, 0.06], [32700, 0.07]]
+  2011: [[0, 0.01], [4000, 0.025], [8000, 0.035], [11900, 0.045], [19900, 0.06], [33200, 0.07]]
+  2012: [[0, 0.01], [4100, 0.025], [8200, 0.035], [12200, 0.045], [20400, 0.06], [34000, 0.07]]
+  2014: [[0, 0.009], [4200, 0.025], [8300, 0.035], [12400, 0.045], [20700, 0.06], [34600, 0.07]]
+  2015: [[0, 0.009], [4300, 0.024], [8400, 0.034], [12700, 0.044], [21100, 0.06], [35300, 0.07]]
+  2016: [[0, 0.009], [4300, 0.024], [8500, 0.034], [12700, 0.044], [21200, 0.05], [35100, 0.06], [75000, 0.169], [80000, 0.069]]
+  2017: null
+
+# From 2017 the tax comes from a rate table: in the first row whose
+# threshold exceeds taxable income, tax = rate % x income - subtraction.
+# Rows are [threshold, rate %, subtraction].
+rate_table:
   2017:
     - [4399, 0.9, 0]
     - [8699, 2.4, 65.99]
@@ -156,8 +134,6 @@ rate_lookup_table:
     - [89000, 5.9, 387.5]
     - [90100, 5.9, 287.5]
     - [1.0e+20, 5.9, 247.5]
-  # 2022-2024 statutory tables.  These are the enacted rate/subtraction
-  # schedules, including Arkansas's low-income recapture rows.
   2022:
     - [5100, 0.0, 0]
     - [10300, 2.0, 101.98]
@@ -340,156 +316,95 @@ rate_lookup_table:
     - [97901, 3.9, 89]
     - [1.0e+20, 3.9, 91.0]
 
-# Standard deduction: 3 eras.
-pre1987_brackets_primary:
-  - [3000, 0.90]
-  - [4000, 1.70]
-  - [5000, 2.20]
-  - [6000, 2.30]
-  - [7000, 2.50]
-  - [10000, 3.150]
-  - [16000, 4.50]
-  - [17000, 5.90]
-  - [25000, 6.0]
-  - [1.0e+20, 7.0]
-pre1987_brackets_secondary:
-  - [3000, 0.90]
-  - [4000, 1.70]
-  - [5000, 2.20]
-  - [6000, 2.50]
-  - [7000, 3.0]
-  - [9000, 3.50]
-  - [10000, 3.90]
-  - [15000, 4.50]
-  - [16000, 5.20]
-  - [24000, 6.0]
-  - [25000, 6.50]
-  - [1.0e+20, 7.0]
+# 2003-2004 temporary income tax surcharge.
+surcharge: {2003: 0.03, 2005: null}
 
-standard_deduction_pct_pre1987: 0.10  # capped at 4000*txp/sep
-standard_deduction_pct_1987_1997: 0.10  # capped at 2000*txp/sep
-standard_deduction_flat_1998plus:  # per exemption unit (`data(7)`)
-  1998: 2000
-  2015: 2200
-  2022: 2270
-  2023: 2340
-  2024: 2410
-  2025: 2470
-
-# Statutory credits not represented in the legacy TAXSIM input slots.
-inflationary_relief:
-  max_amount:
-    single: {2022: 150, 2023: 150, 2024: 0}
-    married_joint: {2022: 300, 2023: 300, 2024: 0}
-    married_separate: {2022: 150, 2023: 150, 2024: 0}
-    head_of_household: {2022: 150, 2023: 150, 2024: 0}
-  reduction_start:
-    single: {2022: 87000, 2023: 89600, 2024: 89600}
-    married_joint: {2022: 174000, 2023: 179200, 2024: 179200}
-    married_separate: {2022: 87000, 2023: 89600, 2024: 89600}
-    head_of_household: {2022: 87000, 2023: 89600, 2024: 89600}
-  reduction_amount:
-    single: {2022: 10, 2023: 10, 2024: 10}
-    married_joint: {2022: 20, 2023: 20, 2024: 20}
-    married_separate: {2022: 10, 2023: 10, 2024: 10}
-    head_of_household: {2022: 10, 2023: 10, 2024: 10}
-  reduction_increment:
-    single: {2022: 1000, 2023: 1000, 2024: 1000}
-    married_joint: {2022: 2000, 2023: 2000, 2024: 2000}
-    married_separate: {2022: 1000, 2023: 1000, 2024: 1000}
-    head_of_household: {2022: 1000, 2023: 1000, 2024: 1000}
-qualified_individual_credit_amount: {2022: 60, 2023: 60, 2024: 60}
-qualified_individual_credit_reduction: {2022: 5, 2023: 5, 2024: 5}
-qualified_individual_credit_start: {2022: 24300, 2023: 25000, 2024: 25800, 2025: 26500}
-qualified_individual_credit_increment: {2022: 100, 2023: 100, 2024: 100}
-
-# Itemized-deduction Pease-style phaseout (1991-2017, AR's OWN, mirrors
-# AZ's identical mechanism and the same national aif92/aif13 CPI tables -
-# AR's own 2009 quirk: only 1% of the excess (not 3%) counts that year.
-itemized_phaseout_income_pre2013: 100000  # /sepret, CPI-adjusted via aif92 1992-2012
-itemized_phaseout_income_2013_2017:
-  single: 250000
-  married_joint: 300000
-  head_of_household: 275000
-  married_separate: 150000
-
-# Capital gains: AR's own partial LTCG exclusion since 1999 (`pcrcg`),
-# separate from (and, for our non-netting-loss schema, simpler than)
-# federal's own preferential-RATE (not exclusion) treatment. 1987-1998
-# capital gains are fully included in AR AGI (no state exclusion,
-# matching federal's own full post-TRA86 AGI inclusion); pre-1987 reuses
-# the federal `pre1987.yaml` LTCG exclusion rate directly (AR conformed to
-# federal's own exclusion in that era).
-capital_gains_ltcg_exclusion_rate_1999plus:
-  1999: 0.30  # AR excludes (1 - pcrcg) of LTCG from taxable capital gain -> pcrcg=0.7 included
-  2015: 0.45
-  2016: 0.50
-capital_gains_cap_2014plus: 10000000
-
-# 2003-2004 Act imposed a temporary 3% income tax surcharge.
-surcharge_2003_2004: 0.03
-
-# 1998-2002 Working Taxpayer Credit - a small refundable credit (0.125%
-# of the LOWER earner's wages+UI+other-property income for a two-earner
-# household, or of total such income for a single earner, min'd at $50,
-# gated on that income base exceeding $400).
-working_taxpayer_credit_rate: 0.00125
-working_taxpayer_credit_cap: 50
-working_taxpayer_credit_floor: 400
-
-# Personal Tax Credit (`pcr`, flat $/exemption unit - `data(7)` count,
-# `depx`, and +1 more for head_of_household) - $17.50/exemption pre-1987
-# (a different, smaller flat rate), then the year-indexed `pcr` table.
-personal_credit_rate_pre1987: 17.50
-personal_credit_rate_by_year:  # `pcr(law)`, dimensioned 1987:2021
-  1987: 20
-  2005: 21
-  2006: 22
-  2007: 23
-  2013: 26
-  2020: 29
-
-# Child/Dependent Care Credit: 20% of the federal credit (10% pre-1998).
-child_care_credit_rate_1998plus: 0.20
-child_care_credit_rate_pre1998: 0.10
-
-# Pension exclusion: 1983 up to a flat amount; 1984-1989 up to an amount per
-# taxpayer; from 1990 up to $6,000 per taxpayer 65 or older (as TAXSIM
+# --- Income ---
+# Share of a net long-term gain that is excluded, from 1999.
+capital_gains_exclusion: {1999: 0.30, 2015: 0.45, 2016: 0.50}
+# Cap on the taxable net gain, from 2014.
+capital_gains_cap: {2014: 10000000}
+# Pension exclusion: in 1983 up to a flat amount per return; 1984-1989 up to
+# an amount per taxpayer; from 1990 per taxpayer 65 or older (as TAXSIM
 # models it).
 pension_exclusion_amount: {1983: 1000, 1984: 2000, 1985: 6000}
 pension_exclusion_basis: {1983: return, 1984: taxpayer, 1990: aged}
-# Personal credit per taxpayer 65 or older before 1987 (dependents: $6).
-personal_credit_pre1987: 17.5
-dependent_credit_pre1987: 6.0
 
-# Standard deduction cap (with the percentages above).
-standard_deduction_cap:
-  1977: 4000
-  1987: 2000
+# --- Deductions ---
+# Through 1997: a percentage of AGI, capped per taxpayer (halved on
+# separate returns).
+standard_deduction_percent:
+  1977: {rate: 0.10, cap_per_taxpayer: 4000}
+  1987: {rate: 0.10, cap_per_taxpayer: 2000}
+  1998: null
+# From 1998: a flat amount per taxpayer.
+standard_deduction: {1998: 2000, 2015: 2200, 2022: 2270, 2023: 2340, 2024: 2410, 2025: 2470}
+# Itemized deduction limitation, 1991-2017 (suspended 2010-2012): `rate` of
+# AGI above the threshold, at most `cap_rate` of itemized deductions. The
+# threshold is indexed (state_adjustments.yaml itemized_phaseout_inflation);
+# before 2013 a single amount halved on separate returns.
+itemized_limitation:
+  1991: {rate: 0.03, cap_rate: 0.8, threshold: 100000}
+  2009: {rate: 0.01, cap_rate: 0.8, threshold: 100000}
+  2010: null
+  2013:
+    rate: 0.03
+    cap_rate: 0.8
+    threshold: {single: 250000, married_joint: 300000, head_of_household: 275000, married_separate: 150000}
+  2018: null
 
-# Itemized deduction limitation (1991-2017): a share of AGI above the
-# threshold (1% in 2009), at most a share of itemized deductions.
-itemized_phaseout_rate:
-  1991: 0.03
-  2009: 0.01
-  2010: 0.03
-itemized_phaseout_cap_rate: 0.8
-
-# Through 1990 low-income tax schedule: from `start` to `end` the tax is
-# `multiplier` times whole `step`s above `offset`, and 0 below `start`.
-low_income_override_pre1991:
-  step: 10
-  single: {start: 3010, end: 3100, offset: 2990, multiplier: 1.0}
-  married_no_dependents: {start: 4008, end: 4100, offset: 3990, multiplier: 1.2}
-  married_or_hoh_up_to_one_dependent: {start: 4505, end: 4600, offset: 4490, multiplier: 1.7}
-  married_or_hoh_two_dependents: {start: 5004, end: 5100, offset: 4990, multiplier: 1.1}
-
-# 1991-1998 capital gains credit: a rate on gains within a band of taxable
+# --- Credits ---
+# Personal tax credit per taxpayer, taxpayer 65 or older and (from 1987)
+# dependent, with one more for a head of household and, from 1987, for a
+# taxpayer 65 or older with no pension income.
+personal_credit: {1977: 17.5, 1987: 20, 2005: 21, 2006: 22, 2007: 23, 2013: 26, 2020: 29}
+# Credit per dependent before 1987.
+dependent_credit: {1977: 6.0, 1987: null}
+# Child care credit: a share of the federal credit; in 1982 at most a
+# fixed amount per dependent (up to two).
+child_care_credit_federal_share: {1977: 0.10, 1998: 0.20}
+child_care_credit_cap_per_dependent: {1982: 40, 1983: null}
+# 1991-1998 capital gains credit: `rate` on gains within a band of taxable
 # income above the threshold.
-capital_gains_credit_1991_1998:
-  rate: 0.01
-  threshold: 25000
-  maximum: 15000
+capital_gains_credit:
+  1991: {rate: 0.01, threshold: 25000, maximum: 15000}
+  1999: null
+# 1998-2002 working taxpayer credit: `rate` of each earner's wages (and
+# self-employment income for the higher earner) above `floor`, up to `cap`.
+working_taxpayer_credit:
+  1998: {rate: 0.00125, cap: 50, floor: 400}
+  2003: null
+# Inflationary relief credit, 2022-2023: the maximum, less `reduction` for
+# each `increment` of AGI above `start`.
+inflationary_relief_credit:
+  2022:
+    single: {maximum: 150, start: 87000, reduction: 10, increment: 1000}
+    married_joint: {maximum: 300, start: 174000, reduction: 20, increment: 2000}
+    married_separate: {maximum: 150, start: 87000, reduction: 10, increment: 1000}
+    head_of_household: {maximum: 150, start: 87000, reduction: 10, increment: 1000}
+  2023:
+    single: {maximum: 150, start: 89600, reduction: 10, increment: 1000}
+    married_joint: {maximum: 300, start: 179200, reduction: 20, increment: 2000}
+    married_separate: {maximum: 150, start: 89600, reduction: 10, increment: 1000}
+    head_of_household: {maximum: 150, start: 89600, reduction: 10, increment: 1000}
+  2024: null
+# Additional credit for qualified individuals, from 2022: `amount` per
+# taxpayer, less `reduction` per taxpayer for each `increment` (or part) of
+# taxable income above `start`. Age and disability are not inputs, so every
+# taxpayer is treated as qualified.
+qualified_individual_credit:
+  2022: {amount: 60, reduction: 5, start: 24300, increment: 100}
+  2023: {amount: 60, reduction: 5, start: 25000, increment: 100}
+  2024: {amount: 60, reduction: 5, start: 25800, increment: 100}
+  2025: {amount: 60, reduction: 5, start: 26500, increment: 100}
 
-# 1982 child care credit cap per dependent (up to two).
-child_care_credit_cap_per_dependent_1982: 40
+# Before 1991, low-income tax schedules: from `start` to `end` the tax is
+# `multiplier` times whole `step`s above `offset`, and 0 below `start`.
+low_income_schedule:
+  1977:
+    step: 10
+    single: {start: 3010, end: 3100, offset: 2990, multiplier: 1.0}
+    married_no_dependents: {start: 4008, end: 4100, offset: 3990, multiplier: 1.2}
+    married_or_hoh_up_to_one_dependent: {start: 4505, end: 4600, offset: 4490, multiplier: 1.7}
+    married_or_hoh_two_dependents: {start: 5004, end: 5100, offset: 4990, multiplier: 1.1}
+  1991: null

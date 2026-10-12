@@ -2,62 +2,18 @@
 
 
 from __future__ import annotations
+
+from collections.abc import Mapping
+from typing import Any
+
 import polars as pl
 
+from taxsim_py.behavior import BehaviorProfile
 from taxsim_py.engine.schema import PARAMETERS_ROOT, load_yaml
 
 _PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "state_cpi_extrapolation.yaml")
 LASTAT = int(_PARAMS["lastat"])
 _XNDXA = {int(y): float(v) for y, v in _PARAMS["xndxa"].items()}
-
-# These states have been reviewed against the installed PolicyEngine-US
-# parameter tree for actual 2022-2024 values. Other states remain on the
-# historical TAXSIM-style extrapolation path until their mappings are reviewed.
-ACTUAL_STATE_PARAMETER_YEARS = {
-    "al": 2025,
-    "ar": 2025,
-    "nh": 2025,
-    "ca": 2025,
-    "co": 2025,
-    "az": 2025,
-    "ct": 2025,
-    "dc": 2025,
-    "de": 2025,
-    "ga": 2025,
-    "in": 2025,
-    "il": 2025,
-    "id": 2025,
-    "ky": 2025,
-    "mi": 2025,
-    "nc": 2025,
-    "pa": 2025,
-    "ut": 2025,
-    "oh": 2025,
-    "ok": 2025,
-    "or": 2025,
-    "hi": 2025,
-    "vt": 2025,
-    "nm": 2025,
-    "wv": 2025,
-    "sc": 2025,
-    "ri": 2025,
-    "nd": 2025,
-    "ne": 2025,
-    "mt": 2025,
-    "mo": 2025,
-    "ms": 2025,
-    "me": 2025,
-    "la": 2025,
-    "ks": 2025,
-    "ia": 2025,
-    "md": 2025,
-    "wi": 2025,
-    "mn": 2025,
-    "nj": 2025,
-    "va": 2025,
-    "ny": 2025,
-    "ma": 2025,
-}
 
 
 def _index(year: int) -> float:
@@ -68,14 +24,19 @@ def _index(year: int) -> float:
     return _XNDXA[last] * 1.025 ** (year - last)
 
 
-def resolve_state_year(year: int, state: str | None = None) -> tuple[int, float]:
-    """Return the effective state-law year and inflation factor."""
-    if state in ACTUAL_STATE_PARAMETER_YEARS and year <= ACTUAL_STATE_PARAMETER_YEARS[state]:
+def resolve_state_year(year: int, behavior: BehaviorProfile, params: Mapping[str, Any] | None = None) -> tuple[int, float]:
+    """Return the effective state-law year and inflation factor.
+
+    Statutory mode uses actual law through the state's `law_coded_through`
+    year and extrapolates that year's law past it. TAXSIM mode, and states
+    without the key, extrapolate TAXSIM's last state-law year (`lastat`).
+    """
+    through = LASTAT
+    if behavior.mode.value == "statutory" and params is not None and "law_coded_through" in params:
+        through = int(params["law_coded_through"])
+    if year <= through:
         return year, 1.0
-    if year <= LASTAT:
-        return year, 1.0
-    flate = _index(year) / _XNDXA[LASTAT]
-    return LASTAT, flate
+    return through, _index(year) / _index(through)
 
 
 # Dollar amounts TAXSIM divides by the inflation factor before running the

@@ -1,86 +1,210 @@
-# New Jersey gross income tax (`njtax`, taxsim_2024_09_21.f:12879-13262,
-# state id 31).
+# New Jersey gross income tax.
 #
-# Not TAXSIM inputs, so always zero: blindness/disability and the medical
-# expense deduction.
+# Sources: 1977-2021 NBER TAXSIM (`njtax`); 2022 on, N.J.S.A. 54A, NJ-1040
+# instructions and PolicyEngine-US `gov.states.nj.tax.income`. Blindness and
+# the medical expense deduction have no TAXSIM input.
 
-# --- No tax on income at or below these amounts ---
-# 1977-1999: one amount (halved for married separate); 1994-1996 test is
-# strictly below. 2000: single vs other statuses. 2001 on: per taxpayer
-# (head of household counts as two).
+# Statutory mode uses actual law through this year.
+law_coded_through: 2025
+
+# No tax on income at or below: through 1999 one amount (halved for married
+# separate; 1994-1996 strictly below); 2000 by status (other halved for
+# married separate); from 2001 per taxpayer (heads of household count two).
 no_tax_threshold:
   1977: 3000
   1994: 7500
   1999: 10000
-no_tax_threshold_2000:
-  single: 10000
-  other: 15000
-no_tax_threshold_per_taxpayer: {2001: 10000}
+  2000: {single: 10000, other: 15000}
+  2001: {per_taxpayer: 10000}
 head_of_household_no_tax_taxpayers: 2
 
 # --- Exemptions ---
 exemption_per_taxpayer: {1977: 1000}
+exemption_per_aged_taxpayer: {1977: 1000}
 exemption_per_dependent: {1977: 1000, 1991: 1500}
 
-# --- Rate schedules (start, rate): through 1990 one schedule; from 1991
-# `single` (also married separate) and `married` (joint and head of
-# household) ---
-brackets_through_1990:
+# Rate schedules, [start of bracket, rate]: through 1990 one schedule; from
+# 1991 `single` (also married separate) and `married` (joint and head of
+# household). 2018 on: real law (P.L.2018, c.45 and P.L.2020, c.94); TAXSIM
+# keeps the 2010 schedule.
+brackets:
   1977: [[0, 0.02], [20000, 0.025], [50000, 0.025]]
   1983: [[0, 0.02], [20000, 0.025], [50000, 0.035]]
-brackets:
-  single:
-    1991: [[0, 0.02], [20000, 0.025], [35000, 0.05], [40000, 0.065], [75000, 0.07]]
-    1994: [[0, 0.019], [20000, 0.02375], [35000, 0.0475], [40000, 0.06175], [75000, 0.0665]]
-    1995: [[0, 0.017], [20000, 0.02125], [35000, 0.0425], [40000, 0.06013], [75000, 0.0658]]
-    1996: [[0, 0.014], [20000, 0.0175], [35000, 0.035], [40000, 0.05525], [75000, 0.0637]]
-    2004: [[0, 0.014], [20000, 0.0175], [35000, 0.035], [40000, 0.05525], [75000, 0.0637], [500000, 0.0897]]
-    2009: [[0, 0.014], [20000, 0.0175], [35000, 0.035], [40000, 0.05525], [75000, 0.0637], [400000, 0.08], [500000, 0.1025], [1000000, 0.1075]]
-    2010: [[0, 0.014], [20000, 0.0175], [35000, 0.035], [40000, 0.05525], [75000, 0.0637], [500000, 0.0897]]
-    # Real law (P.L.2018, c.45 and P.L.2020, c.94); TAXSIM keeps the 2004
-    # schedule. 2018-2019: 10.75% over $5,000,000; 2020 on: over $1,000,000.
-    2018: [[0, 0.014], [20000, 0.0175], [35000, 0.035], [40000, 0.05525], [75000, 0.0637], [500000, 0.0897], [5000000, 0.1075]]
-    2020: [[0, 0.014], [20000, 0.0175], [35000, 0.035], [40000, 0.05525], [75000, 0.0637], [500000, 0.0897], [1000000, 0.1075]]
-  married:
-    1991: [[0, 0.02], [20000, 0.025], [50000, 0.035], [70000, 0.05], [80000, 0.065], [150000, 0.07]]
-    1994: [[0, 0.019], [20000, 0.02375], [50000, 0.03325], [70000, 0.0475], [80000, 0.06175], [150000, 0.0665]]
-    1995: [[0, 0.017], [20000, 0.02125], [50000, 0.02975], [70000, 0.0425], [80000, 0.06013], [150000, 0.0658]]
-    1996: [[0, 0.014], [20000, 0.0175], [50000, 0.0245], [70000, 0.035], [80000, 0.05525], [150000, 0.0637]]
-    2004: [[0, 0.014], [20000, 0.0175], [50000, 0.0245], [70000, 0.035], [80000, 0.05525], [150000, 0.0637], [500000, 0.0897]]
-    2009: [[0, 0.014], [20000, 0.0175], [50000, 0.0245], [70000, 0.035], [80000, 0.05525], [150000, 0.0637], [400000, 0.08], [500000, 0.1025], [1000000, 0.1075]]
-    2010: [[0, 0.014], [20000, 0.0175], [50000, 0.0245], [70000, 0.035], [80000, 0.05525], [150000, 0.0637], [500000, 0.0897]]
-    2018: [[0, 0.014], [20000, 0.0175], [50000, 0.0245], [70000, 0.035], [80000, 0.05525], [150000, 0.0637], [500000, 0.0897], [5000000, 0.1075]]
-    2020: [[0, 0.014], [20000, 0.0175], [50000, 0.0245], [70000, 0.035], [80000, 0.05525], [150000, 0.0637], [500000, 0.0897], [1000000, 0.1075]]
+  1991:
+    single: [[0, 0.02], [20000, 0.025], [35000, 0.05], [40000, 0.065], [75000, 0.07]]
+    married: [[0, 0.02], [20000, 0.025], [50000, 0.035], [70000, 0.05], [80000, 0.065], [150000, 0.07]]
+  1994:
+    single: [[0, 0.019], [20000, 0.02375], [35000, 0.0475], [40000, 0.06175], [75000, 0.0665]]
+    married: [[0, 0.019], [20000, 0.02375], [50000, 0.03325], [70000, 0.0475], [80000, 0.06175], [150000, 0.0665]]
+  1995:
+    single: [[0, 0.017], [20000, 0.02125], [35000, 0.0425], [40000, 0.06013], [75000, 0.0658]]
+    married: [[0, 0.017], [20000, 0.02125], [50000, 0.02975], [70000, 0.0425], [80000, 0.06013], [150000, 0.0658]]
+  1996:
+    single: [[0, 0.014], [20000, 0.0175], [35000, 0.035], [40000, 0.05525], [75000, 0.0637]]
+    married: [[0, 0.014], [20000, 0.0175], [50000, 0.0245], [70000, 0.035], [80000, 0.05525], [150000, 0.0637]]
+  2004:
+    single: [[0, 0.014], [20000, 0.0175], [35000, 0.035], [40000, 0.05525], [75000, 0.0637], [500000, 0.0897]]
+    married:
+      - [0, 0.014]
+      - [20000, 0.0175]
+      - [50000, 0.0245]
+      - [70000, 0.035]
+      - [80000, 0.05525]
+      - [150000, 0.0637]
+      - [500000, 0.0897]
+  2009:
+    single:
+      - [0, 0.014]
+      - [20000, 0.0175]
+      - [35000, 0.035]
+      - [40000, 0.05525]
+      - [75000, 0.0637]
+      - [400000, 0.08]
+      - [500000, 0.1025]
+      - [1000000, 0.1075]
+    married:
+      - [0, 0.014]
+      - [20000, 0.0175]
+      - [50000, 0.0245]
+      - [70000, 0.035]
+      - [80000, 0.05525]
+      - [150000, 0.0637]
+      - [400000, 0.08]
+      - [500000, 0.1025]
+      - [1000000, 0.1075]
+  2010:
+    single: [[0, 0.014], [20000, 0.0175], [35000, 0.035], [40000, 0.05525], [75000, 0.0637], [500000, 0.0897]]
+    married:
+      - [0, 0.014]
+      - [20000, 0.0175]
+      - [50000, 0.0245]
+      - [70000, 0.035]
+      - [80000, 0.05525]
+      - [150000, 0.0637]
+      - [500000, 0.0897]
+  2018:
+    single:
+      - [0, 0.014]
+      - [20000, 0.0175]
+      - [35000, 0.035]
+      - [40000, 0.05525]
+      - [75000, 0.0637]
+      - [500000, 0.0897]
+      - [5000000, 0.1075]
+    married:
+      - [0, 0.014]
+      - [20000, 0.0175]
+      - [50000, 0.0245]
+      - [70000, 0.035]
+      - [80000, 0.05525]
+      - [150000, 0.0637]
+      - [500000, 0.0897]
+      - [5000000, 0.1075]
+  2020:
+    single:
+      - [0, 0.014]
+      - [20000, 0.0175]
+      - [35000, 0.035]
+      - [40000, 0.05525]
+      - [75000, 0.0637]
+      - [500000, 0.0897]
+      - [1000000, 0.1075]
+    married:
+      - [0, 0.014]
+      - [20000, 0.0175]
+      - [50000, 0.0245]
+      - [70000, 0.035]
+      - [80000, 0.05525]
+      - [150000, 0.0637]
+      - [500000, 0.0897]
+      - [1000000, 0.1075]
 
-# --- 1985-1989 property tax deduction: the larger of property tax and a
-# floor that falls with taxable income (`tablki` table), with a credit of
-# `property_tax_excess_credit_rate` on any deduction exceeding income ---
-property_tax_floor_1985_1989: [[20000, 3250], [50000, 2600], [1.0e+20, 1857]]
-property_tax_excess_credit_rate: 0.02
-# 1985-1989 credit for homeowners (renters: the smaller amount) with
-# income at or below the no-tax threshold.
-low_income_homeowner_credit_1985_1989: 65
-low_income_renter_credit_1985_1989: 35
-# 1985-1989 renters without property tax deduct the larger of rent at this
-# share and the floor times the renter share.
-rent_deduction_share_1985_1989: 0.18
-rent_deduction_floor_share_1985_1989: 0.54
-# Through 1984: a credit for renters, larger for taxpayers 65 or older.
-renter_credit_through_1984: 65
-renter_credit_aged_addition_through_1984: 35
+# --- Income ---
+# Pension exclusion for taxpayers 65 or older, by filing status; 2005-2021 only
+# for household income up to the limit; from 2022 times a share by household
+# income ([upper income limit, share] steps). Unused exclusion covers other
+# income when wages and self-employment income are at most the earnings limit.
+pension_exclusion:
+  single:
+    1977: 7500
+    2000: 9375
+    2001: 11250
+    2002: 13125
+    2003: 15000
+    2017: 30000
+    2018: 45000
+    2019: 60000
+    2020: 75000
+  married_joint:
+    1977: 10000
+    2000: 12500
+    2001: 15000
+    2002: 17500
+    2003: 20000
+    2017: 40000
+    2018: 60000
+    2019: 80000
+    2020: 100000
+  married_separate:
+    1977: 5000
+    2000: 6250
+    2001: 7500
+    2002: 8750
+    2003: 10000
+    2017: 20000
+    2018: 30000
+    2019: 40000
+    2020: 50000
+  head_of_household:
+    1977: 7500
+    2000: 9375
+    2001: 11250
+    2002: 13125
+    2003: 15000
+    2017: 30000
+    2018: 45000
+    2019: 60000
+    2020: 75000
+pension_exclusion_household_income_limit: {2005: 100000, 2022: null}
+pension_exclusion_phaseout:
+  2022:
+    single: [[100000, 1.0], [125000, 0.375], [150000, 0.1875], [1.0e+20, 0.0]]
+    married_joint: [[100000, 1.0], [125000, 0.5], [150000, 0.25], [1.0e+20, 0.0]]
+    married_separate: [[100000, 1.0], [125000, 0.25], [150000, 0.125], [1.0e+20, 0.0]]
+    head_of_household: [[100000, 1.0], [125000, 0.375], [150000, 0.1875], [1.0e+20, 0.0]]
+other_retirement_exclusion_earnings_limit: 3000
+
+# --- Property tax relief ---
 # From 1985 rent counts toward property tax at this share.
 property_tax_rent_share: 0.18
-
-# --- 1990-2003 homestead rebate (2004-2008 only when rent is paid) ---
-# Under 65: homeowners with income under the limit; renters (who then get
-# the renter amount) with income under the renter limit.
-homestead_rebate: {1990: 90}
+# Through 1984: a credit for renters, larger for taxpayers 65 or older.
+renter_credit:
+  1977: {amount: 65, aged_addition: 35}
+  1985: null
+# 1985-1989: a property tax deduction of the larger of property tax and a floor
+# falling with taxable income ([income, floor] interpolated); renters without
+# property tax deduct the larger of `share` of rent and `floor_share` of the
+# floor; a credit of `property_tax_excess_credit_rate` on any deduction above
+# income; and a credit at income at or below the no-tax threshold.
+property_tax_floor:
+  1985: [[20000, 3250], [50000, 2600], [1.0e+20, 1857]]
+  1990: null
+property_tax_excess_credit_rate: 0.02
+rent_deduction:
+  1985: {share: 0.18, floor_share: 0.54}
+  1990: null
+low_income_property_credit:
+  1985: {homeowner: 65, renter: 35}
+  1990: null
+# 1990-2003 homestead rebate (2004-2008 only when rent is paid). Under 65:
+# homeowners with income under the limit; renters (the renter amount) under the
+# renter limit. 65 or older: property tax over `income_share` of income, between
+# a minimum and maximum, by income tier (from 2001 renters above the first tier
+# get a flat amount).
+homestead_rebate: {1990: 90, 2009: null}
 homestead_rebate_income_limit: {1990: 40000}
 homestead_rebate_renter: {1990: 30, 1999: 40, 2000: 60, 2001: 100, 2004: 150}
 homestead_rebate_renter_income_limit: {1990: 40000, 1999: 100000, 2004: 1.0e+20}
-# 65 or older: property tax over 5% of income, between a minimum and a
-# maximum, by income tier (up to $35,000; to $70,000, where only joint and
-# head of household returns keep the formula; to $100,000).
 homestead_rebate_aged:
   income_share: 0.05
   tier_limits: [35000, 70000, 100000]
@@ -89,29 +213,17 @@ homestead_rebate_aged:
   owner_middle_other: {1990: 150}
   owner_top: {1990: 100}
   renter_minimum: {1990: 65, 2001: 100}
-  # From 2001 renters above $35,000 get a flat amount in the middle tier.
   renter_middle_flat: {2001: 100}
   renter_middle_other: {1990: 65, 2001: 100}
   renter_top: {1990: 35, 1999: 40, 2000: 60, 2001: 100, 2004: 150}
+# From 1996: a property tax deduction (`share` of property tax up to the cap,
+# halved on separate returns), or the credit when the deduction saves less.
+property_tax_deduction_cap: {1996: 2500, 1997: 5625, 1998: 10000, 2018: 15000}
+property_tax_deduction_share: {1996: 0.5, 1997: 0.75, 1998: 1.0}
+property_tax_credit: {1996: 25, 1997: 37.5, 1998: 50}
 
-# --- 1996 on: property tax deduction, or a credit when the deduction
-# saves less than the credit amount ---
-property_tax_deduction_cap:
-  1996: 2500
-  1997: 5625
-  1998: 10000
-  2018: 15000
-property_tax_deduction_share:
-  1996: 0.5
-  1997: 0.75
-  1998: 1.0
-property_tax_credit:
-  1996: 25
-  1997: 37.5
-  1998: 50
-
-# --- Earned income credit: share of the federal credit (2000-2006 only
-# with dependents and income up to the limit) ---
+# --- Credits ---
+# Earned income credit: a share of the federal credit.
 eitc_match_rate:
   1977: 0.0
   2000: 0.1
@@ -126,44 +238,15 @@ eitc_match_rate:
   2018: 0.37
   2019: 0.39
   2020: 0.4
-# Minimum age for the childless credit (N.J.S.A. 54A:4-7; NJ-1040 instructions,
-# line 58): 25 through 2019, 21 for 2020, 18 from 2021. Through 2020 filers
-# 65 and older are excluded; the maximum age was removed for 2021.
-eitc_childless_minimum_age:
-  1977: 25
-  2020: 21
-  2021: 18
-eitc_childless_maximum_age_applies:
-  1977: true
-  2021: false
-eitc_income_limit_2000_2006: 20000
-
-# Pension exclusion for taxpayers 65 or older, by filing status; from 2005
-# only for household income up to the limit. Unused exclusion covers
-# other income when wages and self-employment income are at most the
-# earnings limit.
-pension_exclusion:
-  single: {1977: 7500, 2000: 9375, 2001: 11250, 2002: 13125, 2003: 15000, 2017: 30000, 2018: 45000, 2019: 60000, 2020: 75000}
-  married_joint: {1977: 10000, 2000: 12500, 2001: 15000, 2002: 17500, 2003: 20000, 2017: 40000, 2018: 60000, 2019: 80000, 2020: 100000}
-  married_separate: {1977: 5000, 2000: 6250, 2001: 7500, 2002: 8750, 2003: 10000, 2017: 20000, 2018: 30000, 2019: 40000, 2020: 50000}
-  head_of_household: {1977: 7500, 2000: 9375, 2001: 11250, 2002: 13125, 2003: 15000, 2017: 30000, 2018: 45000, 2019: 60000, 2020: 75000}
-pension_exclusion_household_income_limit: {2005: 100000}
-# 2022+: share of the exclusion allowed by household income, as
-# [upper income limit, share] steps.
-pension_exclusion_phaseout_2022plus:
-  single: [[100000, 1.0], [125000, 0.375], [150000, 0.1875], [1.0e+20, 0.0]]
-  married_joint: [[100000, 1.0], [125000, 0.5], [150000, 0.25], [1.0e+20, 0.0]]
-  married_separate: [[100000, 1.0], [125000, 0.25], [150000, 0.125], [1.0e+20, 0.0]]
-  head_of_household: [[100000, 1.0], [125000, 0.375], [150000, 0.1875], [1.0e+20, 0.0]]
-other_retirement_exclusion_earnings_limit: 3000
-# Exemption per taxpayer 65 or older.
-exemption_per_aged_taxpayer: {1977: 1000}
-
-# Child tax credit, 2022+ (PolicyEngine-US gov.states.nj.tax.income.credits.ctc.amount, queried
-# 2026-10-01): [NJ taxable income above, amount per child under six]; the tier at a threshold
-# belongs to the lower row.
-child_tax_credit_2022plus:
+# 2000-2006: only with dependents and income up to this limit.
+eitc_income_limit: {2000: 20000, 2007: null}
+# Minimum age for the childless credit (N.J.S.A. 54A:4-7; NJ-1040 line 58),
+# statutory mode from 2020; through 2020 filers 65 and older are excluded.
+eitc_childless_minimum_age: {1977: 25, 2020: 21, 2021: 18}
+eitc_childless_maximum_age_applies: {1977: true, 2021: false}
+# From 2022, refundable child tax credit per child under six, by NJ taxable
+# income ([income above, amount]; the tier at a threshold belongs to the lower
+# row). Source: PolicyEngine-US gov.states.nj.tax.income.credits.ctc.
+child_tax_credit:
   2022: [[0, 500], [30000, 400], [40000, 300], [50000, 200], [60000, 100], [80000, 0]]
   2023: [[0, 1000], [30000, 800], [40000, 600], [50000, 400], [60000, 200], [80000, 0]]
-  2024: [[0, 1000], [30000, 800], [40000, 600], [50000, 400], [60000, 200], [80000, 0]]
-  2025: [[0, 1000], [30000, 800], [40000, 600], [50000, 400], [60000, 200], [80000, 0]]

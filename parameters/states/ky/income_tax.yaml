@@ -1,349 +1,117 @@
-# Kentucky individual income tax (`kytax`, taxsim_2024_09_21.f:6945-7219,
-# state id 18). See calculators/states/ky.py for the full mechanism.
+# Kentucky individual income tax.
 #
-# Not TAXSIM inputs, so always zero: blindness, self-employed health
-# insurance (`data(124)`), IRA contributions (`data(29)`), non-itemizer
-# charitable contributions (`data(58)`-`data(60)`), investment interest
-# expense (`data(57)`), misc. 2018+ itemized components (`data(66)`), the
-# solar credit (`data(38)`), `comnew(28)` and `comnew(23)`.
-#
-# The Income Gap Tax Credit (`gapcr`, 2019-2020) is included in TAXSIM's
-# detailed `credit` output but is not subtracted from `statax`.
-#
-# The 2010-2012 itemized-deduction-phaseout suspension has a real,
-# replicated-as-found BUG in the source's own condition:
-# `if(law.eq.2010.and.law.le.2012) reduce=0.` - `law.eq.2010` AND
-# `law.le.2012` can only both be true when `law==2010` exactly (almost
-# certainly meant `law.ge.2010`), so the phaseout suspension only ever
-# fires for 2010, not 2011-2012 too.
+# Sources: 1977-2021 NBER TAXSIM (`kytax`); 2022 on, KRS Chapter 141, Form
+# 740 instructions and PolicyEngine-US `gov.states.ky.tax.income`. Not
+# modeled (no TAXSIM input): blindness, self-employed health insurance, IRA
+# and charitable adjustments and the solar credit.
 
-# Bracket tables (`look`'s own upper_bound/rate% pairs shifted into this
-# project's own start/rate_fraction convention). 2018+ is a flat 5%.
-brackets_pre2005:
-  - [0, 0.02]
-  - [3000, 0.03]
-  - [4000, 0.04]
-  - [5000, 0.05]
-  - [8000, 0.06]
-brackets_2005_2017:
-  - [0, 0.02]
-  - [3000, 0.03]
-  - [4000, 0.04]
-  - [5000, 0.05]
-  - [8000, 0.058]
-  - [75000, 0.06]
-flat_rate_2018plus:
-  1960: 0.05
-  # PolicyEngine-US: gov.states.ky.tax.income.rate.
-  2022: 0.05
-  2023: 0.045
-  2024: 0.04
+# Statutory mode uses actual law through this year.
+law_coded_through: 2025
 
-# Standard deduction (`ded(law)*data(7)` - per-filer, doubled for
-# married_joint).
-standard_deduction_per_filer:
-  1977: 650
-  1997: 900
-  1998: 1200
-  1999: 1500
-  2000: 1700
-  2001: 1750
-  2002: 1800
-  2003: 1830
-  2004: 1870
-  2005: 1910
-  2006: 1970
-  2007: 2050
-  2008: 2100
-  2009: 2190
-  2010: 2210
-  2011: 2240
-  2012: 2290
-  2013: 2360
-  2014: 2400
-  2015: 2440
-  2016: 2460
-  2017: 2480
-  2018: 2530
-  2019: 2590
-  2020: 2650
-  2021: 2690
-  # PolicyEngine-US: gov.states.ky.tax.income.deductions.standard.
-  2022: 2770
-  2023: 2980
-  2024: 3160
-  2025: 3270
+# Rate schedules, [start of bracket, rate], through 2017; then a flat rate.
+# Joint returns may file combined, each spouse on their own share (through
+# 2017 and, in statutory mode, from 2022).
+brackets:
+  1977: [[0, 0.02], [3000, 0.03], [4000, 0.04], [5000, 0.05], [8000, 0.06]]
+  2005: [[0, 0.02], [3000, 0.03], [4000, 0.04], [5000, 0.05], [8000, 0.058], [75000, 0.06]]
+  2018: null
+flat_rate: {2018: 0.05, 2023: 0.045, 2024: 0.04}
 
-# Itemized-deduction phaseout (1991-2017), same aif92-style CPI-
-# adjustment table other states carry their own copy of - Kentucky's own
-# runs all the way through 2017 (not capped at 2012 like some others).
-itemized_phaseout_base:
-  1960: 100000
-itemized_phaseout_aif92_1992_2017:
-  1992: 1.0525
-  1993: 1.0845
-  1994: 1.118
-  1995: 1.147
-  1996: 1.1795
-  1997: 1.212
-  1998: 1.245
-  1999: 1.266
-  2000: 1.2895
-  2001: 1.3295
-  2002: 1.373
-  2003: 1.395
-  2004: 1.427
-  2005: 1.4595
-  2006: 1.505
-  2007: 1.564
-  2008: 1.5995
-  2009: 1.668
-  2010: 1.6955
-  2012: 1.7365
-  2013: 1.7815
-  2014: 1.8115
-  2015: 1.840
-  2016: 1.8485
-  2017: 1.8635
-
-# 1985's own interest-income exclusion (`excli`, feeds into the pre-1990
-# AGI subtraction only for 1985 itself).
-interest_exclusion_1985_cap_per_filer:
-  1960: 450
-
-# Pre-1990 low-income Child Care Credit-style deduction ("child",
-# reuses federal's own CCC amount before its cap, `comnew(53)`/
-# `comnew(176)`) - real dollar caps by dependent count, phased out above
-# $35,000 of AGI+federal-tax, cut off entirely above $44,600.
-low_income_child_deduction_cap_1dep:
-  1960: 2400
-low_income_child_deduction_cap_2deps:
-  1960: 3600
-low_income_child_deduction_cap_3plus_deps:
-  1960: 4800
-low_income_child_deduction_income_ceiling:
-  1960: 44600
-low_income_child_deduction_phaseout_start:
-  1960: 35000
-
-# 1987-1989's own 60% long-term-capital-gains exclusion.
-ltcg_exclusion_rate_1987_1989:
-  1960: 0.6
-
-# Personal Tax Credits (`gcred`) - real, era-specific per-person dollar
-# amounts.
-personal_credit_amount_pre2004:
-  1960: 20
-personal_credit_amount_2014_2017:
-  1960: 10
-
-# Low Income Credit (1990-2004) - a real percentage-of-tax schedule by
-# AGI bracket.
-low_income_credit_brackets:  # [agi_ceiling, rate]
-  - [5000, 1.0]
-  - [10000, 0.5]
-  - [15000, 0.25]
-  - [20000, 0.15]
-  - [25000, 0.05]
-  - [100000000, 0.0]
-
-# Low-income Child/Dependent Care Credit rate (all years, `chcr=ccc*.2`).
-low_income_care_credit_rate:
-  1960: 0.2
-
-# Family Size Tax Credit (2005+) - `tablki`-style tables by household
-# size (1-4+), each with its OWN CPI-adjustment divisor (`aiffN`).
-family_size_credit_table_1person:
-  - [9570, 1.0]
-  - [9953, 0.9]
-  - [10336, 0.8]
-  - [10718, 0.70]
-  - [11101, 0.6]
-  - [11484, 0.5]
-  - [11867, 0.40]
-  - [12154, 0.3]
-  - [12441, 0.2]
-  - [12728, 0.10]
-  - [100000000, 0.0]
-family_size_credit_table_2person:
-  - [12830, 1.0]
-  - [13343, 0.9]
-  - [13856, 0.8]
-  - [14370, 0.70]
-  - [14883, 0.6]
-  - [15396, 0.5]
-  - [15909, 0.40]
-  - [16294, 0.3]
-  - [16679, 0.2]
-  - [17064, 0.10]
-  - [100000000, 0.0]
-family_size_credit_table_3person:
-  - [16090, 1.0]
-  - [16734, 0.9]
-  - [17377, 0.8]
-  - [18021, 0.70]
-  - [18664, 0.6]
-  - [19308, 0.5]
-  - [19952, 0.40]
-  - [20434, 0.3]
-  - [20917, 0.2]
-  - [21400, 0.10]
-  - [100000000, 0.0]
-family_size_credit_table_4person:
-  - [19350, 1.0]
-  - [20124, 0.9]
-  - [20898, 0.8]
-  - [21672, 0.70]
-  - [22446, 0.6]
-  - [23220, 0.5]
-  - [23994, 0.40]
-  - [24575, 0.3]
-  - [25155, 0.2]
-  - [25736, 0.10]
-  - [100000000, 0.0]
-
-# 2022+: the credit is a step share of tax by income as a multiple of the
-# federal poverty guideline ([upper limit of the multiple, share]).
-family_size_credit_rate_2022plus: [[1.0, 1.0], [1.04, 0.9], [1.08, 0.8], [1.12, 0.7], [1.16, 0.6], [1.2, 0.5], [1.24, 0.4], [1.27003, 0.3], [1.3, 0.2], [1.33003, 0.1], [1.0e+20, 0.0]]
-family_size_credit_poverty_guideline:
-  first_person: {2022: 13590, 2023: 14580, 2024: 15060, 2025: 15650}
-  additional_person: {2022: 4720, 2023: 5140, 2024: 5380, 2025: 5500}
-
-# 2019-2020 Income Gap Tax Credit. These are interpolated using the same
-# family-size-specific CPI divisor as the Family Size Tax Credit.
-income_gap_credit_table_1person:
-  - [9570, 0]
-  - [9953, 11]
-  - [10336, 20]
-  - [10718, 29]
-  - [11101, 37]
-  - [11484, 45]
-  - [11867, 51]
-  - [12154, 58]
-  - [12441, 64]
-  - [12728, 69]
-  - [100000000, 0]
-income_gap_credit_table_2person:
-  - [12830, 0]
-  - [13343, 7]
-  - [13856, 13]
-  - [14370, 18]
-  - [14883, 22]
-  - [15396, 24]
-  - [15909, 26]
-  - [16294, 27]
-  - [16679, 28]
-  - [17064, 28]
-  - [100000000, 0]
-income_gap_credit_table_3person:
-  - [16090, 0]
-  - [16734, 3]
-  - [17377, 6]
-  - [18021, 6]
-  - [18664, 6]
-  - [19308, 4]
-  - [19952, 0]
-  - [20434, 0]
-  - [20917, 0]
-  - [21400, 0]
-  - [100000000, 0]
-family_size_credit_aif_1person:
-  2005: 1.0
-  2006: 1.024
-  2007: 1.067
-  2008: 1.087
-  2009: 1.132
-  2010: 1.132
-  2011: 1.138
-  2012: 1.1567
-  2013: 1.2
-  2014: 1.220
-  2015: 1.230
-  2016: 1.2413793
-  2017: 1.260188
-  2018: 1.2685475
-  2019: 1.305
-  2020: 1.333
-  2021: 1.346
-  # PolicyEngine-US: FPG first-person values, gov.hhs.fpg.first_person.
-  2022: 1.420062696
-  2023: 1.523510972
-  2024: 1.573667712
-family_size_credit_aif_2person:
-  2005: 1.0
-  2006: 1.029
-  2007: 1.067
-  2008: 1.091
-  2009: 1.136
-  2010: 1.136
-  2011: 1.1465
-  2012: 1.179
-  2013: 1.2
-  2014: 1.226
-  2015: 1.242
-  2016: 1.248636
-  2017: 1.2657833
-  2018: 1.2829306
-  2019: 1.318
-  2020: 1.344
-  2021: 1.358
-  # PolicyEngine-US: FPG two-person values, gov.hhs.fpg.first_person plus
-  # gov.hhs.fpg.additional_person.
-  2022: 1.427123928
-  2023: 1.537022603
-  2024: 1.593141076
-family_size_credit_aif_3person:
-  2005: 1.0
-  2006: 1.0317
-  2007: 1.067
-  2008: 1.0938
-  2009: 1.138
-  2010: 1.138
-  2011: 1.1516
-  2012: 1.1865
-  2013: 1.214
-  2014: 1.23
-  2015: 1.249
-  2016: 1.2529521
-  2017: 1.2691112
-  2018: 1.2914853
-  2019: 1.326
-  2020: 1.3499
-  2021: 1.365
-  2022: 1.431323804
-  2023: 1.545059043
-  2024: 1.604723431
-family_size_credit_aif_4person:
-  2005: 1.0
-  2006: 1.0336
-  2007: 1.067
-  2008: 1.0996
-  2009: 1.13953
-  2010: 1.13953
-  2011: 1.155
-  2012: 1.191
-  2013: 1.217
-  2014: 1.23
-  2015: 1.253
-  2016: 1.2558139
-  2017: 1.2713178
-  2018: 1.2971
-  2019: 1.331
-  2020: 1.354
-  2021: 1.369
-  2022: 1.434108527
-  2023: 1.550387597
-  2024: 1.612403101
-
-# 1995+ retirement income exclusion: this share of pensions, up to the cap.
+# --- Income ---
+# Federal income tax (less self-employment tax and AMT) is deductible
+# through 1989; 1990 adds back federal income tax.
+# 1985: `rate` of interest up to `cap_per_taxpayer` is excluded.
+interest_exclusion:
+  1985: {rate: 0.15, cap_per_taxpayer: 450}
+  1986: null
+# Through 1997 dividends are excluded up to this amount per taxpayer.
+dividend_exclusion_per_taxpayer: {1977: 100, 1998: null}
+# 1987-1989: this share of long-term gains is excluded when net gains are
+# positive.
+capital_gains_exclusion: {1987: 0.6, 1990: null}
+# From 1995: this share of pensions is excluded, up to the cap (statutory
+# mode: per taxpayer, with joint pensions split evenly).
 retirement_exclusion_share: {1995: 0.25, 1996: 0.5, 1997: 0.75, 1998: 1.0}
 retirement_exclusion_cap: {1995: 6250, 1996: 12500, 1997: 18750, 1998: 35000, 1999: 35700, 2000: 36414, 2001: 37500, 2002: 38775, 2003: 39400, 2004: 40200, 2005: 41110, 2018: 31110}
-# Personal credits per taxpayer 65 or older: counted twice before 2004;
-# $40 in 2014-2017 and 2018+.
-aged_personal_credit_2014: 40
 
-# 1985 interest exclusion: this share of interest, up to the cap per filer.
-interest_exclusion_1985_rate: 0.15
-# Itemized limitation rates (1991-2017).
+# --- Deductions ---
+# Standard deduction, per taxpayer until 2022 (one per return from 2022,
+# Form 740 instructions). Source for 2022 on: PolicyEngine-US
+# gov.states.ky.tax.income.deductions.standard.
+standard_deduction: {1977: 650, 1997: 900, 1998: 1200, 1999: 1500, 2000: 1700, 2001: 1750, 2002: 1800, 2003: 1830, 2004: 1870, 2005: 1910, 2006: 1970, 2007: 2050, 2008: 2100, 2009: 2190, 2010: 2210, 2011: 2240, 2012: 2290, 2013: 2360, 2014: 2400, 2015: 2440, 2016: 2460, 2017: 2480, 2018: 2530, 2019: 2590, 2020: 2650, 2021: 2690, 2022: 2770, 2023: 2980, 2024: 3160, 2025: 3270}
+standard_deduction_per_taxpayer: {1977: true, 2022: false}
+# 1991-2017 itemized limitation: `itemized_phaseout_rate` of AGI above the
+# threshold (times `itemized_limitation_index`, halved on separate
+# returns), at most `itemized_phaseout_cap_rate` of itemized deductions,
+# times `reduction_share` (TAXSIM suspends it in 2010 only). From 2018 only
+# mortgage interest is deductible.
+itemized_limitation_threshold: 100000
+itemized_limitation_index: {1977: 1.0, 1992: 1.0525, 1993: 1.0845, 1994: 1.118, 1995: 1.147, 1996: 1.1795, 1997: 1.212, 1998: 1.245, 1999: 1.266, 2000: 1.2895, 2001: 1.3295, 2002: 1.373, 2003: 1.395, 2004: 1.427, 2005: 1.4595, 2006: 1.505, 2007: 1.564, 2008: 1.5995, 2009: 1.668, 2010: 1.6955, 2012: 1.7365, 2013: 1.7815, 2014: 1.8115, 2015: 1.84, 2016: 1.8485, 2017: 1.8635, 2018: null}
+itemized_limitation_reduction_share: {1991: 1.0, 2006: 0.6666666666666666, 2008: 0.3333333333333333, 2010: 0.0, 2011: 1.0, 2018: null}
 itemized_phaseout_rate: 0.03
 itemized_phaseout_cap_rate: 0.8
+# Through 1989, an itemized deduction for child care: the federal credit up
+# to a cap by dependents (1, 2, 3+), less half of AGI plus federal tax above
+# `phaseout_start`; none above `income_ceiling`.
+child_care_deduction:
+  1977: {caps: [2400, 3600, 4800], phaseout_start: 35000, income_ceiling: 44600}
+  1990: null
+
+# --- Credits (from 1990) ---
+# Personal tax credits per taxpayer and dependent, and per taxpayer 65 or
+# older.
+personal_credit:
+  1990: {per_person: 20, per_aged: 40}
+  2004: {per_person: 0, per_aged: 0}
+  2014: {per_person: 10, per_aged: 40}
+  2018: {per_person: 0, per_aged: 40}
+# Child and dependent care credit: this share of the federal credit before
+# its liability limit.
+child_care_credit_federal_share: {1990: 0.2}
+# 1990-2004 low-income credit: a share of tax for the first AGI ceiling
+# covering AGI, [AGI ceiling, share].
+low_income_credit:
+  1990: [[5000, 1.0], [10000, 0.5], [15000, 0.25], [20000, 0.15], [25000, 0.05], [100000000, 0.0]]
+  2005: null
+# Family size tax credit from 2005: a share of tax by family size (1-4+) and
+# modified AGI divided by `family_size_credit_index`, [income, share]
+# interpolated. From 2022 instead a step share by income as a multiple of
+# the federal poverty guideline ([upper limit of the multiple, share]).
+family_size_credit_table:
+  one: [[9570, 1.0], [9953, 0.9], [10336, 0.8], [10718, 0.7], [11101, 0.6], [11484, 0.5], [11867, 0.4], [12154, 0.3], [12441, 0.2], [12728, 0.1], [100000000, 0.0]]
+  two: [[12830, 1.0], [13343, 0.9], [13856, 0.8], [14370, 0.7], [14883, 0.6], [15396, 0.5], [15909, 0.4], [16294, 0.3], [16679, 0.2], [17064, 0.1], [100000000, 0.0]]
+  three: [[16090, 1.0], [16734, 0.9], [17377, 0.8], [18021, 0.7], [18664, 0.6], [19308, 0.5], [19952, 0.4], [20434, 0.3], [20917, 0.2], [21400, 0.1], [100000000, 0.0]]
+  four: [[19350, 1.0], [20124, 0.9], [20898, 0.8], [21672, 0.7], [22446, 0.6], [23220, 0.5], [23994, 0.4], [24575, 0.3], [25155, 0.2], [25736, 0.1], [100000000, 0.0]]
+family_size_credit_index:
+  2005: [1.0, 1.0, 1.0, 1.0]
+  2006: [1.024, 1.029, 1.0317, 1.0336]
+  2007: [1.067, 1.067, 1.067, 1.067]
+  2008: [1.087, 1.091, 1.0938, 1.0996]
+  2009: [1.132, 1.136, 1.138, 1.13953]
+  2010: [1.132, 1.136, 1.138, 1.13953]
+  2011: [1.138, 1.1465, 1.1516, 1.155]
+  2012: [1.1567, 1.179, 1.1865, 1.191]
+  2013: [1.2, 1.2, 1.214, 1.217]
+  2014: [1.22, 1.226, 1.23, 1.23]
+  2015: [1.23, 1.242, 1.249, 1.253]
+  2016: [1.2413793, 1.248636, 1.2529521, 1.2558139]
+  2017: [1.260188, 1.2657833, 1.2691112, 1.2713178]
+  2018: [1.2685475, 1.2829306, 1.2914853, 1.2971]
+  2019: [1.305, 1.318, 1.326, 1.331]
+  2020: [1.333, 1.344, 1.3499, 1.354]
+  2021: [1.346, 1.358, 1.365, 1.369]
+family_size_credit_poverty_share: [[1.0, 1.0], [1.04, 0.9], [1.08, 0.8], [1.12, 0.7], [1.16, 0.6], [1.2, 0.5], [1.24, 0.4], [1.27003, 0.3], [1.3, 0.2], [1.33003, 0.1], [1e+20, 0.0]]
+family_size_credit_poverty_guideline:
+  2022: {first_person: 13590, additional_person: 4720}
+  2023: {first_person: 14580, additional_person: 5140}
+  2024: {first_person: 15060, additional_person: 5380}
+  2025: {first_person: 15650, additional_person: 5500}
+# 2019-2020 income gap credit, with the family size credit, by family size
+# (1-3) on the same indexed income; reported but not subtracted, as in
+# TAXSIM.
+income_gap_credit:
+  2019:
+    one: [[9570, 0], [9953, 11], [10336, 20], [10718, 29], [11101, 37], [11484, 45], [11867, 51], [12154, 58], [12441, 64], [12728, 69], [100000000, 0]]
+    two: [[12830, 0], [13343, 7], [13856, 13], [14370, 18], [14883, 22], [15396, 24], [15909, 26], [16294, 27], [16679, 28], [17064, 28], [100000000, 0]]
+    three: [[16090, 0], [16734, 3], [17377, 6], [18021, 6], [18664, 6], [19308, 4], [19952, 0], [20434, 0], [20917, 0], [21400, 0], [100000000, 0]]
+  2021: null

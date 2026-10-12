@@ -9,7 +9,7 @@ from taxsim_py.calculators.payroll import payroll_parts, payroll_prerequisites
 from taxsim_py.engine.amt import alternative_minimum_tax, separate_return_amt_income
 from taxsim_py.engine.brackets import bracket_rate, bracket_rate_by_status, bracket_tax, bracket_tax_by_status
 from taxsim_py.engine.capital_gains import preferential_rate_tax
-from taxsim_py.engine.credits import child_care_credit_rate, child_care_credit_rate_pre2021
+from taxsim_py.engine.credits import child_care_credit_rate
 from taxsim_py.engine.eitc import eitc_age_eligible, eitc_filer_eligible, trapezoid_credit
 from taxsim_py.engine.inputs import aged_count, files_joint, files_separate, filing_status, is_dependent_filer
 from taxsim_py.engine.niit import net_investment_income_tax
@@ -58,20 +58,18 @@ def _qbi_deduction(year: int, dividends: pl.Expr, capgn: pl.Expr) -> pl.Expr:
     out over the taxable-income range. The total is capped at the rate times
     taxable income less net capital gain and dividends.
     """
-    q = FEDERAL_INCOME_TAX_PARAMS["qbi_deduction"]
-    rate = float(q["rate"])
+    p = YearParams(FEDERAL_INCOME_TAX_PARAMS, year)
+    rate = p.num("qbi_deduction_rate")
     married = files_joint()
 
     def by_marriage(key: str) -> pl.Expr:
-        value = pl.when(married).then(float(resolve_year(q[key]["married_joint"], year))).otherwise(
-            float(resolve_year(q[key]["unmarried"], year))
-        )
-        if year == 2019:
-            separate = files_separate()
-            value = pl.when(separate).then(float(q[key]["married_separate_2019"])).otherwise(value)
+        amounts = p.value(key)
+        value = pl.when(married).then(float(amounts["married_joint"])).otherwise(float(amounts["unmarried"]))
+        if "married_separate" in amounts:
+            value = pl.when(files_separate()).then(float(amounts["married_separate"])).otherwise(value)
         return value
 
-    start, end = by_marriage("phase_in_start"), by_marriage("phase_in_end")
+    start, end = by_marriage("qbi_phase_in_start"), by_marriage("qbi_phase_in_end")
     taxable = pl.col("taxable_income")
     qbi_income = pl.col("pbusinc").clip(0, None) + pl.col("sbusinc").clip(0, None)
     professional = pl.col("pprofinc").clip(0, None) + pl.col("sprofinc").clip(0, None)
@@ -360,10 +358,10 @@ def _income(
     df = df.with_columns(**prerequisites).with_columns(**{f"__payroll_{name}": expr for name, expr in payroll.items()}).drop(*prerequisites)
     payroll = {name: pl.col(f"__payroll_{name}") for name in payroll}
     setax_total = payroll["setax"]
-    # The 2011-2012 payroll-tax holiday uses a special SE-tax deduction.
-    if year in (2011, 2012):
+    # The payroll tax holiday uses a special SE-tax deduction.
+    if pt_p.in_effect("se_deduction_holiday"):
         wage_base = pt_p.num("oasdi_wage_base")
-        holiday = pt_p["se_deduction_holiday"]
+        holiday = pt_p.value("se_deduction_holiday")
         se_deduction_threshold = holiday["threshold_share"] * wage_base
         se_deduction_flat_addon = holiday["threshold_share"] * holiday["addon_rate"] * wage_base
         se_agi_deduction = (
@@ -417,11 +415,13 @@ def _income(
 
     # Prefer split unemployment amounts when they exceed the combined input.
     ui_total = unemployment_total()
-    if year == 2009:
+    income_p = YearParams(FEDERAL_INCOME_TAX_PARAMS, year)
+    ui_exclusion = income_p.value("unemployment_exclusion") if income_p.in_effect("unemployment_exclusion") else {}
+    if "per_return" in ui_exclusion:
         # A per-return exclusion with no income limit.
-        ui_in_income = (ui_total - FEDERAL_INCOME_TAX_PARAMS["unemployment_exclusion_2009"]).clip(0, None)
-    elif year == 2020:
-        # 2020 unemployment is added after Social Security (below).
+        ui_in_income = (ui_total - ui_exclusion["per_return"]).clip(0, None)
+    elif "per_spouse" in ui_exclusion:
+        # Unemployment is added after Social Security (below).
         ui_in_income = pl.lit(0.0)
     else:
         ui_in_income = ui_total
@@ -429,9 +429,11 @@ def _income(
 
     # Social Security benefits in AGI (`ssagi`).
     ss_p = SOCIAL_SECURITY_PARAMS
+    two_tiers = YearParams(ss_p, year).in_effect("second_tier_rate")
+    second_tier_rate = YearParams(ss_p, year).num("second_tier_rate") if two_tiers else 0.0
     benefits = pl.col("gssi").clip(0, None)
     provisional = income_before_ss + pl.col("transfers") + 0.5 * benefits
-    if year == 2020:
+    if "per_spouse" in ui_exclusion:
         provisional = provisional + ui_total
     taxable_ss = taxable_social_security(
         benefits,
@@ -439,20 +441,19 @@ def _income(
         base_amount=by_filing_status(ss_p["base_amount"]),
         first_tier_width=by_filing_status(ss_p["first_tier_width"]),
         first_tier_rate=float(ss_p["first_tier_rate"]),
-        second_tier_rate=float(ss_p["second_tier_rate"]),
-        two_tiers=year >= int(ss_p["second_tier_start_year"]),
+        second_tier_rate=second_tier_rate,
+        two_tiers=two_tiers,
     )
     agi_before_ui = income_before_ss + taxable_ss
 
-    if year == 2020:
-        # A per-spouse exclusion below an AGI limit (`uithrs`, taxsim_2022_10_21.f:24237).
-        ui_2020 = FEDERAL_INCOME_TAX_PARAMS["unemployment_exclusion_2020"]
-        per_spouse = float(ui_2020["per_spouse"])
+    if "per_spouse" in ui_exclusion:
+        # A per-spouse exclusion below an AGI limit.
+        per_spouse = float(ui_exclusion["per_spouse"])
         excl_spouse = pl.min_horizontal(pl.col("sui"), pl.lit(per_spouse))
         excl_primary = (ui_total - pl.col("sui")).clip(0, per_spouse)
         exclusion = excl_spouse + excl_primary
         taxable_ui = (
-            pl.when(agi_before_ui < ui_2020["agi_limit"])
+            pl.when(agi_before_ui < ui_exclusion["agi_limit"])
             .then((ui_total - exclusion).clip(0, None))
             .otherwise(ui_total)
         )
@@ -473,9 +474,9 @@ def _income(
         ss_base = by_filing_status(ss_p["base_amount"])
         ss_width = by_filing_status(ss_p["first_tier_width"])
         first_share = float(ss_p["first_tier_rate"])
-        second_share = float(ss_p["second_tier_rate"])
+        second_share = second_tier_rate
         xlin9 = (provisional - ss_base).clip(0, None)
-        if year <= 1993:
+        if not two_tiers:
             pssa = (benefits > xlin9) & (xlin9 > 0)
             pssa1 = pl.lit(False)
             pssa2 = pssa
@@ -512,10 +513,9 @@ def _deductions(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorPr
     }
     std_ded_by_status["married_separate"] = std_ded_by_status["married_joint"] / 2.0
     std_ded_expr = by_filing_status(std_ded_by_status)
-    if year >= 2008:
-        property_tax_cap = float(
-            resolve_year(FEDERAL_INCOME_TAX_PARAMS["standard_deduction_real_property_tax_cap"], year)
-        )
+    income_p = YearParams(FEDERAL_INCOME_TAX_PARAMS, year)
+    if income_p.in_effect("standard_deduction_real_property_tax_cap"):
+        property_tax_cap = income_p.num("standard_deduction_real_property_tax_cap")
         num_filers = pl.when(files_joint()).then(2.0).otherwise(1.0)
         std_ded_expr = std_ded_expr + pl.min_horizontal(
             pl.col("proptax").clip(0, None), property_tax_cap * num_filers
@@ -537,19 +537,16 @@ def _deductions(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorPr
     ).otherwise(std_ded_expr)
     df = df.with_columns(standard_deduction=std_ded_expr)
 
-    # SALT is capped per return beginning in 2018.
+    itemized_p = YearParams(FEDERAL_ITEMIZED_PARAMS, year)
     salt_uncapped_expr = pl.col("proptax") + pl.col("otheritem") + pl.col("state_sales_or_income_tax_ded")
-    if year >= 2018:
-        salt_cap = float(resolve_year(FEDERAL_ITEMIZED_PARAMS["salt_cap"], year))
-        salt_cap_expr = pl.lit(salt_cap) / sepret_expr
-        phaseout_rate = float(resolve_year(FEDERAL_ITEMIZED_PARAMS["salt_phaseout"]["rate"], year)) if year >= 2025 else 0.0
-        if phaseout_rate > 0:
+    if itemized_p.in_effect("salt_cap"):
+        salt_cap_expr = pl.lit(itemized_p.num("salt_cap")) / sepret_expr
+        if itemized_p.in_effect("salt_phaseout"):
             # The cap shrinks with income but never below the floor.
-            threshold = float(resolve_year(FEDERAL_ITEMIZED_PARAMS["salt_phaseout"]["threshold"], year))
-            floor = float(resolve_year(FEDERAL_ITEMIZED_PARAMS["salt_phaseout"]["floor"], year))
+            phaseout = itemized_p.value("salt_phaseout")
             salt_cap_expr = pl.max_horizontal(
-                pl.lit(floor) / sepret_expr,
-                salt_cap_expr - phaseout_rate * (pl.col("agi") - threshold / sepret_expr).clip(0, None),
+                pl.lit(float(phaseout["floor"])) / sepret_expr,
+                salt_cap_expr - phaseout["rate"] * (pl.col("agi") - phaseout["threshold"] / sepret_expr).clip(0, None),
             )
         salt_capped = salt_uncapped_expr.clip(0, None).clip(None, salt_cap_expr)
     else:
@@ -557,21 +554,16 @@ def _deductions(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorPr
 
     # The cash-contribution AGI cap is suspended for 2020 and 2021.
     agix = pl.col("agi").clip(0, None)
-    alim50 = float(resolve_year(FEDERAL_ITEMIZED_PARAMS["cash_charity_agi_limit_share"], year)) * agix
+    alim50 = itemized_p.num("cash_charity_agi_limit_share") * agix
     char_cash_itemized = pl.min_horizontal(alim50, pl.col("charity_cash")).clip(0, None)
     itemized_deduction = salt_capped + pl.col("mortgage") + char_cash_itemized
     itemized_before_limit = itemized_deduction
     pease_reduction = pl.lit(0.0)
     pease_binding = pl.lit(False)
 
-    # Pease applies from 1991, except 2010-2012, and is suspended from 2018.
-    if year < 1991:
-        pass
-    elif 2010 <= year <= 2012:
-        pass  # itemized_deduction unreduced - Pease fully off these years
-    elif year < 2018:
-        pease_p = YearParams(FEDERAL_ITEMIZED_PARAMS, year)
-        pease_threshold_expr = _by_status_at(pease_p["pease_limitation_threshold"], year)
+    if itemized_p.in_effect("pease_limitation_threshold"):
+        pease_p = itemized_p
+        pease_threshold_expr = by_filing_status(pease_p.value("pease_limitation_threshold"))
         pease_reduction_rate = pease_p.num("pease_reduction_rate")
         pease_cap_rate = pease_p.num("pease_cap_rate")
         dlim1 = pease_reduction_rate * (pl.col("agi") - pease_threshold_expr).clip(0, None)
@@ -582,13 +574,12 @@ def _deductions(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorPr
         pease_reduction = pease_reduction * pease_p.num("limitation_phasedown_share")
         itemized_deduction = itemized_deduction - pease_reduction
 
-    # Standard filers receive the temporary 2020-2021 cash-charity deduction.
-    charity = FEDERAL_ITEMIZED_PARAMS["nonitemizer_charity_deduction"]
-    if year == 2020:
-        cas = pl.min_horizontal(pl.lit(float(charity[2020])) / sepret_expr, pl.col("charity_cash"))
-    elif year == 2021:
+    # Cash charity deduction for nonitemizers: per return in 2020, per taxpayer in 2021.
+    if itemized_p.in_effect("nonitemizer_charity_deduction"):
+        charity = itemized_p.num("nonitemizer_charity_deduction")
         num_filers = pl.when(files_joint()).then(2.0).otherwise(1.0)
-        cas = pl.min_horizontal(float(charity[2021]) * num_filers, pl.col("charity_cash"))
+        limit = pl.lit(charity) / sepret_expr if year == 2020 else charity * num_filers
+        cas = pl.min_horizontal(limit, pl.col("charity_cash"))
     else:
         cas = pl.lit(0.0)
 
@@ -617,38 +608,29 @@ def _deductions(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorPr
     )
     deduction = pl.when(dependent).then(dependent_deduction).otherwise(deduction)
 
-    # Personal and dependent exemptions (none 2018-2025), with the
-    # high-income phaseout (taxsim_2022_10_21.f:24738-24816).
-    if year < 2018:
-        pe_p = YearParams(FEDERAL_PERSONAL_EXEMPTION_PARAMS, year)
+    # Personal and dependent exemptions, with the high-income phaseout.
+    pe_p = YearParams(FEDERAL_PERSONAL_EXEMPTION_PARAMS, year)
+    if pe_p.in_effect("amount"):
         exemption_amount = pe_p.num("amount")
         exemption_count = 1.0 + pl.col("depx") + pl.when(files_joint()).then(1.0).otherwise(0.0)
         amex_base = exemption_amount * exemption_count
-        if 2010 <= year <= 2012:
-            # PEP fully (not just partially) repealed these years - `ratio`
-            # forced to 0 unconditionally, not a higher threshold.
-            # taxsim_2022_10_21.f:24798-24800.
-            amex = amex_base
-        elif year < 1991:
-            # No phaseout before 1991.
+        if not pe_p.in_effect("high_income_phaseout_threshold"):
             amex = amex_base
         elif year <= 1996:
-            # 1991-1996: the threshold is an inflation-adjusted base
-            # (`exmphl = filing(...)*xndx/1.143`, taxsim_2022_10_21.f:
-            # 24754-24760), stored as dollar values in the parameters.
-            pep_threshold_expr = _by_status_at(pe_p["high_income_phaseout_threshold"], year)
+            # The reduction is not limited to the exemption.
+            pep_threshold_expr = by_filing_status(pe_p.value("high_income_phaseout_threshold"))
             pep_rate = pe_p.num("phaseout_rate")
             pep_bracket_size = pe_p.num("phaseout_bracket_size")
             pep_ratio = pep_rate * (pl.col("agi") - pep_threshold_expr).clip(0, None) / (pep_bracket_size / sepret_expr)
             amex = (amex_base * (1.0 - pep_ratio)).clip(0, None)
         else:
-            pep_threshold_expr = _by_status_at(pe_p["high_income_phaseout_threshold"], year)
+            pep_threshold_expr = by_filing_status(pe_p.value("high_income_phaseout_threshold"))
             pep_rate = pe_p.num("phaseout_rate")
             pep_bracket_size = pe_p.num("phaseout_bracket_size")
             pep_ratio = (
                 pep_rate * (pl.col("agi") - pep_threshold_expr).clip(0, None) / (pep_bracket_size / sepret_expr)
             ).clip(0, 1)
-            amphs_fraction = float(resolve_year(FEDERAL_ITEMIZED_PARAMS["limitation_phasedown_share"], year))
+            amphs_fraction = itemized_p.num("limitation_phasedown_share")
             amex = amex_base * (1.0 - pep_ratio * amphs_fraction)
     else:
         amex = pl.lit(0.0)
@@ -660,27 +642,25 @@ def _deductions(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorPr
     if analytic_rate:
         # Exemptions phasing out, within TAXSIM's range above the threshold.
         pexem = pl.lit(False)
-        if year >= 1991:
+        if pe_p.in_effect("amount") and pe_p.in_effect("high_income_phaseout_threshold"):
             within = pl.col("agi") - pep_threshold_expr <= ANALYTIC_RATE_PARAMS["exemption_phaseout_range"] / sepret_expr
             pexem = (amex > 0) & (amex_base - amex > 0) & within
         df = df.with_columns(analytic_pexem=pexem, analytic_exemptions_base=amex_base)
     senior = pl.lit(0.0)
-    if year >= 2025:
-        sen_p = FEDERAL_INCOME_TAX_PARAMS["senior_deduction"]
-        sen_amount = float(resolve_year(sen_p["amount"], year))
-        if sen_amount > 0:
-            sen_threshold = pl.when(files_joint()).then(float(sen_p["phaseout_threshold"]["joint"])).otherwise(
-                float(sen_p["phaseout_threshold"]["other"])
-            )
-            per_person = (sen_amount - float(sen_p["phaseout_rate"]) * (pl.col("agi") - sen_threshold).clip(0, None)).clip(0, None)
-            senior = pl.when(files_separate() | dependent).then(0.0).otherwise(per_person * aged_count())
+    if income_p.in_effect("senior_deduction"):
+        sen_p = income_p.value("senior_deduction")
+        sen_threshold = pl.when(files_joint()).then(float(sen_p["phaseout_threshold"]["joint"])).otherwise(
+            float(sen_p["phaseout_threshold"]["other"])
+        )
+        per_person = (float(sen_p["amount"]) - float(sen_p["phaseout_rate"]) * (pl.col("agi") - sen_threshold).clip(0, None)).clip(0, None)
+        senior = pl.when(files_separate() | dependent).then(0.0).otherwise(per_person * aged_count())
     df = df.with_columns(
         personal_exemptions=amex,
         exemption_phaseout=amex_base - amex,
         senior_deduction=senior,
         taxable_income=(pl.col("agi") - deduction - amex - senior).clip(0, None),
     )
-    if year >= 2018:
+    if income_p.in_effect("qbi_deduction_rate"):
         df = df.with_columns(qbi_deduction=_qbi_deduction(year, _dividends(), _capital_gain(year)))
         df = df.with_columns(taxable_income=(pl.col("taxable_income") - pl.col("qbi_deduction")).clip(0, None))
     else:
@@ -707,7 +687,7 @@ def _regular_tax(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorP
     tax_expr = bracket_tax_by_status(ordinary_income, brackets_by_status)
 
     cg_p = YearParams(FEDERAL_CAPITAL_GAINS_PARAMS, year)
-    max_rate = cg_p["maximum_rate_1987_1996"]
+    max_rate = cg_p.num("maximum_rate") if cg_p.in_effect("maximum_rate") else None
     rate_0_ceiling_expr = _by_status_at(cg_p["rate_0_ceiling"], year)
     rate_15_ceiling_expr = _by_status_at(cg_p["rate_15_ceiling"], year)
     plain_ordinary_tax = bracket_tax_by_status(pl.col("taxable_income"), brackets_by_status)
@@ -715,7 +695,7 @@ def _regular_tax(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorP
     if year == 1987:
         # The 1987 transition caps gains above the 28% bracket ceiling while
         # preserving ordinary bracket tax below it. See `tax87` in TAXSIM.
-        rate_28_ceiling_expr = _by_status_at(cg_p["rate_28_ceiling"], year)
+        rate_28_ceiling_expr = by_filing_status(cg_p.value("rate_28_ceiling"))
         tax_at_ttab = bracket_tax_by_status(rate_28_ceiling_expr, brackets_by_status)
         tax_case_c = tax_at_ttab + max_rate * (pl.col("taxable_income") - rate_28_ceiling_expr)
         tax_case_a = tax_expr + max_rate * ltg_capped
@@ -770,15 +750,15 @@ def _regular_tax(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorP
         above_room = (ltg_capped - low_room).clip(0, None)
         sch20 = rate_top * above_room
         preferential_tax = sch10 + sch20
-    elif year == 2003:
-        # In 2003, dividends use the new 5%/15% rates before gains consume
-        # the remaining room at the old 10%/20% rates.
+    elif cg_p.in_effect("transition_rates"):
+        # Dividends use the new rates before gains consume the remaining room
+        # at the old ones.
         low_room = (pl.min_horizontal(pl.col("taxable_income"), rate_0_ceiling_expr) - ordinary_income).clip(
             0, None
         )
         dividends_with_fudge = _dividends()
         dividends_in_low = pl.min_horizontal(low_room, dividends_with_fudge)
-        rates = cg_p["rates_2003"]
+        rates = cg_p.value("transition_rates")
         sch5 = rates["dividends_low"] * dividends_in_low
         gain_in_low = low_room - dividends_in_low
         sch10 = rates["gains_low"] * gain_in_low
@@ -806,11 +786,10 @@ def _regular_tax(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorP
     # surtaxes; from 1991 on ordinary rates for all income.
     schedule_tax = regular_tax if year <= 1990 else plain_ordinary_tax
 
-    if 1988 <= year <= 1996:
-        # The 1988-1996 exemption surtax is capped at 28% of the reduced
-        # personal exemption.
-        pep_p = FEDERAL_PERSONAL_EXEMPTION_PARAMS
-        exemption_surtax_threshold_expr = _by_status_at(pep_p["exemption_surtax_threshold"], year)
+    pep_p = YearParams(FEDERAL_PERSONAL_EXEMPTION_PARAMS, year)
+    if pep_p.in_effect("exemption_surtax_threshold"):
+        # Capped at a share of the reduced personal exemptions.
+        exemption_surtax_threshold_expr = by_filing_status(pep_p.value("exemption_surtax_threshold"))
         exemption_surtax = pl.min_horizontal(
             FEDERAL_INCOME_TAX_PARAMS["exemption_surtax_rate"]
             * (pl.col("taxable_income") - exemption_surtax_threshold_expr).clip(0, None),
@@ -834,11 +813,11 @@ def _regular_tax(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorP
     else:
         exemption_surtax = pl.lit(0.0)
 
-    if 1988 <= year <= 1990:
-        # The 1988-1990 rate-bubble surtax claws back 15% bracket savings.
-        income_tax_p = FEDERAL_INCOME_TAX_PARAMS
-        bubble_threshold_expr = _by_status_at(income_tax_p["bubble_surtax_threshold"], year)
-        bubble_cap_expr = _by_status_at(income_tax_p["bubble_surtax_cap"], year)
+    income_tax_p = YearParams(FEDERAL_INCOME_TAX_PARAMS, year)
+    if income_tax_p.in_effect("bubble_surtax_threshold"):
+        # Claws back the savings of the 15% bracket.
+        bubble_threshold_expr = by_filing_status(income_tax_p.value("bubble_surtax_threshold"))
+        bubble_cap_expr = by_filing_status(income_tax_p.value("bubble_surtax_cap"))
         bubble_surtax = pl.min_horizontal(
             income_tax_p["bubble_surtax_rate"] * (pl.col("taxable_income") - bubble_threshold_expr).clip(0, None),
             bubble_cap_expr,
@@ -959,30 +938,8 @@ def _credits(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorProfi
     analytic_rate = _models_analytic_rate(year)
     ccc_p = YearParams(FEDERAL_CREDITS_PARAMS["child_care_credit"], year)
     max_qualifying_persons = ccc_p.num("max_qualifying_persons")
-    if year == 2021:
-        # ARPA enhanced the CCC expense cap and rate for 2021 only.
-        max_expense_per_person = ccc_p.num("max_expense_per_person")
-        ccc_rate = child_care_credit_rate(
-            pl.col("agi"),
-            first_phase_start=ccc_p.num("first_phase_start"),
-            first_phase_ceiling=ccc_p.num("first_phase_ceiling"),
-            first_phase_step_amount=ccc_p.num("first_phase_step_amount"),
-            top_rate=ccc_p.num("top_rate"),
-            mid_rate=ccc_p.num("mid_rate"),
-            second_phase_start=ccc_p.num("second_phase_start"),
-            second_phase_ceiling=ccc_p.num("second_phase_ceiling"),
-            second_phase_step_amount=ccc_p.num("second_phase_step_amount"),
-        )
-    else:
-        # The standard CCC rate steps down to a 20% floor.
-        max_expense_per_person = ccc_p.num("max_expense_per_person_pre2021")
-        ccc_rate = child_care_credit_rate_pre2021(
-            pl.col("agi"),
-            phase_start=ccc_p.num("pre2021_phase_start"),
-            top_rate=ccc_p.num("pre2021_rate_top"),
-            floor_rate=ccc_p.num("pre2021_rate_floor"),
-            step_amount=ccc_p.num("pre2021_step_amount"),
-        )
+    max_expense_per_person = ccc_p.num("max_expense_per_person")
+    ccc_rate = child_care_credit_rate(pl.col("agi"), ccc_p.value("rate"))
     num_qualifying_persons = pl.col("dep13").clip(0, max_qualifying_persons)
     qualifying_expense = pl.col("childcare").clip(0, num_qualifying_persons * max_expense_per_person)
     ccc_earned_income_cap = (
@@ -992,8 +949,7 @@ def _credits(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorProfi
     )
     ccc_expense = pl.min_horizontal(qualifying_expense, ccc_earned_income_cap).clip(0, None)
     ccc_amount = ccc_rate * ccc_expense
-    if year == 2021:
-        # ARPA made the CCC fully refundable for 2021.
+    if ccc_p.value("refundable"):
         ccc = ccc_amount.clip(0, None)
     elif year < 1998:
         # TAXSIM does not apply the computed CCC before 1998.
@@ -1085,34 +1041,30 @@ def _credits(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorProfi
     young = pl.min_horizontal(pl.col("dep6"), ideps)
     agi = pl.col("agi")
 
-    if year >= 2018:
-        odc_p = YearParams(FEDERAL_CREDITS_PARAMS["other_dependent_credit"], year)
-        odc_amount = odc_p.num("amount")
-        odc_rate_per_1000 = odc_p.num("phaseout_rate_per_1000")
-        odc_threshold_expr = _by_status_at(odc_p["phaseout_threshold"], year)
-        odc_base = odc_amount * (pl.col("depx") - ideps).clip(0, None)
+    odc_p = YearParams(FEDERAL_CREDITS_PARAMS["other_dependent_credit"], year)
+    if odc_p.in_effect("amount"):
+        odc_base = odc_p.num("amount") * (pl.col("depx") - ideps).clip(0, None)
     else:
-        # Before TCJA, CTC uses the fixed pre-2018 phaseout threshold.
         odc_base = pl.lit(0.0)
-        odc_rate_per_1000 = ctc_p.num("pre2018_phaseout_rate_per_1000")
-        odc_threshold_expr = _by_status_at(ctc_p["pre2018_phaseout_threshold"], year)
+    odc_rate_per_1000 = ctc_p.num("phaseout_rate_per_1000")
+    odc_threshold_expr = by_filing_status(ctc_p.value("phaseout_threshold"))
 
-    if year == 2021:
-        # ARPA enhanced CTC amounts and added a low-income phaseout in 2021.
-        young_child_amount = ctc_p.num("young_child_amount")
-        older_child_amount = ctc_p.num("older_child_amount")
-        base_amount_offset = ctc_p.num("base_amount_offset")
-        enhanced_cap_expr = _by_status_at(ctc_p["enhanced_cap"], year)
-        low_income_threshold_expr = _by_status_at(ctc_p["low_income_phaseout_threshold"], year)
-        low_income_rate = ctc_p.num("low_income_phaseout_rate")
+    enhanced = ctc_p.in_effect("enhanced")
+    if enhanced:
+        e = ctc_p.value("enhanced")
+        young_child_amount = float(e["young_child_amount"])
+        older_child_amount = float(e["older_child_amount"])
+        base_amount_offset = float(e["base_amount_offset"])
+        enhanced_cap_expr = by_filing_status(e["enhanced_cap"])
+        low_income_threshold_expr = by_filing_status(e["low_income_phaseout_threshold"])
+        low_income_rate = float(e["low_income_phaseout_rate"])
 
         ccrmax = young * young_child_amount + (ideps - young) * older_child_amount
         enhanced_amount = pl.min_horizontal(ccrmax - ideps * base_amount_offset, enhanced_cap_expr)
         low_income_reduction = ((agi - low_income_threshold_expr).clip(0, None)) * low_income_rate
         ctc_before_tcja_phaseout = ccrmax - pl.min_horizontal(enhanced_amount, low_income_reduction)
     else:
-        # Other years use a flat amount per qualifying child.
-        flat_amount = ctc_p.num("flat_amount_pre2021")
+        flat_amount = ctc_p.num("amount_per_child") if ctc_p.in_effect("amount_per_child") else 0.0
         ctc_before_tcja_phaseout = flat_amount * ideps
 
     # TAXSIM computes ODC after 2021 but does not add it to `precrd`.
@@ -1125,12 +1077,12 @@ def _credits(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorProfi
     tcja_reduction = ((agi - odc_threshold_expr).clip(0, None) / 1000) * odc_rate_per_1000
     combined_after_phaseout = (combined_base - tcja_reduction).clip(0, None)
 
-    if year == 2021:
-        # ARPA makes the full post-phaseout amount refundable in 2021.
+    if enhanced:
+        # Fully refundable.
         nonrefundable_credit = pl.lit(0.0)
         actc = combined_after_phaseout
-    elif year < 2001:
-        # TAXSIM's 1998-2000 additional credit (three or more children) is
+    elif not ctc_p.in_effect("actc_rate"):
+        # TAXSIM's additional credit for three or more children before 2001 is
         # built from a payroll-tax figure it never sets, so it is always 0.
         remaining_after_ccc = (pl.col("tax_before_credits") - pl.col("ccc") - pl.col("elderly_credit_raw")).clip(0, None)
         nonrefundable_credit = pl.min_horizontal(combined_after_phaseout, remaining_after_ccc)
@@ -1143,11 +1095,10 @@ def _credits(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorProfi
         actc_earned_income_floor = ctc_p.num("actc_earned_income_floor")
         actc_rate = ctc_p.num("actc_rate")
         actc_earned_formula = actc_rate * (pl.col("earned_income").clip(0, None) - actc_earned_income_floor).clip(0, None)
-        if year >= 2018:
+        if ctc_p.in_effect("actc_max_refundable_per_child"):
             actc_max_per_child = ctc_p.num("actc_max_refundable_per_child")
             actc_cap = pl.min_horizontal(unused_nonrefundable, actc_max_per_child * ideps)
         else:
-            # Before TCJA, ACTC has no separate per-child refundable cap.
             actc_cap = unused_nonrefundable
         actc = pl.min_horizontal(actc_cap, actc_earned_formula).clip(0, None)
 
@@ -1170,10 +1121,7 @@ def _net_tax(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorProfi
     agi = pl.col("agi")
     niit_p = YearParams(FEDERAL_NIIT_PARAMS, year)
     niit_threshold_expr = _by_status_at(niit_p["threshold"], year)
-    # The state-tax-deduction offset against net investment income is
-    # uncapped before 2018 too (matching SALT itself) - no `expense_cap`
-    # entry exists for year<2018 on purpose (niit.yaml).
-    niit_expense_cap = niit_p.num("expense_cap") if year >= 2018 else float("inf")
+    niit_expense_cap = niit_p.num("expense_cap") if niit_p.in_effect("expense_cap") else float("inf")
     niit = net_investment_income_tax(
         net_investment_income=(pl.col("intrec") + _dividends() + _capital_gain(year) + pl.col("otherprop")).clip(0, None),
         agi=agi,
@@ -1215,22 +1163,22 @@ def _net_tax(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorProfi
         nonrefundable_credits = pl.col("ccc") + pl.col("elderly_credit") + pl.col("odc")
     df = df.with_columns(nonrefundable_credits=nonrefundable_credits)
 
-    # 2020-21 Recovery Rebate Credit (Economic Impact Payments),
-    # taxsim_2022_10_21.f:26055-26089. `ncare` is 1, or 2 on a joint return;
-    # head of household thresholds are 1.5 times single.
-    rebate = FEDERAL_CREDITS_PARAMS["recovery_rebate"]
+    # Recovery rebate credits (economic impact payments).
+    credits_p = YearParams(FEDERAL_CREDITS_PARAMS, year)
+    rebate = credits_p.value("recovery_rebate") if credits_p.in_effect("recovery_rebate") else {}
     ncare_expr = pl.when(files_joint()).then(2.0).otherwise(1.0)
-    phcare_expr = by_filing_status(rebate["phaseout_start"])
-    if year == 2020:
+    if "payments" in rebate:
         # Each payment is reduced separately and floored at 0.
-        reduction = (rebate["phaseout_rate_2020"] * (agi - phcare_expr)).clip(0, None)
+        phcare_expr = by_filing_status(rebate["phaseout_start"])
+        reduction = (rebate["phaseout_rate"] * (agi - phcare_expr)).clip(0, None)
         cares = pl.lit(0.0)
-        for payment in rebate["payments_2020"]:
+        for payment in rebate["payments"]:
             base = payment["per_adult"] * ncare_expr + payment["per_child"] * pl.col("dep13")
             cares = cares + (base - reduction).clip(0, None)
-    elif year == 2021:
-        phmax_expr = by_filing_status(rebate["phaseout_end_2021"])
-        payment = rebate["payment_2021"]
+    elif rebate:
+        phcare_expr = by_filing_status(rebate["phaseout_start"])
+        phmax_expr = by_filing_status(rebate["phaseout_end"])
+        payment = rebate["payment"]
         eip3_base = payment["per_adult"] * ncare_expr + payment["per_dependent"] * pl.col("depx")
         eip3 = (
             pl.when(agi >= phmax_expr)
@@ -1245,11 +1193,9 @@ def _net_tax(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorProfi
     # Dependent filers get no recovery rebate.
     df = df.with_columns(cares=pl.when(is_dependent_filer()).then(0.0).otherwise(cares))
 
-    # 2009-2010 Making Work Pay Credit: 6.2% of earned income up to $400 per
-    # taxpayer, phased out above $75,000 per taxpayer and zero from $95,000,
-    # less Social Security benefits up to $250 per taxpayer.
-    if year in (2009, 2010):
-        mwp = FEDERAL_CREDITS_PARAMS["making_work_pay"]
+    # Making Work Pay credit, per taxpayer.
+    if credits_p.in_effect("making_work_pay"):
+        mwp = credits_p.value("making_work_pay")
         num_filers_expr = pl.when(files_joint()).then(2.0).otherwise(1.0)
         mwp_max_credit = mwp["max_credit"] * num_filers_expr
         mwp_phaseout_start = mwp["phaseout_start"] * num_filers_expr
@@ -1259,7 +1205,6 @@ def _net_tax(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorProfi
         making_work_pay = pl.when(
             (pl.col("earned_income") > 0) & (agi < mwp_hard_ceiling) & ~is_dependent_filer()
         ).then((mwp_phase_in - mwp_reduction).clip(0, None)).otherwise(0.0)
-        # Reduced by Social Security benefits, up to $250 per taxpayer.
         benefit_offset = pl.min_horizontal(pl.col("gssi"), mwp["benefit_offset"] * num_filers_expr)
         making_work_pay = pl.when(pl.col("gssi") > 0).then(
             (making_work_pay - benefit_offset).clip(0, None)
@@ -1268,12 +1213,11 @@ def _net_tax(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorProfi
         making_work_pay = pl.lit(0.0)
     df = df.with_columns(making_work_pay=making_work_pay)
 
-    # 2006 Telephone Excise Tax refund (`telcr`): $10 per exemption up to
-    # four, plus $20 (taxsim_2022_10_21.f:26051-26054).
-    if year == 2006:
+    # Telephone excise tax refund.
+    if credits_p.in_effect("telephone_excise_credit"):
         exemps = 1.0 + pl.col("depx") + pl.when(files_joint()).then(1.0).otherwise(0.0)
         exemps = pl.when(is_dependent_filer()).then(0.0).otherwise(exemps)
-        tel = FEDERAL_CREDITS_PARAMS["telephone_excise_credit"]
+        tel = credits_p.value("telephone_excise_credit")
         telephone_excise_credit = pl.when(exemps > 0).then(
             tel["per_exemption"] * (pl.min_horizontal(exemps, tel["max_exemptions"]) + tel["base_exemptions"])
         ).otherwise(0.0)

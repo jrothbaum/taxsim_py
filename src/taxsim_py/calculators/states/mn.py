@@ -93,43 +93,28 @@ def _schedule_tax(taxinc: pl.Expr, fedtax: pl.Expr, status: pl.Expr, y: int) -> 
             .otherwise(joint)
         )
 
+    tables = p.value("brackets")
+    factor = p.num("bracket_inflation")
     if y <= 1984:
-        rows = [list(row) for row in p["brackets_1977_1984_base"]]
-        top = p.value("brackets_1977_1984_top_rates")
-        rows[-2][1], rows[-1][1] = top
-        tax = bracket_tax(taxinc, _scaled(rows, p.num("brackets_1977_1998_inflation")))
+        tax = bracket_tax(taxinc, _scaled(tables, factor))
     elif y <= 1986:
-        aif = p.num("brackets_1977_1998_inflation")
-        without_deduction = taxinc
         with_deduction = (taxinc - fedtax).clip(0, None)
         tax_a = (
             pl.when(is_joint)
-            .then(bracket_tax(without_deduction, _scaled(p["brackets_1985_1986_joint_a"], aif)))
-            .otherwise(bracket_tax(without_deduction, _scaled(p["brackets_1985_1986_single_a"], aif)))
+            .then(bracket_tax(taxinc, _scaled(tables["joint_a"], factor)))
+            .otherwise(bracket_tax(taxinc, _scaled(tables["single_a"], factor)))
         )
         tax_b = (
             pl.when(is_joint)
-            .then(bracket_tax(with_deduction, _scaled(p["brackets_1985_1986_joint_b"], aif)))
-            .otherwise(bracket_tax(with_deduction, _scaled(p["brackets_1985_1986_single_b"], aif)))
+            .then(bracket_tax(with_deduction, _scaled(tables["joint_b"], factor)))
+            .otherwise(bracket_tax(with_deduction, _scaled(tables["single_b"], factor)))
         )
         tax = pl.min_horizontal(tax_a, tax_b)
-    elif y == 1987:
-        tax = by_class(p["brackets_1987"], taxinc, 1.0)
-    elif y <= 1990:
-        tax = by_class(p["brackets_1988_1990"], taxinc, 1.0)
     elif y <= 1998:
-        tax = by_class(p["brackets_1991_1998"], taxinc, p.num("brackets_1977_1998_inflation"))
-    elif y == 1999:
-        tax = split_joint(p["brackets_1999"], 1.0)
-    elif y <= 2012:
-        tax = split_joint(p["brackets_2000_2012"], p.num("brackets_2000_2012_inflation"))
-    elif y <= 2018:
-        tax = split_joint(p["brackets_2013_2018"], p.num("brackets_2013plus_inflation"))
-    elif y >= 2022:
-        tax = split_joint(p["brackets_2022plus"][y], 1.0)
+        tax = by_class(tables, taxinc, factor)
     else:
-        tax = split_joint(p["brackets_2019plus"], p.num("brackets_2013plus_inflation"))
-    if y <= 1983:
+        tax = split_joint(tables, factor)
+    if p.in_effect("surtax"):
         tax = tax * p.num("surtax")
     return tax
 
@@ -156,41 +141,28 @@ def _schedule_rate(taxinc: pl.Expr, fedtax: pl.Expr, status: pl.Expr, y: int) ->
             .otherwise(bracket_rate(taxinc * sep, _scaled(tables["joint"], factor)))
         )
 
+    tables = p.value("brackets")
+    factor = p.num("bracket_inflation")
     if y <= 1984:
-        rows = [list(row) for row in p["brackets_1977_1984_base"]]
-        rows[-2][1], rows[-1][1] = p.value("brackets_1977_1984_top_rates")
-        return bracket_rate(taxinc, _scaled(rows, p.num("brackets_1977_1998_inflation")))
+        return bracket_rate(taxinc, _scaled(tables, factor))
     if y <= 1986:
-        factor = p.num("brackets_1977_1998_inflation")
         with_deduction = (taxinc - fedtax).clip(0, None)
         tax_a = pl.when(is_joint).then(
-            bracket_tax(taxinc, _scaled(p["brackets_1985_1986_joint_a"], factor))
-        ).otherwise(bracket_tax(taxinc, _scaled(p["brackets_1985_1986_single_a"], factor)))
+            bracket_tax(taxinc, _scaled(tables["joint_a"], factor))
+        ).otherwise(bracket_tax(taxinc, _scaled(tables["single_a"], factor)))
         tax_b = pl.when(is_joint).then(
-            bracket_tax(with_deduction, _scaled(p["brackets_1985_1986_joint_b"], factor))
-        ).otherwise(bracket_tax(with_deduction, _scaled(p["brackets_1985_1986_single_b"], factor)))
+            bracket_tax(with_deduction, _scaled(tables["joint_b"], factor))
+        ).otherwise(bracket_tax(with_deduction, _scaled(tables["single_b"], factor)))
         rate_a = pl.when(is_joint).then(
-            bracket_rate(taxinc, _scaled(p["brackets_1985_1986_joint_a"], factor))
-        ).otherwise(bracket_rate(taxinc, _scaled(p["brackets_1985_1986_single_a"], factor)))
+            bracket_rate(taxinc, _scaled(tables["joint_a"], factor))
+        ).otherwise(bracket_rate(taxinc, _scaled(tables["single_a"], factor)))
         rate_b = pl.when(is_joint).then(
-            bracket_rate(with_deduction, _scaled(p["brackets_1985_1986_joint_b"], factor))
-        ).otherwise(bracket_rate(with_deduction, _scaled(p["brackets_1985_1986_single_b"], factor)))
+            bracket_rate(with_deduction, _scaled(tables["joint_b"], factor))
+        ).otherwise(bracket_rate(with_deduction, _scaled(tables["single_b"], factor)))
         return pl.when(tax_a < tax_b).then(rate_a).otherwise(rate_b)
-    if y == 1987:
-        return by_class(p["brackets_1987"], taxinc, 1.0)
-    if y <= 1990:
-        return by_class(p["brackets_1988_1990"], taxinc, 1.0)
     if y <= 1998:
-        return by_class(p["brackets_1991_1998"], taxinc, p.num("brackets_1977_1998_inflation"))
-    if y == 1999:
-        return split_joint(p["brackets_1999"], 1.0)
-    if y <= 2012:
-        return split_joint(p["brackets_2000_2012"], p.num("brackets_2000_2012_inflation"))
-    if y <= 2018:
-        return split_joint(p["brackets_2013_2018"], p.num("brackets_2013plus_inflation"))
-    if y >= 2022:
-        return split_joint(p["brackets_2022plus"][y], 1.0)
-    return split_joint(p["brackets_2019plus"], p.num("brackets_2013plus_inflation"))
+        return by_class(tables, taxinc, factor)
+    return split_joint(tables, factor)
 
 
 def _reported_taxable_income(taxinc: pl.Expr, fedtax: pl.Expr, status: pl.Expr, y: int) -> pl.Expr:
@@ -199,14 +171,15 @@ def _reported_taxable_income(taxinc: pl.Expr, fedtax: pl.Expr, status: pl.Expr, 
     if y not in (1985, 1986):
         return taxinc
     is_joint = status == "married_joint"
-    factor = p.num("brackets_1977_1998_inflation")
+    factor = p.num("bracket_inflation")
+    tables = p.value("brackets")
     with_deduction = (taxinc - fedtax).clip(0, None)
     tax_a = pl.when(is_joint).then(
-        bracket_tax(taxinc, _scaled(MN_PARAMS["brackets_1985_1986_joint_a"], factor))
-    ).otherwise(bracket_tax(taxinc, _scaled(MN_PARAMS["brackets_1985_1986_single_a"], factor)))
+        bracket_tax(taxinc, _scaled(tables["joint_a"], factor))
+    ).otherwise(bracket_tax(taxinc, _scaled(tables["single_a"], factor)))
     tax_b = pl.when(is_joint).then(
-        bracket_tax(with_deduction, _scaled(MN_PARAMS["brackets_1985_1986_joint_b"], factor))
-    ).otherwise(bracket_tax(with_deduction, _scaled(MN_PARAMS["brackets_1985_1986_single_b"], factor)))
+        bracket_tax(with_deduction, _scaled(tables["joint_b"], factor))
+    ).otherwise(bracket_tax(with_deduction, _scaled(tables["single_b"], factor)))
     return pl.when(tax_a < tax_b).then(taxinc).otherwise(with_deduction)
 
 
@@ -216,8 +189,8 @@ def _property_refund_1989plus(hhy: pl.Expr, y: int) -> pl.Expr:
     aif2 = p.num("property_refund_inflation")
     income = hhy / aif2
     ptxo = pl.col("proptax")
-    if y <= 2000:
-        c = p["property_refund_1989_2000"]
+    if p.in_effect("property_refund_clawback"):
+        c = p.value("property_refund_clawback")
         maximum = c["maximum"] * aif2
         clawback = (
             pl.when(hhy <= c["clawback_start_2"] * aif2)
@@ -229,25 +202,10 @@ def _property_refund_1989plus(hhy: pl.Expr, y: int) -> pl.Expr:
             .clip(0, None)
         )
         refund_max = maximum - clawback
-        threshold_pct = interpolate_table(income, p["property_refund_threshold_1989_2000"])
     else:
-        if y <= 2002:
-            maximum_table, threshold_table = "property_refund_max_2001_2002", "property_refund_threshold_2001_2002"
-        elif y <= 2007:
-            maximum_table, threshold_table = "property_refund_max_2003_2007", "property_refund_threshold_2003_2010"
-        elif y <= 2010:
-            maximum_table, threshold_table = "property_refund_max_2008_2010", "property_refund_threshold_2003_2010"
-        else:
-            maximum_table, threshold_table = "property_refund_max_2011plus", "property_refund_threshold_2011plus"
-        refund_max = interpolate_table(income, p[maximum_table]) * aif2
-        threshold_pct = interpolate_table(income, p[threshold_table])
-    if y <= 2002:
-        copay_table = "property_refund_copay_through_2002"
-    elif y <= 2010:
-        copay_table = "property_refund_copay_2003_2010"
-    else:
-        copay_table = "property_refund_copay_2011plus"
-    copay = interpolate_table(income, p[copay_table])
+        refund_max = interpolate_table(income, p.value("property_refund_max")) * aif2
+    threshold_pct = interpolate_table(income, p.value("property_refund_threshold"))
+    copay = interpolate_table(income, p.value("property_refund_copay"))
     threshold = pl.min_horizontal(ptxo, threshold_pct * hhy / 100.0)
     refund = pl.min_horizontal(refund_max, (ptxo - threshold).clip(0, None) * (1.0 - copay)).clip(0, None)
     eligible = (ptxo > 0) & (hhy <= p.num("property_refund_owner_income_limit") * aif2)
@@ -260,10 +218,7 @@ def _property_refund_renter(hhy: pl.Expr, y: int) -> pl.Expr:
     aifr = p.num("property_refund_renter_inflation")
     income = hhy / aifr
     ptxr = p.num("property_refund_rent_share") * pl.col("rentpaid")
-    if 2013 <= y <= 2018:
-        maximum, threshold = p["property_refund_renter_max_2013_2018"], p["property_refund_renter_threshold_2013_2018"]
-    else:
-        maximum, threshold = p["property_refund_renter_max"], p["property_refund_renter_threshold"]
+    maximum, threshold = p.value("property_refund_renter_max"), p.value("property_refund_renter_threshold")
     refund_max = interpolate_table(income, maximum) * aifr
     thres = pl.min_horizontal(ptxr, interpolate_table(income, threshold) * hhy / 100.0)
     copay = interpolate_table(income, p["property_refund_renter_copay"])
@@ -273,21 +228,20 @@ def _property_refund_renter(hhy: pl.Expr, y: int) -> pl.Expr:
 
 def _property_credit_pre1989(hh: pl.Expr, y: int) -> pl.Expr:
     """Property tax credit before 1989, based on household income."""
-    p = MN_PARAMS
+    p = YearParams(MN_PARAMS, y)
+    c = p.value("property_tax_credit")
     ptx = pl.col("proptax") + float(p["property_credit_rent_share"]) * pl.col("rentpaid")
     aged = aged_count() > 0
     if y >= 1987:
-        c = p["property_credit_1987_1988"]
-        if y == 1988:
-            threshold = interpolate_table(hh, c["threshold_1988"])
-            copay = interpolate_table(hh, c["copay_1988"])
+        if "threshold" in c:
+            threshold = interpolate_table(hh, c["threshold"])
         else:
             threshold = (
                 pl.when((pl.col("depx") > 0) | aged)
-                .then(interpolate_table(hh, c["threshold_1987_with_dependents"]))
-                .otherwise(interpolate_table(hh, c["threshold_1987_no_dependents"]))
+                .then(interpolate_table(hh, c["threshold_with_dependents"]))
+                .otherwise(interpolate_table(hh, c["threshold_no_dependents"]))
             )
-            copay = interpolate_table(hh, c["copay_1987"])
+        copay = interpolate_table(hh, c["copay"])
         excess = (ptx - threshold * hh).clip(0, None)
         maximum = _steps(
             hh,
@@ -299,8 +253,7 @@ def _property_credit_pre1989(hh: pl.Expr, y: int) -> pl.Expr:
         credit = pl.min_horizontal(((1.0 - copay) * excess).clip(0, None), maximum)
         return pl.when(hh < c["income_limit"]).then(credit).otherwise(0.0)
     if y >= 1985:
-        c = p["property_credit_1985_1986"]
-        hh = pl.when(aged).then((hh - float(p["property_credit_1985_1986_aged_income_reduction"])).clip(0, None)).otherwise(hh)
+        hh = pl.when(aged).then((hh - float(c["aged_income_reduction"])).clip(0, None)).otherwise(hh)
         threshold = interpolate_table(hh, c["threshold"])
         excess = ptx - threshold * hh
         maximum = (
@@ -313,7 +266,6 @@ def _property_credit_pre1989(hh: pl.Expr, y: int) -> pl.Expr:
         credit = pl.min_horizontal(((1.0 - interpolate_table(hh, c["copay"])) * excess).clip(0, None), maximum)
         return pl.when((excess > 0) & (hh < c["income_limit"])).then(credit).otherwise(0.0)
     if y >= 1983:
-        c = p["property_credit_1983_1984"]
         threshold = interpolate_table(hh, c["threshold"])
         excess = ptx - threshold * hh
         step1_cap = (
@@ -327,7 +279,7 @@ def _property_credit_pre1989(hh: pl.Expr, y: int) -> pl.Expr:
             c["maximum_steps"],
             c["maximum_top_base"] - c["maximum_top_rate"] * (hh - c["maximum_top_start"]),
         )
-        copay = pl.when(aged).then(interpolate_table(hh, p["property_credit_1983_1984_copay_aged"])).otherwise(
+        copay = pl.when(aged).then(interpolate_table(hh, c["copay_aged"])).otherwise(
             interpolate_table(hh, c["copay"])
         )
         credit = ((1.0 - copay) * (excess - step1).clip(0, None)).clip(0, None) + step1
@@ -341,9 +293,8 @@ def _property_credit_pre1989(hh: pl.Expr, y: int) -> pl.Expr:
         eligible = (hh < c["income_limit"]) & (ptx > 0) & (excess > 0)
         return pl.when(eligible).then(credit).otherwise(0.0)
 
-    shared = p["property_credit_1977_1982"]
-    c = p["property_credit_1979_1982"] if y >= 1979 else p["property_credit_1977_1978"]
-    c_aged = p["property_credit_1979_1982_aged"] if y >= 1979 else p["property_credit_1977_1978_aged"]
+    shared = c
+    c_aged = c["aged"]
     threshold = interpolate_table(hh, shared["threshold"])
     excess = ptx - threshold * hh
 
@@ -381,7 +332,7 @@ def _property_credit_pre1989(hh: pl.Expr, y: int) -> pl.Expr:
 
 
 def _phaseout_2022plus(y: int) -> dict:
-    return MN_PARAMS["phaseouts_2022plus"][y]
+    return YearParams(MN_PARAMS, y).value("phaseout_schedule")
 
 
 def _status_value(values: dict, status: pl.Expr) -> pl.Expr:
@@ -413,7 +364,7 @@ def _statutory_working_family_credit(y: int, earned: pl.Expr, agi: pl.Expr, is_j
     """Dated statutory credits. 2022: the pre-2023 working family credit by
     EITC child count. 2023+: the combined child and working families credit
     ($1,750 per child under 18 plus a 4% phase-in), reduced 12% above a threshold."""
-    c = MN_PARAMS["cwfc_2022plus"]
+    c = MN_PARAMS["child_and_working_family_credit"]
     ages = (
         ((pl.col("page") >= 19) & (pl.col("page") <= 64)) | ((pl.col("sage") >= 19) & (pl.col("sage") <= 64))
         | ((pl.col("page") == 0) & (pl.col("sage") == 0))
@@ -452,8 +403,8 @@ def _working_family_credit(
         return _statutory_working_family_credit(y, pl.col("earned_income"), pl.col("agi"), is_joint)
     if y < 1991:
         return pl.lit(0.0)
-    if y <= 1997:
-        share = p.num("wfc_share_of_federal_eitc")
+    if p.in_effect("working_family_credit_federal_share"):
+        share = p.num("working_family_credit_federal_share")
         return pl.when(eitc > 0).then(share * eitc).otherwise(0.0)
 
     wmax = pl.max_horizontal(base_earned, base_agi)
@@ -463,8 +414,8 @@ def _working_family_credit(
             pl.min_horizontal(credit_fn(base_earned), credit_fn(base_agi))
         )
 
-    if y == 1998:
-        c = p["wfc_1998"]
+    if p.in_effect("working_family_credit_pieces"):
+        c = p.value("working_family_credit_pieces")
         n0 = c["no_child"]
 
         def no_child(base: pl.Expr) -> pl.Expr:
@@ -491,7 +442,7 @@ def _working_family_credit(
         )
     elif y <= 2013:
         use_joint = 2002 <= y <= 2011 or y == 2013
-        c0 = p["wfc_1999_2013_no_child"]
+        c0 = p["working_family_credit_no_child"]
         phase_out_0 = _sub(c0, "phase_out_start", y)
         if use_joint:
             phase_out_0 = pl.when(is_joint).then(_sub(c0, "phase_out_start_joint", y)).otherwise(phase_out_0)
@@ -534,8 +485,8 @@ def _working_family_credit(
 
             return credit, phase_out
 
-        one_fn, one_out = with_children(p["wfc_1999_2013_one_child"])
-        two_fn, two_out = with_children(p["wfc_1999_2013_two_children"])
+        one_fn, one_out = with_children(p["working_family_credit_one_child"])
+        two_fn, two_out = with_children(p["working_family_credit_two_children"])
         work = (
             pl.when(nkid < 1)
             .then(two_base(no_child, phase_out_0))
@@ -544,7 +495,7 @@ def _working_family_credit(
             .otherwise(two_base(two_fn, two_out))
         )
     else:
-        c = p["wfc_2014plus"]
+        c = p["working_family_credit_schedule"]
 
         def schedule(kind: str, phase_out_start: pl.Expr) -> pl.Expr:
             k = c[kind]
@@ -576,19 +527,19 @@ def _working_family_credit(
         else:
             work = work.otherwise(many)
 
-    if y <= 2018:
-        work = pl.when(eitc >= p.num("wfc_min_federal_eitc")).then(work).otherwise(0.0)
+    if p.in_effect("working_family_credit_min_federal_eitc"):
+        work = pl.when(eitc >= p.num("working_family_credit_min_federal_eitc")).then(work).otherwise(0.0)
     return work
 
 
 def compute_mn_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
     """Calculate Minnesota income tax for each row."""
-    state_year = "mn" if behavior.mode.value == "statutory" else None
-    effective_year, flate = resolve_state_year(year, state_year)
+    effective_year, flate = resolve_state_year(year, behavior, MN_PARAMS)
     y = effective_year
     p = YearParams(MN_PARAMS, effective_year)
 
-    setax = pl.col("payroll_setax")  # `comnew(175)`, real-year and undeflated
+    # Self-employment tax is not deflated in projected years.
+    setax = pl.col("payroll_setax")
     hh_income = household_income()
     # Business and S corporation income are not deflated in projected years.
     business = pl.col("pbusinc") + pl.col("pprofinc") + pl.col("sbusinc") + pl.col("sprofinc") + pl.col("scorp")
@@ -638,8 +589,8 @@ def compute_mn_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         agi = agi + ui_total - untax + pl.when(fed_itemizes).then(0.0).otherwise(
             pl.min_horizontal(p.num("charity_nonitemizer_addback"), pl.col("charity_cash"))
         )
-    if 1979 <= y <= 1982:
-        agi = agi + p.num("capital_gains_addback_rate_1979_1982") * fullcg
+    if p.in_effect("capital_gains_addback_rate"):
+        agi = agi + p.num("capital_gains_addback_rate") * fullcg
     if 1979 <= y <= 1986:
         agi = agi - untax
     if 1982 <= y <= 1985:
@@ -699,22 +650,20 @@ def compute_mn_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     # --- Standard deduction ---
     ag = agi.clip(0, None)
     if y <= 1986:
-        cap = p.num("standard_deduction_cap_pre1987") * p.num("standard_deduction_inflation_pre1987")
+        cap = p.num("standard_deduction_cap") * p.num("standard_deduction_cap_inflation")
         cap_expr = pl.lit(cap) / sep if y >= 1985 else pl.lit(cap)
-        stded = pl.min_horizontal(cap_expr, p.num("standard_deduction_pct_pre1987") * ag)
+        stded = pl.min_horizontal(cap_expr, p.num("standard_deduction_percent") * ag)
     elif y <= 2017:
         stded = fed_zbr
-        if y >= 2005:
+        if p.in_effect("standard_deduction_married_reduction"):
             reduction = p.num("standard_deduction_married_reduction")
             stded = stded - pl.when(is_joint | is_sep).then(reduction / sep).otherwise(0.0)
         if y in (2008, 2009):
-            property_cap = float(
-                resolve_year(FEDERAL_INCOME_TAX_PARAMS["standard_deduction_real_property_tax_cap"], y)
-            )
+            property_cap = YearParams(FEDERAL_INCOME_TAX_PARAMS, y).num("standard_deduction_real_property_tax_cap")
             stded = stded - pl.min_horizontal(pl.col("proptax").clip(0, None), property_cap * txp)
-    elif y == 2018:
-        stded = by_filing_status(p["standard_deduction_2018"]) + by_filing_status(
-            p["standard_deduction_2018_aged_addition"]
+    elif p.in_effect("standard_deduction_by_status"):
+        stded = by_filing_status(p.value("standard_deduction_by_status")) + by_filing_status(
+            p.value("standard_deduction_aged_addition_by_status")
         ) * aged
     else:
         table = p["standard_deduction_table"]
@@ -795,9 +744,8 @@ def compute_mn_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
 
     # Subtraction for the elderly, less nontaxable Social Security.
     subrac = pl.lit(0.0)
-    # The subtraction continues under current law; it is not in TAXSIM past 2016.
-    if 1988 <= y <= 2016 or (y >= 2022 and behavior.mode.value == "statutory"):
-        eld = p["elderly_subtraction"][1994 if y >= 1994 else 1988]
+    if p.in_effect("elderly_subtraction"):
+        eld = p.value("elderly_subtraction")
         classes = (
             pl.when(is_joint & (aged >= 2)).then(0).when(is_joint).then(1).when(is_sep).then(3).otherwise(2)
         )
@@ -872,25 +820,26 @@ def compute_mn_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
 
     # --- Nonrefundable credits ---
     credit = pl.lit(0.0)
-    if y == 1978:
-        # Per taxpayer and dependent, plus smaller amounts for taxpayers 65 or older.
-        credit = p.num("personal_credit") * (txp + depx) + p["personal_credit_aged_1978"] * aged + p["personal_credit_extra_aged_1978"] * (aged - txp).clip(0, None)
+    if p.in_effect("personal_credit_aged"):
+        pca = p.value("personal_credit_aged")
+        credit = p.num("personal_credit") * (txp + depx) + pca["per_aged"] * aged + pca["extra_aged"] * (aged - txp).clip(0, None)
     elif y <= 1986:
         credit = (txp + depx + aged) * p.num("personal_credit")
-    if 1978 <= y <= 1984:
-        earnings_limit = float(p["homemaker_credit_earnings_limit"])
+    if p.in_effect("homemaker_credit"):
+        hc = p.value("homemaker_credit")
+        earnings_limit = float(hc["earnings_limit"])
         hcred = pl.when(
             dependent_filer
             & (depx >= 1)
             & (pl.col("pwages") <= earnings_limit)
             & (pl.col("swages") <= earnings_limit)
             & ~is_sep
-            & (fed_agi <= float(p["homemaker_credit_agi_limit"]) / sep)
-        ).then(float(p["homemaker_credit"])).otherwise(0.0)
+            & (fed_agi <= float(hc["agi_limit"]) / sep)
+        ).then(float(hc["amount"])).otherwise(0.0)
         credit = credit + hcred
-    if y == 1987:
-        credit = credit + float(p["elderly_credit_share_1987"]) * pl.col("federal_elder")
-    if y <= 1984:
+    if p.in_effect("elderly_credit_share"):
+        credit = credit + p.num("elderly_credit_share") * pl.col("federal_elder")
+    if p.in_effect("low_income_credit_rate"):
         npop = (txp + depx).clip(None, 6).floor()
         limits = p.value("low_income_credit_threshold")
         ylow = pl.lit(0.0)
@@ -943,8 +892,8 @@ def compute_mn_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         _sub(p["child_care_credit_max"], "one", y)
     )
     cded = p.num("child_care_phaseout_start")
-    if y == 2013:
-        c13 = p["child_care_2013"]
+    if p.in_effect("child_care_expense_credit"):
+        c13 = p.value("child_care_expense_credit")
         ncccr = pl.when(pl.col("dep13") > 0).then(pl.col("dep13").clip(None, 2).floor()).otherwise(deps)
         child = pl.min_horizontal(pl.col("childcare"), c13["expense_cap_per_child"] * ncccr)
         child = pl.when(is_joint).then(
@@ -990,8 +939,8 @@ def compute_mn_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
                 return expr
 
             dep_sub = by_kid(p.value("property_refund_dependent_subtraction"))
-            if y == 1994:
-                aged_sub = by_kid(p["property_refund_aged_subtraction_1994"])
+            if p.in_effect("property_refund_aged_subtraction"):
+                aged_sub = by_kid(p.value("property_refund_aged_subtraction"))
             else:
                 aged_sub = dep_sub + p.num("exemption_amount")
             hhy = (hhy - pl.when(aged > 0).then(aged_sub).otherwise(dep_sub)).clip(0, None)
@@ -1008,8 +957,8 @@ def compute_mn_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
 
     # --- 2009 motor fuels credit ---
     crfuel = pl.lit(0.0)
-    if y == 2009:
-        fuel = p["fuel_credit_2009"]
+    if p.in_effect("motor_fuels_credit"):
+        fuel = p.value("motor_fuels_credit")
         limits = fuel["taxable_income_limit"]
         limit = _by_filer(limits["single"], limits["married"], limits["head_of_household"]) / sep
         crfuel = pl.when(taxinc <= limit).then(fuel["amount"] / sep).otherwise(0.0)

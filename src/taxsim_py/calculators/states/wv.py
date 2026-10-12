@@ -14,8 +14,7 @@ WV_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "wv" / "income_tax.yaml")
 
 def compute_wv_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
     """Calculate West Virginia income tax for each row."""
-    state_year = "wv" if behavior.mode.value == "statutory" else None
-    effective_year, flate = resolve_state_year(year, state_year)
+    effective_year, flate = resolve_state_year(year, behavior, WV_PARAMS)
     y = effective_year
     p = YearParams(WV_PARAMS, effective_year)
     # Federal total income (`comnew(65)`) is not deflated in projected years.
@@ -39,8 +38,8 @@ def compute_wv_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         agi = agi + pl.col("pre1987_twoded")
     if 1984 <= y <= 1986:
         agi = agi - ss
-    if y >= 2020:
-        above_limit = p.num("social_security_above_limit_share") if y >= 2022 and behavior.mode.value == "statutory" else 0.0
+    if p.in_effect("social_security_subtraction_share"):
+        above_limit = p.num("social_security_above_limit_share") if p.in_effect("social_security_above_limit_share") else 0.0
         agi = agi - pl.when(fed_agi <= p["social_security_subtraction_agi_per_taxpayer"] * txp).then(
             p.num("social_security_subtraction_share") * ss
         ).otherwise(above_limit * ss)
@@ -59,44 +58,42 @@ def compute_wv_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     df, (agi,) = checkpoint(df, wv_agi=agi)
 
     # --- Deductions (none from 1987) ---
-    if y <= 1986:
-        c = p["standard_deduction_1986"]
+    if p.in_effect("standard_deduction_share"):
+        c = p.value("standard_deduction_share")
         stded = (c["rate"] * agi).clip(None, c["cap"])
-        # The state tax subtraction reads an input that is never set, so
-        # federal itemized deductions keep state income tax (logged).
+        # Federal itemized deductions keep state income tax.
         gross, fed_itemizes, _ = pre1987_federal_itemizing(y)
         xitded = pl.when(fed_itemizes).then(gross).otherwise(0.0)
         deduc = pl.max_horizontal(stded, xitded)
     else:
         stded = xitded = deduc = pl.lit(0.0)
     exemp = exemps * p.num("exemption")
-    if y >= 1987:
-        exemp = pl.when(dependent_filer).then(float(p["dependent_filer_exemption"])).otherwise(exemp)
+    if p.in_effect("dependent_filer_exemption"):
+        exemp = pl.when(dependent_filer).then(p.num("dependent_filer_exemption")).otherwise(exemp)
     taxinc = (agi - deduc - exemp).clip(0, None)
-    if y >= 1997:
-        limit = p["low_income_exclusion"] / sep
+    if p.in_effect("low_income_exclusion"):
+        limit = p.num("low_income_exclusion") / sep
         taxinc = pl.when(fed_agi <= limit).then(
             (taxinc - pl.min_horizontal(limit, pl.col("earned_income"))).clip(0, None)
         ).otherwise(taxinc)
     df, (taxinc,) = checkpoint(df, wv_taxinc=taxinc)
 
     # --- Tax ---
-    brackets = p["brackets"]
+    tables = p.value("brackets")
     if y <= 1986:
-        key = 1977 if y <= 1982 else (1983 if y == 1983 else 1984)
-        general = brackets[key]
+        general = tables["general"] if isinstance(tables, dict) else tables
         split = pl.when(is_joint).then(2.0 * bracket_tax(taxinc / 2.0, general)).otherwise(bracket_tax(taxinc, general))
         rate = pl.when(is_joint).then(bracket_rate(taxinc / 2.0, general)).otherwise(bracket_rate(taxinc, general))
-        if y >= 1983:
-            statax = pl.when(is_hoh).then(bracket_tax(taxinc, brackets[f"{key}_head_of_household"])).otherwise(split)
-            rate = pl.when(is_hoh).then(bracket_rate(taxinc, brackets[f"{key}_head_of_household"])).otherwise(rate)
+        if isinstance(tables, dict):
+            statax = pl.when(is_hoh).then(bracket_tax(taxinc, tables["head_of_household"])).otherwise(split)
+            rate = pl.when(is_hoh).then(bracket_rate(taxinc, tables["head_of_household"])).otherwise(rate)
         else:
             statax = split
     else:
-        table = brackets[2025 if y >= 2025 else 2023] if y >= 2023 else brackets[1987]
+        table = tables
         statax = bracket_tax(taxinc * sep, table) / sep
         rate = bracket_rate(taxinc * sep, table)
-    if 1983 <= y <= 1985:
+    if p.in_effect("surtax"):
         statax = pl.when(taxinc > p["surtax_income_per_taxpayer"] * txp).then(p.num("surtax") * statax).otherwise(statax)
     df, (statax,) = checkpoint(df, wv_tax_before_credits=statax)
 
@@ -104,7 +101,7 @@ def compute_wv_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     pcred = pl.lit(0.0)
 
     # --- Family tax credit ---
-    if y >= 2007:
+    if p.in_effect("family_credit_limit"):
         limits = p.value("family_credit_limit")
         nexemp = exemps.floor()
         (fcp,) = tier_values(nexemp, [float(n) for n in range(1, 8)] + [1.0e20], [float(v) for v in limits])
@@ -114,19 +111,19 @@ def compute_wv_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         share = pl.when(agi <= fcp).then(full).otherwise(
             (0.01 * (100.0 * full - points * (agi - fcp) / (p["family_credit_phaseout_step"] / sep))).clip(0, None)
         )
-        if y >= 2022:
-            # The statutory fraction falls in steps: 90% for the first $300 over the poverty line,
-            # then 10 points less for each further $300.
-            # Tested against federal AGI (state subtractions do not lower it).
+        if p.in_effect("family_credit_stepped_phaseout"):
+            stepped = p.value("family_credit_stepped_phaseout")
             steps = ((fed_agi - fcp).clip(0, None) / (p["family_credit_phaseout_step"] / sep)).floor()
-            share = pl.when(fed_agi < fcp).then(1.0).otherwise((0.9 - 0.1 * steps).clip(0, None))
+            share = pl.when(fed_agi < fcp).then(1.0).otherwise(
+                (stepped["first_share"] - stepped["share_per_step"] * steps).clip(0, None)
+            )
         famcrd = pl.when(dependent_filer).then(0.0).otherwise(share * statax)
         famcrd = pl.when((statax > 0) & (nexemp > 0)).then(famcrd).otherwise(0.0)
         statax = (statax - famcrd).clip(0, None)
         credits = credits + famcrd
 
     # --- Homestead excess property tax credit (refundable) ---
-    if y >= 2008:
+    if p.in_effect("property_credit_base"):
         per_person = p.num("property_credit_per_person")
         pagi = p.num("property_credit_base") + depx * per_person + pl.when(is_joint).then(per_person).otherwise(0.0)
         income = fed_agi + pl.col("gssi") - ss

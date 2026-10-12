@@ -1,208 +1,121 @@
-# District of Columbia individual income tax (`dctax`/`dcstax`,
-# taxsim_2024_09_21.f:4168-4707, state id 9). See calculators/states/dc.py
-# for the full mechanism - the richest state built so far (its own
-# Low Income Credit interpolation tables 1987-2017, a separate EITC track,
-# a property-tax-credit refund with its own "avoid notches" approximation,
-# and a married-joint earner-split mechanic that uses a GENUINELY
-# DIFFERENT bracket table than the main calculation for 2007 specifically
-# - a real, confirmed-in-source staleness quirk, not a transcription bug).
+# District of Columbia individual income tax.
 #
-# Not TAXSIM inputs, so always zero: blindness, the political-contribution
-# credit (`comnew(25)`) and the pre-1982 `data(60)`/`data(65)` itemized
-# addback terms.
-#
-# `zbrack`/`exem` (DC's own shared references to federal's standard
-# deduction/personal exemption arrays) are NOT re-derived here - reused
-# directly from parameters/national/income_tax.yaml's own
-# `standard_deduction` (single/married_joint/head_of_household) and
-# parameters/national/personal_exemption.yaml's `amount`, which this
-# project's own YAML comments already confirm are the literal same
-# `zbrack`/`exem` arrays (same variable names, same values).
-#
-# Main-calculation brackets (`look`, applied to full `taxinc`) - these
-# also serve as the married-joint earner-split brackets (`look2`) for
-# every year EXCEPT 2007 (see `brackets_2007_split` below).
-brackets_pre1987:  # `tab77`, 1977-1986
-  - [0, 0.02]
-  - [1000, 0.03]
-  - [2000, 0.04]
-  - [3000, 0.05]
-  - [4000, 0.06]
-  - [5000, 0.07]
-  - [10000, 0.08]
-  - [13000, 0.09]
-  - [17000, 0.10]
-  - [25000, 0.11]
-brackets_1987:
-  - [0, 0.06]
-  - [10000, 0.08]
-  - [20000, 0.10]
-brackets_1988_1999:  # `tab88`
-  - [0, 0.06]
-  - [10000, 0.08]
-  - [20000, 0.095]
-brackets_2000:  # `tab00`
-  - [0, 0.05]
-  - [10000, 0.075]
-  - [20000, 0.095]
-brackets_2001_2004:  # `tab01`
-  - [0, 0.05]
-  - [10000, 0.075]
-  - [30000, 0.093]
-brackets_2005:  # `tab05`
-  - [0, 0.05]
-  - [10000, 0.075]
-  - [30000, 0.09]
-brackets_2006:  # `tab06`
-  - [0, 0.045]
-  - [10000, 0.07]
-  - [40000, 0.087]
-brackets_2007_2011:  # `tab07` (main calc only - see `brackets_2007_split`)
-  - [0, 0.04]
-  - [10000, 0.06]
-  - [40000, 0.085]
-brackets_2012_2014:  # `tab12`
-  - [0, 0.04]
-  - [10000, 0.06]
-  - [40000, 0.085]
-  - [350000, 0.0895]
-brackets_2015:  # `tab15`
-  - [0, 0.04]
-  - [10000, 0.06]
-  - [40000, 0.07]
-  - [60000, 0.085]
-  - [350000, 0.0895]
-brackets_2016plus:  # `tab16`
-  - [0, 0.04]
-  - [10000, 0.06]
-  - [40000, 0.065]
-  - [60000, 0.085]
-  - [350000, 0.0875]
-  - [1000000, 0.0895]
-# PolicyEngine-US: gov.states.dc.tax.income.rates, 2022-01-01 through
-# 2024-01-01. The $250,000 threshold replaces TAXSIM's older $350,000 row.
-brackets_2022plus:
-  - [0, 0.04]
-  - [10000, 0.06]
-  - [40000, 0.065]
-  - [60000, 0.085]
-  - [250000, 0.0925]
-  - [500000, 0.0975]
-  - [1000000, 0.1075]
-# `dcstax`'s own 2007-only bracket table, genuinely DIFFERENT from (and
-# staler than) the main calculation's `brackets_2007_2011` - a real,
-# confirmed-in-source quirk (dcstax's own tab07 matches the MAIN
-# calculation's 2006 rates, not 2007's; dcstax's own tab08, covering
-# 2008-2011, matches the main calculation's tab07 exactly - so the
-# divergence is real but confined to exactly one year).
-brackets_2007_split:
-  - [0, 0.045]
-  - [10000, 0.07]
-  - [40000, 0.085]
+# Sources: 1977-2021 NBER TAXSIM (`dctax`/`dcstax`); 2022 on, D.C. Code
+# Title 47 Chapter 18, D-40 and Schedule H instructions and PolicyEngine-US
+# `gov.states.dc.tax.income`. The campaign contribution credit has no
+# TAXSIM input.
 
-# Standard deduction - six genuinely different eras before settling on the
-# 2018+ federal-linked formula.
-standard_deduction_cap_pre1982:
-  1960: 1000
-standard_deduction_flat_1982_1986:
+# Statutory mode uses actual law through this year.
+law_coded_through: 2025
+
+# Rate schedules, [start of bracket, rate]. Source for 2022 on:
+# PolicyEngine-US gov.states.dc.tax.income.rates.
+brackets:
+  1977: [[0, 0.02], [1000, 0.03], [2000, 0.04], [3000, 0.05], [4000, 0.06], [5000, 0.07], [10000, 0.08], [13000, 0.09], [17000, 0.10], [25000, 0.11]]
+  1987: [[0, 0.06], [10000, 0.08], [20000, 0.10]]
+  1988: [[0, 0.06], [10000, 0.08], [20000, 0.095]]
+  2000: [[0, 0.05], [10000, 0.075], [20000, 0.095]]
+  2001: [[0, 0.05], [10000, 0.075], [30000, 0.093]]
+  2005: [[0, 0.05], [10000, 0.075], [30000, 0.09]]
+  2006: [[0, 0.045], [10000, 0.07], [40000, 0.087]]
+  2007: [[0, 0.04], [10000, 0.06], [40000, 0.085]]
+  2012: [[0, 0.04], [10000, 0.06], [40000, 0.085], [350000, 0.0895]]
+  2015: [[0, 0.04], [10000, 0.06], [40000, 0.07], [60000, 0.085], [350000, 0.0895]]
+  2016: [[0, 0.04], [10000, 0.06], [40000, 0.065], [60000, 0.085], [350000, 0.0875], [1000000, 0.0895]]
+  2022: [[0, 0.04], [10000, 0.06], [40000, 0.065], [60000, 0.085], [250000, 0.0925], [500000, 0.0975], [1000000, 0.1075]]
+# Joint returns pay the lesser of the joint tax and the tax on each earner's
+# share. TAXSIM uses this older schedule for the split in 2007 only.
+earner_split_brackets:
+  2007: [[0, 0.045], [10000, 0.07], [40000, 0.085]]
+  2008: null
+
+# --- Standard deduction ---
+# Through 1981: a share of AGI up to the cap, halved on separate returns.
+standard_deduction_percent:
+  1977: {rate: 0.1, cap: 1000}
+  1982: null
+# 1982-2014 a flat amount halved on separate returns; 2015-2017 by filing
+# status (separate returns get the `single` amount). From 2018 the federal
+# standard deduction.
+standard_deduction:
   1982: 1000
-standard_deduction_flat_1987_2005:
   1987: 2000
-standard_deduction_flat_2006_2007:
   2006: 2500
-standard_deduction_flat_2008_2009:  # + min(proptax, texp*500) addback
   2008: 4000
-standard_deduction_proptax_addback_per_exemption_unit_2008_2009:
-  2008: 500
-standard_deduction_flat_2010_2012:
-  2010: 4000
-standard_deduction_flat_2013:
   2013: 4100
-standard_deduction_flat_2014:
   2014: 4150
-# 2015-2017: flat by status - married_separate gets SINGLE's own amount
-# (NOT half of joint - a real, replicated-as-found DC quirk, confirmed
-# directly from the source's own status grouping: `mst.eq.2.or.mst.eq.5`
-# for joint, `mst.eq.4.or.mst.eq.7` for HoH, married_separate/single both
-# fall to the same "else" branch).
-standard_deduction_2015_2016_joint:
-  2015: 8350
-standard_deduction_2015_2016_hoh:
-  2015: 6500
-standard_deduction_2015_2016_single_or_separate:
-  2015: 5200
-standard_deduction_2017_joint:
-  2017: 10275
-standard_deduction_2017_hoh:
-  2017: 7800
-standard_deduction_2017_single_or_separate:
-  2017: 5650
+  2015: {married_joint: 8350, head_of_household: 6500, single: 5200}
+  2017: {married_joint: 10275, head_of_household: 7800, single: 5650}
+  2018: null
+# 2008-2009: property tax up to this amount per taxpayer is added.
+standard_deduction_property_tax_addition: {2008: 500, 2010: null}
+# From 2025 DC keeps the federal amounts before the 2025 federal increase
+# (PolicyEngine-US gov.states.dc.tax.income.deductions.standard).
+standard_deduction_nonconforming:
+  2025: {single: 15000, married_joint: 30000, head_of_household: 22500}
 
-# Itemized-deduction Pease-style phaseout threshold, 2018+ specifically -
-# a SEPARATE, later, $200k/sep-based mechanism from the 1991-2017-era
-# schedule other states use (DC's own `comnew(30)`-based SALT-feedback
-# removal replaces that older mechanism outright by 2018).
-itemized_agi_reduction_threshold:
-  1960: 200000
+# --- Itemized deductions ---
+# Itemized deductions fall by `rate` of AGI above `threshold` (halved on
+# separate returns).
+itemized_reduction: {threshold: 200000, rate: 0.05}
+# From 2018 property, other and state taxes are deductible up to this
+# amount per return (halved on separate returns).
+state_tax_deduction_cap: {2018: 10000}
 
-# Personal exemption (`xmp(law)`) - flat by year, $0 starting 2018 (TCJA-
-# era suspension, matching every other state's own personal exemption).
-personal_exemption_amount:
-  1977: 750
-  1987: 885
-  1988: 1025
-  1989: 1160
-  1990: 1270
-  1991: 1370
-  2006: 1500
-  2008: 1675
-  2014: 1725
-  2015: 1775
-  2018: 0
+# --- Exemptions ---
+# Per taxpayer, dependent and taxpayer 65 or older (heads of household get
+# one more); none for dependent filers or from 2018.
+personal_exemption: {1977: 750, 1987: 885, 1988: 1025, 1989: 1160, 1990: 1270, 1991: 1370, 2006: 1500, 2008: 1675, 2014: 1725, 2015: 1775, 2018: 0}
+# 2015-2017: exemptions fall by `share_per_band` for each `band` (halved on
+# separate returns) of AGI above `floor`, and end above `ceiling`.
+exemption_phaseout:
+  2015: {floor: 150000, ceiling: 275000, band: 2500, share_per_band: 0.02}
+  2018: null
 
-# 2015-2017 exemption phaseout (a real, DC-specific mechanism distinct
-# from federal's own PEP - a straight-line ratio, not a per-$2,500-step
-# function).
-exemption_phaseout_2015_2017_floor:
-  2015: 150000
-exemption_phaseout_2015_2017_ceiling:
-  2015: 275000
-exemption_phaseout_2015_2017_band_per_sep:
-  2015: 2500
+# --- Credits ---
+# Child and dependent care credit: a share of the federal credit before its
+# liability limit.
+child_care_credit_federal_share: {1982: 0.30, 1989: 0.32}
 
-# Child/Dependent Care Credit - a straight percentage of the FEDERAL
-# credit BEFORE its own refundability/cap logic (`comnew(176)`, matching
-# the same "pre-cap federal childcare credit" column CA's own 2000+
-# formula reads).
-child_care_credit_rate_1982_1988:
-  1982: 0.30
-child_care_credit_rate_1989plus:
-  1989: 0.32
-
-# Property Tax Credit ("Schedule H") - real refund mechanism with an
-# "avoid notches" linear-interpolation approximation of the real
-# published phase-down table (the source's own comment: this project
-# replicates the SAME approximation the oracle itself uses, not the real
-# published Schedule H table, matching this project's standing rule to
-# match what taxsim does).
-property_credit_cap_pre2014:
-  1960: 750
-property_credit_rate_pre2014:  # `.15` on rent paid, or property tax directly
-  1960: 0.15
-property_credit_by_year_2014plus:  # prop(law)/pagi(law)/prlim(law)
-  2014: [40000, 60000, 1000]
-  2015: [40000, 60000, 1000]
-  2016: [50000, 60000, 1000]
-  2017: [50500, 61900, 1025]
-  2018: [51000, 62600, 1025]
-  2019: [55000, 75000, 1200]
-  2020: [55700, 75900, 1200]
-  2021: [56200, 76700, 1225]
-
-# PolicyEngine's dated Schedule H representation for 2022+. The first two
-# arrays are upper bounds and the final `inf` tier makes the credit disappear
-# at the published AGI limit.
-property_credit_recent:
+# Property tax credit (Schedule H). Rent counts at `property_credit_rent_share`
+# (through 2021 the larger of property tax and the rent share; from 2022
+# their sum). Dependent filers under 65 get none.
+property_credit_rent_share: {1977: 0.15, 2014: 0.20}
+# Through 2013: property tax less a share of household income, up to `cap`,
+# for household income up to `income_limit`. Taxpayers 65 or older: the share
+# is `aged_base_rate` plus income / `aged_rate_income` percent. Others:
+# (`base_pct` + income / `divisor`) percent, and the result times
+# `low_income_share` below `low_income_limit` and `share` above.
+property_credit_by_income:
+  1977:
+    cap: 750
+    income_limit: 20000
+    aged_base_rate: 0.01
+    aged_rate_income: 20000
+    base_pct: 1.5
+    divisor: 8000
+    low_income_limit: 3000
+    low_income_share: 0.95
+    share: 0.75
+  2014: null
+# 2014-2021: property tax less `low_rate` of AGI below `low_income` (and for
+# taxpayers 65 or older up to `aged_income_limit`); above it `rate` (from
+# 2019 `rate` up to `middle_income` and `high_rate` above) up to
+# `income_limit`; at most `max`.
+property_credit_rates: {low_income: 25000, low_rate: 0.03, rate: 0.04, middle_income: 52000, high_rate: 0.05}
+property_credit_limits:
+  2014: {income_limit: 40000, aged_income_limit: 60000, max: 1000}
+  2016: {income_limit: 50000, aged_income_limit: 60000, max: 1000}
+  2017: {income_limit: 50500, aged_income_limit: 61900, max: 1025}
+  2018: {income_limit: 51000, aged_income_limit: 62600, max: 1025}
+  2019: {income_limit: 55000, aged_income_limit: 75000, max: 1200}
+  2020: {income_limit: 55700, aged_income_limit: 75900, max: 1200}
+  2021: {income_limit: 56200, aged_income_limit: 76700, max: 1225}
+  2022: null
+# From 2022: AGI rate tiers (upper bounds, with no credit above the last
+# finite bound) for filers under and over `elderly_age`, up to `max`.
+# Source: PolicyEngine-US gov.states.dc.tax.income.credits.ptc.
+property_credit_schedule:
   2022:
     max: 1250
     nonelderly_upper_bounds: [25000, 52000, 57600, .inf]
@@ -236,213 +149,13 @@ property_credit_recent:
     elderly_age: 70
     rent_share: 0.20
 
-# Low Income Credit (1987-2017, expired thereafter) - the source's own
-# 2D interpolation tables are indexed by an "elderly+blind dependent"
-# count (`dx2`) that's always 0 for this project's schema (elderly/blind
-# both confirmed inert above) - only the dx2=0 column is extracted.
-# `xtra(law)` is a flat per-dependent add-on, added regardless of status.
-low_income_credit_married_or_separate_by_year:  # `ylowj(0,law)`, /sep
-  1987: 227.4
-  1988: 293.0
-  1989: 293.0
-  1990: 302.0
-  1991: 317.0
-  1992: 353.0
-  1993: 371.0
-  1994: 392.0
-  1995: 410.0
-  1996: 425.0
-  1997: 449.0
-  1998: 455.0
-  1999: 479.0
-  2000: 411.0
-  2001: 434.0
-  2002: 434.0
-  2003: 566.0
-  2004: 566.0
-  2005: 626.0
-  2006: 550.0
-  2007: 520.0
-  2008: 435.0
-  2009: 481.0
-  2010: 483.0
-  2011: 495.0
-  2012: 531.0
-  2013: 555.0
-  2014: 355.0
-  2015: 349.0
-  2016: 353.0
-  2017: 279.0
-low_income_credit_single_by_year:  # `ylows(0,law)`
-  1987: 93.30
-  1988: 116.0
-  1989: 116.0
-  1990: 122.0
-  1991: 131.0
-  1992: 152.0
-  1993: 161.0
-  1994: 173.0
-  1995: 182.0
-  1996: 191.0
-  1997: 206.0
-  1998: 211.0
-  1999: 221.0
-  2000: 191.0
-  2001: 204.0
-  2002: 204.0
-  2003: 221.0
-  2004: 221.0
-  2005: 241.0
-  2006: 201.0
-  2007: 183.0
-  2008: 131.0
-  2009: 148.0
-  2010: 147.0
-  2011: 151.0
-  2012: 163.0
-  2013: 169.0
-  2014: 171.0
-  2015: 133.0
-  2016: 133.0
-  2017: 119.0
-low_income_credit_hoh_by_year:  # `ylowh(0,law)`
-  1987: 40.2
-  1988: 140.0
-  1989: 134.0
-  1990: 137.0
-  1991: 146.0
-  1992: 170.0
-  1993: 185.0
-  1994: 200.0
-  1995: 212.0
-  1996: 224.0
-  1997: 239.0
-  1998: 248.0
-  1999: 263.0
-  2000: 226.0
-  2001: 241.0
-  2002: 241.0
-  2003: 266.0
-  2004: 266.0
-  2005: 289.0
-  2006: 242.0
-  2007: 230.0
-  2008: 167.0
-  2009: 187.0
-  2010: 189.0
-  2011: 195.0
-  2012: 207.0
-  2013: 217.0
-  2014: 219.0
-  2015: 129.0
-  2016: 133.0
-  2017: 83.0
-low_income_credit_xtra_per_dependent_by_year:  # `xtra(law)`
-  1987: 60.9
-  1988: 54.0
-  1989: 51.0
-  1990: 45.0
-  1991: 48.0
-  1992: 57.0
-  1993: 57.0
-  1994: 63.0
-  1995: 69.0
-  1996: 72.0
-  1997: 78.0
-  1998: 85.0
-  1999: 86.0
-  2000: 84.0
-  2001: 77.0
-  2002: 77.0
-  2003: 85.0
-  2004: 85.0
-  2005: 93.0
-  2006: 81.0
-  2007: 114.0
-  2008: 119.0
-  2009: 119.0
-  2010: 120.0
-  2011: 120.0
-  2012: 126.0
-  2013: 109.0
-  2014: 109.0
-  2015: 109.0
-  2016: 92.0
-  2017: 92.0
 
-# EITC (2000+) - a flat rate on the federal EITC through 2014; 2015+
-# splits into "has qualifying children" (still the flat rate on federal
-# EITC) vs a real, DC-only childless-worker formula with its own
-# max-credit/max-earned/phase-out-start table (structurally similar to
-# CA's own EITC, just DC-specific numbers).
-eitc_rate_2000:
-  2000: 0.10
-eitc_rate_2001_2004:
-  2001: 0.25
-eitc_rate_2005_2007:
-  2005: 0.35
-# 2025 on: DC has not adopted the larger federal standard deduction (PolicyEngine-US
-# gov.states.dc.tax.income.deductions.standard); these are the amounts before that law.
-standard_deduction_nonconforming:
-  2025: {single: 15000, married_joint: 30000, head_of_household: 22500}
-eitc_rate_2008plus:
-  2008: 0.40
-  # PolicyEngine-US: gov.states.dc.tax.income.credits.eitc.with_children.match.
-  2022: 0.70
-  2023: 0.70
-  2024: 0.70
-  2025: 1.0
-eitc_childless_max_credit_by_year:  # `crmaxd(law)`
-  2015: 503
-  2016: 506
-  2017: 510
-  2018: 519
-  2019: 529
-  2020: 538
-  2021: 1502
-  # 2022+: the federal childless maximum (PolicyEngine-US dc_eitc_without_
-  # qualifying_child uses the federal phased-in amount); the 2021 enhancement
-  # was temporary.
-  2022: 560
-  2023: 600
-  2024: 632
-  2025: 649
-eitc_childless_max_earned_by_year:  # `amaxd(law)`
-  2015: 24040
-  2016: 24254
-  2017: 24630
-  2018: 24982
-  2019: 25477
-  2020: 25833
-  2021: 37455
-  # Where the DC phase-out (start + maximum / 8.48%) reaches zero.
-  2022: 27136
-  2023: 28964
-  2024: 30019
-  2025: 30941
-eitc_childless_phaseout_start_by_year:  # `ymaxd(law)`
-  2015: 18111
-  2016: 18292
-  2017: 18622
-  2018: 18862
-  2019: 19239
-  2020: 19489
-  2021: 19743
-  2022: 20532
-  2023: 21888
-  2024: 22566
-  2025: 23288
-eitc_disqualified_income_limit_by_year:  # `dyd(law)`
-  2015: 3400
-  2017: 3450
-  2018: 3500
-  2019: 3600
-  2020: 3650
-  2021: 10000
-
-# Low income credit (1987-2017) by the number of taxpayers 65 or older (the
-# list index; joint returns up to 4, others up to 2), plus `low_income_credit_
-# per_dependent` per dependent and aged taxpayer (TAXSIM ylowj/ylows/ylowh/xtra).
+# Low-income credit 1987-2017, when federal tax before credits is zero: by
+# filing status and the number of taxpayers 65 or older (the list index;
+# joint returns up to 4, others up to 2; separate returns half the joint
+# amount), plus `low_income_credit_per_dependent` per dependent and aged
+# taxpayer. Dependent filers instead get DC tax on the federal standard
+# deduction less DC's, at `low_income_credit_dependent_brackets`.
 low_income_credit_joint_by_aged:
   1987: [227.4, 284.7, 267.6, 250.5, 233.4]
   1988: [293.0, 266.0, 242.0, 215.0, 191.0]
@@ -475,6 +188,7 @@ low_income_credit_joint_by_aged:
   2015: [349.0, 327.0, 307.0, 285.0, 265.0]
   2016: [353.0, 331.0, 311.0, 289.0, 269.0]
   2017: [279.0, 259.0, 237.0, 217.0, 195.0]
+  2018: null
 low_income_credit_single_by_aged:
   1987: [93.3, 112.8, 104.7]
   1988: [116.0, 101.0, 83.0]
@@ -507,6 +221,7 @@ low_income_credit_single_by_aged:
   2015: [133.0, 125.0, 115.0]
   2016: [133.0, 127.0, 117.0]
   2017: [119.0, 111.0, 101.0]
+  2018: null
 low_income_credit_hoh_by_aged:
   1987: [40.2, 143.7, 135.6]
   1988: [140.0, 122.0, 107.0]
@@ -539,6 +254,7 @@ low_income_credit_hoh_by_aged:
   2015: [129.0, 119.0, 111.0]
   2016: [133.0, 123.0, 115.0]
   2017: [83.0, 73.0, 65.0]
+  2018: null
 low_income_credit_per_dependent:
   1987: 60.9
   1988: 54.0
@@ -571,63 +287,33 @@ low_income_credit_per_dependent:
   2015: 109.0
   2016: 92.0
   2017: 92.0
-# Dependent filers: DC tax on the federal standard deduction less DC's, at
-# these rates (TAXSIM uses its 2000 table for every year from 2000).
+  2018: null
 low_income_credit_dependent_brackets:
   1987: [[0, 0.06], [10000, 0.08], [20000, 0.10]]
   1988: [[0, 0.06], [10000, 0.08], [20000, 0.095]]
   2000: [[0, 0.05], [10000, 0.075], [20000, 0.095]]
-# Property tax credit: rent counts at this share (property tax or the rent
-# share, whichever is larger).
-property_credit_rent_share: {1977: 0.15, 2014: 0.20}
-# Taxpayers 65 or older: credit is property tax less a share of household
-# income rising from 1% (1% + income/$20,000), capped at $750; from 2014
-# 3% of AGI up to `pagi` in property_credit_by_year_2014plus.
-property_credit_aged_base_rate: 0.01
-property_credit_aged_rate_income: 20000
 
-# Through 1981 the standard deduction is this share of AGI, up to the cap.
-standard_deduction_share_pre1982: 0.1
-
-# 2018+: property, other and state taxes deductible up to this amount per
-# return (halved for separate returns).
-state_tax_deduction_cap_2018plus: 10000
-
-# Itemized deductions fall by this share of AGI above the threshold.
-itemized_agi_reduction_rate: 0.05
-
-# 2015-2017 exemption phaseout: this share per band of AGI above the floor.
-exemption_phaseout_2015_2017_share_per_band: 0.02
-
-# Property tax credit through 2013 for returns without a taxpayer 65 or
-# older: property tax less income times (`base_pct` + income / `divisor`)
-# percent; the result is multiplied by `low_income_share` below the low
-# income limit and `share` above, for income up to `income_limit`.
-property_credit_nonaged_pre2014:
-  base_pct: 1.5
-  divisor: 8000
-  low_income_limit: 3000
-  low_income_share: 0.95
-  share: 0.75
-  income_limit: 20000
-# 2014+: property tax less a share of AGI: `low_rate` below `low_income`
-# (and for returns with a taxpayer 65 or older); above it `rate` (2019+
-# `rate` up to `middle_income` and `high_rate` above).
-property_credit_2014plus:
-  low_income: 25000
-  low_rate: 0.03
-  rate: 0.04
-  middle_income: 52000
-  high_rate: 0.05
-
-# Childless earned income credit (2015+): phase-in rate (doubled in 2021),
-# phaseout rate, and the age limits (under 25, or over 65 with a spouse
-# under 25, get none).
+# Earned income credit from 2000: a share of the federal credit for filers
+# with qualifying children. Source for 2022 on: PolicyEngine-US
+# gov.states.dc.tax.income.credits.eitc.with_children.match.
+eitc_federal_share: {2000: 0.10, 2001: 0.25, 2005: 0.35, 2008: 0.40, 2022: 0.70, 2025: 1.0}
+# From 2015, DC's own credit for childless filers: `phase_in_rate` of earned
+# income up to `max_credit`, less `phaseout_rate` of the higher of earned
+# income and AGI above `phaseout_start`; none above `max_earned`, with
+# investment income above `disqualified_income_limit`, under `minimum_age`
+# (or over `maximum_age` with a spouse under it; 2021: under 19 only).
+# 2022 on: the federal childless maximum and phaseout start.
 eitc_childless:
-  phase_in_rate:
-    2015: 0.0765
-    2021: 0.153
-    2022: 0.0765
-  phaseout_rate: 0.0848
-  minimum_age: 25
-  maximum_age: 65
+  2015: {max_credit: 503, max_earned: 24040, phaseout_start: 18111, phase_in_rate: 0.0765, disqualified_income_limit: 3400}
+  2016: {max_credit: 506, max_earned: 24254, phaseout_start: 18292, phase_in_rate: 0.0765, disqualified_income_limit: 3400}
+  2017: {max_credit: 510, max_earned: 24630, phaseout_start: 18622, phase_in_rate: 0.0765, disqualified_income_limit: 3450}
+  2018: {max_credit: 519, max_earned: 24982, phaseout_start: 18862, phase_in_rate: 0.0765, disqualified_income_limit: 3500}
+  2019: {max_credit: 529, max_earned: 25477, phaseout_start: 19239, phase_in_rate: 0.0765, disqualified_income_limit: 3600}
+  2020: {max_credit: 538, max_earned: 25833, phaseout_start: 19489, phase_in_rate: 0.0765, disqualified_income_limit: 3650}
+  2021: {max_credit: 1502, max_earned: 37455, phaseout_start: 19743, phase_in_rate: 0.153, disqualified_income_limit: 10000}
+  2022: {max_credit: 560, max_earned: 27136, phaseout_start: 20532, phase_in_rate: 0.0765, disqualified_income_limit: 10000}
+  2023: {max_credit: 600, max_earned: 28964, phaseout_start: 21888, phase_in_rate: 0.0765, disqualified_income_limit: 10000}
+  2024: {max_credit: 632, max_earned: 30019, phaseout_start: 22566, phase_in_rate: 0.0765, disqualified_income_limit: 10000}
+  2025: {max_credit: 649, max_earned: 30941, phaseout_start: 23288, phase_in_rate: 0.0765, disqualified_income_limit: 10000}
+eitc_childless_phaseout_rate: 0.0848
+eitc_childless_age_limits: {minimum_age: 25, maximum_age: 65}

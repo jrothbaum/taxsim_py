@@ -35,9 +35,7 @@ def compute_ak_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     # Reported taxable income may be negative; the bracket lookup floors it.
     df = df.with_columns(ak_taxinc=pl.col("agi") - pl.col("ak_stded"))
 
-    # married_separate reuses SINGLE's own bracket table (not its own, not
-    # married_joint/2) - only its standard deduction differs; head_of_
-    # household gets its own table.
+    # Separate returns use the single schedule; heads of household their own.
     brackets_single = p["brackets_single"]
     brackets_joint = p["brackets_married_joint"]
     brackets_hoh = p["brackets_head_of_household"]
