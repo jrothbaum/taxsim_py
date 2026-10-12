@@ -20,19 +20,20 @@ _PRE1987_STATUSES = ["single", "married_joint", "married_separate", "head_of_hou
 def compute_dc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
     effective_year, flate = resolve_state_year(year, behavior, DC_PARAMS)
     p = YearParams(DC_PARAMS, effective_year)
+    y_pre1987 = effective_year <= 1986
     df = df.with_columns(
         dc_sep=separate_divisor(),
         dc_taxpayers=taxpayer_count(),
     )
 
     df = df.with_columns(
-        dc_household_income=household_income()
+        dc_household_income=household_income(behavior)
     )
     df = deflate_for_extrapolation(df, flate, extra=("dc_household_income",))
 
     # --- AGI ---
     if effective_year <= 1981:
-        addit = dividend_exclusion_addback(effective_year)
+        addit = dividend_exclusion_addback(effective_year, behavior)
         # Other non-property income is not DC income before 1982.
         df = df.with_columns(
             dc_agi=pl.col("agi") + addit - pl.col("taxable_unemployment") - pl.col("nonprop")
@@ -216,7 +217,9 @@ def compute_dc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         dc_taxyh=(pl.col("dc_agi_higher_earner") - pl.col("dc_dedh") - pl.col("dc_exemph")).clip(0, None),
         dc_taxyw=(pl.col("dc_agi_lower_earner") - pl.col("dc_dedw") - pl.col("dc_exempw")).clip(0, None),
     )
-    split_brackets = p.value("earner_split_brackets") if p.in_effect("earner_split_brackets") else brackets
+    # TAXSIM's 2007 split repeats the 2006 rates.
+    own_split = p.in_effect("earner_split_brackets") and not behavior.use_current_rates_in_dc_earner_split
+    split_brackets = p.value("earner_split_brackets") if own_split else brackets
     dc_taxbc = bracket_tax(pl.col("dc_taxyh"), split_brackets) + bracket_tax(pl.col("dc_taxyw"), split_brackets)
     df = df.with_columns(
         dc_statax=pl.when(is_joint_relief).then(pl.min_horizontal(pl.col("dc_statax"), dc_taxbc)).otherwise(pl.col("dc_statax"))
@@ -226,7 +229,10 @@ def compute_dc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     # Child and dependent care credit: a share of the federal credit before
     # its liability limit, which TAXSIM leaves at 0 before 1987.
     if p.in_effect("child_care_credit_federal_share"):
-        df = df.with_columns(dc_chcr=p.num("child_care_credit_federal_share") * pl.col("ccc_uncapped"))
+        federal = pl.col("ccc_uncapped")
+        if y_pre1987 and behavior.read_federal_child_care_credit_before_1987:
+            federal = pl.col("federal_chcr")
+        df = df.with_columns(dc_chcr=p.num("child_care_credit_federal_share") * federal)
     else:
         df = df.with_columns(dc_chcr=pl.lit(0.0))
 
@@ -326,7 +332,9 @@ def compute_dc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         ycr = pl.when(no_tax & ~is_dependent_filer()).then(base + xtra * allow).otherwise(0.0)
         federal_std = pl.when(pl.col("itemizes")).then(0.0).otherwise(pl.col("standard_deduction"))
         gap = federal_std - pl.col("dc_stded")
-        brackets = p.value("low_income_credit_dependent_brackets")
+        # TAXSIM's year chain stops at its 2000 table.
+        if not behavior.use_current_rates_in_dc_low_income_credit:
+            brackets = p.value("low_income_credit_dependent_brackets")
         dependent_ycr = pl.when(
             no_tax & is_dependent_filer() & (gap > 0) & (pl.col("agi") <= federal_std)
         ).then(bracket_tax(gap.clip(0, None), brackets)).otherwise(0.0)

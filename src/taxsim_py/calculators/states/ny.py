@@ -76,7 +76,15 @@ def _supplemental(statax: pl.Expr, taxinc: pl.Expr, agi: pl.Expr, status: pl.Exp
     return statax + pl.when(agi > float(d["top_agi"])).then(high).otherwise(supplemental)
 
 
-def _recapture(statax: pl.Expr, taxinc: pl.Expr, agi: pl.Expr, rt: pl.Expr, status: pl.Expr, p: YearParams) -> pl.Expr:
+def _recapture(
+    statax: pl.Expr,
+    taxinc: pl.Expr,
+    agi: pl.Expr,
+    rt: pl.Expr,
+    status: pl.Expr,
+    p: YearParams,
+    behavior: BehaviorProfile = TAXSIM_BEHAVIOR,
+) -> pl.Expr:
     """High-income recapture of the benefit of lower brackets."""
     is_single_class = status.is_in(["single", "married_separate"])
     is_hoh = status == "head_of_household"
@@ -86,7 +94,7 @@ def _recapture(statax: pl.Expr, taxinc: pl.Expr, agi: pl.Expr, rt: pl.Expr, stat
     if p.in_effect("recapture_tiers"):
         return _recapture_tiers(statax, taxinc, agi, status, p)
     if p.in_effect("recapture_bounds"):
-        return _recapture_worksheets(statax, taxinc, agi, status, p)
+        return _recapture_worksheets(statax, taxinc, agi, status, p, behavior)
     if not p.in_effect("recapture_start"):
         return statax
     start = p.num("recapture_start")
@@ -156,8 +164,20 @@ def _recapture(statax: pl.Expr, taxinc: pl.Expr, agi: pl.Expr, rt: pl.Expr, stat
     )
 
 
-def _recapture_worksheets(statax: pl.Expr, taxinc: pl.Expr, agi: pl.Expr, status: pl.Expr, p: YearParams) -> pl.Expr:
-    """Tax computation worksheets: flat rates by tier with lower-bracket benefits added back."""
+def _recapture_worksheets(
+    statax: pl.Expr,
+    taxinc: pl.Expr,
+    agi: pl.Expr,
+    status: pl.Expr,
+    p: YearParams,
+    behavior: BehaviorProfile = TAXSIM_BEHAVIOR,
+) -> pl.Expr:
+    """Tax computation worksheets: flat rates by tier with lower-bracket benefits added back.
+
+    Each worksheet phases in over `phase` from its own AGI bound; TAXSIM
+    uses unscaled or other worksheets' bounds in several of them.
+    """
+    own = behavior.use_own_bounds_in_new_york_worksheets
     is_single_class = status.is_in(["single", "married_separate"])
     is_joint = status == "married_joint"
     a = p.num("recapture_inflation")
@@ -176,17 +196,19 @@ def _recapture_worksheets(statax: pl.Expr, taxinc: pl.Expr, agi: pl.Expr, status
     top = b["married_top_agi"] * a
     ws1 = pl.when(agi >= base + phase).then(taxinc * r[0]).otherwise(statax + ratio_from(base) * (taxinc * r[0] - statax))
     ws2 = pl.when(agi >= t1 + phase).then(taxinc * r[1]).otherwise(_blend(statax, taxinc * r[1], ratio_from(t1), add[0]))
+    unscaled = float(b["married_tier3_phase_start_unscaled"])
     ws3 = pl.when(agi >= t2 + phase).then(taxinc * r[2]).otherwise(
-        _blend(statax, taxinc * r[2], ratio_from(float(b["married_tier3_phase_start_unscaled"])), add[1])
+        _blend(statax, taxinc * r[2], ratio_from(t2 if own else unscaled), add[1])
     )
-    r4 = ratio_from(float(b["married_tier3_phase_start_unscaled"]))
+    r4 = ratio_from(top if own else unscaled)
     ws4_partial = (
         pl.when(taxinc <= t1).then(_blend(statax, taxinc * r[3], r4, add[0]))
         .when((taxinc > t1) & (taxinc < t2)).then(_blend(statax, taxinc * r[3], r4, add[1]))
         .when(taxinc > t2).then(_blend(statax, taxinc * r[3], r4, add[2]))
         .otherwise(statax)
     )
-    ws4 = pl.when(agi >= b["married_top_full_agi"] * a + phase).then(taxinc * r[3]).otherwise(ws4_partial)
+    ws4_full = top + phase if own else b["married_top_full_agi"] * a + phase
+    ws4 = pl.when(agi >= ws4_full).then(taxinc * r[3]).otherwise(ws4_partial)
     joint = (
         pl.when((agi > base) & (agi <= top) & (taxinc <= t1)).then(ws1)
         .when((agi > t1) & (agi <= top) & (taxinc > t1) & (taxinc <= t2)).then(ws2)
@@ -198,13 +220,16 @@ def _recapture_worksheets(statax: pl.Expr, taxinc: pl.Expr, agi: pl.Expr, status
     st = b["single_tier_taxinc"] * a
     stop = b["single_top_agi"] * a
     ws5 = pl.when(agi >= base + phase).then(taxinc * r[1]).otherwise(statax + ratio_from(base) * (taxinc * r[1] - statax))
-    ws6 = pl.when(agi >= b["single_tier2_full_agi_unscaled"]).then(taxinc * r[2]).otherwise(
-        _blend(statax, taxinc * r[2], ratio_from(base), add[3])
+    ws6_full = st + phase if own else b["single_tier2_full_agi_unscaled"]
+    ws6 = pl.when(agi >= ws6_full).then(taxinc * r[2]).otherwise(
+        _blend(statax, taxinc * r[2], ratio_from(st if own else base), add[3])
     )
-    ws7_partial = pl.when(taxinc <= st).then(_blend(statax, taxinc * r[3], ratio_from(base), add[3])).otherwise(
-        _blend(statax, taxinc * r[3], ratio_from(base), add[4])
+    r7 = ratio_from(stop if own else base)
+    ws7_partial = pl.when(taxinc <= st).then(_blend(statax, taxinc * r[3], r7, add[3])).otherwise(
+        _blend(statax, taxinc * r[3], r7, add[4])
     )
-    ws7 = pl.when(agi >= base + b["single_top_full_offset"]).then(taxinc * r[3]).otherwise(ws7_partial)
+    ws7_full = stop + phase if own else base + b["single_top_full_offset"]
+    ws7 = pl.when(agi >= ws7_full).then(taxinc * r[3]).otherwise(ws7_partial)
     single = (
         pl.when((agi > base) & (agi <= stop) & (taxinc <= st)).then(ws5)
         .when((agi > st) & (agi <= stop) & (taxinc > st)).then(ws6)
@@ -215,10 +240,14 @@ def _recapture_worksheets(statax: pl.Expr, taxinc: pl.Expr, agi: pl.Expr, status
     ht = b["hoh_tier_taxinc"] * a
     htop = b["hoh_top_agi"] * a
     ws8 = pl.when(agi >= base + phase).then(taxinc * r[1]).otherwise(statax + ratio_from(base) * (taxinc * r[1] - statax))
-    ws9 = pl.when(agi >= ht + phase).then(taxinc * r[2]).otherwise(_blend(statax, taxinc * r[2], ratio_from(base), add[5]))
-    ws10_partial = pl.when(taxinc <= b["hoh_top_tier_taxinc_unscaled"]).then(
-        _blend(statax, taxinc * r[3], ratio_from(base), add[5])
-    ).otherwise(_blend(statax, taxinc * r[3], ratio_from(base), add[6]))
+    ws9 = pl.when(agi >= ht + phase).then(taxinc * r[2]).otherwise(
+        _blend(statax, taxinc * r[2], ratio_from(ht if own else base), add[5])
+    )
+    r10 = ratio_from(htop if own else base)
+    ws10_tier = ht if own else b["hoh_top_tier_taxinc_unscaled"]
+    ws10_partial = pl.when(taxinc <= ws10_tier).then(_blend(statax, taxinc * r[3], r10, add[5])).otherwise(
+        _blend(statax, taxinc * r[3], r10, add[6])
+    )
     ws10 = pl.when(agi >= htop + phase).then(taxinc * r[3]).otherwise(ws10_partial)
     hoh = (
         pl.when((agi > base) & (agi <= htop) & (taxinc <= ht)).then(ws8)
@@ -270,7 +299,7 @@ def compute_ny_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     p = YearParams(NY_PARAMS, effective_year)
     dividend_adjustment = dividend_input_adjustment()
     df = df.with_columns(
-        ny_household_income_undeflated=household_income(),
+        ny_household_income_undeflated=household_income(behavior),
         ny_ui=unemployment_total(),
         ny_dividends=pl.col("dividends") + dividend_adjustment,
         # Federal tax before credits (`comnew(137)`) is not deflated when a
@@ -348,6 +377,9 @@ def compute_ny_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     stds = p.num("standard_deduction", "single")
     stdm = p.num("standard_deduction", "married")
     stdh = p.num("standard_deduction", "head_of_household")
+    if y <= 1986 and behavior.use_single_standard_deduction_for_new_york_head_of_household_before_1987:
+        # No head-of-household status before 1987; TAXSIM's table is 0.
+        stdh = stds
     if p.in_effect("standard_deduction_share"):
         share = p.num("standard_deduction_share")
         cap = p.num("standard_deduction_cap")
@@ -411,6 +443,9 @@ def compute_ny_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     )
     # Only the reduction branches floor the deduction at zero.
     xitded = pl.when(agi > p["itemized_reduction_start"]).then((xitded - adjust).clip(0, None)).otherwise(xitded)
+    if behavior.floor_new_york_itemized_deductions:
+        # TAXSIM floors them only inside the high-income reductions.
+        xitded = xitded.clip(0, None)
     df = df.with_columns(ny_deduc=pl.max_horizontal(stded, xitded), ny_stded=stded, ny_xitded=xitded)
     deduc = pl.col("ny_deduc")
 
@@ -454,7 +489,7 @@ def compute_ny_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     statax, rt = _schedule(status, taxinc, p)
     df = df.with_columns(ny_table_tax=statax, ny_rt=rt)
     df = df.with_columns(
-        ny_recaptured=_recapture(pl.col("ny_table_tax"), taxinc, agi, pl.col("ny_rt"), status, p)
+        ny_recaptured=_recapture(pl.col("ny_table_tax"), taxinc, agi, pl.col("ny_rt"), status, p, behavior)
     )
     statax = pl.col("ny_recaptured")
     statax = statax + pl.when(famded > 0).then(bracket_tax(famded, p["family_adjustment_rates"])).otherwise(0.0)
@@ -466,7 +501,19 @@ def compute_ny_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         ).clip(0, None)
         percen = pl.when(agi > 0).then(pl.min_horizontal(pl.lit(1.0), psinc / agi)).otherwise(0.0)
         pstinc = (percen * taxy - pl.col("pre1987_pref").clip(0, None)).clip(0, None)
-        statax = statax - bracket_tax(pstinc, p.value("maximum_tax_savings"))
+        savings = p.value("maximum_tax_savings")
+        if y == 1986 and not behavior.complete_new_york_1986_maximum_tax_table:
+            # TAXSIM reads one row too few of the 1986 table.
+            savings = savings[:-1]
+        statax = statax - bracket_tax(pstinc, savings)
+    if p.in_effect("unearned_income_tax") and behavior.charge_new_york_unearned_income_tax_1987_1988:
+        # TAXSIM's year test can never be true.
+        u = p.value("unearned_income_tax")
+        unearned = (
+            pl.col("dividends") + pl.col("intrec") + (pl.col("stcg") + pl.col("ltcg")).clip(0, None)
+        ).clip(0, None)
+        share = ((agi - float(u["phase_in_start"]) / sep) / float(u["phase_in_range"])).clip(0, 1)
+        statax = statax + float(u["rate"]) * share * unearned
 
     # --- Filing thresholds ---
     limits = p.value("no_tax_threshold")
@@ -500,7 +547,13 @@ def compute_ny_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     df = df.with_columns(ny_after_household=(statax - hcred).clip(0, None))
     statax = pl.col("ny_after_household")
 
-    chcrbc = pl.col("ccc_uncapped") if y >= 1987 else pl.lit(0.0)
+    if y >= 1987:
+        chcrbc = pl.col("ccc_uncapped")
+    elif behavior.read_federal_child_care_credit_before_1987:
+        chcrbc = pl.col("federal_chcr")
+    else:
+        # TAXSIM reads a federal figure its early routine never fills.
+        chcrbc = pl.lit(0.0)
     c = p.value("child_care_share")
     if not isinstance(c, dict):
         chcr = pl.min_horizontal(statax, float(c) * chcrbc)
@@ -652,8 +705,11 @@ def compute_ny_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     # Minimum income tax on preference items (none are inputs), less the
     # specific deduction and the tax after credits.
     df, (statax,) = checkpoint(df, ny_after_credits=statax)
-    preference_base = (-(float(p["minimum_tax_deduction"]) / sep) - statax).clip(0, None)
-    statax = statax + p.num("minimum_tax_rate") * preference_base
+    if not behavior.charge_new_york_minimum_tax_on_preferences_only:
+        # TAXSIM computes it after refundable credits, so a tax below the
+        # negative specific deduction creates a minimum tax.
+        preference_base = (-(float(p["minimum_tax_deduction"]) / sep) - statax).clip(0, None)
+        statax = statax + p.num("minimum_tax_rate") * preference_base
 
     df = df.with_columns(siitax=statax * flate)
     return with_state_detail(

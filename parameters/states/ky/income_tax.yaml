@@ -43,11 +43,12 @@ standard_deduction_per_taxpayer: {1977: true, 2022: false}
 # 1991-2017 itemized limitation: `itemized_phaseout_rate` of AGI above the
 # threshold (times `itemized_limitation_index`, halved on separate
 # returns), at most `itemized_phaseout_cap_rate` of itemized deductions,
-# times `reduction_share` (TAXSIM suspends it in 2010 only). From 2018 only
-# mortgage interest is deductible.
+# times `reduction_share`; none 2010-2012 (the 2011 Schedule A has no
+# limitation; TAXSIM suspends it in 2010 only). From 2018 only mortgage
+# interest is deductible.
 itemized_limitation_threshold: 100000
 itemized_limitation_index: {1977: 1.0, 1992: 1.0525, 1993: 1.0845, 1994: 1.118, 1995: 1.147, 1996: 1.1795, 1997: 1.212, 1998: 1.245, 1999: 1.266, 2000: 1.2895, 2001: 1.3295, 2002: 1.373, 2003: 1.395, 2004: 1.427, 2005: 1.4595, 2006: 1.505, 2007: 1.564, 2008: 1.5995, 2009: 1.668, 2010: 1.6955, 2012: 1.7365, 2013: 1.7815, 2014: 1.8115, 2015: 1.84, 2016: 1.8485, 2017: 1.8635, 2018: null}
-itemized_limitation_reduction_share: {1991: 1.0, 2006: 0.6666666666666666, 2008: 0.3333333333333333, 2010: 0.0, 2011: 1.0, 2018: null}
+itemized_limitation_reduction_share: {1991: 1.0, 2006: 0.6666666666666666, 2008: 0.3333333333333333, 2010: 0.0, 2013: 1.0, 2018: null}
 itemized_phaseout_rate: 0.03
 itemized_phaseout_cap_rate: 0.8
 # Through 1989, an itemized deduction for child care: the federal credit up

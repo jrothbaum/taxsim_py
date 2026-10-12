@@ -32,7 +32,7 @@ def compute_ms_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
 
     # Self-employment tax is not deflated in projected years.
     setax = pl.col("payroll_setax")
-    df = df.with_columns(ms_setax=setax, ms_divexc=dividend_exclusion_addback(y))
+    df = df.with_columns(ms_setax=setax, ms_divexc=dividend_exclusion_addback(y, behavior))
     df = deflate_for_extrapolation(df, flate, extra=("ms_divexc",))
 
     is_joint = files_joint()
@@ -127,7 +127,11 @@ def compute_ms_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             ).clip(0, None)
             xitded = pl.when((agi > threshold) & (deducp > 0)).then(limited).otherwise(xitded)
     if p.in_effect("charity_agi_limit"):
-        contributions = -p.num("charity_agi_limit") * agi.clip(0, None)
+        if behavior.floor_mississippi_excess_charity:
+            contributions = (pl.col("charity_cash") - p.num("charity_agi_limit") * agi.clip(0, None)).clip(0, None)
+        else:
+            # TAXSIM reads no contributions and does not floor the excess.
+            contributions = -p.num("charity_agi_limit") * agi.clip(0, None)
         xitded = (xitded - contributions).clip(0, None)
     if y == 1999:
         xitded = pl.when(forced_standard()).then(0.0).otherwise(xitded)

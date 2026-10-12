@@ -52,7 +52,7 @@ def compute_ri_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     y = effective_year
     p = YearParams(RI_PARAMS, effective_year)
     # Household income (`hy`) is read before TAXSIM's projected-year deflation.
-    df = df.with_columns(ri_ui=unemployment_total(), ri_household_income_undeflated=household_income())
+    df = df.with_columns(ri_ui=unemployment_total(), ri_household_income_undeflated=household_income(behavior))
     df = deflate_for_extrapolation(df, flate, extra=("ri_ui",))
 
     is_single = files_single()
@@ -89,7 +89,11 @@ def compute_ri_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         # Unemployment compensation is taxed in full.
         agi = agi - pl.col("taxable_unemployment") + pl.col("ri_ui")
     df, (agi,) = checkpoint(df, ri_agi=agi)
-    ltg = (pl.col("stcg") + pl.col("ltcg")).clip(0, None)
+    # Net long-term gain; TAXSIM uses all net gain, short-term included.
+    if behavior.use_net_long_term_gain_in_rhode_island:
+        ltg = pl.min_horizontal(pl.col("ltcg"), pl.col("stcg") + pl.col("ltcg")).clip(0, None)
+    else:
+        ltg = (pl.col("stcg") + pl.col("ltcg")).clip(0, None)
 
     if y <= 1986:
         taxbc = pl.col("pre1987_taxbc")
@@ -122,6 +126,9 @@ def compute_ri_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             stded = stded + aged * pl.when(is_single | is_hoh).then(
                 p.num("standard_deduction_aged_addition", "single")
             ).otherwise(p.num("standard_deduction_aged_addition", "married"))
+            if behavior.halve_rhode_island_separate_standard_deduction:
+                # TAXSIM gives separate returns the full married amount.
+                stded = stded / sep
             dependent_limit = pl.max_horizontal(
                 pl.lit(p.num("dependent_standard_deduction_floor")),
                 pl.col("earned_income") + float(p["dependent_standard_deduction_earned_addition"]),
@@ -161,8 +168,12 @@ def compute_ri_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             perc = pl.lit(1.0)
             for n, share in reversed(list(enumerate(p["deduction_phaseout_shares"], start=1))):
                 perc = pl.when(number == n).then(share).otherwise(perc)
-            ratio = (p["deduction_phaseout_smooth_rate"] * (agi - start).clip(0, None) / step).clip(None, 1)
-            kept = perc * (1 - ratio)
+            if behavior.use_rhode_island_deduction_phaseout_steps_only:
+                kept = perc
+            else:
+                # TAXSIM also cuts the deduction smoothly within the steps.
+                ratio = (p["deduction_phaseout_smooth_rate"] * (agi - start).clip(0, None) / step).clip(None, 1)
+                kept = perc * (1 - ratio)
             factor = pl.when(agi > end).then(0.0).when(agi > start).then(kept).otherwise(1.0)
         else:
             d = p.value("deduction_phaseout")
@@ -189,8 +200,9 @@ def compute_ri_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         start = _by_class(p.value("amt_exemption_phaseout_start"), is_single, is_hoh) / sep
         exclnt = (exemption - p["amt_exemption_phaseout_rate"] * (alminy_federal - start).clip(0, None)).clip(0, None)
         alminy = (alminy_federal - exclnt).clip(0, None)
-        # Without gains, tax is subtracted twice.
-        without_gains = (_amt_rate_tax(alminy, sep, p) - 2 * statax).clip(0, None)
+        # Without gains, TAXSIM subtracts the tax twice.
+        times = 1.0 if behavior.subtract_rhode_island_tax_once_in_minimum_tax else 2.0
+        without_gains = (_amt_rate_tax(alminy, sep, p) - times * statax).clip(0, None)
         with_gains = (_amt_rate_tax((alminy - ltg).clip(0, None), sep, p) + tax25 + tax50 - statax).clip(0, None)
         statax = statax + pl.when(ltg < 1).then(without_gains).otherwise(with_gains)
     if p.in_effect("flat_tax_rate"):

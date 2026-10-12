@@ -56,7 +56,7 @@ def compute_wi_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     y = effective_year
     p = YearParams(WI_PARAMS, effective_year)
     # Household income (`hy`) is read before projected years are deflated.
-    df = df.with_columns(wi_household_income_undeflated=household_income(), wi_ui=unemployment_total())
+    df = df.with_columns(wi_household_income_undeflated=household_income(behavior), wi_ui=unemployment_total())
     df = deflate_for_extrapolation(df, flate, extra=("wi_ui",))
 
     is_joint = files_joint()
@@ -99,7 +99,11 @@ def compute_wi_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     if p.in_effect("capital_gain_exclusion_addback"):
         agi = agi + pl.when(fullcg > 0).then(p.num("capital_gain_exclusion_addback") * pl.col("pre1987_capded")).otherwise(0.0)
     elif y >= 1987:
-        agi = agi - pl.when(fullcg > 0).then(p.num("capital_gain_exclusion") * pl.min_horizontal(fullcg, ltcg)).otherwise(0.0)
+        excluded = pl.min_horizontal(fullcg, ltcg)
+        if behavior.floor_wisconsin_capital_gain_exclusion:
+            # TAXSIM lets a long-term loss make the exclusion negative.
+            excluded = excluded.clip(0, None)
+        agi = agi - pl.when(fullcg > 0).then(p.num("capital_gain_exclusion") * excluded).otherwise(0.0)
     if 1982 <= y <= 1986:
         agi = agi + pl.col("pre1987_twoded")
     if 1986 <= y <= 2007:
@@ -131,6 +135,13 @@ def compute_wi_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     else:
         tables = p.value("standard_deduction")
         index = p.num("standard_deduction_index")
+        if behavior.start_wisconsin_standard_deduction_tiers_at_their_range:
+            # TAXSIM measures these tiers from an earlier start.
+            tables = {key: [list(row) for row in rows] for key, rows in tables.items()}
+            if 2000 <= y <= 2015:
+                tables["head_of_household"][2][3] = tables["head_of_household"][1][0]
+            if 1988 <= y <= 1998:
+                tables["married_separate"][1][3] = tables["married_separate"][0][0]
         stded = (
             pl.when(files_single()).then(_standard_deduction(tables["single"], agi, index))
             .when(files_head_of_household()).then(_standard_deduction(tables["head_of_household"], agi, index))
@@ -158,8 +169,10 @@ def compute_wi_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
 
     # --- Itemized deductions (a credit from 1986) ---
     contr = pl.col("charity_cash")
-    # TAXSIM keeps mortgage interest as a single-precision whole number.
-    inrst = pl.col("mortgage").cast(pl.Int64).cast(pl.Float32).cast(pl.Float64)
+    inrst = pl.col("mortgage")
+    if not behavior.keep_wisconsin_mortgage_interest_cents:
+        # TAXSIM keeps mortgage interest as a single-precision whole number.
+        inrst = inrst.cast(pl.Int64).cast(pl.Float32).cast(pl.Float64)
     if y <= 1985:
         # The federal gross itemized total (`comnew(30)`); from 1979 less
         # state income and property taxes.
@@ -170,7 +183,8 @@ def compute_wi_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     else:
         xitded = contr + inrst
     xitded = xitded.clip(0, None)
-    if y == 1999:
+    if y == 1999 and not behavior.keep_wisconsin_1999_itemized_credit:
+        # TAXSIM zeroes it on the federal standard-deduction run.
         xitded = pl.when(forced_standard()).then(0.0).otherwise(xitded)
     df, (stded, xitded) = checkpoint(df, wi_stded=stded, wi_xitded=xitded)
 
@@ -201,8 +215,13 @@ def compute_wi_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     else:
         single_index = p.num("single_bracket_index") if p.in_effect("single_bracket_index") else index
         single = scale_brackets(schedules["single"], single_index)
-        joint = scale_brackets(schedules["married_joint"], index)
+        # TAXSIM indexes only the single schedule in 2015-2018.
+        joint_index = single_index if behavior.index_wisconsin_joint_brackets else index
+        joint = scale_brackets(schedules["married_joint"], joint_index)
         separate = schedules["married_separate"]
+        if separate is None and behavior.tax_wisconsin_1986_separate_returns:
+            # Separate returns use the joint schedule at half the bounds.
+            separate = [[b[0] / 2.0, b[1]] for b in schedules["married_joint"]]
         statax = pl.when(single_like).then(bracket_tax(taxinc, single)).when(is_joint).then(bracket_tax(taxinc, joint))
         rate = pl.when(single_like).then(bracket_rate(taxinc, single)).when(is_joint).then(bracket_rate(taxinc, joint))
         if separate is None:
@@ -210,7 +229,7 @@ def compute_wi_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             statax = statax.otherwise(0.0)
             rate = rate.otherwise(0.0)
         else:
-            separate = scale_brackets(separate, index)
+            separate = scale_brackets(separate, joint_index)
             statax = statax.otherwise(bracket_tax(taxinc, separate))
             rate = rate.otherwise(bracket_rate(taxinc, separate))
     if p.in_effect("tax_reduction"):
@@ -252,10 +271,13 @@ def compute_wi_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         )
     elif p.in_effect("school_property_credit_max"):
         cmax = p.num("school_property_credit_max") / sep
-        # The renter credit multiplies TAXSIM's renter indicator (1), not rent.
+        # TAXSIM's renter credit multiplies its renter indicator (1), not rent.
+        renter_base = renter.cast(pl.Float64)
+        if behavior.base_wisconsin_renter_credit_on_rent:
+            renter_base = pl.when(renter).then(pl.col("rentpaid")).otherwise(0.0)
         spcred = pl.when(pl.col("rentpaid") > 0).then(
             pl.min_horizontal(
-                p.num("school_property_credit_renter_rate") * renter.cast(pl.Float64)
+                p.num("school_property_credit_renter_rate") * renter_base
                 / p["school_property_credit_renter_divisor"],
                 cmax,
             )
@@ -334,8 +356,10 @@ def compute_wi_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         alminy = alminy + p.num("capital_gain_exclusion") * gains
         rate_out = p["amt_phaseout_rate"]
         exempt_single = (p.num("amt_exemption_single") - rate_out * (alminy - p.num("amt_phaseout_single")).clip(0, None)).clip(0, None)
+        # TAXSIM gives separate returns the full married exemption.
+        married_exemption = p.num("amt_exemption_married") / (sep if behavior.halve_wisconsin_separate_amt_exemption else 1.0)
         exempt_married = (
-            p.num("amt_exemption_married") - rate_out * (alminy - p.num("amt_phaseout_married") / sep).clip(0, None)
+            married_exemption - rate_out * (alminy - p.num("amt_phaseout_married") / sep).clip(0, None)
         ).clip(0, None)
         alminy = alminy - pl.when(single_like).then(exempt_single).otherwise(exempt_married)
         amt = (p["amt_rate"] * alminy - statax).clip(0, None)
@@ -351,23 +375,28 @@ def compute_wi_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         earw = (pl.col("swages") + pl.col("sbusinc") + pl.col("sprofinc") + business).clip(0, None)
         twocrd = pl.when(is_joint).then(c["rate"] * pl.min_horizontal(pl.min_horizontal(earh, earw), pl.lit(float(c["cap"])))).otherwise(0.0)
         statax = (statax - twocrd).clip(0, None)
-    # The minimum tax is added again where it exceeds the tax now.
-    statax = statax + (amt - statax).clip(0, None)
+    if not behavior.add_wisconsin_minimum_tax_once:
+        # TAXSIM adds the minimum tax again where it exceeds the tax now.
+        statax = statax + (amt - statax).clip(0, None)
 
     # --- Homestead credit (refundable) ---
     c = p.value("homestead_credit")
     rentpaid = pl.col("rentpaid")
+    homestead_rate = c["rate"]
+    if y == 1983 and not behavior.credit_wisconsin_1983_homestead_excess:
+        # TAXSIM's 1983 test repeats `le` for `gt`, so larger amounts get nothing.
+        homestead_rate = 0.0
     hymod = (hy - c["dependent_deduction"] * depx).clip(0, None)
     income_test = hy if y <= 1988 else hymod
-    # 1989-1990 test net income but reduce the credit on gross income.
-    reduce_on = hymod if y >= 1991 else hy
+    # TAXSIM's 1989-1990 test uses net income but the reduction gross income.
+    reduce_on = hymod if y >= 1991 or (y >= 1989 and behavior.use_wisconsin_net_household_income_1989_1990) else hy
     ptax = pl.min_horizontal(pl.col("proptax") + c["rent_share"] * rentpaid, pl.lit(float(c["tax_cap"])))
     tablea = pl.when(reduce_on > c["income_floor"]).then((reduce_on - c["income_floor"]) * c["income_rate"]).otherwise(0.0)
     tableb = (ptax - tablea).clip(0, None)
     pcred = (
         pl.when(tableb <= 0).then(0.0)
         .when(tableb <= c["small_limit"]).then(c["small_rate"] * tableb)
-        .otherwise(c["rate"] * tableb)
+        .otherwise(homestead_rate * tableb)
     )
     pcred = pl.when(income_test <= c["income_limit"]).then(pcred).otherwise(0.0)
     statax = statax - pcred

@@ -129,6 +129,9 @@ def compute_va_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     else:
         deduc1 = pl.col("charity_cash") + salt + pl.col("proptax") + pl.col("otheritem") + pl.col("mortgage")
         threshold = by_filing_status(p.value("itemized_limit_threshold"))
+        if behavior.scale_virginia_itemized_limit_threshold:
+            # TAXSIM scales the threshold only in the test below.
+            threshold = threshold * p.num("itemized_limit_test_index")
         sttax = pl.min_horizontal(p.num("salt_cap") / sep, salt)
         dedphs = pl.min_horizontal(
             p["itemized_limit_rate"] * (fed_agi - threshold),
@@ -136,10 +139,14 @@ def compute_va_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         )
         perc = pl.when(deduc1 > 0).then((dedphs / deduc1).clip(0, 1)).otherwise(0.0)
         limited = deduc1 - dedphs - pl.when(deduc1 > 0).then(sttax * (1 - perc)).otherwise(0.0)
-        over = fed_agi > threshold * p.num("itemized_limit_test_index")
+        test_index = 1.0 if behavior.scale_virginia_itemized_limit_threshold else p.num("itemized_limit_test_index")
+        over = fed_agi > threshold * test_index
         xitded = pl.when(fed_itemizes).then(pl.when(over).then(limited).otherwise(deduc1 - salt)).otherwise(0.0)
 
     child = depx.clip(None, 2) * p.num("child_care_deduction_per_child") if p.in_effect("child_care_deduction_per_child") else pl.lit(0.0)
+    if y == 2003 and not behavior.allow_virginia_child_care_deduction_2003:
+        # TAXSIM's year ranges skip 2003.
+        child = pl.lit(0.0)
     child = pl.min_horizontal(pl.col("childcare"), child)
     deduc = pl.max_horizontal(stded, xitded) + child
     if not p.in_effect("aged_exemption"):
@@ -189,10 +196,13 @@ def compute_va_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             + (pl.col("psemp") + pl.col("ssemp")).clip(0, None) + capgn - 0.5 * pl.col("setax")
             + pl.col("pensions") + ss + pl.col("va_schede").clip(0, None)
         )
-        # TAXSIM gives the wife the primary taxpayer's business and
-        # professional income and the husband the spouse's.
-        wife = pl.col("pbusinc") + pl.col("pprofinc") + pl.col("swages") + 0.5 * othinc
-        husb = pl.col("sbusinc") + pl.col("sprofinc") + pl.col("pwages") + 0.5 * othinc
+        if behavior.assign_business_income_to_its_earner:
+            husb = pl.col("pbusinc") + pl.col("pprofinc") + pl.col("pwages") + 0.5 * othinc
+            wife = pl.col("sbusinc") + pl.col("sprofinc") + pl.col("swages") + 0.5 * othinc
+        else:
+            # TAXSIM gives each spouse the other's business income.
+            wife = pl.col("pbusinc") + pl.col("pprofinc") + pl.col("swages") + 0.5 * othinc
+            husb = pl.col("sbusinc") + pl.col("sprofinc") + pl.col("pwages") + 0.5 * othinc
         wife = pl.min_horizontal(wife, husb)
         aged_w = (aged > 0).cast(pl.Float64)
         taxy23 = (

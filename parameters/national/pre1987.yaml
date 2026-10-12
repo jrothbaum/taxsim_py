@@ -497,12 +497,25 @@ personal_exemption_amount: {1977: 750, 1979: 1000, 1985: 1040, 1986: 1080}
 rate_reduction_credit_multiplier: {1981: 0.9875, 1982: null}
 # --- Income ---
 # Dividend exclusion (married separate as single); 1981 against interest and
-# dividends combined. 1979 is 0: TAXSIM reads an input it never sets.
+# dividends combined (TAXSIM uses 0 for 1979, reading an input it never sets).
 dividend_exclusion:
-  single: {1977: 100, 1979: 0, 1980: 100, 1981: 200, 1982: 100}
-  head_of_household: {1977: 100, 1979: 0, 1980: 100, 1981: 200, 1982: 100}
-  married_separate: {1977: 100, 1979: 0, 1980: 100, 1981: 200, 1982: 100}
-  married_joint: {1977: 200, 1979: 0, 1980: 200, 1981: 400, 1982: 200}
+  single: {1977: 100, 1981: 200, 1982: 100}
+  head_of_household: {1977: 100, 1981: 200, 1982: 100}
+  married_separate: {1977: 100, 1981: 200, 1982: 100}
+  married_joint: {1977: 200, 1981: 400, 1982: 200}
+# Credit for the elderly (IRC 37 from the Tax Reform Act of 1976; from 1984 IRC
+# 22 with doubled base amounts, P.L. 98-21): `rate` times the base amount less
+# nontaxable Social Security and `agi_share` of AGI over the threshold. One
+# taxpayer 65 or older uses `one_aged` amounts, a joint return with both 65 or
+# older the `two_aged` base; a joint return uses the `two_aged` threshold and a
+# separate return half the `two_aged` amounts.
+elderly_credit:
+  rate: 0.15
+  agi_share: 0.5
+  base:
+    1977: {one_aged: 2500, two_aged: 3750}
+    1984: {one_aged: 5000, two_aged: 7500}
+  agi_threshold: {one_aged: 7500, two_aged: 10000}
 # Excluded share of net long-term gain (the rest is ordinary income). A net loss
 # counts short-term losses in full and long-term losses at
 # `long_term_loss_share`, up to the limit (halved for married separate) and

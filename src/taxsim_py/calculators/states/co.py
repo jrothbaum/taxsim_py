@@ -25,7 +25,7 @@ def compute_co_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     p = YearParams(CO_PARAMS, effective_year)
 
     df = df.with_columns(
-        co_household_income=household_income()
+        co_household_income=household_income(behavior)
     )
     df = deflate_for_extrapolation(df, flate, extra=("co_household_income",))
 
@@ -110,7 +110,7 @@ def compute_co_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         aif = p.num("indexing_factor")
         # Federal AGI plus the 1982-1986 two-earner deduction and the
         # federal dividend exclusion.
-        div_addback = dividend_exclusion_addback(effective_year) if effective_year >= 1980 else pl.lit(0.0)
+        div_addback = dividend_exclusion_addback(effective_year, behavior) if effective_year >= 1980 else pl.lit(0.0)
         df = df.with_columns(co_agi_1=pl.col("agi") + div_addback)
         if 1982 <= effective_year <= 1986:
             p87 = YearParams(PRE1987_PARAMS, effective_year)

@@ -38,12 +38,14 @@ child_care_rate_agi_end: 30000.0
 child_care_rate_step: 2000.0
 
 # Credit for the elderly: TAXSIM's added rate is `share` times the
-# derivative times (`points` minus the Social Security rate).
+# derivative times (`points` minus the Social Security rate); statutory mode
+# uses `share` times (100 minus `points` times the derivative).
 elderly_credit_share: 0.15
 elderly_credit_points: 50.0
 
-# Child tax credit (1998 on): TAXSIM adds this many percentage points
-# while the credit fits under tax.
+# Child tax credit (1998 on): the phaseout slope as a fraction ($50 per
+# $1,000). TAXSIM adds it to the rate in percent while the credit fits under
+# tax; statutory mode adds it in points while the credit phases out.
 child_tax_credit_points: 0.05
 
 # Alternative minimum tax: rate on the exemption phase-out, and rates by

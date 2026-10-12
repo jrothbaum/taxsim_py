@@ -156,13 +156,17 @@ its instructions decide.
 - **A wrong parameter value** is corrected in the file. When the error is TAXSIM's
   own (its table disagrees with the published figure for its year), the published
   value is used in both modes and the case is listed under "Published values that
-  replace TAXSIM's" in [Statutory Corrections](statutory_corrections.md). Never
-  change a correct value to make an oracle comparison pass.
+  replace TAXSIM's" in [Statutory Corrections](statutory_corrections.md); add the
+  state year to `KNOWN_ORACLE_DIVERGENT_STATE_YEARS` in `scripts/validate_states.py`
+  (federal: mark the case `oracle_divergent`). Never change a correct value to make
+  an oracle comparison pass.
 - **A rule TAXSIM gets wrong** becomes a switch, so `calculation_mode="taxsim"`
   keeps replicating TAXSIM: add a boolean field to `BehaviorProfile` in
-  `src/taxsim_py/behavior.py`, set it `False` in `TAXSIM_BEHAVIOR` and `True` in
-  `STATUTORY_BEHAVIOR`, read `behavior.<name>` in the calculator (never the mode
-  string), and add a ledger entry with the source and the switch name. Years after
+  `src/taxsim_py/behavior.py` with the statutory value as its default (TAXSIM mode
+  flips every switch), read `behavior.<name>` in the calculator (never the mode
+  string), add a row to `tests/statutory_correction_table.py` with the column's
+  value in each mode, and add a ledger entry with the source and the switch name.
+  Mark the error's row in [Known TAXSIM errors](taxsim_errors.md). Years after
   2021 run only in statutory mode for states, so a fix confined to those years
   needs no switch.
 

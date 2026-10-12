@@ -2,6 +2,7 @@
 
 - [Project README](../README.md): install, use, supported years and inputs
 - [Statutory corrections](statutory_corrections.md): where the default mode departs from compiled TAXSIM
+- [Known TAXSIM errors](taxsim_errors.md): every apparent TAXSIM error and how it is handled
 - [PolicyEngine comparison](policyengine_recent_state_comparison.md): remaining differences from PolicyEngine-US
 - [Architecture](architecture.md): calculators, parameters, and the public API
 - [Shared functions](shared_functions.md): reusable calculation helpers

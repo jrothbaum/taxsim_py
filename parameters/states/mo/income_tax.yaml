@@ -146,7 +146,8 @@ itemized_limit_status_multiplier:  # 2013-2017; earlier years divide by `sep`
 
 # --- Deduction for federal income tax ---
 # 1994-2018: capped per taxpayer. From 2019: a share by Missouri AGI,
-# [AGI upper bound, share], none above the last bound.
+# [AGI upper bound, share], none above the last bound (the cap continues in
+# law but cannot bind at these shares).
 federal_tax_deduction_cap_per_taxpayer: {1994: 5000, 2019: null}
 federal_tax_deduction_share:
   2019: [[25000, 0.35], [50000, 0.25], [100000, 0.15], [125000, 0.05]]

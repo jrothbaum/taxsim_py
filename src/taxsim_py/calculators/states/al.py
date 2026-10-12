@@ -42,7 +42,7 @@ def compute_al_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         df = df.with_columns(al_setax_addback=0.5 * pl.col("al_setax"))
     # The federal dividend exclusion (through 1986) is added back.
     if effective_year <= 1986:
-        df = df.with_columns(al_dividend_addback=dividend_exclusion_addback(effective_year))
+        df = df.with_columns(al_dividend_addback=dividend_exclusion_addback(effective_year, behavior))
     else:
         df = df.with_columns(al_dividend_addback=pl.lit(0.0))
 

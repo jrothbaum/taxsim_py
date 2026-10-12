@@ -84,6 +84,21 @@ def run_taxsim_exe(cases: pl.DataFrame) -> pl.DataFrame:
 # oracle's carries that difference into the state results, so it counts as an
 # expected difference.
 _FEDERAL_DIVERGENT_YEARS = {2023}
+# State years where this project uses published state values in both modes
+# because TAXSIM's are confirmed wrong (docs/taxsim_errors.md): Arkansas 2004
+# bracket thresholds, California 2001 and 2018 AMT exemptions, and Maryland's
+# 2019-2021 standard deduction limits (which TAXSIM projects into 2022-2023),
+# Minnesota's 2009 head-of-household AMT exclusion, Nebraska's 1996-1997
+# additional-tax bands and 2017 inflation factor, West Virginia's 2011 family
+# credit limit.
+KNOWN_ORACLE_DIVERGENT_STATE_YEARS = {
+    "AR": {2004},
+    "CA": {2001, 2018},
+    "MD": {2019, 2020, 2021, 2022, 2023},
+    "MN": {2009},
+    "NE": {1996, 1997, 2017},
+    "WV": {2011},
+}
 _FEDERAL_TOLERANCE = 0.015
 
 
@@ -235,8 +250,11 @@ def main() -> None:
                 pl.col("oracle_divergent").fill_null(False) if "oracle_divergent" in cases.columns else pl.lit(False)
             ),
         )
+        divergent_years = KNOWN_ORACLE_DIVERGENT_STATE_YEARS.get(state_name, set())
         comparison = comparison.join(flags, on="taxsimid").with_columns(
-            oracle_divergent=pl.col("case_divergent") | _federal_divergence()
+            oracle_divergent=pl.col("case_divergent")
+            | _federal_divergence()
+            | pl.col("year").is_in(list(divergent_years))
         )
         # A missing result counts as a mismatch.
         diff_exprs = [

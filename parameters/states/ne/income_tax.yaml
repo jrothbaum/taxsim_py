@@ -111,12 +111,15 @@ zero_bracket:
 # AGI exceeds the high-income threshold and taxable income is at least the
 # minimum; below it the bracket rate applies when taxable income is under
 # `additional_tax_agi_share` of AGI above the threshold.
+# Each band steps by fixed amounts over the first bound; 1996 single and 1997
+# joint correct TAXSIM's typos ($297,950 and $575,950). The 2017 inflation
+# factor is 1.046 as in every other state (TAXSIM: 1.08).
 additional_tax_bounds:
   single:
     1993: [108450, 132450, 278450, 373450]
     1994: [111800, 135800, 281800, 376800]
     1995: [114700, 138700, 284700, 379700]
-    1996: [117950, 141950, 297950, 382950]
+    1996: [117950, 141950, 287950, 382950]
     1997: [121200, 145200, 291200, 386200]
     1998: [124500, 148500, 294500, 389500]
     1999: [126600, 150600, 296600, 391600]
@@ -139,7 +142,7 @@ additional_tax_bounds:
     1994: [111800, 151800, 411800, 579300]
     1995: [114700, 154700, 414700, 582200]
     1996: [117950, 157950, 417950, 585450]
-    1997: [121200, 161200, 421200, 575950]
+    1997: [121200, 161200, 421200, 588700]
     1998: [124500, 164500, 424500, 592000]
     1999: [126600, 166600, 426600, 594100]
     2000: [128950, 168950, 428950, 596450]
@@ -218,7 +221,7 @@ itemized_limit_inflation:
   2014: 1.0168
   2015: 1.033
   2016: 1.0376
-  2017: 1.08
+  2017: 1.046
 itemized_limit_status_multiplier: {single: 1.0, married_joint: 1.2, married_separate: 0.6, head_of_household: 1.1}
 # 1993-2017: the standard deduction falls by this share of federal AGI above the
 # threshold.

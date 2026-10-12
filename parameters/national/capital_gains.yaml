@@ -23,9 +23,9 @@ rate_28_ceiling:
 # `rate_20` above (the second ceiling is a large sentinel before 2013, when
 # there was no 20% rate). 1997-2002 `rate_0` is 10% and `rate_15` the 20% top
 # rate; 2003 dividends and gains have their own `transition_rates`. Dividends
-# are treated as qualified. TAXSIM's single 2022 second ceiling is $459,650 here
-# and $459,750 in amt.yaml; both kept as found. Source 2024-2025: Rev. Proc.
-# 2023-34 and 2024-40.
+# are treated as qualified. The single 2022 second ceiling is $459,750 (Rev.
+# Proc. 2021-45; TAXSIM's regular-tax copy has $459,650). Source 2024-2025:
+# Rev. Proc. 2023-34 and 2024-40.
 rate_0_ceiling:
   single:
     1987: 1800
@@ -203,7 +203,7 @@ rate_15_ceiling:
     2019: 434550
     2020: 441450
     2021: 445850
-    2022: 459650
+    2022: 459750
     2023: 492300
     2024: 518900
     2025: 533400

@@ -4,11 +4,10 @@
 from __future__ import annotations
 import polars as pl
 
-from taxsim_py.calculators.federal_pre1987 import PRE1987_PARAMS
 from taxsim_py.engine.eitc import trapezoid_credit
 from taxsim_py.engine.inputs import aged_count, files_joint, is_dependent_filer, separate_divisor, taxpayer_count
-from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml, resolve_year
-from taxsim_py.engine.state import by_filing_status, household_income, interpolate_table, unemployment_total, with_state_detail
+from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml
+from taxsim_py.engine.state import federal_dividend_exclusion_limit, household_income, interpolate_table, unemployment_total, with_state_detail
 from taxsim_py.behavior import BehaviorProfile, TAXSIM_BEHAVIOR
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
@@ -19,7 +18,7 @@ def compute_in_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     effective_year, flate = resolve_state_year(year, behavior, IN_PARAMS)
     p = YearParams(IN_PARAMS, effective_year)
     df = df.with_columns(
-        in_household_income=household_income(),
+        in_household_income=household_income(behavior),
         in_sep=separate_divisor(),
         in_taxpayers=taxpayer_count(),
     )
@@ -35,8 +34,7 @@ def compute_in_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     ui_total = unemployment_total()
 
     if p.in_effect("dividend_exclusion_per_taxpayer"):
-        excl_table = PRE1987_PARAMS["dividend_exclusion"]
-        fed_excl = by_filing_status({status: resolve_year(amounts, effective_year) for status, amounts in excl_table.items()})
+        fed_excl = federal_dividend_exclusion_limit(effective_year, behavior)
         divexc = pl.min_horizontal(pl.col("dividends") + pl.col("intrec"), fed_excl)
         own_excl_per_filer = p.num("dividend_exclusion_per_taxpayer")
         own_excl = pl.min_horizontal(pl.col("dividends"), own_excl_per_filer * pl.col("in_taxpayers"))

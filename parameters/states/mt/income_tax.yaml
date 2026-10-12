@@ -108,12 +108,14 @@ federal_tax_rebate:
 # separate returns), at most `itemized_limit_max_share`, times the fraction.
 itemized_limit_rate: {1991: 0.03, 2018: null}
 itemized_limit_max_share: {1991: 0.8}
-itemized_limit_fraction:  # share of the limit applied
+# share of the limit applied; none 2010-2012 (the 2011 Form 2 has no
+# limitation; TAXSIM suspends it in 2010 only)
+itemized_limit_fraction:
   1991: 1.0
   2006: 0.6666666666666666
   2008: 0.3333333333333333
   2010: 0.0
-  2011: 1.0
+  2013: 1.0
 itemized_limit_threshold_base: {1991: 100000, 2013: 250000}
 itemized_limit_inflation:
   1991: 1.0

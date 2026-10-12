@@ -42,7 +42,7 @@ def compute_ok_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     # Household income is taken before projected years are deflated (`hy`);
     # the 1999+ sales tax credit reads the deflated copy (`data(159)`).
     df = df.with_columns(
-        ok_household_income_undeflated=household_income(),
+        ok_household_income_undeflated=household_income(behavior),
         ok_ui=unemployment_total(),
     )
     df = df.with_columns(ok_household_income=pl.col("ok_household_income_undeflated"))
@@ -62,7 +62,7 @@ def compute_ok_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     # --- AGI ---
     agi = fed_agi
     if y <= 1986:
-        agi = agi + dividend_exclusion_addback(y)
+        agi = agi + dividend_exclusion_addback(y, behavior)
     if y >= 1985:
         agi = agi - pl.col("taxable_social_security")
     # Retirement income exclusion.

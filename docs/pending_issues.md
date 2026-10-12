@@ -1,6 +1,6 @@
 # Pending issues
 
-Status as of 2026-10-04.
+Status as of 2026-10-12.
 
 Line numbers refer to `taxsim_2024_09_21.f`, and "the executable" means `taxsim2024.exe`.
 
@@ -11,7 +11,7 @@ differences are documented in
 
 ## Prioritized roadmap
 
-The calculation engine is ready for a research beta: all 49,101 federal and
+The calculation engine is ready for a research beta: all 48,713 federal and
 278,781 state validation cases pass after explicitly classified TAXSIM errors
 and threshold round-off. Realistic CPS comparisons cover every year from 1977
 through 2021 (against the compiled TAXSIM) and 2022-2025 (against PolicyEngine),
@@ -139,16 +139,12 @@ testing/replication mode.
 
 ## Open items
 
-### TAXSIM errors not yet on the design doc's "Apparent TAXSIM errors" tab
+### Recent TAXSIM errors
 
-Corrected in statutory mode and written up in
-[`statutory_corrections.md`](statutory_corrections.md): California unemployment
-removed twice (CA-001), California minimum tax (CA-002), California young child
-credit (CA-004), the pre-1998 nonrefundable credit total (FED-INCOME-001), the
-payroll and self-employment cases (FED-PAYROLL-001 to 004), the California and
-New Jersey childless credit age (CA-005/NJ-001), Massachusetts payroll
-deduction (MA-001), and Colorado's pension subtraction (CO-001). Still only
-recorded here:
+Every apparent TAXSIM error, with how the port handles it, is listed in
+[`taxsim_errors.md`](taxsim_errors.md); add new ones there. Corrections are
+written up in [`statutory_corrections.md`](statutory_corrections.md). Errors
+found most recently, all included in `taxsim_errors.md`:
 
 - **Federal, 2024 onward:** the compiled TAXSIM refuses to run past 2023 (a hard
   year check and the `xndxa(1981:2023)` array bound). The port computes real law
@@ -165,7 +161,7 @@ recorded here:
   `compare_cps.py` counts these as a known difference.
 - **Reported ages:** the executable pays the childless EITC below the minimum age
   (25, or 19 in 2021) and does not cap young filers' AMT exemption. The port uses
-  the reported ages. This may already be on the tab.
+  the reported ages.
 - **Arkansas, 2004:** TAXSIM reuses the 1977 bracket thresholds ($3,000, $6,000,
   $9,000, $15,000, $25,000). The published 2004 thresholds are $3,400, $6,800,
   $10,300, $17,100 and $28,500
@@ -208,6 +204,8 @@ recorded here:
   unearned income claimed as dependents).
 - **TAXSIM options:** `opt1/opt1v/opt2/opt2v` are accepted but ignored; if revisited,
   implement only the 8 documented switches.
+- **Null inputs:** a supplied input column with null values gives null results for
+  those rows (missing columns default to 0, nulls are not filled).
 - **Small data discrepancy:** the 2023 married-separate 15%/20% capital-gains ceiling
   is $276,925 here against $276,900 in PolicyEngine-US.
 - **Outside this repo:** `survey_kit_data/src/survey_kit_data/census/cps_asec.py`

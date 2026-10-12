@@ -82,7 +82,7 @@ def compute_nd_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         elif y <= 1982:
             agi = agi - pl.min_horizontal(pl.col("intrec"), p.num("interest_exclusion_per_taxpayer") * txp)
             if y == 1982:
-                agi = agi + dividend_exclusion_addback(y)
+                agi = agi + dividend_exclusion_addback(y, behavior)
         else:
             if y == 1985:
                 agi = agi - pl.col("taxable_social_security")
@@ -108,8 +108,12 @@ def compute_nd_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         statax = bracket_tax(taxinc, brackets)
         rate = bracket_rate(taxinc, brackets)
     elif y <= 2000:
-        # State income tax deducted federally is added back for every return.
-        taxinc = (pl.col("taxable_income") + pl.col("state_sales_or_income_tax_ded") - fded - addex).clip(0, None)
+        # State income tax deducted federally is added back (TAXSIM: for every
+        # return, itemizing or not).
+        addback = pl.col("state_sales_or_income_tax_ded")
+        if behavior.add_back_north_dakota_state_tax_for_itemizers_only:
+            addback = pl.when(pl.col("itemizes")).then(addback).otherwise(0.0)
+        taxinc = (pl.col("taxable_income") + addback - fded - addex).clip(0, None)
         df, (taxinc,) = checkpoint(df, nd_taxinc=taxinc)
         statax = bracket_tax(taxinc, p.value("brackets"))
         rate = bracket_rate(taxinc, p.value("brackets"))

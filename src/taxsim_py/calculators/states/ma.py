@@ -42,7 +42,13 @@ def compute_ma_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     is_single = files_single()
     not_sep = ~is_sep
     n_tp = taxpayer_count()
-    x_flag = pl.lit(1.0) if y >= 1985 else pl.when(is_joint).then(1.0).otherwise(0.0)
+    if y <= 1984:
+        x_flag = pl.when(is_joint).then(1.0).otherwise(0.0)
+    elif behavior.exclude_separate_returns_from_massachusetts_exemption_carryover:
+        x_flag = pl.when(is_sep).then(0.0).otherwise(1.0)
+    else:
+        # TAXSIM's test `mst.ne.3.or.mst.ne.6` is true for every status.
+        x_flag = pl.lit(1.0)
 
     # Negative wages count as self-employment income.
     w1 = pl.col("pwages").clip(0, None)
@@ -118,7 +124,11 @@ def compute_ma_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     ch = pl.when(is_sep).then(0.0).otherwise(ch)
     ch1 = pl.lit(0.0)
     chcred = pl.lit(0.0)
-    if p.in_effect("child_care_deduction_per_child"):
+    child_care_deduction = p.in_effect("child_care_deduction_per_child")
+    if 2011 <= y <= 2020 and not behavior.allow_massachusetts_child_care_deduction_2011_2020:
+        # TAXSIM's test `law.eq.2010.and.law.le.2020` keeps it in 2010 only.
+        child_care_deduction = False
+    if child_care_deduction:
         ch1 = pl.min_horizontal(pl.col("childcare"), p.num("child_care_deduction_per_child") * ndep13)
     elif p.in_effect("child_care_credit_per_child"):
         chcred = pl.min_horizontal(pl.col("childcare"), p.num("child_care_credit_per_child") * ndep13)

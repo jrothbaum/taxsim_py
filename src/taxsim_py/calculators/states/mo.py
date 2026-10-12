@@ -34,7 +34,7 @@ def compute_mo_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     setax = pl.col("payroll_setax")
     df = df.with_columns(
         mo_setax=setax,
-        mo_household_income=household_income(),
+        mo_household_income=household_income(behavior),
     )
     df = deflate_for_extrapolation(df, flate, extra=("mo_household_income",))
 
@@ -130,7 +130,7 @@ def compute_mo_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     exemp = pl.when(dependent_filer).then(0.0).otherwise(exemp)
 
     # --- Itemized deductions (only when itemizing federally) ---
-    socsec = taxsim_socsec(y, setax, pl.col("addmed"))
+    socsec = taxsim_socsec(y, setax, pl.col("addmed"), behavior)
     xitded = (deducp + pl.min_horizontal(socsec, p.num("payroll_tax_deduction_cap") * txp) - salt_ded).clip(0, None)
     if p.in_effect("self_employment_tax_deduction_cap"):
         septx = pl.min_horizontal(p.num("self_employment_tax_deduction_cap") * txp, setax)
@@ -231,15 +231,22 @@ def compute_mo_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         income_limit = pl.when(is_owner).then(float(owner["income_limit"])).otherwise(income_limit)
         maximum = pl.when(is_owner).then(float(owner["maximum"])).otherwise(maximum)
         steps = pl.when(is_owner).then(float(owner["steps"])).otherwise(steps)
-    # The last step reached sets the income percentage; income within the
-    # first step above the base gets no credit.
+    # The last step reached sets the income percentage.
     reached = pl.min_horizontal(((hy1 - base) / step).floor(), steps - 1.0)
-    stepped = pl.when(reached >= 1).then(
-        (maximum - hy1 * float(MO_PARAMS["property_credit_rate_step"]) * (reached + 1.0)).clip(0, None)
-    ).otherwise(0.0)
+    rate_step = float(MO_PARAMS["property_credit_rate_step"])
     ptax = proptax + float(MO_PARAMS["property_credit_rent_share"]) * rentpaid
+    if behavior.apply_missouri_property_credit_to_tax_paid:
+        # RSMo 135.030: tax paid up to the maximum less the income percentage.
+        paid = pl.min_horizontal(ptax, maximum)
+        stepped = (paid - hy1 * rate_step * (reached.clip(0, None) + 1.0)).clip(0, None)
+        full = paid
+    else:
+        # TAXSIM reduces the maximum, not the tax paid, and gives no credit
+        # within the first step above the base.
+        stepped = pl.when(reached >= 1).then((maximum - hy1 * rate_step * (reached + 1.0)).clip(0, None)).otherwise(0.0)
+        full = maximum
     pcred = pl.when((aged > 0) & (hy1 < income_limit) & (ptax > 0)).then(
-        pl.when(hy1 <= base).then(maximum).otherwise(stepped)
+        pl.when(hy1 <= base).then(full).otherwise(stepped)
     ).otherwise(0.0)
     if y <= 1978:
         pcred = pl.min_horizontal(pcred, statax)

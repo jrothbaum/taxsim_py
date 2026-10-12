@@ -38,7 +38,7 @@ def compute_mt_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     # Household income (`hy`) is read before TAXSIM's projected-year deflation.
     df = df.with_columns(
         mt_ui=unemployment_total(),
-        mt_household_income_undeflated=household_income(),
+        mt_household_income_undeflated=household_income(behavior),
         mt_half_setax=0.5 * pl.col("payroll_setax"),
     )
     df = deflate_for_extrapolation(df, flate, extra=("mt_ui", "mt_half_setax"))
@@ -66,7 +66,12 @@ def compute_mt_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         agi = agi + pl.col("mt_ui") - pl.col("taxable_unemployment")
     cg_exclusion = p.num("capital_gains_exclusion_rate") * capgn.clip(0, None)
     agi = agi - cg_exclusion
-    subtr = cg_exclusion + pl.col("mt_ui")
+    # Montana subtracts the unemployment compensation in federal AGI; TAXSIM
+    # subtracts all of it (it adds the 2020 federal exclusion back first).
+    ui_subtraction = pl.col("mt_ui")
+    if y != 2020 and behavior.subtract_only_taxable_unemployment_in_montana:
+        ui_subtraction = pl.col("taxable_unemployment")
+    subtr = cg_exclusion + ui_subtraction
     if p.in_effect("aged_interest_exclusion"):
         excint = pl.min_horizontal(pl.col("intrec"), p.num("aged_interest_exclusion") * aged)
         agi = agi - excint
@@ -94,15 +99,18 @@ def compute_mt_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         agi = (agi - retexc).clip(0, None)
         subtr = subtr + retexc
     if y >= 1984:
-        agi = agi - pl.col("mt_ui")
-        agi = agi + pl.when(is_sep & (fullcg < 0)).then(
-            pl.max_horizontal(pl.lit(p.num("separate_capital_loss_floor")), fullcg)
-        ).otherwise(0.0)
+        agi = agi - ui_subtraction
+        if not behavior.subtract_montana_separate_capital_loss_once:
+            # TAXSIM subtracts a separate filer's capital loss a second time.
+            agi = agi + pl.when(is_sep & (fullcg < 0)).then(
+                pl.max_horizontal(pl.lit(p.num("separate_capital_loss_floor")), fullcg)
+            ).otherwise(0.0)
     # Social Security on Montana's worksheet in place of the federal amount.
     ssagi = pl.lit(0.0)
     if y >= 1984:
         gssi = pl.col("gssi")
-        provisional = 0.5 * gssi + fed_agi - pl.col("taxable_social_security") + pl.col("transfers")
+        transfers = pl.lit(0.0) if behavior.exclude_transfers_from_provisional_income else pl.col("transfers")
+        provisional = 0.5 * gssi + fed_agi - pl.col("taxable_social_security") + transfers
         xl8 = subtr + pl.col("mt_half_setax")
         single_class = pl.col("filing_status").is_in(["single", "head_of_household"])
         base_1 = pl.when(single_class).then(float(MT_PARAMS["social_security_base"]["single"])).otherwise(
@@ -112,6 +120,8 @@ def compute_mt_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             float(MT_PARAMS["social_security_second_base"]["married"]) / sep
         )
         xl11 = provisional - xl8 - base_1
+        if behavior.floor_montana_social_security_worksheet:
+            xl11 = xl11.clip(0, None)
         rate_1, rate_2 = float(MT_PARAMS["social_security_rate_1"]), float(MT_PARAMS["social_security_rate_2"])
         worksheet = pl.min_horizontal(
             pl.min_horizontal(rate_1 * gssi, rate_1 * pl.min_horizontal(xl11, base_2))
@@ -167,10 +177,14 @@ def compute_mt_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             )
         else:
             threshold = p.num("itemized_limit_threshold_base") * p.num("itemized_limit_inflation") / sep
+        fraction = p.num("itemized_limit_fraction")
+        if y in (2011, 2012) and not behavior.suspend_montana_itemized_limit_through_2012:
+            # TAXSIM's suspension test is true only in 2010.
+            fraction = 1.0
         reduce = pl.min_horizontal(
             p.num("itemized_limit_max_share") * (deducp - salt_ded),
             p.num("itemized_limit_rate") * (agi - threshold),
-        ) * p.num("itemized_limit_fraction")
+        ) * fraction
         xitded = xitded - pl.when(agi > threshold).then(reduce).otherwise(0.0)
     if p.in_effect("child_care_expense_cap"):
         caps = p.value("child_care_expense_cap")

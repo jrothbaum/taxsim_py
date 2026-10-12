@@ -84,7 +84,10 @@ def _qbi_deduction(year: int, dividends: pl.Expr, capgn: pl.Expr) -> pl.Expr:
 
 
 def _law87_analytic_rate(
-    year: int, brackets_by_status: dict[str, list[list[float]]], sepret: pl.Expr
+    year: int,
+    brackets_by_status: dict[str, list[list[float]]],
+    sepret: pl.Expr,
+    behavior: BehaviorProfile = TAXSIM_BEHAVIOR,
 ) -> pl.Expr:
     """TAXSIM's analytic marginal rate (`comnew(72)`, percent) for 1987-2000.
 
@@ -120,7 +123,8 @@ def _law87_analytic_rate(
         rate = pl.when((cglong > 0) & (rate == 0)).then(cap).otherwise(rate)
         capped = (taxinc >= ttab) & (taxinc - cglong <= ttab)
         regrat = pl.when(capped).then(pl.when(taxinc > ttab).then(cap).otherwise(0.0)).otherwise(rate)
-    elif year <= 1990 or year == 1993:
+    elif year <= 1990 or (year == 1993 and not behavior.correct_analytic_federal_rate):
+        # TAXSIM's 1993 gains adjustment does not reach the returned rate.
         regrat = rate_at(taxinc)
     elif year <= 1992:
         bot28, top28 = threshold(1), threshold(2)
@@ -142,6 +146,11 @@ def _law87_analytic_rate(
             .otherwise(rate_at(taxin3))
         )
         cglong = pl.when(pl.col("ltcg") > 0).then(cglong).otherwise(0.0)
+        if behavior.correct_analytic_federal_rate:
+            # The capped rate applies only when the capped computation is cheaper.
+            gains_rate = pl.when(cheaper).then(pl.when(below).then(cap).otherwise(rate_at(taxin3))).otherwise(
+                rate_at(taxinc)
+            )
         regrat = pl.when(cglong > 0).then(gains_rate).otherwise(rate_at(taxinc))
     else:
         regrat = rate_at((taxinc - pl.col("ltg").clip(0, None)).clip(0, None))
@@ -166,6 +175,9 @@ def _law87_analytic_rate(
     phase_in_credit = pl.min_horizontal(rtbs * earned, crm)
     phased = pl.min_horizontal(phase_in_credit, (crm - rtlw * (income - ym)).clip(0, None))
     files = (status != "married_separate") & ~is_dependent_filer() & rtbs.is_not_null()
+    if behavior.correct_analytic_federal_rate:
+        # No slope where the eligibility tests remove the credit.
+        files = files & ~((phased > 0) & (pl.col("eitc") <= 0))
     reic = (
         pl.when(files & (income > ym) & (phased > 0)).then(rtlw * dagidw)
         .when(files & (phase_in_credit < crm) & (income < ym)).then(-rtbs * dagidw)
@@ -195,8 +207,15 @@ def _law87_analytic_rate(
         expense = pl.col("analytic_ccc_expense")
         rchild = pl.when(phasing & (expense > 0)).then(dagidw * expense / a["child_care_rate_step"]).otherwise(0.0)
 
+    if behavior.correct_analytic_federal_rate:
+        # The credit falls by half the AGI change and rises with the taxable
+        # share of benefits: share * (100 - points * dagidw).
+        elderly_slope = a["elderly_credit_share"] * (100.0 - a["elderly_credit_points"] * dagidw)
+    else:
+        # TAXSIM subtracts the Social Security rate (percent) from 50.
+        elderly_slope = a["elderly_credit_share"] * dagidw * (a["elderly_credit_points"] - rssa)
     rold = pl.when((pl.col("analytic_elder_excess") > 0) & (pl.col("federal_elder") > 0)).then(
-        (a["elderly_credit_share"] * dagidw * (a["elderly_credit_points"] - rssa)).clip(0, None)
+        elderly_slope.clip(0, None)
     ).otherwise(0.0)
 
     taxbca = pl.col("tax_before_credits")
@@ -206,7 +225,13 @@ def _law87_analytic_rate(
     rcht = pl.lit(0.0)
     if year >= 1998:
         xlin10 = (taxbca - chcr - elder).clip(0, None)
-        rcht = pl.when((precrd > 0) & (precrd < xlin10)).then(a["child_tax_credit_points"]).otherwise(0.0)
+        usable = (precrd > 0) & (precrd < xlin10)
+        if behavior.correct_analytic_federal_rate:
+            # The phaseout slope, in percent, while the credit phases out.
+            rcht = pl.when(usable & pl.col("analytic_ctc_phasing")).then(100.0 * a["child_tax_credit_points"]).otherwise(0.0)
+        else:
+            # TAXSIM adds the fraction to a rate in percent, phasing out or not.
+            rcht = pl.when(usable).then(a["child_tax_credit_points"]).otherwise(0.0)
 
     rrate = rssa + rchild + rold + rgrate + 100.0 * (rsave + rxmp) + rded + rexem
     rate = rrate + reic + rcht
@@ -318,12 +343,12 @@ def compute_federal_income_tax(
         # The pre-1977 law has a separate calculation structure.
         from taxsim_py.calculators.federal_law60 import compute_federal_income_tax_law60
 
-        return compute_federal_income_tax_law60(df, year)
+        return compute_federal_income_tax_law60(df, year, behavior)
     if year <= 1986:
         # The 1977-1986 law has a separate calculation structure.
         from taxsim_py.calculators.federal_pre1987 import compute_federal_income_tax_pre1987
 
-        return compute_federal_income_tax_pre1987(df, year)
+        return compute_federal_income_tax_pre1987(df, year, behavior)
     df = df.with_columns(
         filing_status=filing_status(),
         wages=pl.col("pwages") + pl.col("swages"),
@@ -432,7 +457,10 @@ def _income(
     two_tiers = YearParams(ss_p, year).in_effect("second_tier_rate")
     second_tier_rate = YearParams(ss_p, year).num("second_tier_rate") if two_tiers else 0.0
     benefits = pl.col("gssi").clip(0, None)
-    provisional = income_before_ss + pl.col("transfers") + 0.5 * benefits
+    # Provisional income adds tax-exempt interest, which TAXSIM reads from the
+    # transfers input.
+    transfers = pl.lit(0.0) if behavior.exclude_transfers_from_provisional_income else pl.col("transfers")
+    provisional = income_before_ss + transfers + 0.5 * benefits
     if "per_spouse" in ui_exclusion:
         provisional = provisional + ui_total
     taxable_ss = taxable_social_security(
@@ -850,7 +878,7 @@ def _alternative_minimum_tax(df: pl.DataFrame | pl.LazyFrame, year: int, behavio
     amt_exemption_expr = _by_status_at(amt_p["exemption"], year)
     amt_phaseout_threshold_expr = _by_status_at(amt_p["exemption_phaseout_threshold"], year)
     amt_income = pl.col("agi") - pl.when(pl.col("itemizes")).then(pl.col("mortgage")).otherwise(0.0)
-    if year in (1991, 1992):
+    if year in (1991, 1992) and not behavior.exempt_amt_from_itemized_limit_1991_1992:
         # TAXSIM adds the itemized-deduction limitation back for itemizers.
         amt_income = amt_income + pl.when(pl.col("itemizes")).then(pl.col("deduction_phaseout")).otherwise(0.0)
     # 1990+: dependents and young filers get at most earned income plus a
@@ -860,6 +888,9 @@ def _alternative_minimum_tax(df: pl.DataFrame | pl.LazyFrame, year: int, behavio
         young_age = amt_p.num("young_filer_age")
         older_age = pl.max_horizontal(pl.col("page"), pl.col("sage"))
         young = pl.when(older_age > 0).then(older_age < young_age).otherwise(is_dependent_filer())
+        if behavior.cap_amt_exemption_for_dependents_only:
+            # The cap applies to children subject to the tax on unearned income.
+            young = young & is_dependent_filer()
         addition = amt_p.num("young_filer_exemption_addition")
         young_filer_cap = pl.when(young).then(pl.col("earned_income") + addition).otherwise(None)
     amt_income = amt_income.clip(0, None)
@@ -924,7 +955,7 @@ def _alternative_minimum_tax(df: pl.DataFrame | pl.LazyFrame, year: int, behavio
             analytic_amt_phasing=(exclnt > 0) & (phaout > 0),
             analytic_alminc=(pl.col("amt_income") - exclnt).clip(0, None),
         )
-    if year <= 1999:
+    if year <= 1999 and not behavior.add_amt_before_2000:
         # TAXSIM computes AMT before 2000 but does not add it to liability.
         df = df.with_columns(tax_before_credits=pl.col("regular_tax"))
     else:
@@ -951,7 +982,7 @@ def _credits(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorProfi
     ccc_amount = ccc_rate * ccc_expense
     if ccc_p.value("refundable"):
         ccc = ccc_amount.clip(0, None)
-    elif year < 1998:
+    elif year < 1998 and not behavior.apply_nonrefundable_credits_before_1998:
         # TAXSIM does not apply the computed CCC before 1998.
         ccc = pl.lit(0.0)
     else:
@@ -959,7 +990,9 @@ def _credits(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorProfi
     # `ccc_uncapped` is the credit before the tax-liability cap (`chcrst`).
     # `federal_chcr` is the credit states read as `comnew(53)`: before 1998,
     # when TAXSIM does not apply it, the credit limited to regular tax.
-    federal_chcr = pl.min_horizontal(ccc_amount.clip(0, None), pl.col("regular_tax")) if year < 1998 else ccc
+    federal_chcr = ccc
+    if year < 1998 and not behavior.apply_nonrefundable_credits_before_1998:
+        federal_chcr = pl.min_horizontal(ccc_amount.clip(0, None), pl.col("regular_tax"))
     df = df.with_columns(ccc=ccc, ccc_uncapped=ccc_amount.clip(0, None), federal_chcr=federal_chcr)
     if analytic_rate:
         df = df.with_columns(analytic_ccc_expense=ccc_expense)
@@ -1020,7 +1053,9 @@ def _credits(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorProfi
     eld_p = FEDERAL_INCOME_TAX_PARAMS["elderly_credit"]
     sepret = _sepret()
     one_aged = (aged_count() == 1) & (sepret != 2)
-    threshold = pl.when(one_aged).then(eld_p["agi_threshold"]["one_aged"]).otherwise(
+    # The AGI threshold is set by filing status, not by the number aged.
+    single_threshold = (~files_joint() & (sepret != 2)) if behavior.use_joint_elderly_credit_threshold else one_aged
+    threshold = pl.when(single_threshold).then(eld_p["agi_threshold"]["one_aged"]).otherwise(
         eld_p["agi_threshold"]["two_aged"] / sepret
     )
     base = pl.when(one_aged).then(eld_p["base"]["one_aged"]).otherwise(eld_p["base"]["two_aged"] / sepret)
@@ -1030,7 +1065,10 @@ def _credits(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorProfi
         eld_p["rate"] * (base - (eld_p["agi_share"] * excess_agi + nontaxable_benefits)).clip(0, None)
     ).otherwise(0.0)
     df = df.with_columns(
-        federal_elder=elderly_credit, elderly_credit_raw=elderly_credit if year >= 1998 else pl.lit(0.0)
+        federal_elder=elderly_credit,
+        elderly_credit_raw=elderly_credit
+        if year >= 1998 or behavior.apply_nonrefundable_credits_before_1998
+        else pl.lit(0.0),
     )
     if analytic_rate:
         df = df.with_columns(analytic_elder_excess=pl.when(aged_count() > 0).then(excess_agi).otherwise(0.0))
@@ -1087,6 +1125,15 @@ def _credits(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorProfi
         remaining_after_ccc = (pl.col("tax_before_credits") - pl.col("ccc") - pl.col("elderly_credit_raw")).clip(0, None)
         nonrefundable_credit = pl.min_horizontal(combined_after_phaseout, remaining_after_ccc)
         actc = pl.lit(0.0)
+        if behavior.allow_additional_child_credit_before_2001 and ctc_p.in_effect("refundable_minimum_children"):
+            # With three or more children, the unused credit is refundable up to
+            # the employee share of payroll tax in excess of the EITC.
+            employee_payroll_tax = 0.5 * (pl.col("__payroll_wage_tax") + pl.col("__payroll_setax"))
+            limit = (employee_payroll_tax - pl.col("eitc")).clip(0, None)
+            minimum_children = ctc_p.num("refundable_minimum_children")
+            actc = pl.when(ideps >= minimum_children).then(
+                pl.min_horizontal(combined_after_phaseout - nonrefundable_credit, limit)
+            ).otherwise(0.0)
     else:
         remaining_after_ccc = (pl.col("tax_before_credits") - pl.col("ccc") - pl.col("elderly_credit_raw")).clip(0, None)
         nonrefundable_credit = pl.min_horizontal(combined_after_phaseout, remaining_after_ccc)
@@ -1107,9 +1154,11 @@ def _credits(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorProfi
         actc=actc,
     )
     if analytic_rate:
-        df = df.with_columns(analytic_ctc=combined_after_phaseout)
+        df = df.with_columns(analytic_ctc=combined_after_phaseout, analytic_ctc_phasing=agi > odc_threshold_expr)
         # The analytic rate reads the columns set above.
-        df = df.with_columns(federal_source_rate=_law87_analytic_rate(year, _brackets_by_status(year), sepret))
+        df = df.with_columns(
+            federal_source_rate=_law87_analytic_rate(year, _brackets_by_status(year), sepret, behavior)
+        )
     return df
 
 
@@ -1152,7 +1201,9 @@ def _net_tax(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorProfi
     # or credit calculations, so this only fixes what's reported, not
     # whether the elderly credit reduces `fiitax` pre-1998 (it still
     # doesn't, matching TAXSIM). See statutory_corrections.md.
-    if year < 1998 and behavior.count_pre_1998_nonrefundable_credits_correctly:
+    if year < 1998 and behavior.apply_nonrefundable_credits_before_1998:
+        nonrefundable_credits = pl.col("ccc") + pl.col("elderly_credit")
+    elif year < 1998 and behavior.count_pre_1998_nonrefundable_credits_correctly:
         nonrefundable_credits = pl.col("federal_elder")
     elif year < 1998:
         tax = pl.col("tax_before_credits").clip(0, None)

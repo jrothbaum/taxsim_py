@@ -17,7 +17,7 @@ def compute_tn_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     y = effective_year
     p = YearParams(TN_PARAMS, effective_year)
     dividend_adjustment = dividend_input_adjustment()
-    df = df.with_columns(tn_household_income=household_income())
+    df = df.with_columns(tn_household_income=household_income(behavior))
     df = deflate_for_extrapolation(df, flate, extra=("tn_household_income",))
 
     rate = p.num("rate")

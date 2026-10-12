@@ -7,11 +7,13 @@ from typing import Any
 
 import polars as pl
 
+from taxsim_py.behavior import BehaviorProfile, TAXSIM_BEHAVIOR
 from taxsim_py.engine.inputs import separate_divisor
 from taxsim_py.engine.schema import PARAMETERS_ROOT, load_yaml, resolve_year
 
 _PRE1987_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "pre1987.yaml")
 _SOCSEC_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "state_socsec.yaml")
+_PAYROLL_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "payroll_tax.yaml")
 _ADJUSTMENT_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "state_adjustments.yaml")
 _CAPITAL_GAINS_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "capital_gains.yaml")
 
@@ -123,17 +125,24 @@ def dividend_input_adjustment() -> float:
     return float(_ADJUSTMENT_PARAMS["household_income_dividend_adjustment"])
 
 
-def household_income() -> pl.Expr:
+def household_income(behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.Expr:
     """TAXSIM's household-income total (`data(159)`) from raw inputs.
 
     Sums positive wages, dividends, pensions, unemployment compensation,
-    Social Security benefits, transfers, interest, business and S
-    corporation income, other property income and positive net capital
-    gains, plus the two TAXSIM input adjustments. Self-employment and other
-    non-property income are not included.
+    Social Security benefits, transfers, interest, self-employment, business
+    and S corporation income, other property income and positive net capital
+    gains, plus TAXSIM's input adjustments (in statutory mode only the
+    dividend one). Other non-property income is not included, nor (in
+    TAXSIM mode) self-employment income.
     """
     record_adjustment = float(_ADJUSTMENT_PARAMS["household_income_record_adjustment"])
-    return (
+    if behavior.drop_household_income_record_adjustment:
+        # TAXSIM's leftover $1 from the first record's input.
+        record_adjustment = 0.0
+    self_employment = (
+        pl.col("psemp") + pl.col("ssemp") if behavior.include_self_employment_in_household_income else pl.lit(0.0)
+    )
+    return self_employment + (
         pl.col("pwages").clip(0, None)
         + pl.col("swages").clip(0, None)
         + pl.col("dividends")
@@ -155,7 +164,17 @@ def higher_earner_share(income: pl.Expr) -> pl.Expr:
     return pl.max_horizontal(pl.col("pwages"), pl.col("swages")) + (income - pl.col("wages")) / 2.0
 
 
-def dividend_exclusion_addback(year: int) -> pl.Expr:
+def federal_dividend_exclusion_limit(year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.Expr:
+    """The 1960-1986 federal dividend exclusion limit by filing status."""
+    if year == 1979 and not behavior.apply_1979_dividend_exclusion:
+        # TAXSIM reads the 1979 exclusion from an input it never sets.
+        return pl.lit(0.0)
+    return by_filing_status(
+        {status: resolve_year(amounts, year) for status, amounts in _PRE1987_PARAMS["dividend_exclusion"].items()}
+    )
+
+
+def dividend_exclusion_addback(year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.Expr:
     """Federal dividend exclusion that states add back to federal AGI (`divexc`).
 
     Before 1987 this is the dividends (plus interest in 1981) excluded from
@@ -166,10 +185,7 @@ def dividend_exclusion_addback(year: int) -> pl.Expr:
     excluded = pl.col("dividends") + dividend_input_adjustment()
     if year == 1981:
         excluded = excluded + pl.col("intrec")
-    limit = by_filing_status(
-        {status: resolve_year(amounts, year) for status, amounts in _PRE1987_PARAMS["dividend_exclusion"].items()}
-    )
-    return pl.min_horizontal(excluded, limit).clip(0, None)
+    return pl.min_horizontal(excluded, federal_dividend_exclusion_limit(year, behavior)).clip(0, None)
 
 
 def tier_values(value: pl.Expr, uppers: list[float], *columns: list[float], strict: bool = False) -> list[pl.Expr]:
@@ -231,19 +247,27 @@ def pre1987_federal_itemizing(year: int) -> tuple[pl.Expr, pl.Expr, pl.Expr]:
     return gross, pl.col("pre1987_itemizes"), pl.col("pre1987_zbr")
 
 
-def taxsim_socsec(year: int, setax: pl.Expr, addmed: pl.Expr | None = None) -> pl.Expr:
+def taxsim_socsec(
+    year: int, setax: pl.Expr, addmed: pl.Expr | None = None, behavior: BehaviorProfile = TAXSIM_BEHAVIOR
+) -> pl.Expr:
     """Payroll tax as TAXSIM's `socsec` reports it to states.
 
     Employee FICA on each spouse's wages (joint returns) or on total wages,
     plus self-employment tax and, from 2013, the additional Medicare tax.
-    `year` is the state law year; wages are the (deflated) input columns.
+    Wages above the Social Security base pay Medicare tax up to the Medicare
+    base (TAXSIM: without limit in every year). `year` is the state law
+    year; wages are the (deflated) input columns.
     """
     rate = float(resolve_year(_SOCSEC_PARAMS["rate"], year))
     ceiling = float(resolve_year(_SOCSEC_PARAMS["wage_ceiling"], year))
     above = float(_SOCSEC_PARAMS["rate_above_ceiling"])
+    medicare_ceiling = (
+        float(resolve_year(_PAYROLL_PARAMS["hi_wage_base"], year)) if behavior.cap_medicare_in_state_payroll_deduction else None
+    )
 
     def fica(wages: pl.Expr) -> pl.Expr:
-        return pl.min_horizontal(wages, pl.lit(ceiling)) * rate + (wages - ceiling).clip(0, None) * above
+        medicare_wages = wages if medicare_ceiling is None else pl.min_horizontal(wages, pl.lit(medicare_ceiling))
+        return pl.min_horizontal(wages, pl.lit(ceiling)) * rate + (medicare_wages - ceiling).clip(0, None) * above
 
     pw = pl.col("pwages").clip(0, None)
     sw = pl.col("swages").clip(0, None)

@@ -33,7 +33,7 @@ def compute_or_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     y = effective_year
     p = YearParams(OR_PARAMS, effective_year)
     dividend_adjustment = dividend_input_adjustment()
-    df = df.with_columns(or_ui=unemployment_total(), or_household_income=household_income())
+    df = df.with_columns(or_ui=unemployment_total(), or_household_income=household_income(behavior))
     df = deflate_for_extrapolation(df, flate, extra=("or_ui", "or_household_income"))
 
     is_joint = files_joint()
@@ -52,14 +52,18 @@ def compute_or_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     # --- AGI ---
     agi = fed_agi
     if p.in_effect("interest_dividend_exclusion"):
-        divall = pl.col("dividends") + dividend_adjustment - dividend_exclusion_addback(y)
+        divall = pl.col("dividends") + dividend_adjustment - dividend_exclusion_addback(y, behavior)
         exclusion = pl.min_horizontal(divall + pl.col("intrec"), p.num("interest_dividend_exclusion") * txp)
         agi = agi + pl.col("pre1987_twoded") - exclusion.clip(0, None)
     if p.in_effect("unemployment_inclusion"):
         u = p.value("unemployment_inclusion")
         threshold = by_filing_status(u["threshold"])
         untax = pl.min_horizontal(u["taxable_share"] * (agi - threshold).clip(0, None), pl.col("or_ui"))
-        agi = agi + pl.col("taxable_unemployment") - untax
+        if behavior.replace_federal_unemployment_in_oregon_1981_1984:
+            agi = agi - pl.col("taxable_unemployment") + untax
+        else:
+            # TAXSIM adds the federal amount again.
+            agi = agi + pl.col("taxable_unemployment") - untax
     if y >= 1984:
         agi = agi - pl.col("taxable_social_security")
     df, (agi,) = checkpoint(df, or_agi=agi.clip(0, None))
@@ -294,7 +298,7 @@ def compute_or_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         credits = credits + wfhdc
 
     statax = pl.when(statax > 0).then(statax * p.num("tax_multiplier")).otherwise(statax)
-    if p.in_effect("kicker"):
+    if p.in_effect("kicker") and (y == 2019 or behavior.pay_oregon_2015_2017_kickers):
         statax = statax - p.num("kicker") * taxbc_state
         credits = credits + p.num("kicker") * taxbc_state
 

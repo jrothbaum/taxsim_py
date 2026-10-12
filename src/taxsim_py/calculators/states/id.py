@@ -22,7 +22,7 @@ def compute_id_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     df = df.with_columns(
         id_sep=separate_divisor(),
         id_taxpayers=taxpayer_count(),
-        id_household_income=household_income(),
+        id_household_income=household_income(behavior),
     )
     df = deflate_for_extrapolation(df, flate, extra=("id_household_income",))
 

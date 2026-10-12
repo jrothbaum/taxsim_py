@@ -100,7 +100,11 @@ def compute_ky_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             p["itemized_phaseout_cap_rate"] * xitded, p["itemized_phaseout_rate"] * (pl.col("ky_agi") - phas92).clip(0, None)
         )
         if effective_year >= 1991:
-            reduce_ = reduce_ * p.num("itemized_limitation_reduction_share")
+            share = p.num("itemized_limitation_reduction_share")
+            if effective_year in (2011, 2012) and not behavior.suspend_kentucky_itemized_limitation_through_2012:
+                # TAXSIM's suspension test is true only in 2010.
+                share = 1.0
+            reduce_ = reduce_ * share
         xitded = pl.when(over_thr).then(xitded - reduce_).otherwise(xitded)
 
         if p.in_effect("child_care_deduction"):

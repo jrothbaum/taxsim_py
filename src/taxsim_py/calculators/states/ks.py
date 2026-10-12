@@ -37,7 +37,7 @@ def compute_ks_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     # Self-employment tax is not deflated in projected years.
     df = df.with_columns(
         ks_setax=pl.col("payroll_setax"),
-        ks_household_income=household_income(),
+        ks_household_income=household_income(behavior),
     )
     df = deflate_for_extrapolation(df, flate, extra=("ks_household_income",))
 
@@ -99,7 +99,7 @@ def compute_ks_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     xitded = pl.lit(0.0)
     if effective_year <= 1987:
         # Payroll and self-employment tax paid, capped, are deductible.
-        socsec = taxsim_socsec(effective_year, pl.col("ks_setax"))
+        socsec = taxsim_socsec(effective_year, pl.col("ks_setax"), behavior=behavior)
         caps = p.value("payroll_tax_deduction_cap") if p.in_effect("payroll_tax_deduction_cap") else {"payroll": 1.0e20, "self_employment": 1.0e20}
         socmax, selfmx = float(caps["payroll"]), float(caps["self_employment"])
         soc = socsec.clip(0, socmax * pl.col("ks_taxpayers"))

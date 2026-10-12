@@ -2,6 +2,8 @@
 
 import polars as pl
 
+from taxsim_py.behavior import BehaviorProfile, TAXSIM_BEHAVIOR
+
 
 # Detailed federal outputs, in TAXSIM's order. Internal and default public
 # names describe the value; the opaque TAXSIM labels are applied only at the
@@ -136,7 +138,7 @@ STATE_DETAIL_SOURCES = {
     "state_marginal_rate_percent": "state_marginal_rate",
 }
 
-def state_detail(frame: pl.DataFrame) -> list[pl.Expr]:
+def state_detail(frame: pl.DataFrame, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> list[pl.Expr]:
     """Expressions for `STATE_DETAIL_COLUMNS` over a resolved frame.
 
     Household income and rent are the undeflated inputs; the other outputs
@@ -151,7 +153,7 @@ def state_detail(frame: pl.DataFrame) -> list[pl.Expr]:
         return pl.col(name).fill_null(0.0) if name in present else pl.lit(0.0)
 
     has_state = pl.col("state") > 0
-    hy = household_income()
+    hy = household_income(behavior)
     return [
         pl.when(has_state).then(hy).otherwise(0.0).alias("state_household_income"),
         pl.when(has_state).then(col("rentpaid")).otherwise(0.0).alias("state_rent_paid"),

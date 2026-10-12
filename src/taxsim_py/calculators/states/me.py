@@ -4,11 +4,11 @@
 from __future__ import annotations
 import polars as pl
 
-from taxsim_py.calculators.federal_pre1987 import PRE1987_PARAMS
 from taxsim_py.engine.brackets import bracket_rate, bracket_tax
 from taxsim_py.engine.inputs import aged_count, federal_exemption_count, files_head_of_household, files_joint, files_separate, files_single, is_dependent_filer, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml, resolve_year
 from taxsim_py.engine.state import (
+    federal_dividend_exclusion_limit,
     by_filing_status,
     household_income,
     interpolate_table,
@@ -31,7 +31,7 @@ def compute_me_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     effective_year, flate = resolve_state_year(year, behavior, ME_PARAMS)
     p = YearParams(ME_PARAMS, effective_year)
     df = df.with_columns(
-        me_household_income=household_income()
+        me_household_income=household_income(behavior)
     )
 
     is_joint = files_joint()
@@ -58,8 +58,7 @@ def compute_me_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     me_agi = pl.col("agi")
     if p.in_effect("dividend_exclusion_per_taxpayer"):
         excl_cap = p.num("dividend_exclusion_per_taxpayer")
-        excl_table = PRE1987_PARAMS["dividend_exclusion"]
-        fed_excl = by_filing_status({s: resolve_year(excl_table[s], effective_year) for s in _STATUSES})
+        fed_excl = federal_dividend_exclusion_limit(effective_year, behavior)
         divexc = pl.min_horizontal(pl.col("dividends") + pl.col("intrec"), fed_excl)
         own_cap = pl.min_horizontal(pl.col("dividends"), excl_cap * pl.col("me_txp"))
         me_agi = me_agi + divexc - own_cap

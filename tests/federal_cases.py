@@ -56,6 +56,13 @@ _DEFAULTS: dict[str, Any] = {
 _STATUS_BY_MSTAT = {1: "single", 2: "married_joint"}
 
 
+
+def _at(node: Any, year: int, *path: Any) -> Any:
+    """A parameter read at `year`, resolving year keys at any level."""
+    from taxsim_py.engine.schema import resolve_path
+
+    return resolve_path(node, path, year)
+
 def case(year: int, description: str, **overrides: Any) -> dict[str, Any]:
     row = dict(_DEFAULTS)
     row["year"] = year
@@ -65,9 +72,8 @@ def case(year: int, description: str, **overrides: Any) -> dict[str, Any]:
 
 
 def _status_bracket_edges(income_tax_params: dict, year: int, status: str) -> list[float]:
-    from taxsim_py.engine.schema import resolve_year
 
-    brackets = resolve_year(income_tax_params["brackets"][status], year)
+    brackets = _at(income_tax_params, year, "brackets", status)
     return [b[0] for b in brackets if b[0] > 0]
 
 
@@ -124,25 +130,19 @@ def _eitc_cases(year: int, eitc_params: pl.DataFrame) -> list[dict[str, Any]]:
 
 
 def _ctc_edges_for(credits_params: dict, year: int, ideps: int, dep6: int, status: str) -> list[int]:
-    from taxsim_py.engine.schema import resolve_year
 
     ctc_p = credits_params["child_tax_credit"]
-    if year >= 2018:
-        odc_p = credits_params["other_dependent_credit"]
-        tcja_thresh = resolve_year(odc_p["phaseout_threshold"][status], year)
-        tcja_rate = resolve_year(odc_p["phaseout_rate_per_1000"], year) / 1000
-    else:
-        # Pre-2018: no ODC - CTC alone phases out above a flat threshold.
-        tcja_thresh = resolve_year(ctc_p["pre2018_phaseout_threshold"][status], year)
-        tcja_rate = resolve_year(ctc_p["pre2018_phaseout_rate_per_1000"], year) / 1000
+    tcja_thresh = _at(ctc_p, year, "phaseout_threshold", status)
+    tcja_rate = _at(ctc_p, year, "phaseout_rate_per_1000") / 1000
 
-    if year >= 2021:
-        young_amt = resolve_year(ctc_p["young_child_amount"], year)
-        older_amt = resolve_year(ctc_p["older_child_amount"], year)
-        offset = resolve_year(ctc_p["base_amount_offset"], year)
-        cap = resolve_year(ctc_p["enhanced_cap"][status], year)
-        low_thresh = resolve_year(ctc_p["low_income_phaseout_threshold"][status], year)
-        low_rate = resolve_year(ctc_p["low_income_phaseout_rate"], year)
+    enhanced_p = _at(ctc_p, year, "enhanced") if year == 2021 else None
+    if enhanced_p:
+        young_amt = enhanced_p["young_child_amount"]
+        older_amt = enhanced_p["older_child_amount"]
+        offset = enhanced_p["base_amount_offset"]
+        cap = enhanced_p["enhanced_cap"][status]
+        low_thresh = enhanced_p["low_income_phaseout_threshold"][status]
+        low_rate = enhanced_p["low_income_phaseout_rate"]
 
         ccrmax = dep6 * young_amt + (ideps - dep6) * older_amt
         enhanced = min(ccrmax - ideps * offset, cap)
@@ -153,7 +153,7 @@ def _ctc_edges_for(credits_params: dict, year: int, ideps: int, dep6: int, statu
     else:
         # Pre-2021: flat per-child amount, no low-income phaseout mechanism -
         # only the TCJA-era $200k/$400k phaseout applies.
-        flat_amount = resolve_year(ctc_p["flat_amount_pre2021"], year)
+        flat_amount = _at(ctc_p, year, "amount_per_child") if year >= 1998 else 0
         combined_base = flat_amount * ideps
         tcja_end = tcja_thresh + (combined_base / tcja_rate if tcja_rate else 0)
         return [round(tcja_thresh), round(tcja_end)]
@@ -201,13 +201,12 @@ def _amt_itemized_cases(year: int) -> list[dict[str, Any]]:
 
 
 def _payroll_cases(year: int, payroll_params: dict) -> list[dict[str, Any]]:
-    from taxsim_py.engine.schema import resolve_year
 
-    wage_base = resolve_year(payroll_params["oasdi_wage_base"], year)
+    wage_base = _at(payroll_params, year, "oasdi_wage_base")
     edges = {
         wage_base,
-        resolve_year(payroll_params["additional_medicare_threshold"]["single"], year),
-        resolve_year(payroll_params["additional_medicare_threshold"]["married_joint"], year),
+        _at(payroll_params, year, "additional_medicare_threshold", "single"),
+        _at(payroll_params, year, "additional_medicare_threshold", "married_joint"),
     }
     wage_points = sorted({1, 5000, 80000} | {e + d for e in edges for d in (-1, 0, 1)} | {600000})
     rows = []
@@ -228,28 +227,27 @@ def _payroll_cases(year: int, payroll_params: dict) -> list[dict[str, Any]]:
 
 
 def _child_care_credit_cases(year: int, credits_params: dict) -> list[dict[str, Any]]:
-    from taxsim_py.engine.schema import resolve_year
 
     ccc_p = credits_params["child_care_credit"]
-    if year >= 2021:
+    if "first_phase_start" in _at(ccc_p, year, "rate"):
         agi_edges = [
-            resolve_year(ccc_p["first_phase_start"], year),
-            resolve_year(ccc_p["first_phase_ceiling"], year),
-            resolve_year(ccc_p["second_phase_start"], year),
-            resolve_year(ccc_p["second_phase_ceiling"], year),
+            _at(ccc_p, year, "rate", "first_phase_start"),
+            _at(ccc_p, year, "rate", "first_phase_ceiling"),
+            _at(ccc_p, year, "rate", "second_phase_start"),
+            _at(ccc_p, year, "rate", "second_phase_ceiling"),
         ]
-        max_expense = resolve_year(ccc_p["max_expense_per_person"], year)
+        max_expense = _at(ccc_p, year, "max_expense_per_person")
     else:
         # Rate floors at 20% once agi crosses phase_start by
         # (top_rate - floor_rate)/0.01 * step_amount dollars, then holds
         # forever - the only two AGI edges worth boundary-testing.
-        phase_start = resolve_year(ccc_p["pre2021_phase_start"], year)
-        top_rate = resolve_year(ccc_p["pre2021_rate_top"], year)
-        floor_rate = resolve_year(ccc_p["pre2021_rate_floor"], year)
-        step_amount = resolve_year(ccc_p["pre2021_step_amount"], year)
+        phase_start = _at(ccc_p, year, "rate", "phase_start")
+        top_rate = _at(ccc_p, year, "rate", "top_rate")
+        floor_rate = _at(ccc_p, year, "rate", "floor_rate")
+        step_amount = _at(ccc_p, year, "rate", "step_amount")
         floor_reached_at = phase_start + (top_rate - floor_rate) / 0.01 * step_amount
         agi_edges = [phase_start, floor_reached_at]
-        max_expense = resolve_year(ccc_p["max_expense_per_person_pre2021"], year)
+        max_expense = _at(ccc_p, year, "max_expense_per_person")
 
     wage_points = sorted({5000, 19400, 19401, 25000} | {e + d for e in agi_edges for d in (-1, 0, 1)})
     expense_points = sorted(
@@ -298,13 +296,12 @@ def _interest_income_cases(year: int, income_tax_params: dict) -> list[dict[str,
 
 
 def _eitc_disqualified_income_cases(year: int, eitc_misc_params: dict) -> list[dict[str, Any]]:
-    from taxsim_py.engine.schema import resolve_year
 
     if year < 1996:
         # The disqualified-income test itself didn't exist before 1996 -
         # see calculators/federal.py's own year<1996 special case.
         return []
-    dylim = resolve_year(eitc_misc_params["dylim"], year)
+    dylim = _at(eitc_misc_params, year, "dylim")
     rows = []
     for mstat, status in _STATUS_BY_MSTAT.items():
         for intrec in sorted({0, dylim - 1, dylim, dylim + 1, dylim + 1700, dylim + 5000}):
@@ -323,11 +320,10 @@ def _eitc_disqualified_income_cases(year: int, eitc_misc_params: dict) -> list[d
 
 
 def _niit_cases(year: int, niit_params: dict) -> list[dict[str, Any]]:
-    from taxsim_py.engine.schema import resolve_year
 
     rows = []
     for mstat, status in _STATUS_BY_MSTAT.items():
-        threshold = resolve_year(niit_params["threshold"][status], year)
+        threshold = _at(niit_params, year, "threshold", status)
         wages = threshold - 20000
         for intrec in (0, 10000, 19999, 20000, 20001, 30000, 70000):
             for proptax in (0, 8000):
@@ -354,10 +350,9 @@ def _self_employment_cases(year: int, payroll_params: dict) -> list[dict[str, An
     # engine/payroll_tax.py). A batched comparison against taxsim2022.exe
     # would get an unreliable "expected" value in that exact zone, not a
     # meaningful test of our (deliberately bug-free) implementation.
-    from taxsim_py.engine.schema import resolve_year
 
-    wage_base = float(resolve_year(payroll_params["oasdi_wage_base"], year))
-    net_factor = float(resolve_year(payroll_params["se_net_earnings_factor"], year))
+    wage_base = float(_at(payroll_params, year, "oasdi_wage_base"))
+    net_factor = float(_at(payroll_params, year, "se_net_earnings_factor"))
     cap_gross = wage_base / net_factor  # gross SE income whose net earnings exactly hit the cap
 
     rows = []
@@ -403,7 +398,6 @@ def _self_employment_cases(year: int, payroll_params: dict) -> list[dict[str, An
 def _dividends_capital_gains_cases(
     year: int, capital_gains_params: dict, amt_params: dict
 ) -> list[dict[str, Any]]:
-    from taxsim_py.engine.schema import resolve_year
 
     rows = []
     for mstat, status in _STATUS_BY_MSTAT.items():
@@ -423,7 +417,7 @@ def _dividends_capital_gains_cases(
         if year >= 1997:
             edge_sources.append(capital_gains_params["rate_15_ceiling"][status])
             edge_sources.append(amt_params["cg_rate_15_ceiling"][status])
-        edges = {e for e in (resolve_year(src, year) for src in edge_sources) if e < 1.0e10}
+        edges = {e for e in (_at(src, year) for src in edge_sources) if e < 1.0e10}
         for wages in (0, 30000):
             for dividends in sorted({1000, 20000} | {e - wages for e in edges if e > wages}):
                 rows.append(
@@ -466,6 +460,8 @@ def _dividends_capital_gains_cases(
                 dividends=50000,
                 ltcg=100000,
                 stcg=10000,
+                # TAXSIM's 2022 single 20% threshold is $100 below the published one.
+                oracle_divergent=year == 2022 and status == "single",
             )
         )
     return rows
@@ -652,9 +648,8 @@ def _making_work_pay_cases(year: int) -> list[dict[str, Any]]:
 
 
 def _pre1987_bracket_edges(pre1987_params: dict, year: int, status: str) -> list[float]:
-    from taxsim_py.engine.schema import resolve_year
 
-    brackets = resolve_year(pre1987_params["brackets"][status], year)
+    brackets = _at(pre1987_params, year, "brackets", status)
     return [b[0] for b in brackets if b[0] > 0]
 
 
@@ -664,14 +659,13 @@ def _pre1987_cases(year: int, pre1987_params: dict) -> list[dict[str, Any]]:
     schedule, a capital-gains EXCLUSION rather than a preferential rate,
     three different minimum-tax formulas) don't fit the existing
     generators' assumptions. See calculators/federal_pre1987.py."""
-    from taxsim_py.engine.schema import resolve_year
 
     rows: list[dict[str, Any]] = []
     p = pre1987_params
-    rate_in = resolve_year(p["eitc_rate_in"], year)
-    max_credit = resolve_year(p["eitc_max_credit"], year)
-    phaseout_start = resolve_year(p["eitc_phaseout_start"], year)
-    rate_out = resolve_year(p["eitc_rate_out"], year)
+    rate_in = _at(p, year, "eitc_rate_in")
+    max_credit = _at(p, year, "eitc_max_credit")
+    phaseout_start = _at(p, year, "eitc_phaseout_start")
+    rate_out = _at(p, year, "eitc_rate_out")
     eitc_edges = [
         round(max_credit / rate_in),
         round(phaseout_start),
@@ -716,7 +710,7 @@ def _pre1987_cases(year: int, pre1987_params: dict) -> list[dict[str, Any]]:
         # Dividend exclusion boundary (also a genuinely different mechanism
         # for 1979 (no exclusion - a replicated quirk) and 1981 (merges
         # interest into the same exclusion base)).
-        divexc = resolve_year(p["dividend_exclusion"][status], year)
+        divexc = _at(p, year, "dividend_exclusion", status)
         for dividends in sorted({0, 50, divexc, divexc + 1, divexc + 500} | ({1, 250} if year == 1981 else set())):
             rows.append(
                 case(year, f"pre1987 dividends, {status}, dividends={dividends}", mstat=mstat, dividends=dividends)
@@ -748,7 +742,7 @@ def _pre1987_cases(year: int, pre1987_params: dict) -> list[dict[str, Any]]:
         rows.append(case(year, f"pre1987 short-term gain, {status}", mstat=mstat, pwages=30000, stcg=15000))
 
         # Unemployment compensation exclusion (inert pre-1979, real 1979+).
-        uxemp = resolve_year(p["unemployment_exclusion_threshold"][status], year) if year >= 1979 else 0
+        uxemp = _at(p, year, "unemployment_exclusion_threshold", status) if year >= 1979 else 0
         for wages, ui in ((0, 5000), (uxemp, 8000), (0, 15000)):
             rows.append(
                 case(
@@ -761,7 +755,7 @@ def _pre1987_cases(year: int, pre1987_params: dict) -> list[dict[str, Any]]:
         # schema for this era) - both around the standard-deduction
         # boundary and at large-enough values to trigger the minimum
         # tax's excess-itemized-deductions preference item.
-        zbr = resolve_year(p["standard_deduction"][status], year)
+        zbr = _at(p, year, "standard_deduction", status)
         for proptax, wages in ((0, 20000), (zbr, 20000), (zbr + 1000, 20000), (30000, 150000)):
             rows.append(
                 case(
@@ -775,7 +769,7 @@ def _pre1987_cases(year: int, pre1987_params: dict) -> list[dict[str, Any]]:
             )
 
         # Child and Dependent Care Credit.
-        expense_cap = resolve_year(p["child_care_credit_expense_cap"], year)
+        expense_cap = _at(p, year, "child_care_credit_expense_cap")
         for childcare, wages in ((0, 20000), (expense_cap, 20000), (expense_cap * 2, 40000)):
             rows.append(
                 case(
@@ -834,7 +828,6 @@ def _law60_cases(year: int, law60_params: dict) -> list[dict[str, Any]]:
     income formula shape, an additive (not floor) minimum tax, and a
     capital-gains alternative tax real across most of this range (not just
     two isolated years)."""
-    from taxsim_py.engine.schema import resolve_year
 
     rows: list[dict[str, Any]] = []
     p = law60_params
@@ -864,15 +857,15 @@ def _law60_cases(year: int, law60_params: dict) -> list[dict[str, Any]]:
         )
 
     for mstat, status in _STATUS_BY_MSTAT.items():
-        brackets = resolve_year(p["brackets"][status], year)
+        brackets = _at(p, year, "brackets", status)
         bracket_edges = [b[0] for b in brackets if 0 < b[0] < 1.0e28]
-        ebot = resolve_year(p["max_tax_earned_income_floor"][status], year) if year >= 1971 else 40000.0
+        ebot = _at(p, year, "max_tax_earned_income_floor", status) if year >= 1971 else 40000.0
         eitc_edges = []
         if year >= 1975:
-            rate_in = resolve_year(p["eitc_rate_in"], year)
-            max_credit = resolve_year(p["eitc_max_credit"], year)
-            phaseout_start = resolve_year(p["eitc_phaseout_start"], year)
-            rate_out = resolve_year(p["eitc_rate_out"], year)
+            rate_in = _at(p, year, "eitc_rate_in")
+            max_credit = _at(p, year, "eitc_max_credit")
+            phaseout_start = _at(p, year, "eitc_phaseout_start")
+            rate_out = _at(p, year, "eitc_rate_out")
             eitc_edges = [round(max_credit / rate_in), round(phaseout_start), round(phaseout_start + max_credit / rate_out)]
 
         wage_points = sorted(
@@ -905,7 +898,7 @@ def _law60_cases(year: int, law60_params: dict) -> list[dict[str, Any]]:
             rows.append(case(year, f"law60 self-employment, {status}, psemp={psemp}", mstat=mstat, psemp=psemp))
 
         # Dividend exclusion boundary.
-        divexc = resolve_year(p["dividend_exclusion"][status], year)
+        divexc = _at(p, year, "dividend_exclusion", status)
         for dividends in (0, 50, divexc, divexc + 1, divexc + 500):
             rows.append(case(year, f"law60 dividends, {status}, dividends={dividends}", mstat=mstat, dividends=dividends))
 
@@ -941,7 +934,7 @@ def _law60_cases(year: int, law60_params: dict) -> list[dict[str, Any]]:
 
         # Child Care Credit (1976 only) / childcare-as-itemized-deduction
         # (1971-1975) - same input exercises both mechanisms depending on year.
-        expense_cap = resolve_year(p["child_care_credit_expense_cap"], year) if year == 1976 else 2000.0
+        expense_cap = _at(p, year, "child_care_credit_expense_cap") if year == 1976 else 2000.0
         for childcare, wages in ((0, 15000), (expense_cap, 15000), (expense_cap * 2, 30000)):
             rows.append(
                 case(

@@ -393,7 +393,12 @@ def _statutory_working_family_credit(y: int, earned: pl.Expr, agi: pl.Expr, is_j
 
 
 def _working_family_credit(
-    base_earned: pl.Expr, base_agi: pl.Expr, fed_agi: pl.Expr, is_joint: pl.Expr, y: int
+    base_earned: pl.Expr,
+    base_agi: pl.Expr,
+    fed_agi: pl.Expr,
+    is_joint: pl.Expr,
+    y: int,
+    behavior: BehaviorProfile = TAXSIM_BEHAVIOR,
 ) -> pl.Expr:
     """Working Family Credit (refundable), 1991 on."""
     p = YearParams(MN_PARAMS, y)
@@ -419,17 +424,22 @@ def _working_family_credit(
         n0 = c["no_child"]
 
         def no_child(base: pl.Expr) -> pl.Expr:
+            phase_out = (n0["maximum"] - n0["phase_out_rate"] * (base - n0["plateau_end"])).clip(0, None)
+            if behavior.order_minnesota_1998_working_family_credit:
+                return (
+                    pl.when(base <= n0["phase_in_end"]).then(n0["phase_in_rate"] * base)
+                    .when(base <= n0["plateau_end"]).then(pl.lit(float(n0["maximum"])))
+                    .when(base < n0["phase_out_end"]).then(phase_out)
+                    .otherwise(0.0)
+                )
+            # TAXSIM's three tests overwrite each other.
             credit = (
                 pl.when(base <= n0["phase_in_end"])
                 .then(n0["phase_in_rate"] * base)
                 .otherwise(pl.lit(0.0))
             )
             credit = pl.when(base <= n0["plateau_end"]).then(pl.lit(float(n0["maximum"]))).otherwise(credit)
-            return (
-                pl.when(base < n0["phase_out_end"])
-                .then((n0["maximum"] - n0["phase_out_rate"] * (base - n0["plateau_end"])).clip(0, None))
-                .otherwise(credit)
-            )
+            return pl.when(base < n0["phase_out_end"]).then(phase_out).otherwise(credit)
 
         work = (
             pl.when(nkid < 1)
@@ -441,7 +451,10 @@ def _working_family_credit(
             )
         )
     elif y <= 2013:
-        use_joint = 2002 <= y <= 2011 or y == 2013
+        # TAXSIM skips the joint thresholds in 2012.
+        use_joint = 2002 <= y <= 2013 if behavior.use_minnesota_2012_joint_working_family_thresholds else (
+            2002 <= y <= 2011 or y == 2013
+        )
         c0 = p["working_family_credit_no_child"]
         phase_out_0 = _sub(c0, "phase_out_start", y)
         if use_joint:
@@ -519,11 +532,15 @@ def _working_family_credit(
             .when(nkid == 1)
             .then(schedule("one_child", start("one_child", "one_child")))
         )
-        many = schedule("two_children", start("one_child", "two_children"))
+        if behavior.use_minnesota_working_family_tables_by_children:
+            many = schedule("two_children", start("two_children", "two_children"))
+            most = schedule("three_children", start("three_children", "three_children")) if y >= 2019 else None
+        else:
+            # TAXSIM starts the phaseout at the one-child (and two-child joint) amounts.
+            many = schedule("two_children", start("one_child", "two_children"))
+            most = schedule("three_children", start("one_child", "two_children")) if y >= 2019 else None
         if y >= 2019:
-            work = work.when(nkid == 2).then(many).otherwise(
-                schedule("three_children", start("one_child", "two_children"))
-            )
+            work = work.when(nkid == 2).then(many).otherwise(most)
         else:
             work = work.otherwise(many)
 
@@ -540,7 +557,7 @@ def compute_mn_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
 
     # Self-employment tax is not deflated in projected years.
     setax = pl.col("payroll_setax")
-    hh_income = household_income()
+    hh_income = household_income(behavior)
     # Business and S corporation income are not deflated in projected years.
     business = pl.col("pbusinc") + pl.col("pprofinc") + pl.col("sbusinc") + pl.col("sprofinc") + pl.col("scorp")
     df = df.with_columns(mn_setax=setax, mn_household_income=hh_income, mn_business=business)
@@ -828,8 +845,10 @@ def compute_mn_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     if p.in_effect("homemaker_credit"):
         hc = p.value("homemaker_credit")
         earnings_limit = float(hc["earnings_limit"])
+        # TAXSIM pays it only to dependent filers (a reversed test).
+        filer_test = ~dependent_filer if behavior.pay_minnesota_homemaker_credit_to_nondependents else dependent_filer
         hcred = pl.when(
-            dependent_filer
+            filer_test
             & (depx >= 1)
             & (pl.col("pwages") <= earnings_limit)
             & (pl.col("swages") <= earnings_limit)
@@ -878,7 +897,7 @@ def compute_mn_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
 
     # --- Working Family Credit ---
     base_agi = fed_agi + (ui_total - untax if y == 2020 else 0.0)
-    work = _working_family_credit(pl.col("earned_income"), base_agi, fed_agi, is_joint, y)
+    work = _working_family_credit(pl.col("earned_income"), base_agi, fed_agi, is_joint, y, behavior)
     work = pl.when(dependent_filer).then(0.0).otherwise(work)
 
     df, (work,) = checkpoint(df, mn_work=work)
@@ -905,14 +924,25 @@ def compute_mn_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             - c13["rate_step_decrement"] * ((agi - c13["rate_start"]) / c13["rate_step"]).clip(0, None),
         )
         cost = chr_rate * child
-    elif y <= 1986:
+    elif y <= 1986 and not behavior.read_federal_child_care_credit_before_1987:
+        # TAXSIM reads a federal figure its early routine never fills.
         cost = pl.lit(0.0)
+    elif y <= 1986:
+        cost = p.num("child_care_share_of_federal") * pl.col("federal_chcr")
     else:
         cost = p.num("child_care_share_of_federal") * pl.col("ccc_uncapped")
     phaseout_rate = p.num("child_care_phaseout_rate")
     if y >= 2017:
         over = (fed_agi - cded).clip(0, None)
-        chcr = (cost - phaseout_rate * over).clip(0, None)
+        if behavior.limit_minnesota_child_care_credit_by_maximum_after_2017:
+            # Minn. Stat. 290.067 subd. 2b: above the threshold, the lesser of
+            # the credit and the maximum less the phaseout.
+            chcr = pl.when(over <= 0).then(cost).otherwise(
+                pl.min_horizontal(cost, (cmax - phaseout_rate * over).clip(0, None))
+            )
+        else:
+            # TAXSIM's branch for this rule is unreachable.
+            chcr = (cost - phaseout_rate * over).clip(0, None)
         eligible = fed_agi <= cymax
     else:
         over = (hh - cded).clip(0, None)
@@ -945,11 +975,17 @@ def compute_mn_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
                 aged_sub = dep_sub + p.num("exemption_amount")
             hhy = (hhy - pl.when(aged > 0).then(aged_sub).otherwise(dep_sub)).clip(0, None)
         df, (hhy,) = checkpoint(df, mn_refund_income=hhy)
-        # Renters who qualify get the renter refund in place of the homeowner refund.
         renter = (pl.col("rentpaid") > 0) & (
             hhy <= p.num("property_refund_renter_income_limit") * p.num("property_refund_renter_inflation")
         )
-        pcred = pl.when(renter).then(_property_refund_renter(hhy, y)).otherwise(_property_refund_1989plus(hhy, y))
+        renter_refund = pl.when(renter).then(_property_refund_renter(hhy, y)).otherwise(0.0)
+        if behavior.allow_minnesota_renter_and_homeowner_refunds:
+            # A household that rented and owned claims both (Form M1PR).
+            pcred = renter_refund + _property_refund_1989plus(hhy, y)
+        else:
+            # TAXSIM gives qualifying renters the renter refund in place of
+            # the homeowner refund.
+            pcred = pl.when(renter).then(renter_refund).otherwise(_property_refund_1989plus(hhy, y))
     else:
         pcred = _property_credit_pre1989(hh, y)
     pcred = pl.when(dependent_filer).then(0.0).otherwise(pcred)

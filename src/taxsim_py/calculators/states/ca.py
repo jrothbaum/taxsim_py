@@ -45,7 +45,7 @@ def compute_ca_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     # projected years.
     df = df.with_columns(
         ca_setax=pl.col("payroll_setax"),
-        ca_household_income=household_income(),
+        ca_household_income=household_income(behavior),
     )
     df = deflate_for_extrapolation(df, flate, extra=("ca_household_income",))
 

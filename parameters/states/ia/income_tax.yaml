@@ -127,14 +127,17 @@ child_care_credit_federal_share:
 # Iowa AGI cap.
 eitc_rate: {1977: 0.0, 1990: 0.05, 1991: 0.06, 1992: 0.065, 2007: 0.07, 2013: 0.14, 2014: 0.15}
 eitc_agi_cap: {1977: 100000000, 1990: 20264, 1991: 21250, 1992: 22370, 1993: 23050, 1994: 100000000}
-# 1990-2021: none when earned income or Iowa AGI exceeds the cap for the
-# number of dependents (TAXSIM's caps, the same every year).
+# None when earned income or Iowa AGI exceeds the cap for the number of
+# dependents. The caps apply in `eitc_eligibility_caps_year`, when Iowa did
+# not adopt the 2009 federal changes; TAXSIM applies them 1990-2021.
 eitc_eligibility_caps:
   1990: {none: 13460, one: 35535, two_or_more: 40363}
   2022: null
-# 2010 joint returns with one or two dependents use these caps instead.
+eitc_eligibility_caps_year: 2010
+# 2010 joint returns use these caps instead (the federal pre-2009 limits plus
+# the joint increase). TAXSIM applies each to one more child than intended.
 eitc_joint_eligibility_caps:
-  2010: {one: 16590, two: 38665}
+  2010: {none: 16590, one: 38665, two_or_more: 43493}
   2011: null
 # 2009 joint returns: `share` of the credit figured under the federal
 # schedule without the 2009 changes.

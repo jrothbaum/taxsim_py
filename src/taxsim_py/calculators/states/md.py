@@ -4,11 +4,11 @@
 from __future__ import annotations
 import polars as pl
 
-from taxsim_py.calculators.federal_pre1987 import PRE1987_PARAMS
 from taxsim_py.engine.brackets import bracket_rate, bracket_tax
 from taxsim_py.engine.inputs import aged_count, federal_exemption_count, files_head_of_household, files_joint, files_separate, files_single, is_dependent_filer, taxpayer_count
-from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml, resolve_year
+from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml
 from taxsim_py.engine.state import (
+    federal_dividend_exclusion_limit,
     by_filing_status,
     pre1987_federal_itemizing,
     with_state_detail,
@@ -61,8 +61,7 @@ def compute_md_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         md_agi = md_agi - pl.col("taxable_social_security")
 
     if effective_year <= 1986:
-        excl_table = PRE1987_PARAMS["dividend_exclusion"]
-        excl_cap = by_filing_status({s: resolve_year(excl_table[s], effective_year) for s in _STATUSES})
+        excl_cap = federal_dividend_exclusion_limit(effective_year, behavior)
         divexc_base = pl.col("dividends") + pl.col("intrec") if effective_year == 1981 else pl.col("dividends")
         divexc = pl.min_horizontal(divexc_base, excl_cap)
         md_agi = md_agi + divexc

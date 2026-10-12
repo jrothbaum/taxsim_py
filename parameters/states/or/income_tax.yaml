@@ -429,8 +429,9 @@ dependent_care_agi_limit:
   2019: [50730.0, 13260.0]
   2020: [51720.0, 13440.0]
   2021: [52260.0, 13620.0]
-# 2019 surplus credit (kicker) as a share of tax before credits.
-kicker: {2019: 0.17171, 2020: null}
+# Surplus credit (kicker) as a share of tax before credits (TAXSIM computes
+# the 2015 and 2017 credits but never applies them).
+kicker: {2015: 0.056, 2016: null, 2017: 0.056, 2018: null, 2019: 0.17171, 2020: null}
 # Oregon Kids Credit from 2023 (HB 3235): refundable, per child under six up to
 # the child limit, phased out over `reduction_width` of AGI above the start.
 # Source: PolicyEngine-US gov.states.or.tax.income.credits.ctc.

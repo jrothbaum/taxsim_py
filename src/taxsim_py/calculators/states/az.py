@@ -25,7 +25,7 @@ def compute_az_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     p = YearParams(AZ_PARAMS, effective_year)
     p87 = YearParams(PRE1987_PARAMS, effective_year)
     df = df.with_columns(
-        az_household_income=household_income()
+        az_household_income=household_income(behavior)
     )
 
     df = deflate_for_extrapolation(df, flate, extra=("az_household_income",))
@@ -46,7 +46,7 @@ def compute_az_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
 
     # --- AGI ---
     if effective_year <= 1980:
-        div_addback = dividend_exclusion_addback(effective_year)
+        div_addback = dividend_exclusion_addback(effective_year, behavior)
     else:
         div_addback = pl.lit(0.0)
     df = df.with_columns(az_div_addback=div_addback)

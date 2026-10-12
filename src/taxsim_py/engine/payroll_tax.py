@@ -110,13 +110,23 @@ def household_self_employment_tax(
     return setax_1 + setax_2
 
 
-# TAXSIM's `sstax` earnings items per earner: wages, self-employment income,
-# then two business incomes. Its lookup table gives the primary earner both
-# non-professional business incomes and the spouse both professional ones.
+# Earnings items per earner: wages, self-employment income, then
+# non-professional and professional business income. TAXSIM's `sstax` lookup
+# table gives the primary earner both non-professional business incomes and
+# the spouse both professional ones.
 PAYROLL_ITEMS = (
+    ("pwages", "psemp", "pbusinc", "pprofinc"),
+    ("swages", "ssemp", "sbusinc", "sprofinc"),
+)
+TAXSIM_PAYROLL_ITEMS = (
     ("pwages", "psemp", "pbusinc", "sbusinc"),
     ("swages", "ssemp", "pprofinc", "sprofinc"),
 )
+
+
+def payroll_items(behavior: BehaviorProfile) -> tuple[tuple[str, ...], ...]:
+    """Each earner's payroll earnings items."""
+    return PAYROLL_ITEMS if behavior.assign_business_income_to_its_earner else TAXSIM_PAYROLL_ITEMS
 
 
 def _capped_items(
@@ -170,7 +180,7 @@ def allocated_self_employment_items(net_earnings_factor: float, behavior: Behavi
     if not behavior.prevent_negative_self_employment_tax:
         return {}
     columns = {}
-    for names in PAYROLL_ITEMS:
+    for names in payroll_items(behavior):
         items = [pl.col(name) for name in names[1:]]
         taxable = pl.sum_horizontal(items).clip(0, None)
         if behavior.enforce_schedule_se_minimum:
@@ -207,7 +217,8 @@ def taxsim_payroll(
     factors = [1.0, net_earnings_factor, net_earnings_factor, net_earnings_factor]
     oasdi_rates = [oasdi_rate, se_oasdi_rate, se_oasdi_rate, se_oasdi_rate]
     streams = []
-    for names in PAYROLL_ITEMS:
+    items_by_earner = payroll_items(behavior)
+    for names in items_by_earner:
         self_employment_items = [pl.col(name) for name in names[1:]]
         if behavior.prevent_negative_self_employment_tax:
             self_employment_items = [pl.col(allocated_name(name)) for name in names[1:]]
@@ -238,14 +249,14 @@ def taxsim_payroll(
     setax = setax_self + setax_qbi + setax_sstb
     earnings = pl.lit(0.0)
     if behavior.count_self_employment_once_for_additional_medicare:
-        for names in PAYROLL_ITEMS:
+        for names in items_by_earner:
             earnings = earnings + pl.col(names[0]).clip(0, None)
             earnings = earnings + net_earnings_factor * pl.sum_horizontal(
                 pl.col(name) for name in names[1:]
             ).clip(0, None)
     else:
         # TAXSIM counts both earners' combined SE income in each earner loop.
-        for names in PAYROLL_ITEMS:
+        for names in items_by_earner:
             earnings = earnings + pl.col(names[0]).clip(0, None)
             earnings = earnings + net_earnings_factor * (pl.col("psemp") + pl.col("ssemp"))
             earnings = earnings + net_earnings_factor * (pl.col(names[2]) + pl.col(names[3]))

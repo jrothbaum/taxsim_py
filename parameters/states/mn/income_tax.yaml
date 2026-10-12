@@ -633,12 +633,14 @@ amt_exclusion:
     2019: 77590
     2020: 78880
     2021: 79660
+  # Head of household equals single (TAXSIM has 2010's $49,960 for 2009).
   head_of_household:
     2001: 30000
     2006: 45000
     2007: 46760
     2008: 47830
-    2009: 49960
+    2009: 49860
+    2010: 49960
     2011: 50700
     2012: 51930
     2013: 53260
@@ -1116,6 +1118,9 @@ working_family_credit_schedule:
       2019: 19600
       2020: 19950
       2021: 20120
+    # Unmarried filers' start (TAXSIM's `w22`, defined but never read: it uses
+    # the one-child start for two or more children).
+    phase_out_start: {2014: 25130, 2015: 25530, 2016: 25640, 2017: 25850, 2018: 26360, 2019: 27000, 2020: 27450, 2021: 27720}
     phase_out_start_joint:
       2014: 30560
       2015: 31050
@@ -1130,6 +1135,9 @@ working_family_credit_schedule:
   three_children:
     maximum: {2019: 2500, 2020: 2541, 2021: 2566}
     phase_in_end: {2019: 20000, 2020: 20350, 2021: 20530}
+    # TAXSIM's `w32` and `wj32`, defined but never read.
+    phase_out_start: {2019: 27300, 2020: 27750, 2021: 28030}
+    phase_out_start_joint: {2019: 33140, 2020: 33690, 2021: 34030}
     phase_in_rate: {2019: 0.125}
     phase_out_rate: {2019: 0.105}
 # 1998-2018: no credit when the federal EITC is below this.

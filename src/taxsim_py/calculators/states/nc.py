@@ -4,7 +4,6 @@
 from __future__ import annotations
 import polars as pl
 
-from taxsim_py.calculators.federal_pre1987 import PRE1987_PARAMS
 from taxsim_py.engine.brackets import bracket_rate, bracket_tax
 from taxsim_py.engine.inputs import aged_count, federal_exemption_count, files_head_of_household, files_joint, files_separate, files_single, is_dependent_filer, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml, resolve_year
@@ -13,6 +12,7 @@ from taxsim_py.engine.state import (
     by_filing_status,
     checkpoint,
     dividend_exclusion_addback,
+    federal_dividend_exclusion_limit,
     interpolate_table,
     unemployment_total,
     with_state_detail,
@@ -31,7 +31,9 @@ def _step_down(value: pl.Expr, rows: list[list[float]]) -> pl.Expr:
     return result
 
 
-def _pre1989(df: pl.DataFrame, y: int, agi: pl.Expr) -> tuple[pl.DataFrame, pl.Expr, pl.Expr]:
+def _pre1989(
+    df: pl.DataFrame, y: int, agi: pl.Expr, behavior: BehaviorProfile = TAXSIM_BEHAVIOR
+) -> tuple[pl.DataFrame, pl.Expr, pl.Expr]:
     """Tax through 1988; returns the frame and the joint spouses' separate taxes."""
     p = YearParams(NC_PARAMS, y)
     brackets = p.value("brackets")
@@ -114,7 +116,8 @@ def _pre1989(df: pl.DataFrame, y: int, agi: pl.Expr) -> tuple[pl.DataFrame, pl.E
     df = df.with_columns(
         nc_taxinc=pl.when(is_joint).then(taxyh + taxyw).otherwise(single_taxinc),
         nc_statax=pl.when(is_joint).then(staxh + staxw).otherwise(single_tax),
-        nc_ch=pl.when(is_joint).then(joint_ch).otherwise(ch),
+        # TAXSIM's child count for the credit becomes the husband's share.
+        nc_ch=ch if behavior.count_all_children_for_north_carolina_joint_child_care else pl.when(is_joint).then(joint_ch).otherwise(ch),
         # Joint returns report no standard deduction or exemptions and the
         # average of the spouses' rates.
         nc_detail_agi=pl.when(is_joint).then(agi_joint).otherwise(single_agi),
@@ -161,12 +164,10 @@ def compute_nc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     if y <= 1986:
         # The federal dividend exclusion is added back. In 1981 it is the
         # joint dividend and interest exclusion, so interest can use it all up.
-        dividend_addback = dividend_exclusion_addback(y)
+        dividend_addback = dividend_exclusion_addback(y, behavior)
         if y == 1981:
             dividends = pl.col("dividends") + dividend_adjustment
-            limit = by_filing_status(
-                {s: resolve_year(v, y) for s, v in PRE1987_PARAMS["dividend_exclusion"].items()}
-            )
+            limit = federal_dividend_exclusion_limit(y, behavior)
             divall = (dividends + pl.col("intrec") - limit).clip(0, None)
             dividend_addback = (dividends - divall).clip(0, None)
         fullcg = pl.col("stcg") + pl.col("ltcg")
@@ -182,7 +183,7 @@ def compute_nc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     df, (agi,) = checkpoint(df, nc_agi=agi)
 
     if y <= 1988:
-        df, staxh, staxw = _pre1989(df, y, agi)
+        df, staxh, staxw = _pre1989(df, y, agi, behavior)
     else:
         # --- Standard deduction ---
         std = p["standard_deduction"]
@@ -303,7 +304,7 @@ def compute_nc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             tables = p.value("brackets")
             single_tax = bracket_tax(taxinc, tables["single"])
             hoh_tax = bracket_tax(taxinc, tables["head_of_household"])
-            if y <= 1990:
+            if y <= 1990 and not behavior.use_north_carolina_married_table_without_splitting:
                 # Joint returns: the lesser of income splitting and the
                 # spouses' separate shares, on the married table.
                 married = tables["married"]
@@ -373,10 +374,12 @@ def compute_nc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     df, (chcr,) = checkpoint(df, nc_chcr=chcr)
     statax = (statax - chcr).clip(0, None)
     if y <= 1988:
-        # Joint returns: the credit comes off the larger spouse's tax, and
-        # TAXSIM's sequential test can take it off both.
+        # Joint returns: the credit comes off the larger spouse's tax. TAXSIM
+        # tests the wife's tax after reducing the husband's, so it can take
+        # the credit off both.
         staxh2 = pl.when(staxh > staxw).then((staxh - chcr).clip(0, None)).otherwise(staxh)
-        staxw2 = pl.when(staxw >= staxh2).then((staxw - chcr).clip(0, None)).otherwise(staxw)
+        compare = staxh if behavior.take_north_carolina_child_care_credit_once else staxh2
+        staxw2 = pl.when(staxw >= compare).then((staxw - chcr).clip(0, None)).otherwise(staxw)
         statax = pl.when(is_joint).then(staxh2 + staxw2).otherwise(statax)
 
     # --- Child tax credit 1995-2017 ---

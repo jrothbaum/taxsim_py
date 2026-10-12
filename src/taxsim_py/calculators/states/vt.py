@@ -25,7 +25,7 @@ def compute_vt_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     y = effective_year
     p = YearParams(VT_PARAMS, effective_year)
     df = df.with_columns(
-        vt_household_income=household_income(),
+        vt_household_income=household_income(behavior),
         vt_ui=unemployment_total(),
         # Federal Schedule E income (`comnew(8)`).
         vt_schede=pl.col("otherprop") + (pl.col("scorp") if year >= 1987 else 0.0),
@@ -147,7 +147,9 @@ def compute_vt_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         else:
             lowcr = pl.when(hh <= p["low_income_credit_income"]).then(statax * interpolate_table(statax, rows)).otherwise(0.0)
     studcr = pl.lit(0.0)
-    if p.in_effect("student_credit"):
+    if p.in_effect("student_credit") and not behavior.omit_vermont_student_credit:
+        # TAXSIM pays the student credit to every filer who is not a dependent
+        # (there is no student input).
         studcr = pl.when(dependent_filer).then(0.0).otherwise(pl.min_horizontal(pl.lit(p.num("student_credit")), statax))
     chcr = p.num("child_care_rate") * fed_ccc if p.in_effect("child_care_rate") else pl.lit(0.0)
     chcref = pl.lit(0.0)
@@ -185,7 +187,7 @@ def compute_vt_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         pcred = pl.when(aged > 0).then(pcred).otherwise(0.0)
     else:
         investment = pl.col("dividends") + pl.col("intrec")
-        socsec = taxsim_socsec(y, pl.col("vt_setax"), pl.col("addmed"))
+        socsec = taxsim_socsec(y, pl.col("vt_setax"), pl.col("addmed"), behavior)
         vthy = (
             pl.col("pwages").clip(0, None) + pl.col("swages").clip(0, None) + investment + pl.col("vt_ui")
             + (pl.col("psemp") + pl.col("ssemp")).clip(0, None) + (pl.col("stcg") + pl.col("ltcg")).clip(0, None)

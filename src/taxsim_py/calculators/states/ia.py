@@ -7,8 +7,9 @@ import polars as pl
 from taxsim_py.calculators.federal_pre1987 import PRE1987_PARAMS
 from taxsim_py.engine.brackets import bracket_rate, bracket_tax
 from taxsim_py.engine.inputs import aged_count, files_head_of_household, files_joint, files_separate, files_single, separate_divisor, taxpayer_count
-from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml, resolve_year
+from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml
 from taxsim_py.engine.state import (
+    federal_dividend_exclusion_limit,
     by_filing_status,
     forced_standard,
     higher_earner_share,
@@ -56,8 +57,7 @@ def compute_ia_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         ).otherwise(0.0)
         df = df.with_columns(ia_agi=pl.col("ia_agi") + twoded)
     if p.in_effect("dividend_interest_exclusion_per_taxpayer"):
-        excl_table = PRE1987_PARAMS["dividend_exclusion"]
-        fed_excl = by_filing_status({s: resolve_year(excl_table[s], effective_year) for s in _STATUSES})
+        fed_excl = federal_dividend_exclusion_limit(effective_year, behavior)
         divexc = pl.min_horizontal(pl.col("dividends") + pl.col("intrec"), fed_excl)
         own_cap = (pl.col("dividends") + pl.col("intrec")).clip(0, p.num("dividend_interest_exclusion_per_taxpayer") * pl.col("ia_taxpayers"))
         df = df.with_columns(ia_agi=pl.col("ia_agi") + divexc - own_cap)
@@ -79,7 +79,8 @@ def compute_ia_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         df = df.with_columns(ia_agi=pl.col("ia_agi") + ssb, ia_addph=pl.col("taxable_social_security") - ssb)
     else:
         half = 0.5 * pl.col("gssi")
-        provisional = pl.col("agi") - pl.col("taxable_social_security") + pl.col("transfers") + half
+        transfers = pl.lit(0.0) if behavior.exclude_transfers_from_provisional_income else pl.col("transfers")
+        provisional = pl.col("agi") - pl.col("taxable_social_security") + transfers + half
         df = df.with_columns(
             ia_addph=pl.when(pl.col("gssi") > 0).then(pl.min_horizontal(half, (provisional - pha).clip(0, None) / 2)).otherwise(0.0)
         )
@@ -287,6 +288,8 @@ def compute_ia_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     # Federal credit before its liability limit, read undeflated; TAXSIM
     # leaves it at 0 before 1987.
     ccc_base = pl.col("ccc_uncapped")
+    if effective_year <= 1986 and behavior.read_federal_child_care_credit_before_1987:
+        ccc_base = pl.col("federal_chcr")
     if p.in_effect("child_care_credit_expense_rate"):
         chcr = pl.col("childcare") * p.num("child_care_credit_expense_rate")
     else:
@@ -324,7 +327,8 @@ def compute_ia_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             )
             earncr = pl.when(is_joint & (earncr > 0)).then(e["share"] * xlin5).otherwise(earncr)
 
-        if p.in_effect("eitc_eligibility_caps"):
+        caps_this_year = effective_year == p.num("eitc_eligibility_caps_year")
+        if p.in_effect("eitc_eligibility_caps") and (caps_this_year or not behavior.apply_iowa_eitc_caps_as_in_2010_law):
             caps = p.value("eitc_eligibility_caps")
             cap0, cap1_flat, cap2p_flat = float(caps["none"]), float(caps["one"]), float(caps["two_or_more"])
             over_0_flat = (pl.col("depx") == 0) & ((pl.col("earned_income") > cap0) | (pl.col("ia_agi") > cap0))
@@ -333,11 +337,23 @@ def compute_ia_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             over_flat = over_0_flat | over_1_flat | over_2p_flat
             if p.in_effect("eitc_joint_eligibility_caps"):
                 joint_caps = p.value("eitc_joint_eligibility_caps")
-                cap1, cap2 = float(joint_caps["one"]), float(joint_caps["two"])
-                over_1kid = (pl.col("depx") == 1) & ((pl.col("earned_income") > cap1) | (pl.col("ia_agi") > cap1))
-                over_2kid = (pl.col("depx") == 2) & ((pl.col("earned_income") > cap2) | (pl.col("ia_agi") > cap2))
+
+                def over(cap_key: str, kids: pl.Expr) -> pl.Expr:
+                    cap = float(joint_caps[cap_key])
+                    return kids & ((pl.col("earned_income") > cap) | (pl.col("ia_agi") > cap))
+
+                if behavior.apply_iowa_eitc_caps_as_in_2010_law:
+                    over_joint = (
+                        over("none", pl.col("depx") == 0)
+                        | over("one", pl.col("depx") == 1)
+                        | over("two_or_more", pl.col("depx") >= 2)
+                    )
+                else:
+                    # TAXSIM tests one child against the no-child cap and two
+                    # children against the one-child cap.
+                    over_joint = over("none", pl.col("depx") == 1) | over("one", pl.col("depx") == 2)
                 in_joint_branch = is_joint & (earncr > 0)
-                earncr = pl.when(in_joint_branch & (over_1kid | over_2kid)).then(0.0).otherwise(earncr)
+                earncr = pl.when(in_joint_branch & over_joint).then(0.0).otherwise(earncr)
                 earncr = pl.when(~in_joint_branch & over_flat).then(0.0).otherwise(earncr)
             else:
                 earncr = pl.when(over_flat).then(0.0).otherwise(earncr)

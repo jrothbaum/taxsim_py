@@ -62,6 +62,10 @@ child_tax_credit:
     2009: 3000
     2018: 2500
   actc_rate: {2001: 0.1, 2004: 0.15}
+  # 1998-2000: refundable only with this many qualifying children, up to the
+  # employee payroll tax (and half of self-employment tax) less the EITC
+  # (IRC 24(d) as enacted by P.L. 105-34).
+  refundable_minimum_children: {1998: 3, 2001: null}
   actc_max_refundable_per_child: {2018: 1400, 2022: 1500, 2023: 1600, 2024: 1700}
 # Other dependent credit from 2018 per dependent not eligible for the child tax
 # credit (phased out with it).

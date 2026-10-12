@@ -107,8 +107,9 @@ itemized_limit_test_index: {2019: 1.0, 2021: 1.25}
 itemized_limit_share: 0.8
 itemized_limit_rate: 0.03
 salt_cap: {2018: 10000.0}
-# Child care expense deduction per child (at most two); none in 2003.
-child_care_deduction_per_child: {1979: 2000.0, 1983: 2400.0, 2003: 0.0, 2004: 3000.0}
+# Child care expense deduction per child (at most two); the federal expense
+# limit from 2003 (TAXSIM has none in 2003).
+child_care_deduction_per_child: {1979: 2000.0, 1983: 2400.0, 2003: 3000.0}
 # Exemption per taxpayer and dependent (through 2004 also per taxpayer 65 or
 # older).
 exemption: {1977: 600.0, 1987: 700.0, 1988: 800.0, 2005: 900.0, 2008: 930.0}

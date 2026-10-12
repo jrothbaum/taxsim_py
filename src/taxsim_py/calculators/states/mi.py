@@ -32,7 +32,7 @@ def compute_mi_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     # Self-employment tax is not deflated in projected years.
     setax = pl.col("payroll_setax")
     ui_total = unemployment_total()
-    hh_income = household_income()
+    hh_income = household_income(behavior)
     df = df.with_columns(mi_setax=setax, mi_household_income_undeflated=hh_income, mi_household_income=hh_income)
 
     df = deflate_for_extrapolation(df, flate, extra=("mi_household_income",))
@@ -73,7 +73,17 @@ def compute_mi_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             pl.min_horizontal(unearned, p.num("senior_investment_deduction_per_taxpayer") * n_tp)
         ).otherwise(0.0)
     pens = pl.max_horizontal(penexc, divded)
-    if p.in_effect("senior_standard_deduction"):
+    tiered = p.in_effect("senior_standard_deduction") and y <= 2022 and behavior.apply_michigan_retirement_tiers
+    if tiered:
+        older = pl.max_horizontal(pl.col("page"), pl.col("sage"))
+        born = year - older
+        tier_two = (born >= p.num("senior_tier_two_first_birth_year")) & (born <= p.num("senior_tier_two_last_birth_year"))
+        tier_three = born > p.num("senior_tier_two_last_birth_year")
+        reached = older >= p.num("senior_standard_deduction_age")
+        tier_amount = p.num("senior_standard_deduction") * pl.when(is_joint).then(2.0).otherwise(1.0)
+        tier_two_deduction = pl.when(reached).then(tier_amount).otherwise(pl.min_horizontal(pensions, tier_amount))
+        pens = pl.when(tier_two).then(tier_two_deduction).when(tier_three).then(0.0).otherwise(pens)
+    elif p.in_effect("senior_standard_deduction"):
         # A flat deduction per taxpayer 65 or older replaces it.
         pens = pl.when(aged > 0).then(p.num("senior_standard_deduction") * aged).otherwise(pens)
 
@@ -91,6 +101,9 @@ def compute_mi_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     dependent_exemption = p.num("dependent_filer_exemption")
     exemp = pl.when(is_dependent_filer()).then(dependent_exemption).otherwise(exemp)
 
+    if tiered:
+        # Born after the second tier: the deduction less exemptions from the age.
+        pens = pl.when(tier_three & reached).then((tier_amount - exemp).clip(0, None)).otherwise(pens)
     if y >= 2023:
         # MI-1040 Worksheet 2: the senior standard deduction less exemptions.
         pens = pl.when(aged > 0).then((pens - exemp).clip(0, None)).otherwise(pens)

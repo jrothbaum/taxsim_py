@@ -4,11 +4,12 @@
 from __future__ import annotations
 import polars as pl
 
+from taxsim_py.behavior import BehaviorProfile, TAXSIM_BEHAVIOR
 from taxsim_py.engine.brackets import bracket_rate_by_status, bracket_tax_by_status
 from taxsim_py.engine.eitc import trapezoid_credit
 from taxsim_py.engine.inputs import aged_count, files_joint, files_separate, filing_status, is_dependent_filer, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml, resolve_year
-from taxsim_py.engine.state import FORCE_ITEMIZE, by_filing_status, dividend_input_adjustment, itemize_choice, unemployment_total, with_default
+from taxsim_py.engine.state import FORCE_ITEMIZE, by_filing_status, dividend_input_adjustment, federal_dividend_exclusion_limit, itemize_choice, unemployment_total, with_default
 
 PRE1987_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "pre1987.yaml")
 SOCIAL_SECURITY_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "social_security.yaml")
@@ -26,6 +27,7 @@ SEPRET_BY_STATUS = {
 def compute_federal_income_tax_pre1987(
     df: pl.DataFrame | pl.LazyFrame,
     year: int,
+    behavior: BehaviorProfile = TAXSIM_BEHAVIOR,
 ) -> pl.DataFrame | pl.LazyFrame:
     p = YearParams(PRE1987_PARAMS, year)
     # Working columns vary by year, so the output keeps the input columns
@@ -42,6 +44,7 @@ def compute_federal_income_tax_pre1987(
     for col in (
         "proptax", "otheritem", "mortgage", "intrec", "psemp", "ssemp", "dividends", "stcg", "ltcg", "ui",
         "pui", "sui", "state_sales_or_income_tax_ded", "pensions", "gssi", "otherprop", "nonprop", "page", "sage",
+        "pbusinc", "pprofinc", "sbusinc", "sprofinc", "scorp",
     ):
         df = with_default(df, col)
     # Unemployment compensation as TAXSIM combines it (`data(82)`).
@@ -50,16 +53,14 @@ def compute_federal_income_tax_pre1987(
     sepret_expr = by_filing_status(SEPRET_BY_STATUS)
     brackets_by_status = {status: resolve_year(p["brackets"][status], year) for status in FILING_STATUSES}
 
-    df = df.with_columns(
-        sepret=sepret_expr,
-        gross_se_income=pl.col("psemp") + pl.col("ssemp"),
-    )
+    gross_se_income = pl.col("psemp") + pl.col("ssemp")
+    if behavior.include_business_income_before_1987:
+        gross_se_income = gross_se_income + pl.col("pbusinc") + pl.col("pprofinc") + pl.col("sbusinc") + pl.col("sprofinc")
+    df = df.with_columns(sepret=sepret_expr, gross_se_income=gross_se_income)
     df = df.with_columns(earned=(pl.col("wages") + pl.col("gross_se_income")).clip(0, None))
 
     # Dividend exclusion (`divall`); 1981 also excludes interest.
-    divexc_expr = by_filing_status(
-        {status: resolve_year(p["dividend_exclusion"][status], year) for status in FILING_STATUSES}
-    )
+    divexc_expr = federal_dividend_exclusion_limit(year, behavior)
     df = df.with_columns(dividends_with_fudge=pl.col("dividends") + dividend_input_adjustment(), divexc=divexc_expr)
     if year == 1981:
         df = df.with_columns(
@@ -109,10 +110,12 @@ def compute_federal_income_tax_pre1987(
         df = df.with_columns(twoded=pl.lit(0.0))
 
     # Pensions and other property income are income; other non-property
-    # income enters through the adjustments. Business income is not read.
+    # income enters through the adjustments. TAXSIM does not read business
+    # income or S corporation income.
+    scorp = pl.col("scorp") if behavior.include_business_income_before_1987 else pl.lit(0.0)
     df = df.with_columns(
         ti=pl.col("divall") + pl.col("wages") + pl.col("ints") + pl.col("gross_se_income")
-        + pl.col("pensions") + pl.col("otherprop"),
+        + pl.col("pensions") + pl.col("otherprop") + scorp,
     )
     # A net capital loss cannot exceed other income.
     df = df.with_columns(capgn=pl.max_horizontal(pl.col("capgn"), -pl.col("ti").clip(0, None)))
@@ -263,9 +266,11 @@ def compute_federal_income_tax_pre1987(
                     p["excess_itemized_preference"]["cap_share"] * pl.col("agi"),
                 )
             )
+            # TAXSIM also counts wages and unemployment compensation.
+            misread = 0.0 if behavior.exclude_wages_from_1977_preference_income else pl.col("ui_combined") + pl.col("wages")
             df = df.with_columns(
                 pref=pl.when(pl.col("itemizes"))
-                .then((pl.col("capded") + pl.col("ui_combined") + pl.col("wages") + pl.col("exded_pref")).clip(0, None))
+                .then((pl.col("capded") + misread + pl.col("exded_pref")).clip(0, None))
                 .otherwise(0.0)
             )
             df = df.with_columns(eti=pl.col("taxinc_unclamped") * pl.col("eratio") - pl.col("pref"))
@@ -326,7 +331,26 @@ def compute_federal_income_tax_pre1987(
     else:
         gencr = pl.lit(0.0)
     df = df.with_columns(gencr=gencr)
-    df = df.with_columns(credit=pl.min_horizontal(pl.col("chcr") + pl.col("gencr"), pl.col("taxbc")).clip(0, None))
+
+    # Credit for the elderly; TAXSIM caps it at an input it never sets, so 0.
+    if behavior.apply_elderly_credit_before_1987:
+        eld_p = YearParams(p["elderly_credit"], year)
+        base = eld_p.value("base")
+        threshold = eld_p.value("agi_threshold")
+        one_aged = (aged_count() == 1) & ~files_separate()
+        two_aged_base = pl.lit(float(base["two_aged"])) / pl.col("sepret")
+        base_amount = pl.when(one_aged).then(float(base["one_aged"])).otherwise(two_aged_base)
+        single = ~files_joint() & ~files_separate()
+        agi_threshold = pl.when(single).then(float(threshold["one_aged"])).otherwise(
+            pl.lit(float(threshold["two_aged"])) / pl.col("sepret")
+        )
+        reduction = eld_p.num("agi_share") * (pl.col("agi") - agi_threshold).clip(0, None) + (
+            pl.col("gssi") - pl.col("taxable_social_security")
+        ).clip(0, None)
+        elderly = pl.when(aged_count() > 0).then(eld_p.num("rate") * (base_amount - reduction).clip(0, None)).otherwise(0.0)
+    else:
+        elderly = pl.lit(0.0)
+    df = df.with_columns(credit=pl.min_horizontal(pl.col("chcr") + pl.col("gencr") + elderly, pl.col("taxbc")).clip(0, None))
     df = df.with_columns(taxaft=pl.col("taxbc") - pl.col("credit"))
 
     # --- Minimum tax: three distinct formulas layered as a floor over taxaft ---
@@ -380,10 +404,13 @@ def compute_federal_income_tax_pre1987(
             .then(offset_single_hoh)
             .otherwise(offset_joint_sep / pl.col("sepret"))
         )
-        # Only medical, charitable and casualty deductions reduce this base,
-        # and none of them are inputs, so the base is AGI plus preferences.
+        # Medical, charitable, casualty and housing interest deductions reduce
+        # this base; TAXSIM omits housing interest.
         pref = pl.when(pl.col("fullcg") < 0).then(pl.col("fullcg") - pl.col("capgn")).otherwise(pl.col("capded"))
-        df = df.with_columns(alminy=(pl.col("agi") + pref).clip(0, None))
+        housing = pl.lit(0.0)
+        if behavior.deduct_mortgage_interest_from_1983_minimum_tax:
+            housing = pl.when(pl.col("itemizes")).then(pl.col("mortgage")).otherwise(0.0)
+        df = df.with_columns(alminy=(pl.col("agi") + pref - housing).clip(0, None))
         df = df.with_columns(mintax_raw=flat_rate * (pl.col("alminy") - pl.col("offset")).clip(0, None))
 
     df = df.with_columns(
@@ -410,7 +437,8 @@ def compute_federal_income_tax_pre1987(
     # TAXSIM's shared `rate` (`comnew(72)`) is a hand-coded analytic rate,
     # not the finite-difference `frate`. Several states consume this value.
     regrat = bracket_rate_by_status(pl.col("taxable_income_for_bracket"), brackets_by_status)
-    rgrate = 100.0 * regrat
+    # TAXSIM overwrites the 1981 rate-reduction factor on the next line.
+    rgrate = 100.0 * regrat * (rrc if behavior.correct_analytic_federal_rate else 1.0)
     a = ANALYTIC_RATE_PARAMS
     ui_share = a["partial_unemployment_share"]
     ss_share = a["social_security_first_tier_share"]
@@ -428,9 +456,16 @@ def compute_federal_income_tax_pre1987(
         # The alternative-tax rate (`garb`) is set only where the 1977-1978
         # computation reaches its second bracket lookup; otherwise it is 0.
         if year <= 1978:
+            # Below the gated range the ordinary rate applies to `cg1`;
+            # TAXSIM leaves it 0.
+            moderate = (
+                100.0 * bracket_rate_by_status(pl.col("cg1"), brackets_by_status)
+                if behavior.correct_analytic_federal_rate
+                else 0.0
+            )
             cg_rate = pl.when(pl.col("further_gated")).then(
                 100.0 * bracket_rate_by_status(pl.col("cg3"), brackets_by_status)
-            ).otherwise(0.0)
+            ).otherwise(moderate)
         elif year == 1981:
             cg_rate = 100.0 * bracket_rate_by_status(pl.col("cg1"), brackets_by_status)
         else:
@@ -498,12 +533,14 @@ def compute_federal_income_tax_pre1987(
             salt = pl.col("state_sales_or_income_tax_ded")
             pexded = (pl.col("exded_1979plus") > 0) & ((pl.col("agi") - salt).clip(0, None) > 0)
             share = p.num("minimum_tax_excess_itemized_share")
-            almrat = almr * (1.0 - share * pexded.cast(pl.Float64)) - almr
+            almrat = almr * (1.0 - share * pexded.cast(pl.Float64))
+            if not behavior.correct_analytic_federal_rate:
+                almrat = almrat - almr
     else:
         flat = p.num("minimum_tax_flat_rate")
         almrat = pl.when(pl.col("itemizes")).then(flat).otherwise(0.0)
     ralm = almrat * (1.0 + ss_share * pssa.cast(pl.Float64)) * 100.0
-    if year <= 1981:
+    if year <= 1981 and not behavior.correct_analytic_federal_rate:
         amt_rate = pl.when(in_phase_in).then(reic).otherwise(0.0)
     else:
         amt_rate = ralm + reic

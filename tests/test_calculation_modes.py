@@ -391,11 +391,8 @@ def test_california_statutory_uses_recent_tables_and_caps_yctc_per_return() -> N
 def test_fed_income_001_statutory_mode_reports_the_real_pre1998_elderly_credit() -> None:
     """Before 1998, TAXSIM reports tax-before-credits (not the credit) as
     the nonrefundable-credit total when the elderly credit happens to
-    exceed tax, and 0 otherwise - never the actual computed credit that
-    several states (LA, UT, OR, ND, AL, AZ) read for their own federal-tax
-    deduction. This doesn't change `fiitax`, which the elderly credit
-    still doesn't reduce pre-1998 in either mode - only what gets reported
-    to states as the credit total."""
+    exceed tax, and 0 otherwise, and applies no credit. Statutory mode
+    applies the credit (FED-INCOME-005) and reports the amount applied."""
     cases = pl.DataFrame(
         [
             # federal_elder ($712.50) > tax_before_credits ($97.50): TAXSIM
@@ -413,11 +410,10 @@ def test_fed_income_001_statutory_mode_reports_the_real_pre1998_elderly_credit()
         [97.50015, 0.0], abs=0.01
     )
     assert statutory.get_column("nonrefundable_credits").to_list() == pytest.approx(
-        taxsim.get_column("federal_elder").to_list(), abs=0.01
+        [97.50015, 412.50], abs=0.01
     )
-    # `fiitax` is unaffected in both modes - only the reported total changes.
-    assert taxsim.get_column("fiitax").to_list() == pytest.approx(
-        statutory.get_column("fiitax").to_list(), abs=0.01
+    assert (taxsim.get_column("fiitax") - statutory.get_column("fiitax")).to_list() == pytest.approx(
+        [97.50015, 412.50], abs=0.01
     )
 
 

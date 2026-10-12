@@ -472,9 +472,12 @@ def calculate_taxes(
     detail_columns: tuple[str, ...] = ()
     if 2 in detail_levels:
         result = result.with_columns(*federal_detail(result, year_expr))
+        if behavior.report_base_state_worksheet:
+            # TAXSIM prints the state worksheet from the marginal-rate run.
+            printed = None
         if printed is not None and printed.height:
             result = _with_printed_state_worksheet(result, printed, row_column)
-        result = result.with_columns(*state_detail(result))
+        result = result.with_columns(*state_detail(result, behavior))
         if printed is not None and printed.height:
             result = result.with_columns(
                 state_household_income=pl.col("state_household_income")

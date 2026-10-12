@@ -120,6 +120,9 @@ def compute_oh_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     joint_eligible = (hagi >= min_income) & (wagi >= min_income)
     if p.in_effect("joint_credit_min_earned"):
         joint_eligible = joint_eligible & (pl.col("earned_income") >= p.num("joint_credit_min_earned"))
+    if y <= 1988 and behavior.limit_ohio_joint_credit_to_joint_returns:
+        # TAXSIM does not test the filing status through 1988.
+        joint_eligible = joint_eligible & is_joint
     df, (joint_eligible,) = checkpoint(df, oh_joint_eligible=joint_eligible)
 
     brackets = scale_brackets(p.value("brackets"), p.num("bracket_inflation"))
@@ -140,11 +143,22 @@ def compute_oh_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             stax1 = stax1.clip(0, None)
             stax2 = stax2.clip(0, None)
         df, (stax1, stax2) = checkpoint(df, oh_stax1=stax1, oh_stax2=stax2)
-        statax = pl.when(stax2 < stax1).then(stax2).otherwise(_joint_credit(stax1, taxinc, businc, p, joint_eligible))
+        method1 = _joint_credit(stax1, taxinc, businc, p, joint_eligible)
         rate = pl.when(stax2 < stax1).then(bracket_rate(taxinc, brackets)).otherwise(
             bracket_rate((taxinc - dedy).clip(0, None), brackets)
         )
-        statax = (statax - excred).clip(0, None)
+        if behavior.subtract_ohio_exemption_credit_once:
+            # Method 2 already includes the exemption credit; both methods get
+            # the joint filing credit and the lower tax applies.
+            method2 = _joint_credit(stax2, taxinc, businc, p, joint_eligible)
+            final1 = (method1 - excred).clip(0, None)
+            statax = pl.min_horizontal(final1, method2)
+            rate = pl.when(method2 < final1).then(bracket_rate(taxinc, brackets)).otherwise(
+                bracket_rate((taxinc - dedy).clip(0, None), brackets)
+            )
+        else:
+            # TAXSIM subtracts the credit again from whichever method wins.
+            statax = (pl.when(stax2 < stax1).then(stax2).otherwise(method1) - excred).clip(0, None)
     else:
         statax = bracket_tax(taxinc, brackets)
         rate = bracket_rate(taxinc, brackets)

@@ -330,11 +330,12 @@ dependent_deduction:
   2021: {flat: 0}
 dependent_deduction_cap_per_child: {1982: 2000, 1983: null}
 
-# Child care deduction per child under 13 (through 2010); 2021+ credit.
+# Child care deduction per child under 13 (Form 1 line 10b through 2020;
+# TAXSIM ends it after 2010); 2021+ credit.
 child_care_deduction_per_child:
   1977: 2400
   2010: 4800
-  2011: null
+  2021: null
 child_care_credit_per_child: {2021: 240}
 # 2021-2022 dependent credit per dependent (the larger of it and the child
 # care credit).

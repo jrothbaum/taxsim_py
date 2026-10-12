@@ -54,6 +54,15 @@ def compute_wv_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     half_other = 0.5 * (ti - pw - sw)
     two = pl.min_horizontal(half_other + pw, pl.lit(cap)) + pl.min_horizontal(half_other + sw, pl.lit(cap))
     oldded = pl.when(aged == 1).then(one).when(aged == 2).then(two).otherwise(0.0)
+    if behavior.allow_west_virginia_disability_deduction:
+        # Under 65 with Social Security benefits in AGI: the disability
+        # deduction, which TAXSIM's year test never reaches.
+        agimod = agi - pw - sw - ss
+        disabled_joint = pl.min_horizontal(0.5 * agimod + pw + 0.5 * ss, pl.lit(cap)) + pl.min_horizontal(
+            0.5 * agimod + sw + 0.5 * ss, pl.lit(cap)
+        )
+        disabled = pl.when(is_joint).then(disabled_joint).otherwise(pl.min_horizontal(agi, pl.lit(cap)))
+        oldded = pl.when((aged == 0) & (ss > 0)).then(disabled.clip(0, None)).otherwise(oldded)
     agi = (agi - oldded).clip(0, None)
     df, (agi,) = checkpoint(df, wv_agi=agi)
 
@@ -61,8 +70,11 @@ def compute_wv_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     if p.in_effect("standard_deduction_share"):
         c = p.value("standard_deduction_share")
         stded = (c["rate"] * agi).clip(None, c["cap"])
-        # Federal itemized deductions keep state income tax.
+        # Federal itemized deductions less state income tax (TAXSIM reads
+        # the tax from an input it never sets, so it stays in).
         gross, fed_itemizes, _ = pre1987_federal_itemizing(y)
+        if behavior.remove_state_tax_from_west_virginia_itemized_deductions:
+            gross = (gross - pl.col("state_sales_or_income_tax_ded")).clip(0, None)
         xitded = pl.when(fed_itemizes).then(gross).otherwise(0.0)
         deduc = pl.max_horizontal(stded, xitded)
     else:
@@ -85,8 +97,12 @@ def compute_wv_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         split = pl.when(is_joint).then(2.0 * bracket_tax(taxinc / 2.0, general)).otherwise(bracket_tax(taxinc, general))
         rate = pl.when(is_joint).then(bracket_rate(taxinc / 2.0, general)).otherwise(bracket_rate(taxinc, general))
         if isinstance(tables, dict):
-            statax = pl.when(is_hoh).then(bracket_tax(taxinc, tables["head_of_household"])).otherwise(split)
-            rate = pl.when(is_hoh).then(bracket_rate(taxinc, tables["head_of_household"])).otherwise(rate)
+            hoh_table = tables["head_of_household"]
+            if y >= 1984 and not behavior.complete_west_virginia_1984_head_of_household_table:
+                # TAXSIM reads one row too few of the 1984-1986 table.
+                hoh_table = hoh_table[:-1]
+            statax = pl.when(is_hoh).then(bracket_tax(taxinc, hoh_table)).otherwise(split)
+            rate = pl.when(is_hoh).then(bracket_rate(taxinc, hoh_table)).otherwise(rate)
         else:
             statax = split
     else:

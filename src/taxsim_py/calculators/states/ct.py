@@ -99,7 +99,7 @@ def compute_ct_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     p = YearParams(CT_PARAMS, effective_year)
 
     df = df.with_columns(
-        ct_household_income=household_income()
+        ct_household_income=household_income(behavior)
     )
     df = deflate_for_extrapolation(df, flate, extra=("ct_household_income",))
 

@@ -321,9 +321,19 @@ senior_investment_deduction_per_taxpayer:
   2019: 11771
   2020: 11983
   2021: 12127
-# 2013+: a flat deduction per taxpayer 65 or older replaces both.
+# 2013+: a flat deduction per taxpayer 65 or older replaces both in TAXSIM.
+# By law (2013-2022) the tier follows the older spouse's birth year: born
+# before `senior_tier_two_first_birth_year`, the pension and investment
+# subtractions above; born through `senior_tier_two_last_birth_year`, this
+# amount (doubled on joint returns) limited to pensions, or against all
+# income from `senior_standard_deduction_age`; born later, the deduction
+# from that age less the exemptions claimed (MI-1040 instructions, Retirement
+# and Pension Benefits).
 senior_standard_deduction:
   2013: 20000
+senior_tier_two_first_birth_year: 1946
+senior_tier_two_last_birth_year: 1952
+senior_standard_deduction_age: 67
 
 # From 2023 (statutory mode): the senior standard deduction is reduced by the
 # exemptions claimed, and the retirement subtraction is phased in for

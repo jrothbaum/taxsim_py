@@ -93,3 +93,5 @@ locally in the page through Pyodide; see [Browser](browser.md).
 - [Files and command line](files.md): file types and `taxsim-py` flags
 - [Statutory corrections](statutory_corrections.md): where the default mode differs
   from the compiled TAXSIM
+- [Known TAXSIM errors](taxsim_errors.md): apparent errors in TAXSIM and how
+  taxsim-py handles each

@@ -86,7 +86,7 @@ def compute_nj_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     df = df.with_columns(
         nj_dividends=pl.col("dividends") + dividend_adjustment,
         # Household income is read before projected-year deflation.
-        nj_household_income_undeflated=household_income(),
+        nj_household_income_undeflated=household_income(behavior),
         # Federal Schedule E income: other property income, plus S
         # corporation income from 1987.
         nj_schede=pl.col("otherprop") + (pl.col("scorp") if year >= 1987 else 0.0),
@@ -148,7 +148,13 @@ def compute_nj_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         excluded - pl.min_horizontal(unused, excluded.clip(0, None))
     ).otherwise(excluded)
     agi = pl.when(aged > 0).then(excluded).otherwise(agi)
-    df, (agi, capgn) = checkpoint(df, nj_agi=agi - capgn + fullcg, nj_capgn=capgn)
+    # Gross income counts the full net gain, never a net loss; TAXSIM swaps
+    # the federal gain for the raw one, so a loss beyond $3,000 lowers income.
+    if behavior.disallow_new_jersey_capital_losses:
+        nj_agi = agi - capgn.clip(0, None) + fullcg.clip(0, None)
+    else:
+        nj_agi = agi - capgn + fullcg
+    df, (agi, capgn) = checkpoint(df, nj_agi=nj_agi, nj_capgn=capgn)
 
     # --- No-tax status ---
     limits = p.value("no_tax_threshold")

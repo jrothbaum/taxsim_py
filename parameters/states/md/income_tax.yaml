@@ -79,17 +79,19 @@ standard_deduction_limits_per_exemption:
   1990: {floor: 1500, ceiling: 2000}
   2018: {floor: 1500, ceiling: 2250}
   2019: null
-# Source for 2022 on: PolicyEngine-US gov.states.md.tax.income.deductions.standard.
+# Source 2019-2021: Maryland Resident Booklet, Instruction 16 (TAXSIM's
+# arrays fill these out of order); 2022 on: PolicyEngine-US
+# gov.states.md.tax.income.deductions.standard.
 standard_deduction_limits:
   2019:
-    single_or_separate: {floor: 1500, ceiling: 1550}
-    joint_or_hoh: {floor: 3050, ceiling: 3100}
+    single_or_separate: {floor: 1500, ceiling: 2250}
+    joint_or_hoh: {floor: 3050, ceiling: 4550}
   2020:
-    single_or_separate: {floor: 1550, ceiling: 2250}
-    joint_or_hoh: {floor: 3100, ceiling: 4550}
+    single_or_separate: {floor: 1550, ceiling: 2300}
+    joint_or_hoh: {floor: 3100, ceiling: 4650}
   2021:
-    single_or_separate: {floor: 2300, ceiling: 2350}
-    joint_or_hoh: {floor: 4650, ceiling: 4700}
+    single_or_separate: {floor: 1550, ceiling: 2350}
+    joint_or_hoh: {floor: 3100, ceiling: 4700}
   2022:
     single_or_separate: {floor: 1600, ceiling: 2400}
     joint_or_hoh: {floor: 3200, ceiling: 4850}

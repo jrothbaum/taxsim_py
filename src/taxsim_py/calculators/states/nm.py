@@ -60,7 +60,7 @@ def compute_nm_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     y = effective_year
     p = YearParams(NM_PARAMS, effective_year)
     dividend_adjustment = dividend_input_adjustment()
-    hh = household_income()
+    hh = household_income(behavior)
     business = pl.col("psemp") + pl.col("ssemp") + pl.col("pwages").clip(None, 0) + pl.col("swages").clip(None, 0)
     modagi = (
         pl.col("pwages").clip(0, None) + pl.col("swages").clip(0, None) + unemployment_total()
@@ -113,8 +113,9 @@ def compute_nm_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     ).otherwise(0.0) / sep
     agi = fed_agi - cgded
     if 1984 <= y <= 1989:
-        # TAXSIM adds taxable Social Security back again in these years.
-        agi = agi + pl.col("taxable_social_security")
+        # Benefits are exempt; TAXSIM adds them a second time instead.
+        sign = -1.0 if behavior.exempt_new_mexico_social_security_1984_1989 else 1.0
+        agi = agi + sign * pl.col("taxable_social_security")
     df, (agi, fed_agi) = checkpoint(df, nm_agi=agi, nm_fed_agi=fed_agi)
 
     # --- Deduction for taxpayers 65 or older ---
@@ -167,9 +168,9 @@ def compute_nm_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     rate = _schedule(bracket_rate, taxinc, status, sep, p)
 
     # --- Refundable credits ---
-    # Taxpayers 65 or older count twice from 1985.
+    # Taxpayers 65 or older add one to household size (TAXSIM: two from 1985).
     ncred = (txp + depx + aged).clip(None, 6).floor()
-    if y >= 1985:
+    if y >= 1985 and not behavior.count_new_mexico_aged_once_in_rebate:
         ncred = (ncred + aged).clip(None, 6)
     ycred = pl.lit(0.0)
     for size in range(1, 7):

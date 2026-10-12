@@ -162,7 +162,9 @@ def compute_ne_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
                     cap_amount = pl.when(status == status_name).then(capped).otherwise(cap_amount)
                     top = pl.when(status == status_name).then(pl.lit(bounds[3])).otherwise(top)
                 limited = pl.when(dagi <= top).then(surtax).otherwise(cap_amount)
-                added = pl.when(is_single).then(surtax + limited).otherwise(limited / sep)
+                # TAXSIM adds single filers' additional tax twice.
+                single_added = limited if behavior.add_nebraska_single_additional_tax_once else surtax + limited
+                added = pl.when(is_single).then(single_added).otherwise(limited / sep)
                 high = dagi > phas92
                 big = taxinc >= p.num("additional_tax_min_taxable_income")
                 statax = (

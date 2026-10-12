@@ -580,7 +580,7 @@ homestead_credit:
     income_rate: 0.1294
     small_limit: 10
     small_rate: 1.1
-    rate: 0.0
+    rate: 0.8
     dependent_deduction: 0
   1984:
     income_limit: 16500

@@ -4,6 +4,7 @@
 from __future__ import annotations
 import polars as pl
 
+from taxsim_py.behavior import BehaviorProfile, TAXSIM_BEHAVIOR
 from taxsim_py.engine.brackets import bracket_tax_by_status
 from taxsim_py.engine.eitc import trapezoid_credit
 from taxsim_py.engine.inputs import aged_count, files_separate, filing_status, is_dependent_filer, taxpayer_count
@@ -28,7 +29,7 @@ def _halve_thresholds(brackets: list[list[float]]) -> list[list[float]]:
 
 
 def compute_federal_income_tax_law60(
-    df: pl.DataFrame | pl.LazyFrame, year: int
+    df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR
 ) -> pl.DataFrame | pl.LazyFrame:
     if year < 1960:
         raise NotImplementedError("law60 only covers 1960-1976 - see parameters/national/law60.yaml")
@@ -43,7 +44,7 @@ def compute_federal_income_tax_law60(
     for col in (
         "proptax", "otheritem", "mortgage", "intrec", "psemp", "ssemp",
         "dividends", "stcg", "ltcg", "ui", "pui", "sui", "childcare", "depx",
-        "pensions", "otherprop", "nonprop", "page", "sage",
+        "pensions", "otherprop", "nonprop", "page", "sage", "pbusinc", "pprofinc", "sbusinc", "sprofinc", "scorp",
     ):
         df = with_default(df, col)
 
@@ -59,10 +60,13 @@ def compute_federal_income_tax_law60(
         "married_separate": single_brackets if year <= 1970 else _halve_thresholds(joint_brackets),
     }
 
-    df = df.with_columns(
-        sepret=sepret_expr,
-        se_income=pl.col("psemp") + pl.col("ssemp"),
-    )
+    se_income = pl.col("psemp") + pl.col("ssemp")
+    scorp = pl.lit(0.0)
+    if behavior.include_business_income_before_1987:
+        # TAXSIM does not read business or S corporation income.
+        se_income = se_income + pl.col("pbusinc") + pl.col("pprofinc") + pl.col("sbusinc") + pl.col("sprofinc")
+        scorp = pl.col("scorp")
+    df = df.with_columns(sepret=sepret_expr, se_income=se_income)
     df = df.with_columns(earned=pl.col("wages") + pl.col("se_income").clip(0, None))
 
     # Dividend exclusion.
@@ -96,7 +100,7 @@ def compute_federal_income_tax_law60(
     # compensation plays no role here.
     df = df.with_columns(
         ti=pl.col("divall") + pl.col("wages") + pl.col("intrec") + pl.col("se_income") + pl.col("capgn")
-        + pl.col("pensions") + pl.col("otherprop")
+        + pl.col("pensions") + pl.col("otherprop") + scorp
     )
     df = df.with_columns(agi=pl.col("ti") + pl.col("nonprop"))
 

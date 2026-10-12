@@ -30,7 +30,7 @@ def compute_il_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     # (through 1986; the gains exclusion is on the net long-term gain).
     if effective_year <= 1986:
         df = df.with_columns(
-            il_dividend_addback=dividend_exclusion_addback(effective_year),
+            il_dividend_addback=dividend_exclusion_addback(effective_year, behavior),
             il_capgains_addback=pl.col("pre1987_capded"),
         )
     else:
@@ -103,10 +103,11 @@ def compute_il_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             federal_eitc = pl.when(too_young).then(0.0).otherwise(pl.col("eitc_before_age_test"))
         df = df.with_columns(il_eitc_raw=eitc_match_rate * (federal_eitc / flate))
         if not p.value("eitc_refundable"):
-            # TAXSIM subtracts the property tax credit twice in the limit.
-            df = df.with_columns(
-                il_eitc_ceiling=pl.col("il_tax_after_property_credit") - pl.col("il_property_tax_credit")
-            )
+            ceiling = pl.col("il_tax_after_property_credit")
+            if not behavior.subtract_illinois_property_credit_once_in_eitc_limit:
+                # TAXSIM subtracts the property tax credit twice in the limit.
+                ceiling = ceiling - pl.col("il_property_tax_credit")
+            df = df.with_columns(il_eitc_ceiling=ceiling)
             df = df.with_columns(
                 il_eitc=pl.max_horizontal(0.0, pl.min_horizontal(pl.col("il_eitc_raw"), pl.col("il_eitc_ceiling")))
             )

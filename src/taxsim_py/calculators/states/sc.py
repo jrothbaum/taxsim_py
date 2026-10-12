@@ -8,6 +8,7 @@ from taxsim_py.engine.brackets import bracket_rate, bracket_tax, scale_brackets
 from taxsim_py.engine.inputs import aged_count, federal_exemption_count, files_head_of_household, files_joint, files_separate, files_single, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml, resolve_year
 from taxsim_py.engine.state import (
+    FORCE_ITEMIZE,
     dividend_input_adjustment,
     by_filing_status,
     checkpoint,
@@ -30,6 +31,18 @@ def compute_sc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     p = YearParams(SC_PARAMS, effective_year)
     dividend_adjustment = dividend_input_adjustment()
     df = df.with_columns(sc_ui=unemployment_total())
+    if 1981 <= y <= 1984 and behavior.deduct_south_carolina_federal_tax_under_1980_law:
+        # The federal tax deduction is figured under 1980 law.
+        from taxsim_py.calculators.federal_pre1987 import compute_federal_income_tax_pre1987
+        from taxsim_py.engine.inputs import TAXSIM_INPUTS
+
+        names = df.collect_schema().names()
+        inputs = [c for c in (*TAXSIM_INPUTS, FORCE_ITEMIZE, "state_sales_or_income_tax_ded") if c in names]
+        df = df.with_row_index("__sc_row")
+        fed_1980 = compute_federal_income_tax_pre1987(df.select("__sc_row", *inputs), 1980, behavior).select(
+            "__sc_row", sc_federal_tax_1980=pl.col("fiitax")
+        )
+        df = df.join(fed_1980, on="__sc_row", how="left", maintain_order="left").drop("__sc_row")
     # Self-employment tax (`comnew(175)`) is not deflated in projected years.
     df = deflate_for_extrapolation(df, flate, extra=("sc_ui",))
 
@@ -46,7 +59,7 @@ def compute_sc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
 
     # --- AGI ---
     if y <= 1984:
-        agi = fed_agi + dividend_exclusion_addback(y) + (
+        agi = fed_agi + dividend_exclusion_addback(y, behavior) + (
             pl.col("sc_ui") - pl.col("taxable_unemployment")
         ).clip(0, None)
         cg = p.num("long_term_gain_share") * pl.col("ltcg") + pl.col("stcg")
@@ -94,7 +107,8 @@ def compute_sc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         stded = pl.min_horizontal(share["rate"] * ag * index, index * share["cap_per_taxpayer"] * txp)
         gross, _, _ = pre1987_federal_itemizing(y)
         xitded = (gross - pl.col("state_sales_or_income_tax_ded")).clip(0, None)
-        fedtax = pl.col("fiitax")
+        # TAXSIM's 1980-law rerun does not reach the state's copy.
+        fedtax = pl.col("sc_federal_tax_1980") if "sc_federal_tax_1980" in df.collect_schema().names() else pl.col("fiitax")
         xitded = (xitded + fedtax.clip(0, p.num("federal_tax_deduction_cap") * txp)).clip(0, None)
         if p.in_effect("gasoline_deduction"):
             xitded = xitded + p.num("gasoline_deduction") * txp
@@ -221,7 +235,10 @@ def compute_sc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         busnes = (pl.col("psemp") + pl.col("ssemp")).clip(0, None) - 0.5 * pl.col("setax")
         husb = pl.col("pwages").clip(0, None) + 0.5 * busnes
         wife = pl.col("swages").clip(0, None) + 0.5 * busnes
-        if y >= 2018:
+        if y >= 2018 and behavior.assign_business_income_to_its_earner:
+            husb = husb + pl.col("pbusinc") + pl.col("pprofinc")
+            wife = wife + pl.col("sbusinc") + pl.col("sprofinc")
+        elif y >= 2018:
             # TAXSIM gives the husband both business incomes and the wife
             # both professional incomes.
             husb = husb + pl.col("pbusinc") + pl.col("sbusinc")
