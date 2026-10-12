@@ -51,7 +51,8 @@ class CalculateTaxesTests(unittest.TestCase):
                 calculate_taxes(cases.tail(1), year=2020, state_id_type="fips"),
             ],
             how="diagonal_relaxed",
-        )
+        # The 2019 run has no recovery rebate column; stacked, its row is null.
+        ).with_columns(pl.col("recovery_rebate_credit").fill_null(0.0))
 
         self.assertEqual(result.get_column("case_id").to_list(), [1, 2])
         self.assertEqual(result.get_column("state").to_list(), [6, 1])
@@ -170,11 +171,28 @@ class CalculateTaxesTests(unittest.TestCase):
 
         result = calculate_taxes(cases)
 
-        self.assertEqual(result.columns, [*cases.columns, *OUTPUT_COLUMNS])
+        # 2020 also brings the recovery rebate, a year output.
+        self.assertEqual(result.columns, [*cases.columns, *OUTPUT_COLUMNS, "recovery_rebate_credit"])
         assert_frame_equal(result.select(cases.columns), cases)
         detailed = calculate_taxes(cases, keep_intermediate=True)
         self.assertGreater(len(detailed.columns), len(result.columns))
         assert_frame_equal(detailed.select(result.columns), result)
+
+    def test_year_outputs_appear_only_with_their_years(self) -> None:
+        without = calculate_taxes(pl.DataFrame([_case(1, 2019, 5)]))
+        self.assertNotIn("recovery_rebate_credit", without.columns)
+
+        cases = pl.DataFrame(
+            [
+                {"year": 2019, "state": 0, "mstat": 2, "depx": 2, "dep13": 2, "dep17": 2, "dep18": 2, "pwages": 60_000},
+                {"year": 2020, "state": 0, "mstat": 2, "depx": 2, "dep13": 2, "dep17": 2, "dep18": 2, "pwages": 60_000},
+                {"year": 2021, "state": 0, "mstat": 1, "depx": 0, "dep13": 0, "dep17": 0, "dep18": 0, "pwages": 30_000},
+            ]
+        )
+        result = calculate_taxes(cases)
+
+        # 2020: $3,400 + $2,400 for a couple with two children; 2021: $1,400.
+        self.assertEqual(result.get_column("recovery_rebate_credit").to_list(), [0.0, 5_800.0, 1_400.0])
 
     def test_keeps_callers_state_column_when_ids_are_elsewhere(self) -> None:
         cases = pl.DataFrame([_case(1, 2020, 6)]).rename({"state": "fips"}).with_columns(state=pl.lit("CA"))

@@ -18,6 +18,17 @@ The result is your input columns, unchanged and in order, followed by these.
 | `earned_income` | Earned income. |
 | `regular_tax` | Federal regular income tax, before credits and AMT. |
 
+## Year outputs
+
+Provisions that exist only in some years have a default column that appears only
+when the input includes one of those years. Rows from other years show 0. The
+columns returned therefore depend on the years supplied: stacking the results of
+separate runs can leave nulls where one run lacks the column.
+
+| Column | Years | Meaning |
+|:--|:--|:--|
+| `recovery_rebate_credit` | 2020-2021 | Recovery rebate credit (Economic Impact Payments), refundable. |
+
 ## With `mtr`
 
 | Column | Meaning |

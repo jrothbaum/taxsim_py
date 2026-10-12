@@ -137,12 +137,8 @@ const FIELDS = {
   deductions: [["rentpaid", "Rent paid", 0], ["proptax", "Real estate taxes", 0], ["otheritem", "Other itemized deductions", 0],
                ["childcare", "Child care expenses", 0], ["mortgage", "Mortgage interest and other deductions", 0]],
 };
-const LABELS = {
-  fiitax: "Federal income tax", siitax: "State income tax", fica: "Payroll tax (employee + employer)",
-  tfica: "Payroll tax (taxpayer only)", ficar: "Payroll tax rate", addmed: "Additional Medicare tax", agi: "Federal AGI",
-  taxable_income: "Federal taxable income", taxable_unemployment: "Taxable unemployment", earned_income: "Earned income",
-  regular_tax: "Federal regular tax", frate: "Federal marginal rate (%)", srate: "State marginal rate (%)",
-};
+// Output labels from taxsim_py.api.output_labels(), sent by the worker when ready.
+let LABELS = {};
 const SUMMARY = ["fiitax", "siitax", "fica", "tfica", "frate", "srate", "ficar"];
 const RATES = new Set(["ficar", "frate", "srate"]);
 
@@ -215,7 +211,10 @@ const call = (message, transfer = []) => new Promise((resolve, reject) => {
 });
 worker.onmessage = ({ data }) => {
   if (data.type === "status") return status(data.message);
-  if (data.type === "ready") { status("Ready."); $("run").disabled = false; $("run-file").disabled = false; return; }
+  if (data.type === "ready") {
+    LABELS = data.labels;
+    status("Ready."); $("run").disabled = false; $("run-file").disabled = false; return;
+  }
   if (data.type === "error")
     return status("Could not load the calculator: " + data.message + ". Serve this folder over http (not file://) after running scripts/build_web.py.", true);
   const { resolve, reject } = pending.get(data.id);

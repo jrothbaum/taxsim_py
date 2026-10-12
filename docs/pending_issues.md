@@ -204,8 +204,6 @@ found most recently, all included in `taxsim_errors.md`:
   unearned income claimed as dependents).
 - **TAXSIM options:** `opt1/opt1v/opt2/opt2v` are accepted but ignored; if revisited,
   implement only the 8 documented switches.
-- **Null inputs:** a supplied input column with null values gives null results for
-  those rows (missing columns default to 0, nulls are not filled).
 - **Small data discrepancy:** the 2023 married-separate 15%/20% capital-gains ceiling
   is $276,925 here against $276,900 in PolicyEngine-US.
 - **Outside this repo:** `survey_kit_data/src/survey_kit_data/census/cps_asec.py`

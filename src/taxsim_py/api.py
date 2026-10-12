@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from concurrent.futures import ThreadPoolExecutor
 from enum import IntEnum
+from functools import lru_cache
 from typing import Any, Literal
 
 import polars as pl
@@ -25,7 +26,7 @@ from taxsim_py.engine.detail import (
 )
 from taxsim_py.engine.federal_state import StateCalculator, resolve_federal_and_state
 from taxsim_py.engine.inputs import SUPPORTED_MSTAT, with_input_defaults
-from taxsim_py.engine.schema import PARAMETERS_ROOT, load_yaml
+from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml
 
 StateIdType = Literal["taxsim", "fips"]
 
@@ -61,11 +62,52 @@ class MarginalInput(IntEnum):
     SPOUSE_PROFESSIONAL_INCOME = 215
 
 
-# Results returned by default, beside the input columns.
-OUTPUT_COLUMNS = (
-    "fiitax", "siitax", "fica", "ficar", "tfica", "addmed", "agi", "taxable_income",
-    "taxable_unemployment", "earned_income", "regular_tax",
-)
+# Results returned by default, beside the input columns, with the labels the
+# browser calculator shows for them.
+OUTPUT_LABELS = {
+    "fiitax": "Federal income tax",
+    "siitax": "State income tax",
+    "fica": "Payroll tax (employee + employer)",
+    "ficar": "Payroll tax rate",
+    "tfica": "Payroll tax (taxpayer only)",
+    "addmed": "Additional Medicare tax",
+    "agi": "Federal AGI",
+    "taxable_income": "Federal taxable income",
+    "taxable_unemployment": "Taxable unemployment",
+    "earned_income": "Earned income",
+    "regular_tax": "Federal regular tax",
+}
+OUTPUT_COLUMNS = tuple(OUTPUT_LABELS)
+# Returned with `mtr`.
+MARGINAL_RATE_LABELS = {
+    "frate": "Federal marginal rate (%)",
+    "srate": "State marginal rate (%)",
+}
+# Default outputs for provisions that exist only in some years, returned when
+# the input includes such a year (other rows show 0). Each is the working
+# column, the parameter file and entry whose years it follows, and its label.
+YEAR_OUTPUTS = {
+    "recovery_rebate_credit": ("cares", "national/credits.yaml", "recovery_rebate", "Recovery rebate credit (EIP)"),
+}
+
+
+def output_labels() -> dict[str, str]:
+    """Labels for every default output, including the year outputs."""
+    return {**OUTPUT_LABELS, **MARGINAL_RATE_LABELS, **{name: spec[3] for name, spec in YEAR_OUTPUTS.items()}}
+
+
+@lru_cache(maxsize=None)
+def _parameter_file(path: str) -> dict[str, Any]:
+    return load_yaml(PARAMETERS_ROOT / path)
+
+
+def _year_outputs(years: list[int]) -> dict[str, str]:
+    """The year outputs in effect in any of `years`, as {output: working column}."""
+    return {
+        name: column
+        for name, (column, path, entry, _) in YEAR_OUTPUTS.items()
+        if any(YearParams(_parameter_file(path), year).in_effect(entry) for year in years)
+    }
 
 
 def _temporary_name(columns: list[str], base: str) -> str:
@@ -394,6 +436,9 @@ def calculate_taxes(
     if detail_levels - {0, 2}:
         raise ValueError(f"Unsupported detail level (idtl): {sorted(detail_levels - {0, 2})}")
 
+    years = [int(year)] if year is not None else frame.get_column(year_column).cast(pl.Int64).unique().to_list()
+    year_outputs = _year_outputs(years)
+
     normalized_states = _normalized_states(frame.get_column(state_column), state_id_type)
     calculators = get_state_calculators(normalized_states)
 
@@ -412,7 +457,7 @@ def calculate_taxes(
         result_columns = None
         if not keep_intermediate and 2 not in detail_levels:
             internal = tuple(c for c in rows.columns if c.startswith("__taxsim_py_"))
-            result_columns = (*internal, *OUTPUT_COLUMNS)
+            result_columns = (*internal, *OUTPUT_COLUMNS, *year_outputs.values())
         return _resolve(
             rows,
             year,
@@ -487,6 +532,7 @@ def calculate_taxes(
         if taxsim_names:
             result = result.rename(DETAIL_NAME_TO_TAXSIM)
             detail_columns = tuple(DETAIL_NAME_TO_TAXSIM[c] for c in detail_columns)
+    result = result.with_columns(pl.col(column).alias(name) for name, column in year_outputs.items())
     # Inputs come back exactly as supplied; only new columns are added.
     if keep_intermediate:
         added = [c for c in result.columns if c not in columns and not c.startswith("__taxsim_py_")]
@@ -494,7 +540,9 @@ def calculate_taxes(
             added.remove("state")
     else:
         added = [
-            c for c in (*OUTPUT_COLUMNS, "frate", "srate", *detail_columns) if c in result.columns and c not in columns
+            c
+            for c in (*OUTPUT_COLUMNS, *year_outputs, *MARGINAL_RATE_LABELS, *detail_columns)
+            if c in result.columns and c not in columns
         ]
     return frame.hstack(result.select(added))
 

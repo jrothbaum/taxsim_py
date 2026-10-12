@@ -1,6 +1,6 @@
 // Runs Pyodide and taxsim-py off the page's main thread.
 // Requests: {id, op: "row", record, mode, idtl, mtr} or {id, op: "file", bytes, year, mode}.
-// Replies: {type: "status", message}, {type: "ready"}, {type: "error", message} while loading,
+// Replies: {type: "status", message}, {type: "ready", labels}, {type: "error", message} while loading,
 // and {id, result} or {id, error} for each request.
 const PYODIDE = "https://cdn.jsdelivr.net/pyodide/v314.0.7/full/";
 const toObjects = { dict_converter: Object.fromEntries };
@@ -17,7 +17,10 @@ const ready = (async () => {
   py.runPython(`
 import polars as pl
 import taxsim_py
+from taxsim_py.api import output_labels
 from taxsim_py.io.tables import read_table
+
+labels = output_labels()
 
 def run_row(record, mode, idtl, mtr):
     opts = {"calculation_mode": mode}
@@ -33,7 +36,8 @@ def run_file(path, year, mode):
 })();
 
 ready.then(
-  () => postMessage({ type: "ready" }),
+  // Output labels come from the package, so the page keeps no list of its own.
+  () => postMessage({ type: "ready", labels: py.globals.get("labels").toJs(toObjects) }),
   (e) => postMessage({ type: "error", message: e.message }),
 );
 
