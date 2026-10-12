@@ -11,10 +11,10 @@
       
       
       
-        <link rel="prev" href="../browser/">
+        <link rel="prev" href="../updating/">
       
       
-        <link rel="next" href="../performance/">
+        <link rel="next" href="../taxsim_errors/">
       
       
         
@@ -333,7 +333,7 @@
     
     
       <li class="md-tabs__item md-tabs__item--active">
-        <a href="./" class="md-tabs__link">
+        <a href="../updating/" class="md-tabs__link">
           
   
   
@@ -613,6 +613,34 @@
                 
   
   
+  
+  
+    <li class="md-nav__item">
+      <a href="../updating/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Updating the tax law
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
     
   
   
@@ -698,6 +726,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#rules-shared-by-several-states" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rules shared by several states
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#california" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -713,6 +752,17 @@
     <span class="md-ellipsis">
       
         Other states
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#published-values-that-replace-taxsims-both-modes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Published values that replace TAXSIM's (both modes)
       
     </span>
   </a>
@@ -756,6 +806,34 @@
   
 </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../taxsim_errors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Known TAXSIM errors
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -929,6 +1007,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#rules-shared-by-several-states" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rules shared by several states
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#california" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -944,6 +1033,17 @@
     <span class="md-ellipsis">
       
         Other states
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#published-values-that-replace-taxsims-both-modes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Published values that replace TAXSIM's (both modes)
       
     </span>
   </a>
@@ -1010,7 +1110,9 @@ parameter tables; <code>calculation_mode="taxsim"</code> keeps the compiled mode
 including its known bugs, for replication and oracle tests. The switches live in
 <code>src/taxsim_py/behavior.py</code>; formula code reads that profile, never the mode string.
 Every correction needs a reason, an implementation reference, and tests for both
-behaviors. Parameter-only updates (new years, dated tables) apply in every mode.</p>
+behaviors. Parameter-only updates (new years, dated tables) apply in every mode.
+The full list of apparent TAXSIM errors, including those reproduced in both modes,
+is in <a href="../taxsim_errors/">Known TAXSIM errors</a>.</p>
 <h2 id="federal-payroll-tax">Federal payroll tax</h2>
 <p>These four came from a 10,000-unit 2021 CPS sample, where together they explain all
 145 payroll differences from Tax-Calculator. Statutory mode matches Tax-Calculator
@@ -1058,9 +1160,18 @@ tests: <code>tests/test_calculation_modes.py</code> (the <code>single_high_se</c
 <td style="text-align: left;"><code>prevent_negative_self_employment_tax</code></td>
 <td style="text-align: left;">Schedule SE, Form 8959</td>
 </tr>
+<tr>
+<td style="text-align: left;">FED-PAYROLL-005</td>
+<td style="text-align: left;">The lookup gives the primary earner both non-professional business incomes and the spouse both professional ones, so the wage base and the QBI netting use the wrong person's income ($50,000 of spouse business income over a primary earner already above the 2019 base gets no OASDI tax)</td>
+<td style="text-align: left;">Each earner's own business and professional income; South Carolina (2018 on) and Virginia (2000 on) split spouses' business income the same way</td>
+<td style="text-align: left;"><code>assign_business_income_to_its_earner</code></td>
+<td style="text-align: left;">Schedule SE</td>
+</tr>
 </tbody>
 </table>
 <h2 id="federal-income-tax">Federal income tax</h2>
+<p>Tests for these and the state corrections below are rows of
+<code>tests/statutory_correction_table.py</code>, run by <code>tests/test_statutory_corrections.py</code>.</p>
 <ul>
 <li><strong>FED-INCOME-001 (1987-1997).</strong> TAXSIM applies no nonrefundable credits before
   1998 but reports a credit total (<code>comnew(58)</code>) that is tax before credits when the
@@ -1075,6 +1186,79 @@ tests: <code>tests/test_calculation_modes.py</code> (the <code>single_high_se</c
   who is not a CTC-qualifying child, with the CTC phaseout (IRC 24(h)(4)-(5)); about
   100 CPS units per year. Switch: <code>allow_other_dependent_credit_after_2021</code>; code:
   <code>federal._credits</code>.</li>
+<li><strong>FED-INCOME-003.</strong> Social Security provisional income adds <code>transfers</code>, which the
+  input reader stores where tax-exempt interest used to be (<code>data(41)</code>). The law adds
+  tax-exempt interest, which TAXSIM has no input for. Statutory mode adds nothing;
+  the same applies to the Iowa (2014 on) and Montana worksheets. Switch:
+  <code>exclude_transfers_from_provisional_income</code>.</li>
+<li><strong>FED-INCOME-004 (1987-1999).</strong> The AMT is computed but added to tax only from</li>
+<li>Switch: <code>add_amt_before_2000</code>.</li>
+<li><strong>FED-INCOME-005 (1987-1997).</strong> The child and dependent care credit and the credit
+  for the elderly are computed but never subtracted (the code sits inside the 1998
+  child tax credit block). Statutory mode applies both and reports them as the
+  nonrefundable credit total, which supersedes FED-INCOME-001. Switch:
+  <code>apply_nonrefundable_credits_before_1998</code>.</li>
+<li><strong>FED-INCOME-006.</strong> The elderly credit's AGI threshold is $7,500 for a joint return
+  with one spouse 65 or older; IRC 22(d) sets $10,000 for any joint return. Switch:
+  <code>use_joint_elderly_credit_threshold</code>.</li>
+<li><strong>FED-INCOME-007 (1991-1992).</strong> AMT income adds back the itemized-deduction
+  limitation, from which the AMT was exempt from 1991. Switch:
+  <code>exempt_amt_from_itemized_limit_1991_1992</code>.</li>
+<li><strong>FED-INCOME-008 (1990 on).</strong> The young-filer AMT exemption cap applies to anyone
+  under the age limit; IRC 59(j) limits it to children subject to the kiddie tax.
+  Statutory mode applies it to dependent filers only. Switch:
+  <code>cap_amt_exemption_for_dependents_only</code>.</li>
+<li><strong>FED-INCOME-009 (1998-2000).</strong> The additional child credit for three or more
+  children reads a payroll figure that is never set, so it is always $0. Statutory
+  mode pays the unused credit up to the employee share of payroll tax (and half of
+  self-employment tax) less the EITC (IRC 24(d) as enacted by P.L. 105-34). Switch:
+  <code>allow_additional_child_credit_before_2001</code>.</li>
+<li><strong>FED-INCOME-010 (before 1987).</strong> Business, professional and S corporation income
+  are left out of income (in 1960-1986 law). Switch:
+  <code>include_business_income_before_1987</code>.</li>
+<li><strong>FED-INCOME-011 (1979).</strong> The dividend exclusion is read from an input that is
+  never set, so it is $0; the law kept $100 ($200 joint). The states that add the
+  exclusion back read the same rule (<code>engine.state.federal_dividend_exclusion_limit</code>).
+  Switch: <code>apply_1979_dividend_exclusion</code>.</li>
+<li><strong>FED-INCOME-012 (1977-1986).</strong> The credit for the elderly is capped at an input
+  that is never set, so it is $0. Statutory mode pays 15% of $2,500 ($3,750 for a
+  couple both 65 or older; from 1984 $5,000 and $7,500) less nontaxable Social
+  Security and half of AGI over $7,500 ($10,000 joint) (IRC 37 as amended in 1976;
+  IRC 22 from 1984). Switch: <code>apply_elderly_credit_before_1987</code>.</li>
+<li><strong>FED-INCOME-013 (1983-1986).</strong> The minimum-tax base leaves out qualified housing
+  interest, which the law allowed. Switch:
+  <code>deduct_mortgage_interest_from_1983_minimum_tax</code>.</li>
+<li><strong>FED-INCOME-014 (1977-1978).</strong> Itemizers' preference income for the maximum tax on
+  earned income includes wages and unemployment compensation. Switch:
+  <code>exclude_wages_from_1977_preference_income</code>.</li>
+<li><strong>FED-RATE-001 (1977-2000).</strong> TAXSIM's analytic federal marginal rate
+  (<code>comnew(72)</code>), which Nebraska, North Dakota, Rhode Island and Vermont report as
+  their bracket rate, has several slips: no rate for moderate 1977-1978 gains, no
+  1979-1982 minimum-tax rate, the 1981 rate reduction overwritten, the 1993-1996
+  gains cap ignored or misapplied, the child tax credit's 5 points added as 0.05,
+  the elderly credit's slope mixing a percent into a fraction, and the EITC slope
+  kept when the credit is disqualified. Statutory mode corrects each; tax is
+  unaffected. Switch: <code>correct_analytic_federal_rate</code>.</li>
+</ul>
+<p>Not changed: the 2021 married-separate EITC (the law requires living apart for six
+months, which TAXSIM has no input for), and the analytic rate's Social Security
+term (the branch TAXSIM always takes is the correct formula).</p>
+<h2 id="rules-shared-by-several-states">Rules shared by several states</h2>
+<ul>
+<li><strong>STATE-CCC-001 (before 1987).</strong> District of Columbia (1982-1986), Iowa
+  (1977-1981, 1986), Minnesota and New York credits are shares of the federal child
+  care credit, which TAXSIM's early federal routine never fills in. Statutory mode
+  uses the 1977-1986 federal credit. Switch: <code>read_federal_child_care_credit_before_1987</code>.</li>
+<li><strong>STATE-HHY-001.</strong> TAXSIM's household income (<code>data(159)</code>) leaves out
+  self-employment income. Switch: <code>include_self_employment_in_household_income</code>.</li>
+<li><strong>STATE-HHY-002.</strong> Household income includes a leftover $1 from the input reader,
+  and the state worksheet (<code>idtl=2</code>) is printed from the one-cent marginal-rate run.
+  Statutory mode drops the $1 and reports the base calculation. Switches:
+  <code>drop_household_income_record_adjustment</code>, <code>report_base_state_worksheet</code>.</li>
+<li><strong>STATE-SOCSEC-001.</strong> The payroll tax states deduct (<code>socsec</code>; Kansas, Missouri,
+  Vermont) charges 1.45% on wages above the Social Security base in every year.
+  Statutory mode stops at the Medicare base (the same base before 1991). Switch:
+  <code>cap_medicare_in_state_payroll_deduction</code>.</li>
 </ul>
 <h2 id="california">California</h2>
 <ul>
@@ -1100,13 +1284,36 @@ tests: <code>tests/test_calculation_modes.py</code> (the <code>single_high_se</c
   rounded ($224 for 2022, $601 for 2021; NJ-1040 line 58); others get 40% of their
   federal credit. An unreported age passes. Switch:
   <code>apply_state_childless_eitc_minimum_age</code>; code: <code>states.ca</code>, <code>states.nj</code>.</li>
+<li><strong>CA-006 (2018+).</strong> TAXSIM starts California itemized deductions from the
+  federal SALT-capped total. California never adopted the cap (Schedule CA (540)):
+  real estate and other taxes are deductible in full, its own income tax not at
+  all. Switch: <code>ignore_federal_salt_cap_in_california</code>.</li>
 </ul>
 <h2 id="other-states">Other states</h2>
 <ul>
+<li><strong>AL-001 (2013+).</strong> The itemized deduction for federal payroll tax takes half of
+  FICA and then adds the employee-only Additional Medicare tax, which TAXSIM's FICA
+  total already includes, so it is counted one and a half times. Statutory mode
+  counts it once. Switch: <code>count_additional_medicare_once_in_alabama_fica_deduction</code>.</li>
+<li><strong>AZ-001.</strong> The senior property tax credit: the income test excludes Social
+  Security (which TAXSIM's household income includes) and the credit is limited to
+  property tax paid (A.R.S. 43-1072). Applied in every statutory year. Switch:
+  <code>limit_arizona_property_credit_per_statute</code>.</li>
+<li><strong>IL-001 (2017+).</strong> No exemption allowance when income exceeds $250,000
+  ($500,000 joint) (35 ILCS 5/204(g)); TAXSIM allows it at any income. Switch:
+  <code>apply_illinois_exemption_income_limit</code>.</li>
+<li><strong>KS-001 (2021+).</strong> TAXSIM stops letting Kansas filers itemize after 2020.
+  Kansas itemizing follows the federal choice in every year (K-40 Schedule A).
+  Switch: <code>allow_kansas_itemizing_after_2020</code>.</li>
+<li><strong>KY-001 (1995+).</strong> The pension exclusion cap is per taxpayer (KRS
+  141.010(10)), with a joint return's pensions split evenly; TAXSIM applies one cap
+  per return. Applied in every statutory year. Switch:
+  <code>apply_kentucky_pension_cap_per_taxpayer</code>.</li>
 <li><strong>MA-001.</strong> TAXSIM deducts only the primary earner's payroll tax, capped at
   $2,000 for the return. Each spouse deducts their own employee payroll tax up to
   $2,000 (Form 1 lines 11a/11b), so a couple earning $50,000 and $75,000 gets the
-  second $2,000 ($100 of tax at 5%).</li>
+  second $2,000 ($100 of tax at 5%). Switch:
+  <code>deduct_massachusetts_employee_payroll_tax_per_spouse</code>.</li>
 <li><strong>CO-001 (2022+).</strong> TAXSIM subtracts pensions plus Social Security only when
   someone is 65 or older, under one combined cap. Each taxpayer subtracts pension
   income up to $20,000 (55-64) or $24,000 (65+), less their Social Security
@@ -1123,15 +1330,494 @@ tests: <code>tests/test_calculation_modes.py</code> (the <code>single_high_se</c
   with a $50 floor, as negative state tax. The 7% capital gains excise tax over
   $250,000 is not modelled: TAXSIM's <code>ltcg</code> cannot separate the exempt real estate
   and retirement gains. PolicyEngine taxes all <code>ltcg</code>, so large-gain households differ
-  by about 7% of the gain above the threshold.</li>
+  by about 7% of the gain above the threshold. Switch:
+  <code>add_washington_working_families_credit</code>.</li>
 <li><strong>CT-001 (2022+).</strong> The personal-credit worksheet is read as discrete AGI bands (the
   first threshold reached), not TAXSIM's linear interpolation between rows
   (<a href="https://portal.ct.gov/-/media/drs/forms/2022/income/2022-ct-1040-instructions_1222.pdf">2022 CT-1040 instructions</a>).</li>
 <li><strong>DC-002 (2015+).</strong> The EITC with-child track uses the age-qualified child count
-  <code>dep18</code>, not <code>depx &gt; 0</code>.</li>
+  <code>dep18</code>, not <code>depx &gt; 0</code>. Switch: <code>use_age_qualified_children_for_dc_eitc</code>.</li>
+<li><strong>DC-003 (2015+).</strong> The childless credit's investment income counts positive
+  capital gains as well as interest and dividends (D-40 EITC checklist); TAXSIM
+  counts interest and dividends only. Switch:
+  <code>count_capital_gains_in_dc_childless_eitc_investment_income</code>.</li>
+<li><strong>NY-001 (2006-2022).</strong> Children under 4 do not qualify for the Empire State child
+  credit before 2023 (Tax Law 606(c-1)); TAXSIM has no ages. Statutory mode removes
+  <code>children_under_4</code> from the 2018-2022 rebuilt credit (the 2006-2017 credit still
+  counts them). Switch: <code>exclude_children_under_4_from_ny_empire_credit</code>.</li>
+<li><strong>OR-003 (2016+).</strong> The working family household and dependent care credit counts
+  only children under 13 (ORS 315.264, IRC 21(b)); TAXSIM counts every dependent.
+  Switch: <code>count_only_children_under_13_for_oregon_dependent_care</code>.</li>
 <li><strong>OR-002.</strong> The 12% under-three EITC match uses <code>children_under_3</code>, and the care
   credit cap uses <code>dep13</code>.</li>
 </ul>
+<p>Corrections of TAXSIM coding errors (one switch each, named in
+<code>src/taxsim_py/behavior.py</code>):</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">ID</th>
+<th style="text-align: left;">Years</th>
+<th style="text-align: left;">TAXSIM</th>
+<th style="text-align: left;">Statutory mode</th>
+<th style="text-align: left;">Switch</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">DC-004</td>
+<td style="text-align: left;">2007</td>
+<td style="text-align: left;">The married split uses 2006 rates</td>
+<td style="text-align: left;">2007 rates</td>
+<td style="text-align: left;"><code>use_current_rates_in_dc_earner_split</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">DC-005</td>
+<td style="text-align: left;">2000-2017</td>
+<td style="text-align: left;">The dependent-filer low-income credit uses the 2000 rate table every year</td>
+<td style="text-align: left;">The year's rates</td>
+<td style="text-align: left;"><code>use_current_rates_in_dc_low_income_credit</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">IA-001</td>
+<td style="text-align: left;">1990-2021</td>
+<td style="text-align: left;">The 2010 non-conformity caps apply every year, and the 2010 joint caps are one child off</td>
+<td style="text-align: left;">Caps in 2010 only: $16,590, $38,665 and $43,493 for 0, 1 and 2+ children</td>
+<td style="text-align: left;"><code>apply_iowa_eitc_caps_as_in_2010_law</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">IL-002</td>
+<td style="text-align: left;">2000-2002</td>
+<td style="text-align: left;">The EITC limit subtracts the property tax credit twice</td>
+<td style="text-align: left;">Once</td>
+<td style="text-align: left;"><code>subtract_illinois_property_credit_once_in_eitc_limit</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">KY-002</td>
+<td style="text-align: left;">2011-2012</td>
+<td style="text-align: left;">The itemized limitation's suspension test is true only in 2010</td>
+<td style="text-align: left;">Suspended 2010-2012 (the 2011 Schedule A has no limitation)</td>
+<td style="text-align: left;"><code>suspend_kentucky_itemized_limitation_through_2012</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">MA-002</td>
+<td style="text-align: left;">2011-2020</td>
+<td style="text-align: left;">The child care deduction applies only in 2010</td>
+<td style="text-align: left;">Through 2020 (Form 1 line 10b)</td>
+<td style="text-align: left;"><code>allow_massachusetts_child_care_deduction_2011_2020</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">MA-003</td>
+<td style="text-align: left;">1985 on</td>
+<td style="text-align: left;">A status test that is always true carries unused exemptions to unearned income on separate returns</td>
+<td style="text-align: left;">Not on separate returns</td>
+<td style="text-align: left;"><code>exclude_separate_returns_from_massachusetts_exemption_carryover</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">MI-001</td>
+<td style="text-align: left;">2013-2022</td>
+<td style="text-align: left;">$20,000 per taxpayer 65 or older against all income</td>
+<td style="text-align: left;">Tiers by the older spouse's birth year: before 1946 the pension and investment subtractions; 1946-1952 up to $20,000 ($40,000 joint) of pensions, against all income from 67; later, from 67 less exemptions</td>
+<td style="text-align: left;"><code>apply_michigan_retirement_tiers</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">MN-002</td>
+<td style="text-align: left;">1978-1984</td>
+<td style="text-align: left;">The homemaker credit goes only to dependent filers</td>
+<td style="text-align: left;">Filers who are not dependents</td>
+<td style="text-align: left;"><code>pay_minnesota_homemaker_credit_to_nondependents</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">MN-003</td>
+<td style="text-align: left;">1998</td>
+<td style="text-align: left;">The childless Working Family Credit's tests overwrite each other</td>
+<td style="text-align: left;">Phase-in, plateau and phaseout in order</td>
+<td style="text-align: left;"><code>order_minnesota_1998_working_family_credit</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">MN-004</td>
+<td style="text-align: left;">2012</td>
+<td style="text-align: left;">No joint Working Family Credit thresholds</td>
+<td style="text-align: left;">Joint thresholds</td>
+<td style="text-align: left;"><code>use_minnesota_2012_joint_working_family_thresholds</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">MN-005</td>
+<td style="text-align: left;">2014-2021</td>
+<td style="text-align: left;">Phaseouts for 2+ children (unmarried) and 3+ (joint) start at the wrong table's amount</td>
+<td style="text-align: left;">Each table's own start</td>
+<td style="text-align: left;"><code>use_minnesota_working_family_tables_by_children</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">MN-006</td>
+<td style="text-align: left;">2017 on</td>
+<td style="text-align: left;">The child care credit loses 5% of AGI over $50,000</td>
+<td style="text-align: left;">The lesser of the credit and $600 ($1,200) less 5% of the excess (Minn. Stat. 290.067 subd. 2b)</td>
+<td style="text-align: left;"><code>limit_minnesota_child_care_credit_by_maximum_after_2017</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">MN-007</td>
+<td style="text-align: left;">1989 on</td>
+<td style="text-align: left;">A qualifying renter gets no homeowner refund</td>
+<td style="text-align: left;">Both refunds (Form M1PR)</td>
+<td style="text-align: left;"><code>allow_minnesota_renter_and_homeowner_refunds</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">MO-001</td>
+<td style="text-align: left;">All</td>
+<td style="text-align: left;">The property credit reduces the maximum, not the tax paid, and skips the first income step</td>
+<td style="text-align: left;">Tax paid up to the maximum ($1,100 owners from 2008) less the income percentage (RSMo 135.030)</td>
+<td style="text-align: left;"><code>apply_missouri_property_credit_to_tax_paid</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">MS-001</td>
+<td style="text-align: left;">1977-1978</td>
+<td style="text-align: left;">Excess charity is not floored, so 20% of AGI is added to itemized deductions</td>
+<td style="text-align: left;">Floored at 0</td>
+<td style="text-align: left;"><code>floor_mississippi_excess_charity</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">MT-001</td>
+<td style="text-align: left;">1984-1986, 2009</td>
+<td style="text-align: left;">All unemployment compensation is subtracted</td>
+<td style="text-align: left;">The part in federal AGI</td>
+<td style="text-align: left;"><code>subtract_only_taxable_unemployment_in_montana</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">MT-002</td>
+<td style="text-align: left;">1984 on</td>
+<td style="text-align: left;">A separate filer's capital loss is subtracted again</td>
+<td style="text-align: left;">Once</td>
+<td style="text-align: left;"><code>subtract_montana_separate_capital_loss_once</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">MT-003</td>
+<td style="text-align: left;">2011-2012</td>
+<td style="text-align: left;">The itemized limit applies</td>
+<td style="text-align: left;">Suspended 2010-2012 (the 2011 Form 2 has none)</td>
+<td style="text-align: left;"><code>suspend_montana_itemized_limit_through_2012</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">MT-004</td>
+<td style="text-align: left;">1984 on</td>
+<td style="text-align: left;">The Social Security worksheet can go negative</td>
+<td style="text-align: left;">Floored at 0</td>
+<td style="text-align: left;"><code>floor_montana_social_security_worksheet</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">NC-001</td>
+<td style="text-align: left;">1977-1988</td>
+<td style="text-align: left;">The joint child care credit counts the husband's share of dependents</td>
+<td style="text-align: left;">All children</td>
+<td style="text-align: left;"><code>count_all_children_for_north_carolina_joint_child_care</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">NC-002</td>
+<td style="text-align: left;">1981-1988</td>
+<td style="text-align: left;">The joint child care credit can come off both spouses</td>
+<td style="text-align: left;">Off the larger tax once</td>
+<td style="text-align: left;"><code>take_north_carolina_child_care_credit_once</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">NC-003</td>
+<td style="text-align: left;">1989-1990</td>
+<td style="text-align: left;">Joint returns get income splitting on the married table</td>
+<td style="text-align: left;">The married table</td>
+<td style="text-align: left;"><code>use_north_carolina_married_table_without_splitting</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">ND-001</td>
+<td style="text-align: left;">1987-2000</td>
+<td style="text-align: left;">State income tax is added back for every return</td>
+<td style="text-align: left;">Only when deducted federally</td>
+<td style="text-align: left;"><code>add_back_north_dakota_state_tax_for_itemizers_only</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">NE-001</td>
+<td style="text-align: left;">1993-2017</td>
+<td style="text-align: left;">Single filers' additional tax is added twice</td>
+<td style="text-align: left;">Once</td>
+<td style="text-align: left;"><code>add_nebraska_single_additional_tax_once</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">NJ-002</td>
+<td style="text-align: left;">All</td>
+<td style="text-align: left;">Capital losses beyond $3,000 reduce income</td>
+<td style="text-align: left;">No loss deduction</td>
+<td style="text-align: left;"><code>disallow_new_jersey_capital_losses</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">NM-001</td>
+<td style="text-align: left;">1984-1989</td>
+<td style="text-align: left;">Taxable Social Security is added to AGI again</td>
+<td style="text-align: left;">Subtracted</td>
+<td style="text-align: left;"><code>exempt_new_mexico_social_security_1984_1989</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">NM-002</td>
+<td style="text-align: left;">1985 on</td>
+<td style="text-align: left;">Taxpayers 65 or older count twice in the rebate's household size</td>
+<td style="text-align: left;">Once</td>
+<td style="text-align: left;"><code>count_new_mexico_aged_once_in_rebate</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">NY-002</td>
+<td style="text-align: left;">1985-1986</td>
+<td style="text-align: left;">No standard deduction for heads of household</td>
+<td style="text-align: left;">The single amount (no head-of-household status before 1987)</td>
+<td style="text-align: left;"><code>use_single_standard_deduction_for_new_york_head_of_household_before_1987</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">NY-003</td>
+<td style="text-align: left;">1986</td>
+<td style="text-align: left;">The maximum-tax table is read one row short</td>
+<td style="text-align: left;">Six rows</td>
+<td style="text-align: left;"><code>complete_new_york_1986_maximum_tax_table</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">NY-004</td>
+<td style="text-align: left;">1987-1988</td>
+<td style="text-align: left;">The unearned-income tax is never charged</td>
+<td style="text-align: left;">3% (1987) and 2% (1988) of dividends, interest and gains, phased in from $100,000 of AGI</td>
+<td style="text-align: left;"><code>charge_new_york_unearned_income_tax_1987_1988</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">NY-005</td>
+<td style="text-align: left;">All</td>
+<td style="text-align: left;">The minimum tax is computed after refundable credits</td>
+<td style="text-align: left;">None without preference items</td>
+<td style="text-align: left;"><code>charge_new_york_minimum_tax_on_preferences_only</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">NY-006</td>
+<td style="text-align: left;">2012-2020</td>
+<td style="text-align: left;">Several worksheets phase in from another worksheet's or an unscaled bound</td>
+<td style="text-align: left;">Each worksheet's own bound</td>
+<td style="text-align: left;"><code>use_own_bounds_in_new_york_worksheets</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">NY-007</td>
+<td style="text-align: left;">2018 on</td>
+<td style="text-align: left;">Itemized deductions can be reported negative</td>
+<td style="text-align: left;">Floored at 0</td>
+<td style="text-align: left;"><code>floor_new_york_itemized_deductions</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">OH-001</td>
+<td style="text-align: left;">1977-1988</td>
+<td style="text-align: left;">The joint filing credit goes to any return with two income shares</td>
+<td style="text-align: left;">Joint returns</td>
+<td style="text-align: left;"><code>limit_ohio_joint_credit_to_joint_returns</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">OH-002</td>
+<td style="text-align: left;">1983-1988</td>
+<td style="text-align: left;">The exemption credit is subtracted twice, and a couple using the credit method loses the joint credit</td>
+<td style="text-align: left;">Once; both methods get the joint credit and the lower tax applies</td>
+<td style="text-align: left;"><code>subtract_ohio_exemption_credit_once</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">OR-004</td>
+<td style="text-align: left;">1981-1984</td>
+<td style="text-align: left;">The federal taxable unemployment is added again</td>
+<td style="text-align: left;">Oregon's taxable amount replaces it</td>
+<td style="text-align: left;"><code>replace_federal_unemployment_in_oregon_1981_1984</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">OR-005</td>
+<td style="text-align: left;">2015, 2017</td>
+<td style="text-align: left;">The surplus credit is computed but never applied</td>
+<td style="text-align: left;">5.6% of tax</td>
+<td style="text-align: left;"><code>pay_oregon_2015_2017_kickers</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">PA-001</td>
+<td style="text-align: left;">All</td>
+<td style="text-align: left;">Forgiveness ignores nontaxable income and phases out smoothly</td>
+<td style="text-align: left;">Eligibility income adds unemployment compensation and exempt pensions; 10% steps</td>
+<td style="text-align: left;"><code>apply_pennsylvania_forgiveness_rules</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">RI-001</td>
+<td style="text-align: left;">2003-2009</td>
+<td style="text-align: left;">The gains rates apply to short-term gains</td>
+<td style="text-align: left;">Net long-term gain</td>
+<td style="text-align: left;"><code>use_net_long_term_gain_in_rhode_island</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">RI-002</td>
+<td style="text-align: left;">2003-2010</td>
+<td style="text-align: left;">Separate returns get the full married standard deduction</td>
+<td style="text-align: left;">Half</td>
+<td style="text-align: left;"><code>halve_rhode_island_separate_standard_deduction</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">RI-003</td>
+<td style="text-align: left;">2003-2010</td>
+<td style="text-align: left;">The minimum tax without gains subtracts the tax twice</td>
+<td style="text-align: left;">Once</td>
+<td style="text-align: left;"><code>subtract_rhode_island_tax_once_in_minimum_tax</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">RI-004</td>
+<td style="text-align: left;">2011-2021</td>
+<td style="text-align: left;">The deduction phaseout is cut in 20% steps and again smoothly</td>
+<td style="text-align: left;">Steps only</td>
+<td style="text-align: left;"><code>use_rhode_island_deduction_phaseout_steps_only</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">SC-001</td>
+<td style="text-align: left;">1981-1984</td>
+<td style="text-align: left;">The federal tax deduction uses the current year's tax</td>
+<td style="text-align: left;">Tax under 1980 law</td>
+<td style="text-align: left;"><code>deduct_south_carolina_federal_tax_under_1980_law</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">VA-001</td>
+<td style="text-align: left;">2003</td>
+<td style="text-align: left;">No child care deduction</td>
+<td style="text-align: left;">The $3,000 federal expense limit</td>
+<td style="text-align: left;"><code>allow_virginia_child_care_deduction_2003</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">VA-002</td>
+<td style="text-align: left;">2021</td>
+<td style="text-align: left;">The itemized limit threshold is scaled only in the test</td>
+<td style="text-align: left;">In the reduction too</td>
+<td style="text-align: left;"><code>scale_virginia_itemized_limit_threshold</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">VT-001</td>
+<td style="text-align: left;">1977-1988</td>
+<td style="text-align: left;">The $10 student credit goes to every filer who is not a dependent</td>
+<td style="text-align: left;">None (no student input)</td>
+<td style="text-align: left;"><code>omit_vermont_student_credit</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">WI-001</td>
+<td style="text-align: left;">2015-2018</td>
+<td style="text-align: left;">Joint brackets are not indexed</td>
+<td style="text-align: left;">Indexed like single</td>
+<td style="text-align: left;"><code>index_wisconsin_joint_brackets</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">WI-002</td>
+<td style="text-align: left;">1986</td>
+<td style="text-align: left;">No schedule for separate returns, so no tax</td>
+<td style="text-align: left;">The joint schedule at half the bounds</td>
+<td style="text-align: left;"><code>tax_wisconsin_1986_separate_returns</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">WI-003</td>
+<td style="text-align: left;">1983</td>
+<td style="text-align: left;">Homestead credit amounts above $10 get nothing</td>
+<td style="text-align: left;">80%</td>
+<td style="text-align: left;"><code>credit_wisconsin_1983_homestead_excess</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">WI-004</td>
+<td style="text-align: left;">1979 on</td>
+<td style="text-align: left;">The renter school property credit multiplies a renter flag, not rent</td>
+<td style="text-align: left;">Rent</td>
+<td style="text-align: left;"><code>base_wisconsin_renter_credit_on_rent</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">WI-005</td>
+<td style="text-align: left;">1988-2015</td>
+<td style="text-align: left;">Head-of-household (2000-2015) and separate (1988-1998) standard deduction tiers start before their range</td>
+<td style="text-align: left;">At their range</td>
+<td style="text-align: left;"><code>start_wisconsin_standard_deduction_tiers_at_their_range</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">WI-006</td>
+<td style="text-align: left;">1987 on</td>
+<td style="text-align: left;">The gain exclusion can be negative</td>
+<td style="text-align: left;">Floored at 0</td>
+<td style="text-align: left;"><code>floor_wisconsin_capital_gain_exclusion</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">WI-007</td>
+<td style="text-align: left;">1989-1990</td>
+<td style="text-align: left;">Homestead eligibility and reduction use different income measures</td>
+<td style="text-align: left;">Net income for both</td>
+<td style="text-align: left;"><code>use_wisconsin_net_household_income_1989_1990</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">WI-008</td>
+<td style="text-align: left;">1987-2018</td>
+<td style="text-align: left;">Separate returns get the full married AMT exemption</td>
+<td style="text-align: left;">Half</td>
+<td style="text-align: left;"><code>halve_wisconsin_separate_amt_exemption</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">WI-009</td>
+<td style="text-align: left;">1987-2018</td>
+<td style="text-align: left;">The minimum tax is added again after the married couple credit</td>
+<td style="text-align: left;">Once</td>
+<td style="text-align: left;"><code>add_wisconsin_minimum_tax_once</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">WI-010</td>
+<td style="text-align: left;">All</td>
+<td style="text-align: left;">Mortgage interest is truncated to whole dollars</td>
+<td style="text-align: left;">Cents kept</td>
+<td style="text-align: left;"><code>keep_wisconsin_mortgage_interest_cents</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">WI-011</td>
+<td style="text-align: left;">1999</td>
+<td style="text-align: left;">The itemized-deduction credit is zeroed on the federal standard-deduction run</td>
+<td style="text-align: left;">Kept</td>
+<td style="text-align: left;"><code>keep_wisconsin_1999_itemized_credit</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">WV-001</td>
+<td style="text-align: left;">1984-1986</td>
+<td style="text-align: left;">The head-of-household table is read one row short, so 13% is never reached</td>
+<td style="text-align: left;">18 rows</td>
+<td style="text-align: left;"><code>complete_west_virginia_1984_head_of_household_table</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">WV-002</td>
+<td style="text-align: left;">All</td>
+<td style="text-align: left;">The disability deduction's year test is never true</td>
+<td style="text-align: left;">Under 65 with taxable Social Security</td>
+<td style="text-align: left;"><code>allow_west_virginia_disability_deduction</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">WV-003</td>
+<td style="text-align: left;">1977-1986</td>
+<td style="text-align: left;">State income tax stays in itemized deductions</td>
+<td style="text-align: left;">Removed</td>
+<td style="text-align: left;"><code>remove_state_tax_from_west_virginia_itemized_deductions</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="published-values-that-replace-taxsims-both-modes">Published values that replace TAXSIM's (both modes)</h2>
+<p>Where TAXSIM's own table is wrong for its year, the published value is used in both
+modes, as for parameter updates.</p>
+<ul>
+<li><strong>AR (2004).</strong> Rate thresholds from the DFA 2004 Indexed Tax Brackets ($3,400,
+  $6,800, $10,300, $17,100, $28,500); TAXSIM reuses the 1977 thresholds.</li>
+<li><strong>CA (2001, 2018).</strong> Schedule P (540) line 22 exemptions: 2001 head of household
+  $48,114 and married separate $32,075 (TAXSIM repeats 2000's), 2018 married separate
+  $47,685 (TAXSIM $44,685).</li>
+<li><strong>Federal (2022).</strong> The single 20% capital-gains threshold is $459,750 (Rev. Proc.
+  2021-45); TAXSIM's regular-tax copy has $459,650.</li>
+<li><strong>MD (2019-2021).</strong> Standard deduction limits from the Resident Booklet,
+  Instruction 16: single $1,500-$2,250, $1,550-$2,300, $1,550-$2,350; joint
+  $3,050-$4,550, $3,100-$4,650, $3,100-$4,700 (TAXSIM fills its arrays out of order).</li>
+<li><strong>MN (2009).</strong> The head-of-household AMT exclusion equals single, $49,860 (TAXSIM has
+  2010's $49,960).</li>
+<li><strong>NE (1996, 1997, 2017).</strong> Additional-tax bands $287,950 (1996 single) and $588,700
+  (1997 joint), which step by fixed amounts every year (TAXSIM $297,950 and
+  $575,950); the 2017 inflation factor 1.046 used by every other state (TAXSIM 1.08).</li>
+<li><strong>WV (2011).</strong> The family credit limit for five exemptions is $26,170; the limits
+  step by $3,820 (TAXSIM $28,170).</li>
+</ul>
+<p><code>scripts/validate_states.py</code> counts these state years as expected differences
+(<code>KNOWN_ORACLE_DIVERGENT_STATE_YEARS</code>), as <code>scripts/validate_federal.py</code> does for
+2023.</p>
 <h2 id="dated-2022-state-tables-state-dated">Dated 2022+ state tables (STATE-DATED)</h2>
 <p>TAXSIM's tables stop at 2021 and its later years scale 2021 law. Statutory mode runs
 actual law for 2022-2025 from PolicyEngine-US parameters checked against state forms;
@@ -1151,7 +1837,7 @@ for (see the <a href="../policyengine_recent_state_comparison/">PolicyEngine com
 </tr>
 <tr>
 <td style="text-align: left;">CA (CA-003)</td>
-<td style="text-align: left;">Standard deductions, rate thresholds, exemption credits, CalEITC maximums, Young Child Tax Credit amounts</td>
+<td style="text-align: left;">Standard deductions, rate thresholds, exemption credits, CalEITC maximums, Young Child Tax Credit amounts, AMT exemptions and phaseout starts (Schedule P (540))</td>
 </tr>
 <tr>
 <td style="text-align: left;">DC (DC-001)</td>
@@ -1185,8 +1871,9 @@ for (see the <a href="../policyengine_recent_state_comparison/">PolicyEngine com
 </table>
 <h2 id="age-65-rules-in-actual-law-years-state-2022-aged">Age-65+ rules in actual-law years (STATE-2022-AGED)</h2>
 <p>Statutory mode only, 2022 onward; each follows the state's form or statute. AZ senior
-property-tax credit limited to taxes paid; IN elderly credit as a step schedule; NM
-low-income rebate tables; KY pension cap per spouse, combined filing, and
+property-tax credit limited to taxes paid (all statutory years, AZ-001); IN elderly
+credit as a step schedule; NM low-income rebate tables; KY pension cap per spouse (all
+statutory years, KY-001), combined filing, and
 poverty-guideline family-size credit; OH joint-filing credit for pension income; NJ
 pension exclusion phase-down; CA credit for age 65+; MN subtraction for the elderly or
 disabled; ND marriage credit with shared pensions; MI tier-three standard deduction and

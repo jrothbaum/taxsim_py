@@ -333,7 +333,7 @@
     
     
       <li class="md-tabs__item md-tabs__item--active">
-        <a href="../statutory_corrections/" class="md-tabs__link">
+        <a href="../updating/" class="md-tabs__link">
           
   
   
@@ -616,6 +616,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../updating/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Updating the tax law
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../statutory_corrections/" class="md-nav__link">
         
   
@@ -624,6 +652,34 @@
     
   
     Statutory corrections
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../taxsim_errors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Known TAXSIM errors
   
 
     
@@ -1108,11 +1164,11 @@ state expression is missing.</p>
 </tr>
 <tr>
 <td><code>resolve_year(by_year, year)</code></td>
-<td>Reading the latest sparse parameter value effective on or before a year.</td>
+<td>Reading the latest sparse parameter value effective on or before a year; raises if that entry is <code>null</code> (the provision has ended).</td>
 </tr>
 <tr>
 <td><code>YearParams(params, year)</code></td>
-<td>A parameter mapping read at one law year: <code>p.num("key")</code> resolves and converts to float, <code>p.value("key")</code> resolves, <code>p["key"]</code> returns the entry unchanged.</td>
+<td>A parameter mapping read at one law year: <code>p.value("key", *path)</code> walks <code>path</code>, resolving every year-keyed level (so year keys may sit above or below status keys), <code>p.num(...)</code> also converts to float, <code>p.in_effect("key")</code> says whether a year-keyed entry has a non-null value, and <code>p["key"]</code> returns the entry unchanged.</td>
 </tr>
 <tr>
 <td><code>validate_brackets(brackets, context)</code></td>
@@ -1120,14 +1176,22 @@ state expression is missing.</p>
 </tr>
 </tbody>
 </table>
-<p>Sparse parameter mappings contain a value only when the law changes:</p>
+<p>Sparse parameter mappings contain a value only when the law changes, and <code>null</code>
+ends a provision:</p>
 <pre><code class="language-yaml">rate:
   2018: 0.05
   2022: 0.045
+renter_credit:
+  1990: {amount: 75, income_limit: 20000}
+  2010: null
 </code></pre>
 <pre><code class="language-python">p = YearParams(STATE_PARAMS, effective_year)
 rate = p.num(&quot;rate&quot;)
+if p.in_effect(&quot;renter_credit&quot;):
+    credit = p.value(&quot;renter_credit&quot;)
 </code></pre>
+<p>Use <code>in_effect</code> where a provision simply starts or stops; keep a year comparison
+only where the formula itself changes shape.</p>
 <p>Rates, thresholds, caps, exemption amounts, phaseout values, inflation factors,
 and tax tables must remain in YAML or CSV rather than Python literals.</p>
 <h2 id="state-year-extrapolation">State-Year Extrapolation</h2>
@@ -1141,8 +1205,8 @@ and tax tables must remain in YAML or CSV rather than Python literals.</p>
 </thead>
 <tbody>
 <tr>
-<td><code>resolve_state_year(year)</code></td>
-<td>Getting the last supported state-law year and its inflation factor.</td>
+<td><code>resolve_state_year(year, behavior, params)</code></td>
+<td>Getting the effective state-law year and its inflation factor: the year itself through <code>lastat</code> (TAXSIM mode) or the state's <code>law_coded_through</code> (statutory mode), otherwise that last year with an inflation factor.</td>
 </tr>
 <tr>
 <td><code>deflate_for_extrapolation(df, flate, extra=())</code></td>
@@ -1154,7 +1218,7 @@ and tax tables must remain in YAML or CSV rather than Python literals.</p>
 TAXSIM reads undeflated (household income <code>hy</code>, self-employment tax), deflates,
 computes tax using <code>effective_year</code>, and multiplies final <code>siitax</code> by <code>flate</code>.
 Derived columns computed before deflation that TAXSIM deflates go in <code>extra</code>.</p>
-<pre><code class="language-python">effective_year, flate = resolve_state_year(year)
+<pre><code class="language-python">effective_year, flate = resolve_state_year(year, behavior, XX_PARAMS)
 df = deflate_for_extrapolation(df, flate, extra=(&quot;xx_household_income&quot;,))
 # Calculate using effective_year.
 return df.with_columns(siitax=state_tax * flate)
@@ -1205,17 +1269,7 @@ state calculators should not implement that loop.</p>
 <tr>
 <td><code>engine.credits</code></td>
 <td><code>child_care_credit_rate</code></td>
-<td>The post-2020 federal child care credit rate.</td>
-</tr>
-<tr>
-<td><code>engine.credits</code></td>
-<td><code>child_care_credit_rate_pre2021</code></td>
-<td>The pre-2021 federal child care credit rate.</td>
-</tr>
-<tr>
-<td><code>engine.credits</code></td>
-<td><code>phased_out_nonrefundable_credit</code></td>
-<td>A linearly phased-out credit capped by tax liability.</td>
+<td>The federal child care credit rate for one year's <code>rate</code> parameters (one or two phase-downs).</td>
 </tr>
 <tr>
 <td><code>engine.capital_gains</code></td>

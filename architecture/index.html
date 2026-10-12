@@ -333,7 +333,7 @@
     
     
       <li class="md-tabs__item md-tabs__item--active">
-        <a href="../statutory_corrections/" class="md-tabs__link">
+        <a href="../updating/" class="md-tabs__link">
           
   
   
@@ -616,6 +616,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../updating/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Updating the tax law
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../statutory_corrections/" class="md-nav__link">
         
   
@@ -624,6 +652,34 @@
     
   
     Statutory corrections
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../taxsim_errors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Known TAXSIM errors
   
 
     
@@ -1008,9 +1064,12 @@
 <h2 id="policy-data">Policy data</h2>
 <p>All values set by tax law live under <code>parameters/</code> in YAML or CSV files: rates,
 thresholds, caps, exemptions, phaseouts, and year-specific adjustment factors.
-Sparse YAML mappings are forward-filled by <code>resolve_year</code>, so a value is repeated
-only when it changes. Adding a tax year should normally need parameter edits and
-test cases; change a calculator only when the shape of the law changes.</p>
+Values are keyed by the first year they apply and forward-filled by
+<code>resolve_year</code>, so a value is repeated only when it changes; <code>null</code> marks the
+year a provision ended. Parameter names describe the concept, never a year.
+Adding a tax year should normally need parameter edits and test cases; change a
+calculator only when the shape of the law changes (see
+<a href="../updating/">Updating the Tax Law</a>).</p>
 <h2 id="calculators">Calculators</h2>
 <p>Calculators build Polars expressions from input columns and resolved parameters.
 State calculators use the shared functions in <code>taxsim_py.engine.state</code> and other
@@ -1035,7 +1094,8 @@ broad income tax use a zero-tax calculator. Missing inputs default to 0 (<code>d
 <code>dep17</code> and <code>dep18</code> default to <code>depx</code>, or come from child ages when any age column
 is present). <code>children_under_3</code>, <code>children_under_4</code> and <code>children_under_7</code> are
 optional extensions for age cutoffs TAXSIM's counts cannot express. Tax years after
-<code>api.LAST_SUPPORTED_YEAR</code> raise an error.</p>
+<code>api.LAST_SUPPORTED_YEAR</code> (<code>law_coded_through</code> in
+<code>parameters/national/income_tax.yaml</code>) raise an error.</p>
 <h2 id="calculation-modes">Calculation modes</h2>
 <p><code>calculation_mode</code> resolves once to an immutable behavior profile that calculators
 receive explicitly. <code>"statutory"</code> (default) enables the corrections in
