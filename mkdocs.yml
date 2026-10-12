@@ -26,6 +26,7 @@ nav:
   - Files and command line: files.md
   - Browser: browser.md
   - Reference:
+      - Updating the tax law: updating.md
       - Statutory corrections: statutory_corrections.md
       - Performance: performance.md
       - Architecture: architecture.md
