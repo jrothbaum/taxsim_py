@@ -11,6 +11,8 @@ pip install taxsim-py                    # Python 3.9 or newer
 pip install "taxsim-py[readstat]"        # also read and write Stata, SPSS and SAS files
 ```
 
+On platforms without a prebuilt compiled calculator, pass `engine="python"` (slower).
+
 ## Quick start
 
 ### One household

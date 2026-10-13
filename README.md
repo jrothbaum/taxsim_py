@@ -15,9 +15,7 @@ names only on request).
 pip install taxsim-py
 ```
 
-The wheels for Linux x86_64, Windows x64 and macOS include the compiled calculators
-that the default `engine="rust"` uses. On any other platform pip installs a Python-only
-wheel (use `engine="python"`), or build from source with Rust installed.
+On platforms without a prebuilt compiled calculator, pass `engine="python"` (slower).
 
 ## Basic use
 
@@ -104,7 +102,8 @@ optional reader (`pip install "taxsim-py[readstat]"`, which adds
   (`engine="rust"`), or 7.1 s and 2.8 GiB with the Python reference
   (`engine="python"`, for developing and testing changes). The compiled TAXSIM takes 17.3 s. A
   `LazyFrame` input streams into any Polars sink with memory that depends mainly on the thread
-  count, not the rows. See [Performance](https://jrothbaum.github.io/taxsim_py/performance/).
+  count, not the rows. See [Performance](https://jrothbaum.github.io/taxsim_py/performance/) for
+  the full tables and the [raw results](https://github.com/jrothbaum/taxsim_py/tree/main/docs/benchmarks).
 
 ## Documentation
 

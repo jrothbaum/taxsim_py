@@ -12,7 +12,8 @@
 
 ## Development
 
-- Set up from a checkout: `uv sync --group dev --group test`
+- Set up from a checkout: `uv sync --group dev --group test` (needs Rust; after changing Rust code, `uv run maturin develop --release`)
+- Compiled vs Python engine: `uv run scripts/validate_rust.py`
 - Tests: `uv run pytest -q`
 - Full validation matrix: `uv run scripts/validate_all.py`
 - CPS comparison with the compiled TAXSIM: `uv run scripts/compare_cps.py PATH/TO/cps_2011 --tax-year 2021`
