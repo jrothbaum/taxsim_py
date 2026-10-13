@@ -760,6 +760,46 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#compiled-calculator-versus-python" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Compiled calculator versus Python
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Compiled calculator versus Python">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#streaming-a-file" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Streaming a file
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#python-engine" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Python engine
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Python engine">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
   <a href="#benchmarks" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -769,12 +809,39 @@
   </a>
   
 </li>
+        
+          <li class="md-nav__item">
+  <a href="#earlier-policyengine-comparison" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Earlier PolicyEngine comparison
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
       
         <li class="md-nav__item">
   <a href="#memory-controls" class="md-nav__link">
     <span class="md-ellipsis">
       
         Memory Controls
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#execution-strategy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Execution Strategy
       
     </span>
   </a>
@@ -919,6 +986,46 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#compiled-calculator-versus-python" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Compiled calculator versus Python
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Compiled calculator versus Python">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#streaming-a-file" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Streaming a file
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#python-engine" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Python engine
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Python engine">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
   <a href="#benchmarks" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -928,12 +1035,39 @@
   </a>
   
 </li>
+        
+          <li class="md-nav__item">
+  <a href="#earlier-policyengine-comparison" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Earlier PolicyEngine comparison
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
       
         <li class="md-nav__item">
   <a href="#memory-controls" class="md-nav__link">
     <span class="md-ellipsis">
       
         Memory Controls
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#execution-strategy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Execution Strategy
       
     </span>
   </a>
@@ -972,15 +1106,20 @@
 
 
 <h1 id="performance">Performance</h1>
-<p>With default settings, a mixed 42-state batch of one million rows takes about
-<strong>7.4 seconds and 2.8 GiB RAM</strong>. Results depend on the data and hardware.</p>
-<h2 id="benchmarks">Benchmarks</h2>
-<p>Tax year 2022, 42 states. All models calculate taxes and weighted-wage marginal
-rates. Each cell shows runtime and peak memory:</p>
+<p>The default engine is the compiled calculator (<code>engine="rust"</code>). On a mixed 42-state batch
+of one million rows, including marginal rates, it takes <strong>0.46 seconds and
+1.1 GiB RAM</strong>; the Python engine (<code>engine="python"</code>, the
+reference implementation) takes 7.13 seconds and 2.8 GiB.
+A lazy input streams into any Polars sink with memory that depends mainly on the thread count
+and hardly on the number of rows (see below). Results depend on the data and hardware.</p>
+<h2 id="compiled-calculator-versus-python">Compiled calculator versus Python</h2>
+<p>Tax year 2022, 42 states, taxes and weighted-wage marginal rates, statutory mode. Each cell
+shows runtime and peak process memory for a single first call in a fresh process, with 16
+Polars threads and the default settings:</p>
 <table>
 <thead>
 <tr>
-<th>Model</th>
+<th>Engine</th>
 <th style="text-align: right;">1,000</th>
 <th style="text-align: right;">10,000</th>
 <th style="text-align: right;">15,000</th>
@@ -992,58 +1131,152 @@ rates. Each cell shows runtime and peak memory:</p>
 </thead>
 <tbody>
 <tr>
-<td>taxsim_py</td>
-<td style="text-align: right;">1.50 s<br>357 MiB</td>
-<td style="text-align: right;">1.69 s<br>439 MiB</td>
-<td style="text-align: right;">1.73 s<br>518 MiB</td>
-<td style="text-align: right;">2.19 s<br>683 MiB</td>
-<td style="text-align: right;">2.54 s<br>979 MiB</td>
-<td style="text-align: right;">4.16 s<br>1,804 MiB</td>
-<td style="text-align: right;">7.37 s<br>2,888 MiB</td>
+<td>taxsim_py, rust (default)</td>
+<td style="text-align: right;">0.03 s<br>165 MiB</td>
+<td style="text-align: right;">0.03 s<br>174 MiB</td>
+<td style="text-align: right;">0.03 s<br>178 MiB</td>
+<td style="text-align: right;">0.07 s<br>258 MiB</td>
+<td style="text-align: right;">0.12 s<br>353 MiB</td>
+<td style="text-align: right;">0.24 s<br>638 MiB</td>
+<td style="text-align: right;">0.46 s<br>1,103 MiB</td>
+</tr>
+<tr>
+<td>taxsim_py, python</td>
+<td style="text-align: right;">0.88 s<br>341 MiB</td>
+<td style="text-align: right;">1.09 s<br>445 MiB</td>
+<td style="text-align: right;">1.16 s<br>508 MiB</td>
+<td style="text-align: right;">2.15 s<br>706 MiB</td>
+<td style="text-align: right;">2.55 s<br>960 MiB</td>
+<td style="text-align: right;">4.07 s<br>1,821 MiB</td>
+<td style="text-align: right;">7.13 s<br>2,893 MiB</td>
+</tr>
+</tbody>
+</table>
+<p>Raw results: <a href="../benchmarks/rust_vs_python_2026-10-12.csv">rust_vs_python_2026-10-12.csv</a>.</p>
+<h3 id="streaming-a-file">Streaming a file</h3>
+<p><code>calculate_taxes(pl.scan_parquet(path), year=2022, mtr=85).sink_parquet(out)</code> runs the same
+plan without loading the file. On 4 million rows without marginal rates (about 1.0 s,
+1.6 GB with 16 threads) and 16 million rows (3.3 s, 2.6 GB), memory depends mainly on the number
+of Polars threads (it grew from 1.6 GB to 2.6 GB for four times the rows): with <code>POLARS_MAX_THREADS=8</code> the 16 million rows
+take 3.7 s and 1.4 GB, and with 4 threads 6.0 s and 0.76 GB.</p>
+<h2 id="python-engine">Python engine</h2>
+<p>On Polars 2.0.0 with the in-memory engine, a mixed 42-state batch of one million
+rows takes <strong>7.18 seconds and 2.09 GiB RAM</strong>. The streaming engine takes
+<strong>8.34 seconds and 2.50 GiB</strong> on the same input. Results depend on the data and hardware.</p>
+<h3 id="benchmarks">Benchmarks</h3>
+<p>Rerun on October 12, 2026 with the default independent state-collection strategy.
+Tax year 2022, 42 states. All models calculate taxes and weighted-wage marginal
+rates. Each cell shows runtime and peak memory:</p>
+<table>
+<thead>
+<tr>
+<th>Model / engine</th>
+<th style="text-align: right;">1,000</th>
+<th style="text-align: right;">10,000</th>
+<th style="text-align: right;">15,000</th>
+<th style="text-align: right;">100,000</th>
+<th style="text-align: right;">200,000</th>
+<th style="text-align: right;">500,000</th>
+<th style="text-align: right;">1,000,000</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>taxsim_py, in-memory</td>
+<td style="text-align: right;">0.87 s<br>286 MiB</td>
+<td style="text-align: right;">1.04 s<br>381 MiB</td>
+<td style="text-align: right;">1.18 s<br>456 MiB</td>
+<td style="text-align: right;">2.12 s<br>569 MiB</td>
+<td style="text-align: right;">2.52 s<br>767 MiB</td>
+<td style="text-align: right;">4.06 s<br>1,413 MiB</td>
+<td style="text-align: right;">7.18 s<br>2,137 MiB</td>
+</tr>
+<tr>
+<td>taxsim_py, streaming</td>
+<td style="text-align: right;">1.92 s<br>457 MiB</td>
+<td style="text-align: right;">2.29 s<br>568 MiB</td>
+<td style="text-align: right;">2.31 s<br>704 MiB</td>
+<td style="text-align: right;">3.86 s<br>762 MiB</td>
+<td style="text-align: right;">4.41 s<br>1,034 MiB</td>
+<td style="text-align: right;">6.00 s<br>1,669 MiB</td>
+<td style="text-align: right;">8.34 s<br>2,556 MiB</td>
 </tr>
 <tr>
 <td>Fortran TAXSIM</td>
-<td style="text-align: right;">0.02 s<br>4 MiB</td>
+<td style="text-align: right;">0.03 s<br>4 MiB</td>
 <td style="text-align: right;">0.18 s<br>4 MiB</td>
-<td style="text-align: right;">0.26 s<br>4 MiB</td>
-<td style="text-align: right;">1.73 s<br>4 MiB</td>
-<td style="text-align: right;">3.48 s<br>4 MiB</td>
-<td style="text-align: right;">8.65 s<br>4 MiB</td>
-<td style="text-align: right;">17.22 s<br>4 MiB</td>
+<td style="text-align: right;">0.27 s<br>4 MiB</td>
+<td style="text-align: right;">1.78 s<br>4 MiB</td>
+<td style="text-align: right;">3.53 s<br>4 MiB</td>
+<td style="text-align: right;">8.87 s<br>4 MiB</td>
+<td style="text-align: right;">17.32 s<br>4 MiB</td>
 </tr>
+</tbody>
+</table>
+<p>These are single first-call timings in fresh worker processes, using statutory
+mode, Polars 2.0.0 and 16 Polars threads. The API's default worker and batch
+settings are used. Python engine imports and input generation are outside the
+timer. Memory is peak process RSS, except Fortran's figure covers only its executable.
+All runs completed within the 8 GiB process-tree budget. This rerun used an isolated
+Polars 2.0 environment; it does not change the project's installed Polars version.
+Separate checks confirmed matching output columns, dtypes, row order and values
+between both engines across the full row-count grid (float tolerances: relative
+<code>1e-10</code>, absolute <code>1e-8</code>). Verification is outside the timed worker processes.</p>
+<p><a href="../benchmarks/polars_2_engines_2026-10-12.csv">Raw results</a> and
+<a href="../benchmarks/polars_2_engines_2026-10-12.json">configuration</a> are included for reproduction.</p>
+<h3 id="earlier-policyengine-comparison">Earlier PolicyEngine comparison</h3>
+<p>PolicyEngine was not rerun for this engine comparison. Its previously published
+measurements use its unmodified runner:</p>
+<table>
+<thead>
+<tr>
+<th>Model</th>
+<th style="text-align: right;">1,000</th>
+<th style="text-align: right;">10,000</th>
+<th style="text-align: right;">15,000</th>
+</tr>
+</thead>
+<tbody>
 <tr>
 <td>PolicyEngine TAXSIM</td>
 <td style="text-align: right;">19.61 s<br>2,306 MiB</td>
 <td style="text-align: right;">32.81 s<br>5,940 MiB</td>
 <td style="text-align: right;">44.77 s<br>8,034 MiB</td>
-<td style="text-align: right;">-</td>
-<td style="text-align: right;">-</td>
-<td style="text-align: right;">-</td>
-<td style="text-align: right;">-</td>
 </tr>
 </tbody>
 </table>
-<p>These are first-call timings; taxsim_py uses statutory mode and 16 Polars
-threads. Python engine imports are outside the timer. Memory is peak process
-RSS, except Fortran's figure covers only its executable.
-PolicyEngine uses its unmodified runner. Under the 8 GiB budget it completes 15,000
-rows, and every larger run exceeded 8 GiB: 20,000+ rows
-were stopped at the limit after ~50 s.</p>
+<p>Under the earlier 8 GiB budget it completed 15,000 rows; 20,000+ row runs were
+stopped at the limit after about 50 seconds.</p>
 <h2 id="memory-controls">Memory Controls</h2>
 <p><code>batch_rows</code> limits input rows per calculation batch; <code>max_year_workers</code>
-limits concurrent batches:</p>
+limits concurrent batches and state-plan collection:</p>
 <pre><code class="language-python">calculate_taxes(df, batch_rows=50_000, max_year_workers=4)
 </code></pre>
 <p>Reducing either limit can lower peak RAM, especially when many rows belong to
 one state. Runtime varies with the workload. The full input and output frames
 still occupy memory proportional to the total row count.</p>
+<h2 id="execution-strategy">Execution Strategy</h2>
+<p>Small mixed-state batches materialize each federal feedback pass once, then
+collect independent state plans with up to eight Python workers. Larger or
+mixed-year workloads use parallel API batches; each batch collects its states
+serially to avoid nested worker pools. A single state plan is collected directly.
+<code>max_year_workers=1</code> disables both levels of Python parallelism.</p>
+<p>Each plan uses the configured Polars engine. The package does not change
+<code>POLARS_MAX_THREADS</code> or engine affinity. Set <code>POLARS_MAX_THREADS</code> before importing
+Polars to tune its thread pool independently of the Python workers.</p>
+<p>For local comparisons, <code>scripts/benchmark_polars_version.py</code> times complete calculations,
+and <code>scripts/benchmark_streaming.py</code> screens streaming collection strategies in
+bounded subprocesses with output verification.</p>
 <h2 id="run-the-benchmark">Run the Benchmark</h2>
-<p>Reproduce the Python and Fortran measurements:</p>
-<pre><code class="language-bash">uv run --group test scripts/benchmark_comparison.py \
-  --engines taxsim_py taxsim --rows 1000 10000 100000 200000 500000 1000000
+<p>Use a Python environment with <code>polars==2.0.0</code>, <code>pyyaml</code> and <code>psutil</code> to reproduce
+the table. With that environment activated:</p>
+<pre><code class="language-bash">POLARS_MAX_THREADS=16 python scripts/benchmark_comparison.py \
+  --engines taxsim_py taxsim --polars-engines in-memory streaming \
+  --rows 1000 10000 15000 100000 200000 500000 1000000
 </code></pre>
 <p>Use <code>--engines policyengine --policyengine-rows 1000 10000 15000 100000</code>
-for PolicyEngine, or <code>--batch-rows 50000 --workers 4</code> to benchmark memory controls.
+in an environment with PolicyEngine's dependencies, or
+<code>--batch-rows 50000 --workers 4</code> to benchmark memory controls.
 The Linux harness monitors process-tree RAM with an 8 GiB budget, a 2 GiB available
 RAM reserve and a 600-second timeout. It stops a measurement at a limit and skips
 larger samples. These are monitored safeguards, not a hard memory quota.</p>

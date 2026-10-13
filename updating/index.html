@@ -1339,7 +1339,7 @@
 
 <h1 id="updating-the-tax-law">Updating the Tax Law</h1>
 <p>This page is for whoever adds a tax year, fixes a value or rule, or codes a law
-change. Most updates touch only the parameter files under <code>parameters/</code>; the
+change. Most updates touch only the parameter files under <code>src/taxsim_py/parameters/</code>; the
 calculators change only when the shape of the law changes.</p>
 <h2 id="where-things-live">Where things live</h2>
 <table>
@@ -1352,19 +1352,19 @@ calculators change only when the shape of the law changes.</p>
 <tbody>
 <tr>
 <td>Federal law from 1987</td>
-<td><code>parameters/national/income_tax.yaml</code> (brackets, standard deductions, QBI, senior deduction), <code>itemized.yaml</code>, <code>personal_exemption.yaml</code>, <code>credits.yaml</code>, <code>capital_gains.yaml</code>, <code>amt.yaml</code>, <code>niit.yaml</code>, <code>payroll_tax.yaml</code>, <code>social_security.yaml</code>, <code>eitc_misc.yaml</code></td>
+<td><code>src/taxsim_py/parameters/national/income_tax.yaml</code> (brackets, standard deductions, QBI, senior deduction), <code>itemized.yaml</code>, <code>personal_exemption.yaml</code>, <code>credits.yaml</code>, <code>capital_gains.yaml</code>, <code>amt.yaml</code>, <code>niit.yaml</code>, <code>payroll_tax.yaml</code>, <code>social_security.yaml</code>, <code>eitc_misc.yaml</code></td>
 </tr>
 <tr>
 <td>Federal EITC schedule</td>
-<td><code>parameters/national/eitc.csv</code>: one row per year, number of children (0-3) and filing status</td>
+<td><code>src/taxsim_py/parameters/national/eitc.csv</code>: one row per year, number of children (0-3) and filing status</td>
 </tr>
 <tr>
 <td>Federal law 1960-1986</td>
-<td><code>parameters/national/law60.yaml</code>, <code>pre1987.yaml</code> (fixed history)</td>
+<td><code>src/taxsim_py/parameters/national/law60.yaml</code>, <code>pre1987.yaml</code> (fixed history)</td>
 </tr>
 <tr>
 <td>A state's law</td>
-<td><code>parameters/states/xx/income_tax.yaml</code> (plus any CSV tables beside it)</td>
+<td><code>src/taxsim_py/parameters/states/xx/income_tax.yaml</code> (plus any CSV tables beside it)</td>
 </tr>
 <tr>
 <td>Federal calculator</td>
@@ -1467,14 +1467,14 @@ as TAXSIM does.</p>
    credit cap and QBI thresholds. The Social Security wage base comes from SSA.
    Check new legislation for anything that starts or ends: add a <code>null</code> for an
    expiring provision rather than deleting it. Then raise <code>law_coded_through</code> in
-   <code>parameters/national/income_tax.yaml</code>, which sets the last year
+   <code>src/taxsim_py/parameters/national/income_tax.yaml</code>, which sets the last year
    <code>calculate_taxes</code> accepts.</p>
 </li>
 <li>
 <p><strong>States.</strong> For each state with new law, enter the new values from its forms and
    instructions and raise its <code>law_coded_through</code>. A state left at an earlier year
    keeps working: statutory mode projects its last coded year forward with the
-   price index (<code>parameters/national/state_cpi_extrapolation.yaml</code>, continued at
+   price index (<code>src/taxsim_py/parameters/national/state_cpi_extrapolation.yaml</code>, continued at
    2.5% a year past its last entry).</p>
 </li>
 <li>
@@ -1501,7 +1501,7 @@ as TAXSIM does.</p>
 <li>Keep expressions vectorized: no Python loops over rows and no
    dataframe-wide reductions inside a formula.</li>
 </ol>
-<p>The examples below use a state file <code>parameters/states/xx/income_tax.yaml</code> and its
+<p>The examples below use a state file <code>src/taxsim_py/parameters/states/xx/income_tax.yaml</code> and its
 calculator. <code>p</code> is the <code>YearParams</code> for the year, and <code>statax</code> and <code>fed_agi</code> are
 the calculator's tax and federal AGI.</p>
 <h3 id="a-new-credit-starts">A new credit starts</h3>

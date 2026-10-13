@@ -1062,7 +1062,7 @@
 <h1 id="shared-functions">Shared Functions</h1>
 <p>Check this catalog before adding a helper to a federal or state calculator.
 Shared calculation mechanics live in <code>src/taxsim_py/engine/</code>; policy values
-belong in <code>parameters/</code>.</p>
+belong in <code>src/taxsim_py/parameters/</code>.</p>
 <h2 id="state-calculator-helpers">State Calculator Helpers</h2>
 <p>Import these from <code>taxsim_py.engine.state</code>.</p>
 <table>
@@ -1156,7 +1156,7 @@ state expression is missing.</p>
 <tbody>
 <tr>
 <td><code>PARAMETERS_ROOT</code></td>
-<td>Building paths under the repository's <code>parameters/</code> directory.</td>
+<td>Building paths under the repository's <code>src/taxsim_py/parameters/</code> directory.</td>
 </tr>
 <tr>
 <td><code>load_yaml(path)</code></td>
@@ -1289,7 +1289,7 @@ state calculators should not implement that loop.</p>
 <tr>
 <td><code>engine.sales_tax</code></td>
 <td><code>sales_tax_deduction</code>, <code>state_sales_tax_deduction</code></td>
-<td>The optional state and local sales tax deduction; <code>state_sales_tax_deduction</code> applies TAXSIM's per-state coefficients (<code>parameters/national/sales_tax_deduction.yaml</code>).</td>
+<td>The optional state and local sales tax deduction; <code>state_sales_tax_deduction</code> applies TAXSIM's per-state coefficients (<code>src/taxsim_py/parameters/national/sales_tax_deduction.yaml</code>).</td>
 </tr>
 </tbody>
 </table>

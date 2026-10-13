@@ -810,6 +810,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#compiled-calculator" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Compiled calculator
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#calculation-modes" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -985,6 +996,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#compiled-calculator" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Compiled calculator
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#calculation-modes" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1062,7 +1084,7 @@
 <h1 id="architecture">Architecture</h1>
 <p>Tax calculations are split into policy data and calculation mechanics.</p>
 <h2 id="policy-data">Policy data</h2>
-<p>All values set by tax law live under <code>parameters/</code> in YAML or CSV files: rates,
+<p>All values set by tax law live under <code>src/taxsim_py/parameters/</code> in YAML or CSV files: rates,
 thresholds, caps, exemptions, phaseouts, and year-specific adjustment factors.
 Values are keyed by the first year they apply and forward-filled by
 <code>resolve_year</code>, so a value is repeated only when it changes; <code>null</code> marks the
@@ -1095,7 +1117,21 @@ broad income tax use a zero-tax calculator. Missing inputs default to 0 (<code>d
 is present). <code>children_under_3</code>, <code>children_under_4</code> and <code>children_under_7</code> are
 optional extensions for age cutoffs TAXSIM's counts cannot express. Tax years after
 <code>api.LAST_SUPPORTED_YEAR</code> (<code>law_coded_through</code> in
-<code>parameters/national/income_tax.yaml</code>) raise an error.</p>
+<code>src/taxsim_py/parameters/national/income_tax.yaml</code>) raise an error.</p>
+<h2 id="compiled-calculator">Compiled calculator</h2>
+<p><code>rust/</code> holds a Rust crate that maturin builds into the package as <code>taxsim_py/_internal*</code>: the
+platform wheels carry it, and there is one package, not two. It is a Polars
+expression plugin: one expression takes the prepared household inputs and the law year (an
+integer or a column) and returns a struct of the outputs, with federal tax, payroll tax, the
+state tax, the itemizing choice, the state-tax feedback passes and the marginal rates all
+computed per household inside it, in parallel. It reads the same YAML parameters as the Python
+calculators (<code>rust/src/params.rs</code>); <code>tests/test_rust_parameters.py</code> checks that both resolve
+them identically. The Python side (<code>engine/rust_backend.py</code>) only prepares the inputs with
+<code>engine.inputs.with_input_defaults</code> and builds the plan, so lazy and eager input share one
+path. Python stays the reference: <code>tests/test_rust_backend.py</code> and <code>scripts/validate_rust.py</code>
+compare the two engines, and a change to a calculator or parameter file must be made in both
+(<code>rust/src/states/&lt;state&gt;.rs</code> mirrors <code>calculators/states/&lt;state&gt;.py</code>). It implements
+statutory mode only.</p>
 <h2 id="calculation-modes">Calculation modes</h2>
 <p><code>calculation_mode</code> resolves once to an immutable behavior profile that calculators
 receive explicitly. <code>"statutory"</code> (default) enables the corrections in
@@ -1111,7 +1147,7 @@ uses those labels. With a marginal-rate request the state worksheet comes from t
 perturbed row, as in TAXSIM, and the federal detail from the base run.</p>
 <p>Some states (Nebraska, North Dakota's short form, Rhode Island and Vermont
 through 2000) use TAXSIM's analytic federal marginal rate, exported as
-<code>federal_source_rate</code> (constants in <code>parameters/national/analytic_rate.yaml</code>).</p>
+<code>federal_source_rate</code> (constants in <code>src/taxsim_py/parameters/national/analytic_rate.yaml</code>).</p>
 <h2 id="vectorization-contract">Vectorization contract</h2>
 <p>Calculations operate on whole Polars columns. Production calculators must not
 iterate over taxpayer rows, use Python row callbacks, or choose a formula from a
