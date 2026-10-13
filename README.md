@@ -100,7 +100,7 @@ optional reader (`pip install "taxsim-py[readstat]"`, which adds
 - **Speed:** on a mixed 42-state batch, 1,000,000 rows including marginal rates take
   about 0.5 s and 1.1 GiB with the default compiled engine
   (`engine="rust"`), or 7.1 s and 2.8 GiB with the Python reference
-  (`engine="python"`, for developing and testing changes). The compiled TAXSIM takes 17.3 s. A
+  (`engine="python"`, for developing and testing changes). The Fortran TAXSIM takes 17.3 s, and PolicyEngine's TAXSIM runner about 45 s for only 15,000 rows. A
   `LazyFrame` input streams into any Polars sink with memory that depends mainly on the thread
   count, not the rows. See [Performance](https://jrothbaum.github.io/taxsim_py/performance/) for
   the full tables and the [raw results](https://github.com/jrothbaum/taxsim_py/tree/main/docs/benchmarks).
