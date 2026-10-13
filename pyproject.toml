@@ -38,6 +38,7 @@ strip = true
 
 [dependency-groups]
 dev = [
+    "maturin>=1.0,<2.0",
     "ruff>=0.16.10",
 ]
 test = [
