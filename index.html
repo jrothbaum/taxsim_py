@@ -1094,6 +1094,7 @@ inputs and meanings but is independent of, and not affiliated with, NBER.</p>
 <pre><code class="language-bash">pip install taxsim-py                    # Python 3.9 or newer
 pip install &quot;taxsim-py[readstat]&quot;        # also read and write Stata, SPSS and SAS files
 </code></pre>
+<p>On platforms without a prebuilt compiled calculator, pass <code>engine="python"</code> (slower).</p>
 <h2 id="quick-start">Quick start</h2>
 <h3 id="one-household">One household</h3>
 <pre><code class="language-python">from taxsim_py import calculate_row
