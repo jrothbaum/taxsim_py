@@ -3,19 +3,17 @@
 Usage: uv run python scripts/build_web.py   (then serve web/, e.g. `python -m http.server -d web`)
 """
 
-import shutil
-import subprocess
 import sys
 from pathlib import Path
+
+from build_pure_wheel import build
 
 ROOT = Path(__file__).resolve().parents[1]
 WEB = ROOT / "web"
 
 for old in WEB.glob("*.whl"):
     old.unlink()
-subprocess.run(["uv", "build", "--quiet", "--wheel", "-o", str(WEB)], cwd=ROOT, check=True)
-shutil.rmtree(ROOT / "build", ignore_errors=True)
-(WEB / ".gitignore").unlink(missing_ok=True)  # uv writes one into its output directory
+build(WEB)  # the browser runs the Python engine, so it gets the wheel without the compiled calculator
 wheels = list(WEB.glob("taxsim_py-*.whl"))
 if len(wheels) != 1:
     sys.exit(f"expected one wheel in {WEB}, found {len(wheels)}")

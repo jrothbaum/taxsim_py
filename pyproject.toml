@@ -23,12 +23,18 @@ readstat = [
 [project.scripts]
 taxsim-py = "taxsim_py.cli:main"
 
+# One package: the Python code, the parameter tables and the compiled calculators (the
+# Polars plugin in rust/, built into taxsim_py/_internal*.so/.pyd). maturin builds one
+# abi3 wheel per platform; scripts/build_pure_wheel.py builds the Python-only wheel.
 [build-system]
-requires = ["setuptools>=68"]
-build-backend = "setuptools.build_meta"
+requires = ["maturin>=1.0,<2.0"]
+build-backend = "maturin"
 
-[tool.setuptools.packages.find]
-where = ["src"]
+[tool.maturin]
+manifest-path = "rust/Cargo.toml"
+module-name = "taxsim_py._internal"
+python-source = "src"
+strip = true
 
 [dependency-groups]
 dev = [
@@ -40,6 +46,10 @@ test = [
     "pytest>=8.4.2",
     "taxcalc>=6.2.1; python_version >= '3.10'",
 ]
+
+# Rebuild the editable install (which compiles the Rust code) when the Rust code changes.
+[tool.uv]
+cache-keys = [{ file = "pyproject.toml" }, { file = "rust/Cargo.toml" }, { file = "rust/Cargo.lock" }, { file = "rust/src/**/*.rs" }]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

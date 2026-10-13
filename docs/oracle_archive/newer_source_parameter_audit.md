@@ -15,11 +15,11 @@ supported by the newer source.
 
 No clear 2021 value-level update was found in the current federal tables:
 
-- federal bracket thresholds and rates agree with `parameters/national/income_tax.yaml`;
+- federal bracket thresholds and rates agree with `src/taxsim_py/parameters/national/income_tax.yaml`;
 - EITC maximums and phaseout thresholds agree with
-  `parameters/national/eitc.csv`;
+  `src/taxsim_py/parameters/national/eitc.csv`;
 - the Social Security wage base agrees with
-  `parameters/national/payroll_tax.yaml` (`142800`); and
+  `src/taxsim_py/parameters/national/payroll_tax.yaml` (`142800`); and
 - the audited AMT and standard-deduction values agree with the existing
   federal parameter tables.
 
@@ -41,7 +41,7 @@ amounts:
 
 These values were missing from the Python table, which therefore reused 2020
 values through year resolution. They are now recorded in
-`parameters/states/oh/income_tax.yaml`, with a regression test in
+`src/taxsim_py/parameters/states/oh/income_tax.yaml`, with a regression test in
 `tests/test_parameter_provenance.py`. The 2021 Ohio bracket schedule already
 matched the newer source.
 

@@ -15,6 +15,10 @@ names only on request).
 pip install taxsim-py
 ```
 
+The wheels for Linux x86_64, Windows x64 and macOS include the compiled calculators
+that the default `engine="rust"` uses. On any other platform pip installs a Python-only
+wheel (use `engine="python"`), or build from source with Rust installed.
+
 ## Basic use
 
 Every row needs `mstat` and `state` (TAXSIM codes, or Census FIPS with
@@ -95,10 +99,12 @@ optional reader (`pip install "taxsim-py[readstat]"`, which adds
   [PolicyEngine comparison](https://jrothbaum.github.io/taxsim_py/policyengine_recent_state_comparison/).
 - **Not modelled:** items TAXSIM has no input for, such as 2025 deductions for tips,
   overtime and car-loan interest, and Washington's capital gains tax.
-- **Speed:** on a mixed 42-state batch, 1,000,000 rows including marginal rates
-  take about 7.4 s and 2.8 GiB. The compiled TAXSIM takes 17.2 s for the same
-  calculation.
-  `batch_rows` and `max_year_workers` limit memory. See [Performance](https://jrothbaum.github.io/taxsim_py/performance/).
+- **Speed:** on a mixed 42-state batch, 1,000,000 rows including marginal rates take
+  about 0.5 s and 1.1 GiB with the default compiled engine
+  (`engine="rust"`), or 7.1 s and 2.8 GiB with the Python reference
+  (`engine="python"`, for developing and testing changes). The compiled TAXSIM takes 17.3 s. A
+  `LazyFrame` input streams into any Polars sink with memory that depends mainly on the thread
+  count, not the rows. See [Performance](https://jrothbaum.github.io/taxsim_py/performance/).
 
 ## Documentation
 

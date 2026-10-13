@@ -1,0 +1,269 @@
+name: Build wheels
+
+# Builds taxsim-py with the compiled calculators (rust/) for the same targets as
+# polars-readstat: Linux x86_64 (manylinux_2_28 and manylinux2014), Windows x64, macOS
+# arm64 and macOS x64. The wheels are abi3 (Python 3.9 and later), so one wheel per
+# target covers every Python version. A Python-only wheel (py3-none-any, engine="python"
+# only) covers every other platform, and the sdist builds from source with Rust.
+#
+# Runs when a GitHub release is published and attaches the wheels and sdist to it
+# (publish_pypi.yml then uploads them to PyPI). To build for an earlier release, or just
+# to check the build, run it from the Actions tab (the tag is optional: without one
+# nothing is attached to a release).
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to build and attach to, e.g. v0.3.0 (optional)"
+        required: false
+
+env:
+  TAG: ${{ github.event.release.tag_name || inputs.tag }}
+  RUST_TOOLCHAIN: 1.95.0
+
+jobs:
+  build-linux:
+    name: Build wheels on Linux (manylinux_2_28)
+    runs-on: ubuntu-latest
+    container: quay.io/pypa/manylinux_2_28_x86_64:latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ env.TAG || github.ref }}
+
+      - name: Install Rust
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          source ~/.cargo/env
+          rustup toolchain install $RUST_TOOLCHAIN
+          rustup default $RUST_TOOLCHAIN
+          rustup target add x86_64-unknown-linux-gnu
+        shell: bash
+
+      - name: Install Python build tools
+        run: /opt/python/cp39-cp39/bin/pip install --upgrade pip maturin
+
+      - name: Cache Rust build artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+          shared-key: wheel-manylinux_2_28-x86_64
+
+      - name: Build wheels
+        run: |
+          source ~/.cargo/env
+          /opt/python/cp39-cp39/bin/maturin build --release --strip --out dist \
+            \
+            --interpreter /opt/python/cp39-cp39/bin/python \
+            --target x86_64-unknown-linux-gnu \
+            --compatibility manylinux_2_28 \
+            --jobs 2
+        env:
+          RUST_BACKTRACE: full
+          CARGO_BUILD_JOBS: 2
+          CARGO_INCREMENTAL: 0
+          RUSTFLAGS: -C debuginfo=0 -C codegen-units=1
+        shell: bash
+
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-linux-manylinux_2_28-x86_64
+          path: dist
+
+  build-linux-legacy:
+    name: Build wheels on Linux (manylinux2014 / RHEL7 compatible)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ env.TAG || github.ref }}
+
+      - name: Cache Rust build artifacts (manylinux2014)
+        uses: actions/cache@v4
+        with:
+          path: |
+            .cargo-home
+            rust/target
+          key: manylinux2014-cargo-${{ hashFiles('rust/Cargo.lock', 'rust/Cargo.toml', 'pyproject.toml') }}
+          restore-keys: |
+            manylinux2014-cargo-
+
+      - name: Build wheels (manylinux2014 in Docker)
+        run: |
+          docker run --rm \
+            -v "$PWD":/io \
+            -w /io \
+            -e RUST_BACKTRACE=full \
+            -e CARGO_BUILD_JOBS=2 \
+            -e CARGO_INCREMENTAL=0 \
+            -e CARGO_HOME=/io/.cargo-home \
+            -e RUSTFLAGS="-C debuginfo=0 -C codegen-units=1" \
+            quay.io/pypa/manylinux2014_x86_64:latest \
+            /bin/bash -lc '
+              curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+              source "${CARGO_HOME}/env"
+              rustup toolchain install '"$RUST_TOOLCHAIN"'
+              rustup default '"$RUST_TOOLCHAIN"'
+              rustup target add x86_64-unknown-linux-gnu
+              /opt/python/cp39-cp39/bin/pip install --upgrade pip maturin
+              /opt/python/cp39-cp39/bin/maturin build --release --strip --out dist \
+                \
+                --interpreter /opt/python/cp39-cp39/bin/python \
+                --target x86_64-unknown-linux-gnu \
+                --compatibility manylinux2014 \
+                --jobs 2
+            '
+        shell: bash
+
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-linux-manylinux2014-x86_64
+          path: dist
+
+  build-others:
+    name: Build wheels on ${{ matrix.os }} (${{ matrix.arch }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            arch: x64
+            rust-target: x86_64-pc-windows-msvc
+            python-version: '3.9'
+
+          - os: macos-14
+            arch: arm64
+            rust-target: aarch64-apple-darwin
+            macos-target: '11.0'
+            python-version: '3.9'
+
+          - os: macos-14
+            arch: x64
+            rust-target: x86_64-apple-darwin
+            macos-target: '10.15'
+            python-version: '3.9'
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ env.TAG || github.ref }}
+
+      - name: Set up Python ${{ matrix.python-version }}
+        id: setup-python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+          targets: ${{ matrix.rust-target }}
+
+      - name: Install Python build tools
+        run: python -m pip install --upgrade pip maturin
+
+      - name: Cache Rust build artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+          shared-key: wheel-${{ matrix.os }}-${{ matrix.rust-target }}
+
+      - name: Build wheels (macOS)
+        if: startsWith(matrix.os, 'macos-')
+        run: |
+          maturin build --release --strip --out dist \
+            \
+            --interpreter ${{ steps.setup-python.outputs.python-path }} \
+            --target ${{ matrix.rust-target }} \
+            --jobs 2
+        env:
+          RUST_BACKTRACE: full
+          MACOSX_DEPLOYMENT_TARGET: ${{ matrix.macos-target }}
+          CARGO_BUILD_JOBS: 2
+          CARGO_INCREMENTAL: 0
+          RUSTFLAGS: -C debuginfo=0 -C codegen-units=1
+        shell: bash
+
+      - name: Build wheels (Windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          maturin build --release --strip --out dist `
+            `
+            --interpreter ${{ steps.setup-python.outputs.python-path }} `
+            --target ${{ matrix.rust-target }} `
+            --jobs 2
+        env:
+          CARGO_BUILD_JOBS: 2
+          CARGO_INCREMENTAL: 0
+          RUSTFLAGS: -C debuginfo=0 -C codegen-units=1
+        shell: powershell
+
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-${{ matrix.os }}-${{ matrix.arch }}
+          path: dist
+
+  # The source distribution lets platforms without a wheel build the plugin themselves
+  # (it needs a Rust toolchain).
+  sdist:
+    name: Build the source distribution
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ env.TAG || github.ref }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Build the sdist
+        run: |
+          python -m pip install --upgrade pip maturin
+          maturin sdist --out dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sdist
+          path: dist
+
+  # Without the compiled calculator: for platforms with no wheel above, and the browser.
+  pure:
+    name: Build the Python-only wheel
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ env.TAG || github.ref }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Build the wheel
+        run: python scripts/build_pure_wheel.py dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheel-pure
+          path: dist
+
+  release:
+    name: Attach the wheels to the GitHub release
+    needs: [build-linux, build-linux-legacy, build-others, sdist, pure]
+    runs-on: ubuntu-latest
+    if: ${{ github.event.release.tag_name || inputs.tag }}
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Attach to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          find artifacts -type f \( -name '*.whl' -o -name '*.tar.gz' \) -print
+          find artifacts -type f \( -name '*.whl' -o -name '*.tar.gz' \) -exec \
+            gh release upload "$TAG" {} --clobber --repo "$GITHUB_REPOSITORY" \;

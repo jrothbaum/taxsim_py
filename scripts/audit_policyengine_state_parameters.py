@@ -64,7 +64,7 @@ def _state_abbreviation(taxsim_state: int) -> str | None:
 
 
 def _local_keys(abbreviation: str) -> list[str]:
-    path = ROOT / "parameters" / "states" / abbreviation / "income_tax.yaml"
+    path = ROOT / "src" / "taxsim_py" / "parameters" / "states" / abbreviation / "income_tax.yaml"
     with path.open(encoding="utf-8") as stream:
         values = yaml.safe_load(stream) or {}
     return list(values)

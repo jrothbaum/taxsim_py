@@ -6,6 +6,11 @@ shared runner here). Add a new state by writing `tests/{st}_cases.py`
 then register both below.
 """
 
+import os as _os
+
+# These scripts exercise the Python reference implementation (taxsim mode, worksheets, Polars execution).
+_os.environ.setdefault("TAXSIM_PY_ENGINE", "python")
+
 import importlib
 import sys
 from concurrent.futures import ThreadPoolExecutor

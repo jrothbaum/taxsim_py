@@ -1,0 +1,37 @@
+[
+  {
+    "rows": 1000,
+    "columns": 43,
+    "matched": true
+  },
+  {
+    "rows": 10000,
+    "columns": 43,
+    "matched": true
+  },
+  {
+    "rows": 15000,
+    "columns": 43,
+    "matched": true
+  },
+  {
+    "rows": 100000,
+    "columns": 43,
+    "matched": true
+  },
+  {
+    "rows": 200000,
+    "columns": 43,
+    "matched": true
+  },
+  {
+    "rows": 500000,
+    "columns": 43,
+    "matched": true
+  },
+  {
+    "rows": 1000000,
+    "columns": 43,
+    "matched": true
+  }
+]

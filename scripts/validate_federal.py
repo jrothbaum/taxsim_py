@@ -11,6 +11,11 @@ Add new coverage by adding rows to tests/federal_cases.py, not by writing
 another script like this one.
 """
 
+import os as _os
+
+# These scripts exercise the Python reference implementation (taxsim mode, worksheets, Polars execution).
+_os.environ.setdefault("TAXSIM_PY_ENGINE", "python")
+
 import sys
 from pathlib import Path
 
@@ -44,7 +49,7 @@ MISMATCH_TOLERANCE = 0.015
 # fix alone (real $160,200 vs the oracle's stale $153,600) has a wide blast
 # radius - EVERY 2023 wages test above $153,600 shows a `fica`/`tfica`
 # mismatch as a direct, expected consequence, not 600+ independent bugs.
-# See parameters/national/payroll_tax.yaml, eitc.csv, eitc_misc.yaml, and
+# See src/taxsim_py/parameters/national/payroll_tax.yaml, eitc.csv, eitc_misc.yaml, and
 # amt.yaml (head_of_household AMT exemption) for the specific values and
 # their sourcing. A failure in a DIFFERENT year is still a real regression
 # to investigate; a 2023 failure should be checked against this list before

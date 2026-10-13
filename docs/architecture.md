@@ -4,7 +4,7 @@ Tax calculations are split into policy data and calculation mechanics.
 
 ## Policy data
 
-All values set by tax law live under `parameters/` in YAML or CSV files: rates,
+All values set by tax law live under `src/taxsim_py/parameters/` in YAML or CSV files: rates,
 thresholds, caps, exemptions, phaseouts, and year-specific adjustment factors.
 Values are keyed by the first year they apply and forward-filled by
 `resolve_year`, so a value is repeated only when it changes; `null` marks the
@@ -41,7 +41,23 @@ broad income tax use a zero-tax calculator. Missing inputs default to 0 (`dep13`
 is present). `children_under_3`, `children_under_4` and `children_under_7` are
 optional extensions for age cutoffs TAXSIM's counts cannot express. Tax years after
 `api.LAST_SUPPORTED_YEAR` (`law_coded_through` in
-`parameters/national/income_tax.yaml`) raise an error.
+`src/taxsim_py/parameters/national/income_tax.yaml`) raise an error.
+
+## Compiled calculator
+
+`rust/` holds a Rust crate that maturin builds into the package as `taxsim_py/_internal*`: the
+platform wheels carry it, and there is one package, not two. It is a Polars
+expression plugin: one expression takes the prepared household inputs and the law year (an
+integer or a column) and returns a struct of the outputs, with federal tax, payroll tax, the
+state tax, the itemizing choice, the state-tax feedback passes and the marginal rates all
+computed per household inside it, in parallel. It reads the same YAML parameters as the Python
+calculators (`rust/src/params.rs`); `tests/test_rust_parameters.py` checks that both resolve
+them identically. The Python side (`engine/rust_backend.py`) only prepares the inputs with
+`engine.inputs.with_input_defaults` and builds the plan, so lazy and eager input share one
+path. Python stays the reference: `tests/test_rust_backend.py` and `scripts/validate_rust.py`
+compare the two engines, and a change to a calculator or parameter file must be made in both
+(`rust/src/states/<state>.rs` mirrors `calculators/states/<state>.py`). It implements
+statutory mode only.
 
 ## Calculation modes
 
@@ -62,7 +78,7 @@ perturbed row, as in TAXSIM, and the federal detail from the base run.
 
 Some states (Nebraska, North Dakota's short form, Rhode Island and Vermont
 through 2000) use TAXSIM's analytic federal marginal rate, exported as
-`federal_source_rate` (constants in `parameters/national/analytic_rate.yaml`).
+`federal_source_rate` (constants in `src/taxsim_py/parameters/national/analytic_rate.yaml`).
 
 ## Vectorization contract
 

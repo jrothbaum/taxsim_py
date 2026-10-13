@@ -24,3 +24,5 @@ scripts/run-stata.ps1
 scripts/run-reset-code.ps1
 stata/*.log
 stata/testing/*.log
+rust/target/
+src/taxsim_py/_internal*

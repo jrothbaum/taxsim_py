@@ -151,7 +151,11 @@ def calculate_for_stata(
     missing_to_zero: bool = False,
     max_workers: int | None = None,
 ) -> pl.DataFrame:
-    """taxsim35's outputs for `frame`, its dollar amounts rounded to cents as TAXSIM reports them."""
+    """taxsim35's outputs for `frame`, its dollar amounts rounded to cents as TAXSIM reports them.
+
+    TAXSIM mode and the full worksheets only exist in the Python engine; the statutory summary
+    uses the default (compiled) engine.
+    """
     inputs = prepare_inputs(frame, missing_to_zero=missing_to_zero)
     result = calculate_taxes(
         inputs,
@@ -159,6 +163,7 @@ def calculate_for_stata(
         idtl=2 if full else None,
         taxsim_names=True,
         calculation_mode="statutory" if statutory else "taxsim",
+        engine=None if statutory and not full else "python",
         max_year_workers=max_workers,
     )
     wanted = (*OUTPUTS, *(FULL_OUTPUTS if full else ()))

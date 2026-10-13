@@ -342,7 +342,7 @@ total, so per-spouse caps and spouse-income tests treat it as split evenly.
 ## 2025 (2025-LAW)
 
 Federal: child credit $2,200, the senior deduction, and the SALT cap phase-down
-(`parameters/national/*`). States: see the PolicyEngine comparison. Provisions that
+(`src/taxsim_py/parameters/national/*`). States: see the PolicyEngine comparison. Provisions that
 depart from TAXSIM's conventions (Maine's and DC's refusal of the larger federal
 standard deduction, South Carolina's addbacks) are statutory mode only; parameter
 updates apply in every mode. Washington's credit extends to 2025.

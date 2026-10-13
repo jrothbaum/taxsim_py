@@ -23,14 +23,14 @@ from taxsim_py.io.tables import read_table
 labels = output_labels()
 
 def run_row(record, mode, idtl, mtr):
-    opts = {"calculation_mode": mode}
+    opts = {"calculation_mode": mode, "engine": "python"}
     if idtl: opts["idtl"] = idtl
     if mtr: opts["mtr"] = mtr
     return taxsim_py.calculate_row(record, **opts)
 
 def run_file(path, year, mode):
     frame = read_table(path, "csv")
-    result = taxsim_py.calculate_taxes(frame, year=int(year) or None, calculation_mode=mode)
+    result = taxsim_py.calculate_taxes(frame, year=int(year) or None, calculation_mode=mode, engine="python")
     return result.write_csv(), result.height, result.head(20).to_dicts(), result.columns
 `);
 })();

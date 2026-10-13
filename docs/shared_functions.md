@@ -2,7 +2,7 @@
 
 Check this catalog before adding a helper to a federal or state calculator.
 Shared calculation mechanics live in `src/taxsim_py/engine/`; policy values
-belong in `parameters/`.
+belong in `src/taxsim_py/parameters/`.
 
 ## State Calculator Helpers
 
@@ -55,7 +55,7 @@ Import these from `taxsim_py.engine.schema`.
 
 | Function or value | Use it for |
 | --- | --- |
-| `PARAMETERS_ROOT` | Building paths under the repository's `parameters/` directory. |
+| `PARAMETERS_ROOT` | Building paths under the repository's `src/taxsim_py/parameters/` directory. |
 | `load_yaml(path)` | Loading a YAML parameter file. |
 | `resolve_year(by_year, year)` | Reading the latest sparse parameter value effective on or before a year; raises if that entry is `null` (the provision has ended). |
 | `YearParams(params, year)` | A parameter mapping read at one law year: `p.value("key", *path)` walks `path`, resolving every year-keyed level (so year keys may sit above or below status keys), `p.num(...)` also converts to float, `p.in_effect("key")` says whether a year-keyed entry has a non-null value, and `p["key"]` returns the entry unchanged. |
@@ -125,7 +125,7 @@ state calculators should not implement that loop.
 | `engine.capital_gains` | `preferential_rate_tax` | Preferential-rate capital gains and qualified dividends. |
 | `engine.amt` | `alternative_minimum_tax` | Federal AMT calculations. |
 | `engine.niit` | `net_investment_income_tax` | Net Investment Income Tax calculations. |
-| `engine.sales_tax` | `sales_tax_deduction`, `state_sales_tax_deduction` | The optional state and local sales tax deduction; `state_sales_tax_deduction` applies TAXSIM's per-state coefficients (`parameters/national/sales_tax_deduction.yaml`). |
+| `engine.sales_tax` | `sales_tax_deduction`, `state_sales_tax_deduction` | The optional state and local sales tax deduction; `state_sales_tax_deduction` applies TAXSIM's per-state coefficients (`src/taxsim_py/parameters/national/sales_tax_deduction.yaml`). |
 
 Use `bracket_tax` only for cumulative marginal brackets. Flat-rate lookup,
 interpolated, and tax-minus-subtraction tables have different mechanics and

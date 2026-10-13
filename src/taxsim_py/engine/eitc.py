@@ -71,7 +71,7 @@ def federal_eitc(
 ) -> pl.Expr:
     """Federal EITC from one year's parameter rows (TAXSIM `eitcr`).
 
-    `params` holds that year's rows of `parameters/national/eitc.csv`;
+    `params` holds that year's rows of `src/taxsim_py/parameters/national/eitc.csv`;
     statuses without a row (married separate) receive no credit.
     """
     credit = pl.lit(0.0)

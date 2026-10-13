@@ -1,0 +1,20 @@
+{
+  "date": "2026-10-12",
+  "python": "3.13.4",
+  "polars": "2.0.0",
+  "polars_threads": 16,
+  "calculation_mode": "statutory",
+  "mtr": 11,
+  "year": 2022,
+  "states": 42,
+  "batch_rows": 50000,
+  "max_year_workers": null,
+  "timing": "one first calculation in a fresh worker per model/engine/row count; imports and input generation excluded",
+  "memory": "taxsim_py peak process RSS; Fortran peak executable RSS",
+  "command": "POLARS_MAX_THREADS=16 /tmp/taxsim-polars2/bin/python scripts/benchmark_comparison.py --engines taxsim_py taxsim --polars-engines in-memory streaming --rows 1000 10000 15000 100000 200000 500000 1000000 --timeout 120",
+  "engine_outputs_verified": true,
+  "verification_tolerances": {
+    "relative": 1e-10,
+    "absolute": 1e-08
+  }
+}

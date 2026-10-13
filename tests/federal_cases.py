@@ -1093,16 +1093,16 @@ def build_federal_test_cases() -> pl.DataFrame:
     sys.path.insert(0, str(ROOT / "src"))
     from taxsim_py.engine.schema import load_yaml
 
-    eitc_params = pl.read_csv(ROOT / "parameters" / "national" / "eitc.csv")
-    credits_params = load_yaml(ROOT / "parameters" / "national" / "credits.yaml")
-    income_tax_params = load_yaml(ROOT / "parameters" / "national" / "income_tax.yaml")
-    payroll_params = load_yaml(ROOT / "parameters" / "national" / "payroll_tax.yaml")
-    eitc_misc_params = load_yaml(ROOT / "parameters" / "national" / "eitc_misc.yaml")
-    niit_params = load_yaml(ROOT / "parameters" / "national" / "niit.yaml")
-    capital_gains_params = load_yaml(ROOT / "parameters" / "national" / "capital_gains.yaml")
-    amt_params = load_yaml(ROOT / "parameters" / "national" / "amt.yaml")
-    pre1987_params = load_yaml(ROOT / "parameters" / "national" / "pre1987.yaml")
-    law60_params = load_yaml(ROOT / "parameters" / "national" / "law60.yaml")
+    eitc_params = pl.read_csv(ROOT / "src" / "taxsim_py" / "parameters" / "national" / "eitc.csv")
+    credits_params = load_yaml(ROOT / "src" / "taxsim_py" / "parameters" / "national" / "credits.yaml")
+    income_tax_params = load_yaml(ROOT / "src" / "taxsim_py" / "parameters" / "national" / "income_tax.yaml")
+    payroll_params = load_yaml(ROOT / "src" / "taxsim_py" / "parameters" / "national" / "payroll_tax.yaml")
+    eitc_misc_params = load_yaml(ROOT / "src" / "taxsim_py" / "parameters" / "national" / "eitc_misc.yaml")
+    niit_params = load_yaml(ROOT / "src" / "taxsim_py" / "parameters" / "national" / "niit.yaml")
+    capital_gains_params = load_yaml(ROOT / "src" / "taxsim_py" / "parameters" / "national" / "capital_gains.yaml")
+    amt_params = load_yaml(ROOT / "src" / "taxsim_py" / "parameters" / "national" / "amt.yaml")
+    pre1987_params = load_yaml(ROOT / "src" / "taxsim_py" / "parameters" / "national" / "pre1987.yaml")
+    law60_params = load_yaml(ROOT / "src" / "taxsim_py" / "parameters" / "national" / "law60.yaml")
 
     rows: list[dict[str, Any]] = []
     for year in YEARS:

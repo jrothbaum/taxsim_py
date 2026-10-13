@@ -107,12 +107,45 @@ calculate_taxes(df, idtl=2, taxsim_names=True)
 You can also pass `taxsim_py.CalculationMode.STATUTORY` or `.TAXSIM`. The list of
 differences is in [Statutory corrections](statutory_corrections.md).
 
+### Engine: `engine`
+
+| `engine` | Behavior |
+|:--|:--|
+| `"rust"` (default) | For real runs: the compiled calculator (built into the platform wheels). About 4 to 8 times faster than Python, and it streams, so large files run in far less memory. Statutory mode only; it raises an error for taxsim mode, `idtl=2` and `keep_intermediate`, and for a state or year it has no law for (states from 1977, federal from 1960). It never falls back to Python. |
+| `"python"` | For developing and testing changes to the tax law: the reference implementation, easy to read, change and debug. Always eager, and the only engine for taxsim mode and detailed output. |
+
+When you change a calculator or a parameter, work in Python first (`engine="python"`), where
+a change is a few lines in `calculators/` and results appear at once. The compiled calculator
+mirrors it (`rust/src/states/<state>.rs`) and is rebuilt once the Python version is right; the
+engines are compared with `scripts/validate_rust.py`.
+
+Set the default for a whole session with the `TAXSIM_PY_ENGINE` environment variable
+(`rust` or `python`). The compiled calculator matches the Python one for every state and
+year, to floating-point round-off; `scripts/validate_rust.py` checks that.
+
+The engine also decides laziness. Give `engine="rust"` a `LazyFrame` and you get a
+`LazyFrame` back: the input plus the output columns (and `frate`/`srate` with `mtr`), a plan
+nothing has run yet. Collect it, or stream it into any Polars sink so the data never has to
+fit in memory:
+
+```python
+lf = pl.scan_parquet("households.parquet")
+calculate_taxes(lf, year=2022, mtr=85).sink_parquet("taxes.parquet")
+```
+
+The year can come from a column (`year_column`, default `"year"`), so one pass can cover many
+years and states. Defaults, nulls and casts are handled in Polars before the compiled
+calculator sees the data, exactly as for a `DataFrame`. Checks of the data itself (a null or
+unsupported `mstat`, years after 2025) raise when the plan runs, and a `DataFrame` input is
+checked up front. `engine="python"` collects a `LazyFrame` and returns a `DataFrame`.
+`batch_rows` and `max_year_workers` apply to the Python engine only.
+
 ### Speed and memory
 
 | Option | Meaning |
 |:--|:--|
-| `batch_rows` | Maximum input rows per batch. Lower it to cap memory on very large inputs. |
-| `max_year_workers` | Threads used to run years and row batches concurrently. The default is Polars' thread pool size (set `POLARS_MAX_THREADS` to change it). |
+| `batch_rows` | (Python engine) Maximum input rows per batch. Lower it to cap memory on very large inputs. |
+| `max_year_workers` | (Python engine) Threads used to run years and row batches concurrently. The default is Polars' thread pool size (set `POLARS_MAX_THREADS` to change it). |
 
 See [Performance](performance.md) for timings and memory.
 

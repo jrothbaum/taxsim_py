@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 from collections.abc import Callable, Mapping
+from concurrent.futures import ThreadPoolExecutor
 
 import polars as pl
 
@@ -95,6 +96,44 @@ def resolve_federal_and_state(
     keep_columns: tuple[str, ...] = (),
     result_columns: tuple[str, ...] | None = None,
     behavior: BehaviorProfile = TAXSIM_BEHAVIOR,
+    max_state_workers: int = 8,
+) -> pl.DataFrame:
+    """Resolve tax feedback, collecting independent state plans separately.
+
+    Reuse a bounded pool across feedback passes. Each collection honors the
+    configured Polars engine; callers running batches concurrently pass one
+    state worker to avoid nested Python parallelism.
+    """
+    options = dict(
+        keep_intermediate=keep_intermediate,
+        keep_columns=keep_columns,
+        result_columns=result_columns,
+        behavior=behavior,
+    )
+    if not callable(compute_state_tax_fn) and len(compute_state_tax_fn) > 1 and max_state_workers > 1:
+        with ThreadPoolExecutor(max_workers=min(max_state_workers, len(compute_state_tax_fn))) as executor:
+            return _resolve_federal_and_state(raw_df, year, compute_state_tax_fn, state_executor=executor, **options)
+    return _resolve_federal_and_state(raw_df, year, compute_state_tax_fn, **options)
+
+
+def _collect_state_plans(
+    plans: list[pl.LazyFrame], executor: ThreadPoolExecutor | None,
+) -> list[pl.DataFrame]:
+    if executor is None or len(plans) == 1:
+        return [plan.collect(engine="auto") for plan in plans]
+    return list(executor.map(lambda plan: plan.collect(engine="auto"), plans))
+
+
+def _resolve_federal_and_state(
+    raw_df: pl.DataFrame,
+    year: int,
+    compute_state_tax_fn: StateCalculator | Mapping[int, StateCalculator],
+    *,
+    keep_intermediate: bool = True,
+    keep_columns: tuple[str, ...] = (),
+    result_columns: tuple[str, ...] | None = None,
+    behavior: BehaviorProfile = TAXSIM_BEHAVIOR,
+    state_executor: ThreadPoolExecutor | None = None,
 ) -> pl.DataFrame:
     """Resolve the federal and state tax interaction.
 
@@ -120,12 +159,13 @@ def resolve_federal_and_state(
         # TAXSIM deducts the larger of state income tax and its estimated
         # general sales tax federally.
         deduction = pl.concat(
-            pl.collect_all(
-                plan.select(
+            _collect_state_plans(
+                [plan.select(
                     *_KEYS,
                     pl.max_horizontal(pl.col("siitax").clip(0, None), _SALES_TAX).alias(_DEDUCTION),
                 )
-                for plan in _state_plans(_federal(current, year, behavior), year, compute_state_tax_fn, behavior)
+                for plan in _state_plans(_federal(current, year, behavior), year, compute_state_tax_fn, behavior)],
+                state_executor,
             )
         )
         current = stacked.drop(_DEDUCTION).join(deduction, on=_KEYS, how="left")
@@ -156,7 +196,7 @@ def resolve_federal_and_state(
                 plan.select(*_KEYS, "siitax", *[c for c in keep_columns if c in plan.collect_schema().names()])
                 for plan in final_plans
             ]
-        state_out = pl.concat(pl.collect_all(final_plans), how="diagonal_relaxed")
+        state_out = pl.concat(_collect_state_plans(final_plans, state_executor), how="diagonal_relaxed")
         state_columns = [c for c in state_out.columns if c not in federal.columns]
         out = federal.join(state_out.select(*_KEYS, *state_columns), on=_KEYS).drop(_SALES_TAX)
         if result_columns is not None:

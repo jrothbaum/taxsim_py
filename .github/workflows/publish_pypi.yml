@@ -1,8 +1,9 @@
 name: Publish to PyPI
 
 # Manual only: run it from the Actions tab to publish the latest GitHub release
-# (drafts and pre-releases are skipped). The Stata files go to the GitHub release
-# separately (stata_release.yml).
+# (drafts and pre-releases are skipped). The wheels and sdist are built when the release
+# is published (build_wheels.yml) and attached to it; this uploads those files. The Stata
+# files go to the GitHub release separately (stata_release.yml).
 on:
   workflow_dispatch:
 
@@ -20,12 +21,14 @@ jobs:
           tag=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName)
           echo "Publishing $tag"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
-      - uses: actions/checkout@v5
-        with:
-          ref: ${{ steps.release.outputs.tag }}
-      - uses: astral-sh/setup-uv@v6
-      - name: Build the sdist and wheel
-        run: uv build
+      - name: Download the wheels and sdist attached to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p dist
+          gh release download "${{ steps.release.outputs.tag }}" --repo "$GITHUB_REPOSITORY" \
+            --pattern 'taxsim_py-*.whl' --pattern 'taxsim_py-*.tar.gz' --dir dist
+          ls -l dist
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:

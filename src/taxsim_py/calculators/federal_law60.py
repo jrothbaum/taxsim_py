@@ -32,7 +32,7 @@ def compute_federal_income_tax_law60(
     df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR
 ) -> pl.DataFrame | pl.LazyFrame:
     if year < 1960:
-        raise NotImplementedError("law60 only covers 1960-1976 - see parameters/national/law60.yaml")
+        raise NotImplementedError("law60 only covers 1960-1976 - see src/taxsim_py/parameters/national/law60.yaml")
     p = YearParams(LAW60_PARAMS, year)
     original_columns = (
         df.collect_schema().names() if isinstance(df, pl.LazyFrame) else list(df.columns)

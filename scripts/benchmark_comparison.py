@@ -185,7 +185,7 @@ def run_guarded(command: list[str], memory_mib: float, reserve_mib: float, timeo
 def states(selected: list[str] | None = None) -> list[str]:
     if selected:
         return [state.upper() for state in selected]
-    return [p.name.upper() for p in sorted((ROOT / "parameters" / "states").iterdir()) if p.name.upper() not in NO_INCOME_TAX_CASES]
+    return [p.name.upper() for p in sorted((ROOT / "src" / "taxsim_py" / "parameters" / "states").iterdir()) if p.name.upper() not in NO_INCOME_TAX_CASES]
 
 
 def worker(engine: str, rows: int, taxsim_py_options: dict, selected_states: list[str] | None = None) -> None:
@@ -229,6 +229,8 @@ def main() -> None:
     parser.add_argument("--rows", type=positive_int, nargs="+", default=[1000, 100000])
     parser.add_argument("--policyengine-rows", type=positive_int, nargs="+", default=[100, 1000])
     parser.add_argument("--engines", nargs="+", choices=ENGINES, default=ENGINES)
+    parser.add_argument("--polars-engines", nargs="+", choices=("auto", "in-memory", "streaming"),
+                        default=["auto"], help="Polars execution engines to compare for taxsim_py")
     parser.add_argument("--worker", nargs=2, help=argparse.SUPPRESS)
     parser.add_argument("--batch-rows", type=int, help="taxsim_py batch_rows (default: automatic)")
     parser.add_argument("--workers", type=int, help="taxsim_py max_year_workers")
@@ -239,6 +241,8 @@ def main() -> None:
     args = parser.parse_args()
     options = {"batch_rows": args.batch_rows, "max_year_workers": args.workers}
     if args.worker:
+        if args.worker[0] == "taxsim_py":
+            multistate.pl.Config.set_engine_affinity(args.polars_engines[0])
         worker(args.worker[0], int(args.worker[1]), options, args.states)
         return
     extra = [f"--{k.replace('_', '-')}={v}" for k, v in (("batch_rows", args.batch_rows), ("workers", args.workers)) if v]
@@ -246,18 +250,21 @@ def main() -> None:
         extra += ["--states", *args.states]
     print("engine,rows,seconds,peak_mib,status", flush=True)
     for engine in args.engines:
-        limited_rows = None
-        for rows in args.policyengine_rows if engine == "policyengine" else args.rows:
-            if limited_rows is not None and rows >= limited_rows:
-                print(f"{engine},{rows},,,skipped_after_limit", flush=True)
-                continue
-            print(f"Running {engine}: {rows} rows", file=sys.stderr, flush=True)
-            result = measure(engine, rows, extra, args.memory_limit_mib, args.reserve_memory_mib, args.timeout)
-            print(f"{engine},{rows},{result.seconds:.2f},{result.peak_mib:.0f},{result.status}", flush=True)
-            if result.detail:
-                print(result.detail, file=sys.stderr, flush=True)
-            if result.status in {"memory_limit", "timeout"}:
-                limited_rows = rows
+        for polars_engine in args.polars_engines if engine == "taxsim_py" else ["auto"]:
+            label = f"{engine}[{polars_engine}]" if engine == "taxsim_py" and polars_engine != "auto" else engine
+            engine_extra = [*extra, "--polars-engines", polars_engine] if engine == "taxsim_py" else extra
+            limited_rows = None
+            for rows in args.policyengine_rows if engine == "policyengine" else args.rows:
+                if limited_rows is not None and rows >= limited_rows:
+                    print(f"{label},{rows},,,skipped_after_limit", flush=True)
+                    continue
+                print(f"Running {label}: {rows} rows", file=sys.stderr, flush=True)
+                result = measure(engine, rows, engine_extra, args.memory_limit_mib, args.reserve_memory_mib, args.timeout)
+                print(f"{label},{rows},{result.seconds:.2f},{result.peak_mib:.0f},{result.status}", flush=True)
+                if result.detail:
+                    print(result.detail, file=sys.stderr, flush=True)
+                if result.status in {"memory_limit", "timeout"}:
+                    limited_rows = rows
 
 
 if __name__ == "__main__":

@@ -1,5 +1,6 @@
 """Tests for the mixed-state public dataframe API."""
 
+import os
 import unittest
 from unittest.mock import patch
 
@@ -73,6 +74,29 @@ class CalculateTaxesTests(unittest.TestCase):
     def test_default_year_workers_follow_polars_thread_pool(self) -> None:
         self.assertEqual(_default_year_workers(), pl.thread_pool_size())
 
+    def test_state_collection_matches_serial_with_both_engines(self) -> None:
+        cases = pl.DataFrame([
+            {**_case(i, 2022, state), "pwages": wages}
+            for i, (state, wages) in enumerate(((5, 150_000), (1, 40_000), (33, 80_000), (7, 20_000)))
+        ])
+        for options in ({}, {"mtr": 11}, {"idtl": 2}, {"keep_intermediate": True}):
+            with self.subTest(options=options):
+                with pl.Config(engine_affinity="in-memory"):
+                    expected = calculate_taxes(cases, max_year_workers=1, **options)
+                for engine in ("in-memory", "streaming"):
+                    with self.subTest(engine=engine), pl.Config(engine_affinity=engine):
+                        assert_frame_equal(calculate_taxes(cases, **options), expected)
+
+    def test_parallel_year_batches_do_not_create_state_pools(self) -> None:
+        cases = pl.DataFrame([_case(i, year, state) for i, (year, state) in enumerate(
+            ((2020, 5), (2021, 1), (2020, 1), (2021, 5))
+        )])
+        expected = calculate_taxes(cases, max_year_workers=1)
+        with patch("taxsim_py.engine.federal_state.ThreadPoolExecutor",
+                   side_effect=AssertionError("Nested state worker pool")):
+            assert_frame_equal(calculate_taxes(cases, max_year_workers=1), expected)
+            assert_frame_equal(calculate_taxes(cases, max_year_workers=2), expected)
+
     def test_single_year_row_partitions_match_serial_result(self) -> None:
         cases = pl.DataFrame([_case(i, 2020, state) for i, state in enumerate((1, 5, 33, 36))])
         serial = calculate_taxes(cases, max_year_workers=1)
@@ -109,7 +133,10 @@ class CalculateTaxesTests(unittest.TestCase):
             )
 
         cases = pl.DataFrame([_case(1, 2020, 5), _case(2, 2020, 5)])
-        with patch("taxsim_py.api.get_state_calculators", return_value={5: rescaling_state}):
+        # The compiled calculator would bypass the patched Python calculator.
+        with patch("taxsim_py.api.get_state_calculators", return_value={5: rescaling_state}), patch.dict(
+            os.environ, {"TAXSIM_PY_ENGINE": "python"}
+        ):
             compact = calculate_taxes(cases)
             detailed = calculate_taxes(cases, keep_intermediate=True)
         assert_frame_equal(compact, detailed.select(compact.columns))

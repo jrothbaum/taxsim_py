@@ -8,6 +8,11 @@ Example:
 
 from __future__ import annotations
 
+import os as _os
+
+# These scripts exercise the Python reference implementation (taxsim mode, worksheets, Polars execution).
+_os.environ.setdefault("TAXSIM_PY_ENGINE", "python")
+
 import argparse
 import sys
 import time

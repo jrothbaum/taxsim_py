@@ -10,6 +10,11 @@ expression passed to Polars exceeds `MAX_EXPRESSION_CHARS`.
 
 from __future__ import annotations
 
+import os as _os
+
+# These scripts exercise the Python reference implementation (taxsim mode, worksheets, Polars execution).
+_os.environ.setdefault("TAXSIM_PY_ENGINE", "python")
+
 import ast
 import sys
 from pathlib import Path

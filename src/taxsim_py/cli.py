@@ -27,6 +27,10 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--input-format", help="override the input file type")
     parser.add_argument("--output-format", help="override the output file type")
     parser.add_argument("--mode", choices=("statutory", "taxsim"), default="statutory", help="calculation mode")
+    parser.add_argument(
+        "--engine", choices=("rust", "python"),
+        help="calculation engine (default: rust, or TAXSIM_PY_ENGINE); taxsim mode and detailed output need python",
+    )
     parser.add_argument("--year", type=int, help=f"tax year for every row (up to {LAST_SUPPORTED_YEAR}); default: the year column")
     parser.add_argument("--state-id-type", choices=("taxsim", "fips"), default="taxsim", help="how the state column is coded")
     parser.add_argument("--idtl", type=int, choices=(0, 2), help="2 adds detailed federal and state worksheets")
@@ -54,6 +58,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             taxsim_names=args.taxsim_names,
             keep_intermediate=args.keep_intermediate,
             calculation_mode=args.mode,
+            engine=args.engine,
             batch_rows=args.batch_rows,
             max_year_workers=args.workers,
         )
@@ -61,7 +66,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             sys.stdout.write(result.write_csv())
         else:
             write_table(result, args.output, args.output_format)
-    except (ValueError, ImportError, FileNotFoundError, pl.exceptions.PolarsError) as error:
+    except (ValueError, ImportError, FileNotFoundError, RuntimeError, pl.exceptions.PolarsError) as error:
         print(f"taxsim-py: {error}", file=sys.stderr)
         return 1
     return 0

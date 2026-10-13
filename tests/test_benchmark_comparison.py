@@ -47,3 +47,23 @@ def test_fortran_input_requests_same_marginal_mode(benchmark):
     assert lines[0].split()[-1] == "mtr"
     assert all(line.split()[-1] == "11" for line in lines[1:])
     assert "mtr" not in benchmark.multistate.encode_fortran_input(cases).splitlines()[0].split()
+
+
+def test_polars_engine_limits_are_independent(benchmark, monkeypatch, capsys):
+    calls = []
+
+    def measure(engine, rows, extra, *limits):
+        calls.append((engine, rows, extra))
+        if "in-memory" in extra:
+            return benchmark.Measurement(1, 8192, "memory_limit")
+        return benchmark.Measurement(1, 20)
+
+    monkeypatch.setattr(benchmark, "measure", measure)
+    monkeypatch.setattr(sys, "argv", ["benchmark", "--engines", "taxsim_py", "taxsim",
+                                     "--polars-engines", "in-memory", "streaming",
+                                     "--rows", "1000", "10000"])
+    benchmark.main()
+    output = capsys.readouterr().out
+    assert "taxsim_py[in-memory],10000,,,skipped_after_limit" in output
+    assert "taxsim_py[streaming],10000,1.00,20,ok" in output
+    assert len([call for call in calls if call[0] == "taxsim"]) == 2

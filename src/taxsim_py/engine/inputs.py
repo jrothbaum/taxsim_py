@@ -59,27 +59,28 @@ def child_counts_from_ages(year: pl.Expr) -> dict[str, pl.Expr]:
     }
 
 
-def with_input_defaults(frame: pl.DataFrame, year: pl.Expr) -> pl.DataFrame:
+def with_input_defaults(frame: pl.DataFrame | pl.LazyFrame, year: pl.Expr) -> pl.DataFrame | pl.LazyFrame:
     """Fill absent or null inputs, cast counts to integers and dollar amounts to floats.
 
     A row with any child age (`age1`-`age3`) takes its age-group dependent
     counts from the ages, as TAXSIM does for a file with age columns; other
     rows use `dep13`, `dep17` and `dep18`, defaulting to `depx`.
     """
-    ages_present = [c for c in CHILD_AGE_INPUTS if c in frame.columns]
+    present = frame.collect_schema().names() if isinstance(frame, pl.LazyFrame) else frame.columns
+    ages_present = [c for c in CHILD_AGE_INPUTS if c in present]
     row_uses_ages = pl.any_horizontal(pl.col(c).is_not_null() for c in ages_present) if ages_present else None
     frame = frame.with_columns(
         pl.col("mstat").cast(pl.Int64),
-        *[(pl.col(c) if c in frame.columns else pl.lit(0)).cast(pl.Int64).fill_null(0).alias(c) for c in COUNT_INPUTS],
-        *[(pl.col(c) if c in frame.columns else pl.lit(0)).cast(pl.Int64).fill_null(0).alias(c) for c in OPTIONAL_CHILD_COUNT_INPUTS],
+        *[(pl.col(c) if c in present else pl.lit(0)).cast(pl.Int64).fill_null(0).alias(c) for c in COUNT_INPUTS],
+        *[(pl.col(c) if c in present else pl.lit(0)).cast(pl.Int64).fill_null(0).alias(c) for c in OPTIONAL_CHILD_COUNT_INPUTS],
         *[
-            (pl.col(c) if c in frame.columns else pl.lit(0.0)).cast(pl.Float64).fill_null(0.0).alias(c)
+            (pl.col(c) if c in present else pl.lit(0.0)).cast(pl.Float64).fill_null(0.0).alias(c)
             for c in DOLLAR_INPUTS
         ],
         *([row_uses_ages.alias("__uses_child_ages")] if row_uses_ages is not None else []),
     )
     counts = {
-        c: (pl.col(c).cast(pl.Int64).fill_null(pl.col("depx")) if c in frame.columns else pl.col("depx"))
+        c: (pl.col(c).cast(pl.Int64).fill_null(pl.col("depx")) if c in present else pl.col("depx"))
         for c in DEPENDENT_DEFAULT_INPUTS
     }
     counts["dep6"] = pl.col("dep6")

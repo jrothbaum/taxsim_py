@@ -1,17 +1,17 @@
 # Updating the Tax Law
 
 This page is for whoever adds a tax year, fixes a value or rule, or codes a law
-change. Most updates touch only the parameter files under `parameters/`; the
+change. Most updates touch only the parameter files under `src/taxsim_py/parameters/`; the
 calculators change only when the shape of the law changes.
 
 ## Where things live
 
 | What | Where |
 | --- | --- |
-| Federal law from 1987 | `parameters/national/income_tax.yaml` (brackets, standard deductions, QBI, senior deduction), `itemized.yaml`, `personal_exemption.yaml`, `credits.yaml`, `capital_gains.yaml`, `amt.yaml`, `niit.yaml`, `payroll_tax.yaml`, `social_security.yaml`, `eitc_misc.yaml` |
-| Federal EITC schedule | `parameters/national/eitc.csv`: one row per year, number of children (0-3) and filing status |
-| Federal law 1960-1986 | `parameters/national/law60.yaml`, `pre1987.yaml` (fixed history) |
-| A state's law | `parameters/states/xx/income_tax.yaml` (plus any CSV tables beside it) |
+| Federal law from 1987 | `src/taxsim_py/parameters/national/income_tax.yaml` (brackets, standard deductions, QBI, senior deduction), `itemized.yaml`, `personal_exemption.yaml`, `credits.yaml`, `capital_gains.yaml`, `amt.yaml`, `niit.yaml`, `payroll_tax.yaml`, `social_security.yaml`, `eitc_misc.yaml` |
+| Federal EITC schedule | `src/taxsim_py/parameters/national/eitc.csv`: one row per year, number of children (0-3) and filing status |
+| Federal law 1960-1986 | `src/taxsim_py/parameters/national/law60.yaml`, `pre1987.yaml` (fixed history) |
+| A state's law | `src/taxsim_py/parameters/states/xx/income_tax.yaml` (plus any CSV tables beside it) |
 | Federal calculator | `src/taxsim_py/calculators/federal.py` (`federal_law60.py`, `federal_pre1987.py` for the early law) |
 | A state's calculator | `src/taxsim_py/calculators/states/xx.py` (`in_.py` and `or_.py` for Indiana and Oregon) |
 | Shared formulas | `src/taxsim_py/engine/` (see [Shared Functions](shared_functions.md)) |
@@ -117,13 +117,13 @@ The example is moving from 2025 to 2026.
    credit cap and QBI thresholds. The Social Security wage base comes from SSA.
    Check new legislation for anything that starts or ends: add a `null` for an
    expiring provision rather than deleting it. Then raise `law_coded_through` in
-   `parameters/national/income_tax.yaml`, which sets the last year
+   `src/taxsim_py/parameters/national/income_tax.yaml`, which sets the last year
    `calculate_taxes` accepts.
 
 3. **States.** For each state with new law, enter the new values from its forms and
    instructions and raise its `law_coded_through`. A state left at an earlier year
    keeps working: statutory mode projects its last coded year forward with the
-   price index (`parameters/national/state_cpi_extrapolation.yaml`, continued at
+   price index (`src/taxsim_py/parameters/national/state_cpi_extrapolation.yaml`, continued at
    2.5% a year past its last entry).
 
 4. **Tests.** Add a published-law case for each value worth guarding:
@@ -148,7 +148,7 @@ A new credit, a phaseout replacing a flat amount, or a new filing rule needs cod
 3. Keep expressions vectorized: no Python loops over rows and no
    dataframe-wide reductions inside a formula.
 
-The examples below use a state file `parameters/states/xx/income_tax.yaml` and its
+The examples below use a state file `src/taxsim_py/parameters/states/xx/income_tax.yaml` and its
 calculator. `p` is the `YearParams` for the year, and `statax` and `fed_agi` are
 the calculator's tax and federal AGI.
 

@@ -24,6 +24,7 @@ from taxsim_py.engine.detail import (
     federal_detail,
     state_detail,
 )
+from taxsim_py.engine import rust_backend
 from taxsim_py.engine.federal_state import StateCalculator, resolve_federal_and_state
 from taxsim_py.engine.inputs import SUPPORTED_MSTAT, with_input_defaults
 from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml
@@ -86,6 +87,7 @@ MARGINAL_RATE_LABELS = {
 # Default outputs for provisions that exist only in some years, returned when
 # the input includes such a year (other rows show 0). Each is the working
 # column, the parameter file and entry whose years it follows, and its label.
+FIRST_YEAR_FOR_OUTPUTS = 1960
 YEAR_OUTPUTS = {
     "recovery_rebate_credit": ("cares", "national/credits.yaml", "recovery_rebate", "Recovery rebate credit (EIP)"),
 }
@@ -234,18 +236,26 @@ def _resolve(
 
     def resolve_batch(task: tuple[int, StateCalculator | dict[int, StateCalculator], pl.DataFrame]) -> pl.DataFrame:
         batch_year, calculator, batch = task
-        return resolve_federal_and_state(
-            batch,
-            batch_year,
-            calculator,
-            keep_intermediate=keep_intermediate,
-            keep_columns=keep_columns,
-            result_columns=result_columns,
-            behavior=behavior,
-        )
+        def python(rows: pl.DataFrame) -> pl.DataFrame:
+            return resolve_federal_and_state(
+                rows,
+                batch_year,
+                calculator,
+                keep_intermediate=keep_intermediate,
+                keep_columns=keep_columns,
+                result_columns=result_columns,
+                behavior=behavior,
+                max_state_workers=state_workers,
+            )
+
+        return python(batch)
 
     worker_limit = _default_year_workers() if max_year_workers is None else max_year_workers
     workers = min(worker_limit, _MAX_BATCH_WORKERS, len(tasks))
+    state_workers = (
+        min(max_year_workers or _MAX_BATCH_WORKERS, _MAX_BATCH_WORKERS)
+        if workers == 1 else 1
+    )
     if workers == 1:
         parts = [resolve_batch(task) for task in tasks]
     else:
@@ -371,7 +381,8 @@ def calculate_taxes(
     idtl: int | None = None,
     taxsim_names: bool = False,
     calculation_mode: str | CalculationMode = CalculationMode.STATUTORY,
-) -> pl.DataFrame:
+    engine: str | None = None,
+) -> pl.DataFrame | pl.LazyFrame:
     """Calculate federal, payroll, and state taxes for a Polars dataframe.
 
     Rows may contain multiple states and, when ``year`` is omitted, multiple
@@ -386,7 +397,11 @@ def calculate_taxes(
     state column. Mixed-year calls resolve years concurrently; large
     single-year calls similarly split rows across workers. Large year partitions
     split by state first; small mixed-state partitions share federal plans.
-    Both use up to ``max_year_workers`` threads (default: Polars' thread pool size, which
+    Independent state plans are collected separately using the configured Polars
+    engine. When batches run serially, state collection uses up to eight workers
+    (or ``max_year_workers`` when supplied); parallel batches collect states
+    serially to avoid nested Python pools.
+    Batches use up to ``max_year_workers`` threads (default: Polars' thread pool size, which
     ``POLARS_MAX_THREADS`` sets), with single-year row workers capped at eight.
 
     ``mtr`` (or an integer ``mtr`` column, per row) requests TAXSIM's marginal
@@ -404,28 +419,30 @@ def calculate_taxes(
     parameter tables plus independently verified corrections recorded in
     ``docs/statutory_corrections.md``. ``calculation_mode="taxsim"`` preserves
     the compiled model's behavior for replication and compatibility testing.
+
+    ``engine`` is ``"rust"`` (the default, for real runs: speed, streaming and low memory) or
+    ``"python"`` (the reference implementation, for developing and testing changes to the law);
+    the ``TAXSIM_PY_ENGINE`` environment variable sets the default. There is no automatic
+    choice. ``"rust"`` uses the compiled
+    calculator (built from ``rust/``) and raises when it cannot do the calculation:
+    taxsim mode, detailed output (``idtl=2``, ``keep_intermediate``), or a state or year it has
+    no law for. A ``LazyFrame`` input then gives a ``LazyFrame`` back, a plan nothing has run
+    for yet: collect it, or stream it into any Polars sink (``sink_parquet``, ``sink_csv``,
+    ``sink_ipc``, ``sink_ndjson``) so the data never has to fit in memory. Checks of the data
+    (filing status, years) then happen when the plan runs. A ``DataFrame`` input gives a
+    ``DataFrame``. ``"python"`` is the reference implementation: always eager (a ``LazyFrame``
+    is collected first), and the only engine for taxsim mode and detailed output.
+    ``max_year_workers`` and ``batch_rows`` apply to the Python engine only.
     """
     behavior = resolve_behavior(calculation_mode)
+    if rust_backend.engine(engine) == "rust":
+        return _calculate_taxes_rust(
+            df, year=year, year_column=year_column, state_column=state_column, state_id_type=state_id_type,
+            mtr=mtr, idtl=idtl, keep_intermediate=keep_intermediate, behavior=behavior,
+        )
     frame = df.collect() if isinstance(df, pl.LazyFrame) else df
     columns = frame.columns
-    if state_column not in columns:
-        raise ValueError(f"Missing state column: {state_column!r}")
-    if "mstat" not in columns:
-        raise ValueError("Missing filing status column: 'mstat'")
-    if frame.get_column("mstat").null_count():
-        raise ValueError("Filing status (mstat) cannot be null")
-    unsupported_mstat = set(frame.get_column("mstat").unique().to_list()) - set(SUPPORTED_MSTAT)
-    if unsupported_mstat:
-        raise ValueError(f"Unsupported filing status (mstat): {sorted(unsupported_mstat)}")
-    if year is None and year_column not in columns:
-        raise ValueError(f"Missing year column: {year_column!r}")
-    if year is None and frame.get_column(year_column).null_count():
-        raise ValueError("Years cannot be null")
-    if frame.is_empty():
-        raise ValueError("Cannot calculate taxes for an empty dataframe")
-    latest_year = int(year) if year is not None else frame.get_column(year_column).max()
-    if latest_year > LAST_SUPPORTED_YEAR:
-        raise ValueError(f"Tax years after {LAST_SUPPORTED_YEAR} are not implemented (got {latest_year})")
+    _check_frame(frame, state_column, year, year_column)
     if max_year_workers is not None and max_year_workers < 1:
         raise ValueError("max_year_workers must be at least 1")
     if batch_rows is not None and batch_rows < 1:
@@ -545,6 +562,92 @@ def calculate_taxes(
             if c in result.columns and c not in columns
         ]
     return frame.hstack(result.select(added))
+
+
+def _check_frame(frame: pl.DataFrame, state_column: str, year: int | None, year_column: str) -> None:
+    """The checks of an in-memory input shared by both engines."""
+    columns = frame.columns
+    if state_column not in columns:
+        raise ValueError(f"Missing state column: {state_column!r}")
+    if "mstat" not in columns:
+        raise ValueError("Missing filing status column: 'mstat'")
+    if frame.get_column("mstat").null_count():
+        raise ValueError("Filing status (mstat) cannot be null")
+    unsupported_mstat = set(frame.get_column("mstat").unique().to_list()) - set(SUPPORTED_MSTAT)
+    if unsupported_mstat:
+        raise ValueError(f"Unsupported filing status (mstat): {sorted(unsupported_mstat)}")
+    if year is None and year_column not in columns:
+        raise ValueError(f"Missing year column: {year_column!r}")
+    if year is None and frame.get_column(year_column).null_count():
+        raise ValueError("Years cannot be null")
+    if frame.is_empty():
+        raise ValueError("Cannot calculate taxes for an empty dataframe")
+    latest_year = int(year) if year is not None else frame.get_column(year_column).max()
+    if latest_year > LAST_SUPPORTED_YEAR:
+        raise ValueError(f"Tax years after {LAST_SUPPORTED_YEAR} are not implemented (got {latest_year})")
+
+
+def _calculate_taxes_rust(
+    df: pl.DataFrame | pl.LazyFrame,
+    *,
+    year: int | None,
+    year_column: str,
+    state_column: str,
+    state_id_type: StateIdType,
+    mtr: int | MarginalInput | None,
+    idtl: int | None,
+    keep_intermediate: bool,
+    behavior: BehaviorProfile,
+) -> pl.DataFrame | pl.LazyFrame:
+    """The compiled calculator: a plan over the prepared inputs, collected unless the input was lazy."""
+    eager = isinstance(df, pl.DataFrame)
+    detail = keep_intermediate or (idtl is not None and int(idtl) == 2)
+    if eager and "idtl" in df.columns:
+        detail = detail or 2 in df.get_column("idtl").fill_null(0).cast(pl.Int64).unique().to_list()
+    rust_backend.require_available(behavior, detail)
+    if idtl is not None and int(idtl) not in (0, 2):
+        raise ValueError(f"Unsupported detail level (idtl): {[int(idtl)]}")
+    lf = df.lazy() if eager else df
+    columns = lf.collect_schema().names()
+    if eager:
+        _check_frame(df, state_column, year, year_column)
+        _normalized_states(df.get_column(state_column), state_id_type)
+    else:
+        if state_column not in columns:
+            raise ValueError(f"Missing state column: {state_column!r}")
+        if "mstat" not in columns:
+            raise ValueError("Missing filing status column: 'mstat'")
+        if year is None and year_column not in columns:
+            raise ValueError(f"Missing year column: {year_column!r}")
+        if year is not None and int(year) > LAST_SUPPORTED_YEAR:
+            raise ValueError(f"Tax years after {LAST_SUPPORTED_YEAR} are not implemented (got {year})")
+    state_expr = pl.col(state_column).cast(pl.Int64)
+    if state_id_type == "fips":
+        state_expr = state_expr.replace_strict(FIPS_TO_TAXSIM, return_dtype=pl.Int64)
+    marginal = None if mtr is None else int(_as_marginal_input(mtr))
+    marginal_values = pl.col("mtr") if "mtr" in columns else None
+    if eager and marginal_values is not None:
+        for code in df.get_column("mtr").fill_null(0).cast(pl.Int64).unique().to_list():
+            _as_marginal_input(code)
+    # The year outputs follow the years of the data; a lazy plan cannot see them, so without a
+    # fixed year they are always present (zero where the law has none).
+    if year is not None:
+        years = [int(year)]
+    elif eager:
+        years = df.get_column(year_column).cast(pl.Int64).unique().to_list()
+    else:
+        years = list(range(FIRST_YEAR_FOR_OUTPUTS, LAST_SUPPORTED_YEAR + 1))
+    plan = rust_backend.lazy_taxes(
+        lf, year=year, year_column=year_column, state_expr=state_expr, marginal=marginal,
+        marginal_values=marginal_values, year_outputs=_year_outputs(years), output_columns=OUTPUT_COLUMNS,
+        supported_mstat=SUPPORTED_MSTAT, last_year=LAST_SUPPORTED_YEAR,
+    )
+    if not eager:
+        return plan
+    try:
+        return plan.collect()
+    except pl.exceptions.ComputeError as error:
+        raise RuntimeError(f"The compiled calculator has no implementation for this case: {error}") from error
 
 
 def calculate_row(record: Mapping[str, Any], **options: Any) -> dict[str, Any]:

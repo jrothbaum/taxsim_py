@@ -8,7 +8,7 @@
 - [Shared functions](shared_functions.md): reusable calculation helpers
 - [Performance](performance.md): benchmarks and memory
 - [Pending issues](pending_issues.md): open work and validation record
-- [Parameter tables](../parameters/README.md): editing YAML and CSV tax-law data
+- [Parameter tables](../src/taxsim_py/parameters/README.md): editing YAML and CSV tax-law data
 
 ## Development
 
