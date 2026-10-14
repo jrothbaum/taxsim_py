@@ -1,7 +1,7 @@
 """Regression cases for five states that previously mishandled a negative
-net capital gain: AL, CA, CT, IL, HI (see statutory_corrections.md's
-AL-001/CA-003/CT-001/IL-001/HI-001). Unlike that file's other entries,
-these are not documented TAXSIM bugs to preserve for compatibility - the
+net capital gain: AL, CA, CT, IL, HI. Unlike the entries in
+docs/statutory_corrections.md, these are not TAXSIM bugs to preserve for
+compatibility - the
 real oracle already computes them correctly, so the fixes are
 unconditional (`calculate_taxes` needs no `calculation_mode` argument to
 get them). Each `expected_siitax` is the real `taxsim2024.exe` output.

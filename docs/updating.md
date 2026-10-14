@@ -15,7 +15,7 @@ calculators change only when the shape of the law changes.
 | Federal calculator | `src/taxsim_py/calculators/federal.py` (`federal_law60.py`, `federal_pre1987.py` for the early law) |
 | A state's calculator | `src/taxsim_py/calculators/states/xx.py` (`in_.py` and `or_.py` for Indiana and Oregon) |
 | Shared formulas | `src/taxsim_py/engine/` (see [Shared Functions](shared_functions.md)) |
-| Statutory-vs-TAXSIM differences | `src/taxsim_py/behavior.py` and [Statutory Corrections](statutory_corrections.md) |
+| Statutory-vs-TAXSIM differences | `src/taxsim_py/behavior.py` and [TAXSIM errors and corrections](statutory_corrections.md) |
 
 ## How a parameter file reads
 
@@ -372,8 +372,8 @@ its instructions decide.
 
 - **A wrong parameter value** is corrected in the file. When the error is TAXSIM's
   own (its table disagrees with the published figure for its year), the published
-  value is used in both modes and the case is listed under "Published values that
-  replace TAXSIM's" in [Statutory Corrections](statutory_corrections.md); add the
+  value is used in both modes and the error's row in
+  [TAXSIM errors and corrections](statutory_corrections.md) is marked "Both modes"; add the
   state year to `KNOWN_ORACLE_DIVERGENT_STATE_YEARS` in `scripts/validate_states.py`
   (federal: mark the case `oracle_divergent`). Never change a correct value to make
   an oracle comparison pass.
@@ -382,8 +382,9 @@ its instructions decide.
   `src/taxsim_py/behavior.py` with the statutory value as its default (TAXSIM mode
   flips every switch), read `behavior.<name>` in the calculator (never the mode
   string), add a row to `tests/statutory_correction_table.py` with the column's
-  value in each mode, and add a ledger entry with the source and the switch name.
-  Mark the error's row in [Known TAXSIM errors](taxsim_errors.md). Years after
+  value in each mode, and add the error's row to
+  [TAXSIM errors and corrections](statutory_corrections.md) with the source and the
+  switch name. Years after
   2021 run only in statutory mode for states, so a fix confined to those years
   needs no switch.
 

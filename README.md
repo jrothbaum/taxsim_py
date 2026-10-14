@@ -108,7 +108,7 @@ optional reader (`pip install "taxsim-py[readstat]"`, which adds
 ## Documentation
 
 Start with the [user guide](https://jrothbaum.github.io/taxsim_py/). Also:
-[Statutory corrections](https://jrothbaum.github.io/taxsim_py/statutory_corrections/),
+[TAXSIM errors and corrections](https://jrothbaum.github.io/taxsim_py/statutory_corrections/),
 [Performance](https://jrothbaum.github.io/taxsim_py/performance/) and
 [PolicyEngine comparison](https://jrothbaum.github.io/taxsim_py/policyengine_recent_state_comparison/).
 

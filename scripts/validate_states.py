@@ -90,7 +90,7 @@ def run_taxsim_exe(cases: pl.DataFrame) -> pl.DataFrame:
 # expected difference.
 _FEDERAL_DIVERGENT_YEARS = {2023}
 # State years where this project uses published state values in both modes
-# because TAXSIM's are confirmed wrong (docs/taxsim_errors.md): Arkansas 2004
+# because TAXSIM's are confirmed wrong (docs/statutory_corrections.md): Arkansas 2004
 # bracket thresholds, California 2001 and 2018 AMT exemptions, and Maryland's
 # 2019-2021 standard deduction limits (which TAXSIM projects into 2022-2023),
 # Minnesota's 2009 head-of-household AMT exclusion, Nebraska's 1996-1997

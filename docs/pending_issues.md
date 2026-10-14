@@ -142,9 +142,8 @@ testing/replication mode.
 ### Recent TAXSIM errors
 
 Every apparent TAXSIM error, with how the port handles it, is listed in
-[`taxsim_errors.md`](taxsim_errors.md); add new ones there. Corrections are
-written up in [`statutory_corrections.md`](statutory_corrections.md). Errors
-found most recently, all included in `taxsim_errors.md`:
+[`statutory_corrections.md`](statutory_corrections.md); add new ones there. Errors
+found most recently, all included there:
 
 - **Federal, 2024 onward:** the compiled TAXSIM refuses to run past 2023 (a hard
   year check and the `xndxa(1981:2023)` array bound). The port computes real law

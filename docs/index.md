@@ -93,7 +93,6 @@ locally in the page through Pyodide; see [Browser](browser.md).
 - [Calculating](calculate.md): every option of `calculate_taxes` and `calculate_row`
 - [Inputs](inputs.md) and [Outputs](outputs.md): the columns in and out
 - [Files and command line](files.md): file types and `taxsim-py` flags
-- [Statutory corrections](statutory_corrections.md): where the default mode differs
-  from the compiled TAXSIM
-- [Known TAXSIM errors](taxsim_errors.md): apparent errors in TAXSIM and how
-  taxsim-py handles each
+- [TAXSIM errors and corrections](statutory_corrections.md): apparent errors in
+  TAXSIM, how taxsim-py handles each, and where the default mode differs from the
+  compiled TAXSIM

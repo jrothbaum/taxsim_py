@@ -27,8 +27,7 @@ nav:
   - Browser: browser.md
   - Reference:
       - Updating the tax law: updating.md
-      - Statutory corrections: statutory_corrections.md
-      - Known TAXSIM errors: taxsim_errors.md
+      - TAXSIM errors and corrections: statutory_corrections.md
       - Performance: performance.md
       - Architecture: architecture.md
       - Shared functions: shared_functions.md
