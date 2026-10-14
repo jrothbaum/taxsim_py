@@ -11,7 +11,7 @@
       
       
       
-        <link rel="prev" href="../taxsim_errors/">
+        <link rel="prev" href="../statutory_corrections/">
       
       
         <link rel="next" href="../architecture/">
@@ -651,35 +651,7 @@
   <span class="md-ellipsis">
     
   
-    Statutory corrections
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../taxsim_errors/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Known TAXSIM errors
+    TAXSIM errors and corrections
   
 
     
@@ -1051,16 +1023,16 @@ peak memory for a single first call in a fresh process, with 16 Polars threads a
 <td style="text-align: right;">19.61 s<br>2,306 MiB</td>
 <td style="text-align: right;">32.81 s<br>5,940 MiB</td>
 <td style="text-align: right;">44.77 s<br>8,034 MiB</td>
-<td style="text-align: right;"></td>
-<td style="text-align: right;"></td>
-<td style="text-align: right;"></td>
-<td style="text-align: right;"></td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">—</td>
 </tr>
 </tbody>
 </table>
 <p>Memory is peak process RSS (for Fortran TAXSIM, its executable only).
 PolicyEngine's runner hit the 8 GiB memory budget at 15,000 rows and larger runs were stopped, so
-those cells are blank; its figures are from an earlier measurement. Raw results:
+those cells are dashes; its figures are from an earlier measurement. Raw results:
 <a href="../benchmarks/rust_vs_python_2026-10-12.csv">taxsim_py</a> and
 <a href="../benchmarks/polars_2_engines_2026-10-12.csv">Fortran TAXSIM</a>.</p>
 <h2 id="streaming-a-file">Streaming a file</h2>

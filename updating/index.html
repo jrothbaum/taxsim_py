@@ -914,35 +914,7 @@
   <span class="md-ellipsis">
     
   
-    Statutory corrections
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../taxsim_errors/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Known TAXSIM errors
+    TAXSIM errors and corrections
   
 
     
@@ -1380,7 +1352,7 @@ calculators change only when the shape of the law changes.</p>
 </tr>
 <tr>
 <td>Statutory-vs-TAXSIM differences</td>
-<td><code>src/taxsim_py/behavior.py</code> and <a href="../statutory_corrections/">Statutory Corrections</a></td>
+<td><code>src/taxsim_py/behavior.py</code> and <a href="../statutory_corrections/">TAXSIM errors and corrections</a></td>
 </tr>
 </tbody>
 </table>
@@ -1709,8 +1681,8 @@ its instructions decide.</p>
 <ul>
 <li><strong>A wrong parameter value</strong> is corrected in the file. When the error is TAXSIM's
   own (its table disagrees with the published figure for its year), the published
-  value is used in both modes and the case is listed under "Published values that
-  replace TAXSIM's" in <a href="../statutory_corrections/">Statutory Corrections</a>; add the
+  value is used in both modes and the error's row in
+  <a href="../statutory_corrections/">TAXSIM errors and corrections</a> is marked "Both modes"; add the
   state year to <code>KNOWN_ORACLE_DIVERGENT_STATE_YEARS</code> in <code>scripts/validate_states.py</code>
   (federal: mark the case <code>oracle_divergent</code>). Never change a correct value to make
   an oracle comparison pass.</li>
@@ -1719,8 +1691,9 @@ its instructions decide.</p>
   <code>src/taxsim_py/behavior.py</code> with the statutory value as its default (TAXSIM mode
   flips every switch), read <code>behavior.&lt;name&gt;</code> in the calculator (never the mode
   string), add a row to <code>tests/statutory_correction_table.py</code> with the column's
-  value in each mode, and add a ledger entry with the source and the switch name.
-  Mark the error's row in <a href="../taxsim_errors/">Known TAXSIM errors</a>. Years after
+  value in each mode, and add the error's row to
+  <a href="../statutory_corrections/">TAXSIM errors and corrections</a> with the source and the
+  switch name. Years after
   2021 run only in statutory mode for states, so a fix confined to those years
   needs no switch.</li>
 </ul>
