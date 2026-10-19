@@ -10,9 +10,6 @@
 *!                 instructions (see the TAXSIM errors and corrections page); parameters updated.
 *!         0.2.0 - First Stata release: taxsim35's inputs and outputs, including full and marginal
 *!                 rates, and taxsim_py install to create a Python environment for taxsim-py with uv
-// Calculations run in Stata's Python (Stata 16+), which the user points at an environment
-// with taxsim-py installed; taxsim_py install creates one with uv. Every external program also
-// runs through Stata's Python, never shell, so batch mode works on every system.
 program define taxsim_py, rclass
 	version 16
 	gettoken subcommand rest : 0, parse(" ,")
@@ -297,7 +294,7 @@ program define _taxsim_py_install, rclass
 		capture confirm file `"`path'/`marker_name'"'
 		if _rc {
 			display as error `"`path' is a Python environment taxsim_py install did not create, so it will not change it."'
-			display as error "To use it, add taxsim-py[readstat] with your own tools (uv add or pip install), then:"
+			display as error `"To use it, add taxsim-py[readstat] to it with uv (uv add "taxsim-py[readstat]"), then:"'
 			_taxsim_py_environment `"`python'"'
 			_taxsim_py_setup_lines `"`r(packages)'"' `"`r(base_python)'"' `r(same_python)' error
 			exit 601
@@ -374,7 +371,7 @@ program define _taxsim_py_python_ready, rclass
 	if _rc {
 		display as error "Stata's Python has taxsim-py `loaded' but not polars-readstat, which taxsim_py needs to"
 		display as error "pass .dta files to taxsim-py and back. Add the readstat extra to that environment:"
-		display as input `"    uv add "taxsim-py[readstat]"     or     pip install "taxsim-py[readstat]""'
+		display as input `"    uv add "taxsim-py[readstat]""'
 		display as error "then restart Stata."
 		exit 601
 	}
@@ -398,12 +395,12 @@ program define _taxsim_py_python_starts
 		// A venv's python.exe cannot be loaded on Windows; its base interpreter can.
 		display as error "That is a virtual environment. Point Stata at the Python it was built on instead, then restart Stata:"
 		_taxsim_py_base_python `"`env'"'
-		display as input `"    set python_exec "`r(base_python)'", permanently"'
+		display as input `"    set python_exec "`r(base_python)'""'
 	}
 	else {
 		display as error "Point Stata at a Python 3.9 or newer installation (for example from python.org;"
 		display as error "on Windows, not a virtual environment's python.exe), then restart Stata:"
-		display as input `"    set python_exec "<path to python>", permanently"'
+		display as input `"    set python_exec "<path to python>""'
 		display as error "See {help python}."
 	}
 	exit 601
@@ -501,10 +498,10 @@ end
 program define _taxsim_py_setup_lines
 	version 16
 	args packages base_python same_python style
-	if `same_python' display as `style' "To use it in later sessions too, run once:"
-	else display as `style' "Stata runs a different Python. To use this environment, run once and restart Stata:"
-	if !`same_python' display as input `"    set python_exec "`base_python'", permanently"'
-	display as input `"    set python_userpath "`packages'", prepend permanently"'
+	if `same_python' display as `style' "To use it in later sessions too, run this at the start of a session (or put it in your profile.do):"
+	else display as `style' "Stata runs a different Python. To use this environment, restart Stata and run these at the start of a session (or put them in your profile.do):"
+	if !`same_python' display as input `"    set python_exec "`base_python'""'
+	display as input `"    set python_userpath "`packages'", prepend"'
 end
 
 

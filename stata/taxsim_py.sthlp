@@ -93,10 +93,10 @@ inside Stata's own Python ({help python}). You set up the environment once. It n
 
 {phang}
 {bf:Step 1. Make sure Stata has a Python.} Stata needs a Python 3.9 or newer installation. Type
-{cmd:python query}; if it shows none, install Python (for example from
-{browse "https://www.python.org":python.org}) and run
-{cmd:set python_exec "}{it:path to python}{cmd:", permanently}. On Windows this must be an
-installed Python, not a virtual environment's {cmd:python.exe}.
+{cmd:python query}; if it shows none, install Python (for example with
+{browse "https://docs.astral.sh/uv/":uv}, or from {browse "https://www.python.org":python.org})
+and point Stata at it as described in {help python}. On Windows this must be an installed
+Python, not a virtual environment's {cmd:python.exe}.
 
 {phang}
 {bf:Step 2. Put taxsim-py in a Python environment.} Choose one:
@@ -109,13 +109,14 @@ environment can be used at once, in the same session, with no restart.
 
 {phang2}
 {bf:(b) Use an environment you already have.} Install taxsim-py into it with
-{cmd:pip install "taxsim-py[readstat]"} or {cmd:uv add "taxsim-py[readstat]"}. The
+{cmd:uv add "taxsim-py[readstat]"}. The
 {cmd:[readstat]} part is required: it is how data pass between Stata and taxsim-py.
 
 {phang}
 {bf:Step 3. Make Stata use it in later sessions.} {cmd:taxsim_py install} prints a
-{cmd:set python_userpath ..., prepend permanently} line (and, if Stata's Python is not the one the
-environment was built on, a {cmd:set python_exec} line as well). Run the lines it prints once.
+{cmd:set python_userpath} line (and, if Stata's Python is not the one the environment was built
+on, a {cmd:set python_exec} line as well). Run the lines it prints at the start of a session,
+or put them in your {cmd:profile.do}.
 For an environment you made yourself, {cmd:taxsim_py install, path(}{it:folder}{cmd:)} changes
 nothing and prints the same lines to use.
 
@@ -256,9 +257,9 @@ values when it writes and reads its CSV files and {cmd:taxsim_py} does not.
 
 {pstd}
 Set up once, if you do not already have Python with taxsim-py (needs uv){p_end}
-{phang2}{cmd:. taxsim_py install, path(C:/taxsim_py_env)}{p_end}
+{phang2}{cmd:. taxsim_py install, path(}{it:folder}{cmd:)}{p_end}
 {pstd}
-then calculate at once; for later sessions, run the {cmd:set python_userpath} line it prints.{p_end}
+then calculate at once; in later sessions, run the {cmd:set python_userpath} line it prints first.{p_end}
 
 {pstd}
 NBER's test case: a married couple with $100,000 of long-term capital gains in 1970{p_end}

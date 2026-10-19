@@ -49,61 +49,52 @@ net install taxsim_py, from("https://raw.githubusercontent.com/jrothbaum/taxsim_
 
 `help taxsim_py` then shows the full syntax.
 
-### 2. Let Stata find a Python
+### 2. Install the taxsim-py Python library
 
-Stata runs Python code through its own Python integration, so it needs a Python 3.9 or
-newer installation. Check with:
-
-```stata
-python query
-```
-
-If it does not show a Python, install one (for example from
-[python.org](https://www.python.org)) and tell Stata where it is:
-
-```stata
-set python_exec "C:/Python313/python.exe", permanently
-```
-
-On Windows this must be an installed Python, not the `python.exe` inside a virtual
-environment.
-
-### 3. Install taxsim-py into a Python environment
-
-The simplest way is to let the command create one for you. This needs
-[uv](https://docs.astral.sh/uv/) (a free Python package tool) installed on your computer.
-
-```stata
-taxsim_py install, path("C:/taxsim_py_env")
-```
-
-This builds a new environment in the folder you name (it must not exist yet, or be empty)
-and installs taxsim-py into it. It is ready to use immediately in the same Stata session,
-with no restart. To use it in later sessions too, run the `set python_userpath` line that
-the command prints, once:
-
-```stata
-set python_userpath "C:/taxsim_py_env/Lib/site-packages", prepend permanently
-```
-
-(The command prints the exact line for your system; copy that one.)
-
-**If you already manage your own Python environment**, install taxsim-py into it instead
-and point Stata at it:
+The command does the calculation with taxsim-py, a Python library, so that must be installed
+too. Stata runs Python through its built-in Python integration (`help python`); it needs
+Python 3.9 or newer, which `python query` shows. If Stata has none, you can install one with
+[uv](https://docs.astral.sh/uv/), which is also used below
+([install uv](https://docs.astral.sh/uv/getting-started/installation/)). In a terminal:
 
 ```bash
-pip install "taxsim-py[readstat]"      # or: uv add "taxsim-py[readstat]"
+uv python install 3.13
+uv python find 3.13        # prints the path to that Python
 ```
 
-The `[readstat]` part is required: it is how Stata's data are passed to taxsim-py and back.
-Running `taxsim_py install, path(<that folder>)` on an environment you made yourself
-changes nothing and prints the Stata lines to use it.
+Then point Stata at the path that `uv python find` printed, as described in Stata's own
+instructions ([`help python`](https://www.stata.com/manuals/ppython.pdf), or
+[setting up Stata to use Python](https://blog.stata.com/2020/08/18/stata-python-integration-part-1-setting-up-stata-to-use-python/)).
+Any other installation, such as one from [python.org](https://www.python.org), works too; on
+Windows it must be an installed Python, not the `python.exe` inside a virtual environment.
+
+The easiest way is to let the command build a Python environment for you. It uses uv, a
+free, fast Python package manager, so uv must be installed (see above). Then run, in Stata:
+
+```stata
+taxsim_py install, path(folder)
+```
+
+This creates the environment in the folder you name (it must not exist yet, or be empty)
+and installs taxsim-py into it. You can use it immediately, with no restart. For later
+sessions, the command prints the `set python_userpath` line that makes Stata find it again;
+run it at the start of a session (or put it in your `profile.do`).
+
+If you already manage your own Python environment, install taxsim-py into it yourself,
+with the `readstat` extra, which is how Stata's data reach the library:
+
+```bash
+uv add "taxsim-py[readstat]"
+```
+
+Then make Stata use that environment; `taxsim_py install, path(<that folder>)` changes
+nothing in it and prints the Stata lines to run.
 
 ### Update or pin a version
 
 ```stata
-taxsim_py install, path("C:/taxsim_py_env") update          // newest release
-taxsim_py install, path("C:/taxsim_py_env") version(x.y.z)   // a specific release, such as 1.2.3
+taxsim_py install, path(folder) update          // newest release
+taxsim_py install, path(folder) version(x.y.z)   // a specific release, such as 1.2.3
 ```
 
 Restart Stata afterwards if the current session had already used taxsim-py. `install` only
