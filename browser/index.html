@@ -14,7 +14,7 @@
         <link rel="prev" href="../files/">
       
       
-        <link rel="next" href="../updating/">
+        <link rel="next" href="../statutory_corrections/">
       
       
         
@@ -333,7 +333,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../updating/" class="md-tabs__link">
+        <a href="../statutory_corrections/" class="md-tabs__link">
           
   
   
@@ -541,24 +541,6 @@
         
       
       
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Browser
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
       <a href="./" class="md-nav__link md-nav__link--active">
         
   
@@ -575,47 +557,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#run-it" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Run it
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#use-it-from-your-own-page" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Use it from your own page
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
       
     </li>
   
@@ -680,34 +621,6 @@
   
   
     <li class="md-nav__item">
-      <a href="../updating/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Updating the tax law
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
       <a href="../statutory_corrections/" class="md-nav__link">
         
   
@@ -744,62 +657,6 @@
     
   
     Performance
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../architecture/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Architecture
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../shared_functions/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Shared functions
   
 
     
@@ -868,36 +725,6 @@
     
   
   
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#run-it" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Run it
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#use-it-from-your-own-page" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Use it from your own page
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
 </nav>
                   </div>
                 </div>
@@ -918,8 +745,7 @@
 
 <h1 id="browser">Browser</h1>
 <p><strong><a href="../calculator/">Open the calculator</a>.</strong> It runs taxsim-py in the page through
-<a href="https://pyodide.org/">Pyodide</a>, in a web worker. Nothing is sent to a server. (The link
-works on the published site; locally, build it as shown below.)</p>
+<a href="https://pyodide.org/">Pyodide</a>, in a web worker. Nothing is sent to a server.</p>
 <ul>
 <li><strong>One household:</strong> a form grouped like TAXSIM's, with marginal rates, detailed
   worksheets and calculation mode as options.</li>
@@ -928,28 +754,6 @@ works on the published site; locally, build it as shown below.)</p>
   The calculation runs in a web worker, so the page stays responsive, but very large
   files still need browser memory; use the <a href="../files/">command line</a> for those.</li>
 </ul>
-<h2 id="run-it">Run it</h2>
-<pre><code class="language-bash">uv run python scripts/build_web.py      # builds the wheel into web/
-python -m http.server -d web            # then open http://localhost:8000
-</code></pre>
-<p>It must be served over http, not opened as a file. The documentation site includes the
-calculator at <code>calculator/</code>. Build the whole site, with preview, using
-<code>uv run --no-project --with mkdocs --with mkdocs-material python scripts/build_docs.py</code>
-and then <code>python -m http.server -d site</code>. Add <code>--deploy</code> to publish it to the <code>gh-pages</code>
-branch (GitHub Pages must be set to deploy from that branch).</p>
-<h2 id="use-it-from-your-own-page">Use it from your own page</h2>
-<pre><code class="language-js">import { loadPyodide } from &quot;https://cdn.jsdelivr.net/pyodide/v314.0.7/full/pyodide.mjs&quot;;
-
-const py = await loadPyodide();
-await py.loadPackage([&quot;polars&quot;, &quot;pyyaml&quot;, &quot;micropip&quot;]);
-await py.pyimport(&quot;micropip&quot;).install(&quot;emfs:/tmp/taxsim_py-0.1.0-py3-none-any.whl&quot;);  // after writing the wheel to py.FS
-
-const calculate = py.runPython(&quot;import taxsim_py; taxsim_py.calculate_row&quot;);
-const result = calculate(py.toPy({ year: 2023, state: 5, mstat: 2, pwages: 80000 }))
-  .toJs({ dict_converter: Object.fromEntries });
-</code></pre>
-<p><code>calculate_row</code> takes and returns plain dicts, so values cross the JavaScript boundary
-without conversion code. Pass keyword options such as <code>mtr</code> or <code>idtl</code> from Python.</p>
 
 
 

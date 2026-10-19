@@ -11,7 +11,7 @@
       
       
       
-        <link rel="prev" href="../shared_functions/">
+        <link rel="prev" href="../performance/">
       
       
       
@@ -331,7 +331,7 @@
     
     
       <li class="md-tabs__item md-tabs__item--active">
-        <a href="../updating/" class="md-tabs__link">
+        <a href="../statutory_corrections/" class="md-tabs__link">
           
   
   
@@ -614,34 +614,6 @@
   
   
     <li class="md-nav__item">
-      <a href="../updating/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Updating the tax law
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
       <a href="../statutory_corrections/" class="md-nav__link">
         
   
@@ -678,62 +650,6 @@
     
   
     Performance
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../architecture/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Architecture
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../shared_functions/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Shared functions
   
 
     
@@ -987,9 +903,8 @@
 
 <h1 id="comparison-with-policyengine-us">Comparison with PolicyEngine-US</h1>
 <p><code>taxsim_py</code> in <code>statutory</code> mode is compared with PolicyEngine-US's TAXSIM API
-(<code>scripts/compare_independent.py</code>, <code>src/taxsim_py/validation/independent.py</code>)
 for the federal return and all 45 income-tax states, tax years 2022-2025. It is
-a diagnostic, not an assertion that PolicyEngine is the oracle: where the two
+a cross-check, not an assertion that PolicyEngine is the reference: where the two
 disagree, the form or statute decides, and the cause is listed below.</p>
 <h2 id="method">Method</h2>
 <ul>
@@ -999,8 +914,7 @@ disagree, the form or statute decides, and the cause is listed below.</p>
   itemizers and renters. Rows where federal tax differs by more than $1 are
   dropped so only state logic is compared; a row is "off" when state tax
   differs by more than $1.</li>
-<li><strong>CPS ASEC samples</strong> (<code>scripts/compare_cps.py</code>, <code>compare_independent.py</code>)
-  give a realistic income mix but are noisier, because PolicyEngine's adapter
+<li><strong>CPS ASEC samples</strong> give a realistic income mix but are noisier, because PolicyEngine's adapter
   ignores <code>dep6</code> and turns <code>dep13</code>/<code>dep17</code> counts into children of default
   ages, so credits keyed to a child's age are compared against the wrong child.</li>
 <li>The PolicyEngine run disables state and local tax deductions
@@ -1022,18 +936,18 @@ grid in all four years; the rest differ only for the reasons below.</p>
 <tbody>
 <tr>
 <td style="text-align: left;">DE, HI</td>
-<td style="text-align: left;">Port itemizes at middle incomes</td>
+<td style="text-align: left;">taxsim-py itemizes at middle incomes</td>
 <td style="text-align: left;">TAXSIM imputes a sales-tax itemized deduction; PolicyEngine's run has none. The gap is the deduction times the rate (larger in 2025 with the $40,000 SALT cap).</td>
 </tr>
 <tr>
 <td style="text-align: left;">Federal</td>
 <td style="text-align: left;">Self-employment income (<code>psemp</code>) gets no 20% business deduction</td>
-<td style="text-align: left;">TAXSIM applies the qualified-business-income deduction only to the business-income inputs (<code>pbusinc</code>, <code>pprofinc</code>); PolicyEngine also applies it to self-employment income. The port keeps TAXSIM's convention.</td>
+<td style="text-align: left;">TAXSIM applies the qualified-business-income deduction only to the business-income inputs (<code>pbusinc</code>, <code>pprofinc</code>); PolicyEngine also applies it to self-employment income. taxsim-py keeps TAXSIM's convention.</td>
 </tr>
 <tr>
 <td style="text-align: left;">Federal</td>
 <td style="text-align: left;">Social Security tax when <code>transfers</code> is present</td>
-<td style="text-align: left;">TAXSIM counts <code>transfers</code> as tax-exempt interest in the Social Security provisional-income test; the independent models do not treat ordinary transfers that way. The port keeps TAXSIM's convention.</td>
+<td style="text-align: left;">TAXSIM counts <code>transfers</code> as tax-exempt interest in the Social Security provisional-income test; the independent models do not treat ordinary transfers that way. taxsim-py keeps TAXSIM's convention.</td>
 </tr>
 <tr>
 <td style="text-align: left;">Federal</td>
@@ -1043,7 +957,7 @@ grid in all four years; the rest differ only for the reasons below.</p>
 <tr>
 <td style="text-align: left;">ID</td>
 <td style="text-align: left;">Exactly $10</td>
-<td style="text-align: left;">The port includes the Permanent Building Fund tax (2024 Form 40, line 32); PolicyEngine omits it.</td>
+<td style="text-align: left;">taxsim-py includes the Permanent Building Fund tax (2024 Form 40, line 32); PolicyEngine omits it.</td>
 </tr>
 <tr>
 <td style="text-align: left;">CO</td>
@@ -1063,12 +977,12 @@ grid in all four years; the rest differ only for the reasons below.</p>
 <tr>
 <td style="text-align: left;">KS</td>
 <td style="text-align: left;">Food sales tax credit</td>
-<td style="text-align: left;">Refundable in the statute; PolicyEngine treats it as nonrefundable. The port follows the statute.</td>
+<td style="text-align: left;">Refundable in the statute; PolicyEngine treats it as nonrefundable. taxsim-py follows the statute.</td>
 </tr>
 <tr>
 <td style="text-align: left;">VA</td>
 <td style="text-align: left;">Low-income credit plus EITC</td>
-<td style="text-align: left;">PolicyEngine pays both; the 2023 Form 760 instructions allow one. The port follows the form.</td>
+<td style="text-align: left;">PolicyEngine pays both; the 2023 Form 760 instructions allow one. taxsim-py follows the form.</td>
 </tr>
 <tr>
 <td style="text-align: left;">NY</td>
@@ -1103,7 +1017,7 @@ grid in all four years; the rest differ only for the reasons below.</p>
 <tr>
 <td style="text-align: left;">AR</td>
 <td style="text-align: left;">Low-income tables, $1.6 recapture detail, joint return with one earner at about $30,000</td>
-<td style="text-align: left;">PolicyEngine applies the main schedule where one spouse has all the income; the port applies the joint low-income table.</td>
+<td style="text-align: left;">PolicyEngine applies the main schedule where one spouse has all the income; taxsim-py applies the joint low-income table.</td>
 </tr>
 <tr>
 <td style="text-align: left;">CA</td>

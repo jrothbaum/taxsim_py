@@ -14,7 +14,7 @@
         <link rel="prev" href="../statutory_corrections/">
       
       
-        <link rel="next" href="../architecture/">
+        <link rel="next" href="../policyengine_recent_state_comparison/">
       
       
         
@@ -333,7 +333,7 @@
     
     
       <li class="md-tabs__item md-tabs__item--active">
-        <a href="../updating/" class="md-tabs__link">
+        <a href="../statutory_corrections/" class="md-tabs__link">
           
   
   
@@ -616,34 +616,6 @@
   
   
     <li class="md-nav__item">
-      <a href="../updating/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Updating the tax law
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
       <a href="../statutory_corrections/" class="md-nav__link">
         
   
@@ -764,77 +736,10 @@
   
 </li>
       
-        <li class="md-nav__item">
-  <a href="#run-the-benchmark" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Run the Benchmark
-      
-    </span>
-  </a>
-  
-</li>
-      
     </ul>
   
 </nav>
       
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../architecture/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Architecture
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../shared_functions/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Shared functions
-  
-
-    
-  </span>
-  
-  
-
-      </a>
     </li>
   
 
@@ -934,17 +839,6 @@
   
 </li>
       
-        <li class="md-nav__item">
-  <a href="#run-the-benchmark" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Run the Benchmark
-      
-    </span>
-  </a>
-  
-</li>
-      
     </ul>
   
 </nav>
@@ -999,7 +893,7 @@ peak memory for a single first call in a fresh process, with 16 Polars threads a
 <td style="text-align: right;">0.46 s<br>1,103 MiB</td>
 </tr>
 <tr>
-<td>taxsim_py, Python reference engine</td>
+<td>taxsim_py, Python engine</td>
 <td style="text-align: right;">0.88 s<br>341 MiB</td>
 <td style="text-align: right;">1.09 s<br>445 MiB</td>
 <td style="text-align: right;">1.16 s<br>508 MiB</td>
@@ -1032,9 +926,7 @@ peak memory for a single first call in a fresh process, with 16 Polars threads a
 </table>
 <p>Memory is peak process RSS (for Fortran TAXSIM, its executable only).
 PolicyEngine's runner hit the 8 GiB memory budget at 15,000 rows and larger runs were stopped, so
-those cells are dashes; its figures are from an earlier measurement. Raw results:
-<a href="../benchmarks/rust_vs_python_2026-10-12.csv">taxsim_py</a> and
-<a href="../benchmarks/polars_2_engines_2026-10-12.csv">Fortran TAXSIM</a>.</p>
+those cells are dashes; its figures are from an earlier measurement.</p>
 <h2 id="streaming-a-file">Streaming a file</h2>
 <p><code>calculate_taxes(pl.scan_parquet(path), year=2022, mtr=85).sink_parquet(out)</code> runs the same
 plan without loading the file. On 4 million rows without marginal rates (about 1.0 s,
@@ -1045,14 +937,6 @@ take 3.7 s and 1.4 GB, and with 4 threads 6.0 s and 0.76 GB.</p>
 <p>With the default engine, memory is set mainly by the Polars thread count: set <code>POLARS_MAX_THREADS</code>
 before importing Polars to trade speed for memory (see the streaming numbers above). For files
 larger than memory, pass a <code>LazyFrame</code> and sink the result.</p>
-<h2 id="run-the-benchmark">Run the Benchmark</h2>
-<p>With <code>psutil</code> installed (<code>uv sync --group test</code>):</p>
-<pre><code class="language-bash">POLARS_MAX_THREADS=16 uv run scripts/benchmark_comparison.py --engines taxsim_py taxsim \
-  --rows 1000 10000 15000 100000 200000 500000 1000000
-</code></pre>
-<p>Add <code>--engines policyengine --policyengine-rows 1000 10000 15000</code> in an environment with
-PolicyEngine's dependencies. The Linux harness monitors process-tree RAM with an 8 GiB budget,
-a 2 GiB available RAM reserve and a 600-second timeout, and stops a measurement at a limit.</p>
 
 
 

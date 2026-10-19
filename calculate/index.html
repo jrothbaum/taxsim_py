@@ -333,7 +333,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../updating/" class="md-tabs__link">
+        <a href="../statutory_corrections/" class="md-tabs__link">
           
   
   
@@ -774,34 +774,6 @@
   
   
     <li class="md-nav__item">
-      <a href="../updating/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Updating the tax law
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
       <a href="../statutory_corrections/" class="md-nav__link">
         
   
@@ -838,62 +810,6 @@
     
   
     Performance
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../architecture/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Architecture
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../shared_functions/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Shared functions
   
 
     
@@ -1327,21 +1243,17 @@ differences is in <a href="../statutory_corrections/">Statutory corrections</a>.
 <tbody>
 <tr>
 <td style="text-align: left;"><code>"rust"</code> (default)</td>
-<td style="text-align: left;">For real runs: the compiled calculator (built into the platform wheels). About 4 to 8 times faster than Python, and it streams, so large files run in far less memory. Statutory mode only; it raises an error for taxsim mode, <code>idtl=2</code> and <code>keep_intermediate</code>, and for a state or year it has no law for (states from 1977, federal from 1960). It never falls back to Python.</td>
+<td style="text-align: left;">The compiled calculator, built into the platform wheels. About 4 to 8 times faster than Python, and it streams, so large files run in far less memory. Statutory mode only: it raises an error for taxsim mode, <code>idtl=2</code> and <code>keep_intermediate</code>, and for a state or year it has no law for (states from 1977, federal from 1960). It never falls back to Python.</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>"python"</code></td>
-<td style="text-align: left;">For developing and testing changes to the tax law: the reference implementation, easy to read, change and debug. Always eager, and the only engine for taxsim mode and detailed output.</td>
+<td style="text-align: left;">The slower, pure-Python implementation. It is the only engine for taxsim mode and detailed output, and the one to use on a platform without the compiled calculator. Always eager.</td>
 </tr>
 </tbody>
 </table>
-<p>When you change a calculator or a parameter, work in Python first (<code>engine="python"</code>), where
-a change is a few lines in <code>calculators/</code> and results appear at once. The compiled calculator
-mirrors it (<code>rust/src/states/&lt;state&gt;.rs</code>) and is rebuilt once the Python version is right; the
-engines are compared with <code>scripts/validate_rust.py</code>.</p>
-<p>Set the default for a whole session with the <code>TAXSIM_PY_ENGINE</code> environment variable
-(<code>rust</code> or <code>python</code>). The compiled calculator matches the Python one for every state and
-year, to floating-point round-off; <code>scripts/validate_rust.py</code> checks that.</p>
+<p>Both engines give the same statutory-mode results, to floating-point round-off. Set the
+default for a whole session with the <code>TAXSIM_PY_ENGINE</code> environment variable (<code>rust</code> or
+<code>python</code>).</p>
 <p>The engine also decides laziness. Give <code>engine="rust"</code> a <code>LazyFrame</code> and you get a
 <code>LazyFrame</code> back: the input plus the output columns (and <code>frate</code>/<code>srate</code> with <code>mtr</code>), a plan
 nothing has run yet. Collect it, or stream it into any Polars sink so the data never has to
@@ -1350,11 +1262,9 @@ fit in memory:</p>
 calculate_taxes(lf, year=2022, mtr=85).sink_parquet(&quot;taxes.parquet&quot;)
 </code></pre>
 <p>The year can come from a column (<code>year_column</code>, default <code>"year"</code>), so one pass can cover many
-years and states. Defaults, nulls and casts are handled in Polars before the compiled
-calculator sees the data, exactly as for a <code>DataFrame</code>. Checks of the data itself (a null or
-unsupported <code>mstat</code>, years after 2025) raise when the plan runs, and a <code>DataFrame</code> input is
-checked up front. <code>engine="python"</code> collects a <code>LazyFrame</code> and returns a <code>DataFrame</code>.
-<code>batch_rows</code> and <code>max_year_workers</code> apply to the Python engine only.</p>
+years and states. Checks of the data itself (a null or unsupported <code>mstat</code>, years after 2025)
+raise when the plan runs, and a <code>DataFrame</code> input is checked up front. <code>engine="python"</code>
+collects a <code>LazyFrame</code> and returns a <code>DataFrame</code>.</p>
 <h3 id="speed-and-memory">Speed and memory</h3>
 <table>
 <thead>

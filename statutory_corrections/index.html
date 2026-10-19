@@ -11,7 +11,7 @@
       
       
       
-        <link rel="prev" href="../updating/">
+        <link rel="prev" href="../browser/">
       
       
         <link rel="next" href="../performance/">
@@ -333,7 +333,7 @@
     
     
       <li class="md-tabs__item md-tabs__item--active">
-        <a href="../updating/" class="md-tabs__link">
+        <a href="./" class="md-tabs__link">
           
   
   
@@ -613,34 +613,6 @@
                 
   
   
-  
-  
-    <li class="md-nav__item">
-      <a href="../updating/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Updating the tax law
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
     
   
   
@@ -888,62 +860,6 @@
     
   
     Performance
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../architecture/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Architecture
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../shared_functions/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Shared functions
   
 
     
@@ -1278,6 +1194,12 @@ applies it per spouse, as the Schedule SE instructions require). Code:
 <td style="text-align: left;">22254</td>
 <td style="text-align: left;">The payroll lookup gives the primary earner both non-professional business incomes and the spouse both professional ones, so the wage base and the QBI netting use the wrong person's income ($50,000 of spouse business income over a primary earner already above the 2019 base gets no OASDI tax). South Carolina (2018 on) and Virginia (2000 on) split spouses' business income the same way</td>
 <td style="text-align: left;">Statutory, FED-PAYROLL-005: each earner's own business and professional income, in the federal calculation and in the SC and VA splits (Schedule SE). <code>assign_business_income_to_its_earner</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">All</td>
+<td style="text-align: left;">182</td>
+<td style="text-align: left;">Detailed output <code>v42</code> (<code>ssearn</code>, earnings subject to the Social Security wage base) is never assigned, so it is always 0</td>
+<td style="text-align: left;">Statutory, FED-PAYROLL-006: reports both earners' wages plus 92.35% of net business income, each capped at the wage base. <code>report_social_security_taxable_earnings</code></td>
 </tr>
 </tbody>
 </table>
