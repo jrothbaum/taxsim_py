@@ -147,14 +147,14 @@ def calculate_for_stata(
     *,
     mtr: int = 85,
     full: bool = False,
-    statutory: bool = False,
+    backwards_compatible: bool = False,
     missing_to_zero: bool = False,
     max_workers: int | None = None,
 ) -> pl.DataFrame:
     """taxsim35's outputs for `frame`, its dollar amounts rounded to cents as TAXSIM reports them.
 
-    TAXSIM mode and the full worksheets only exist in the Python engine; the statutory summary
-    uses the default (compiled) engine.
+    The default is statutory law, and its summary uses the compiled engine. TAXSIM mode
+    (`backwards_compatible`) and the full worksheets only exist in the Python engine.
     """
     inputs = prepare_inputs(frame, missing_to_zero=missing_to_zero)
     result = calculate_taxes(
@@ -162,8 +162,8 @@ def calculate_for_stata(
         mtr=mtr,
         idtl=2 if full else None,
         taxsim_names=True,
-        calculation_mode="statutory" if statutory else "taxsim",
-        engine=None if statutory and not full else "python",
+        calculation_mode="taxsim" if backwards_compatible else "statutory",
+        engine="python" if backwards_compatible or full else None,
         max_year_workers=max_workers,
     )
     wanted = (*OUTPUTS, *(FULL_OUTPUTS if full else ()))
@@ -201,7 +201,7 @@ def run_from_stata() -> None:
     """Called by taxsim_py.ado through Stata's Python, with its settings in the caller's locals.
 
     Reads `tpy_input`, `tpy_outputs` (paths separated by `|`), `tpy_mtr`, `tpy_full`,
-    `tpy_statutory`, `tpy_missing` and `tpy_workers`; sets `tpy_rows`, or `tpy_error` with a
+    `tpy_backwards`, `tpy_missing` and `tpy_workers`; sets `tpy_rows`, or `tpy_error` with a
     message for the user.
     """
     from sfi import Macro
@@ -216,7 +216,7 @@ def run_from_stata() -> None:
             [p for p in local("tpy_outputs").split("|") if p],
             mtr=int(local("tpy_mtr") or 85),
             full=local("tpy_full") == "1",
-            statutory=local("tpy_statutory") == "1",
+            backwards_compatible=local("tpy_backwards") == "1",
             missing_to_zero=local("tpy_missing") == "1",
             max_workers=workers or None,
         )

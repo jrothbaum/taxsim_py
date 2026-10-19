@@ -1,7 +1,10 @@
 name: Stata files
 
 # Runs when a GitHub release is published: zips the Stata files from the
-# release's tag and adds the zip to the release's assets. To add it to an
+# release's tag and adds the zip to the release's assets, twice: as
+# taxsim_py-stata-<tag>.zip (a fixed version) and as taxsim_py-stata.zip, whose
+# unchanging name gives users a permanent link to the newest release,
+# https://github.com/<owner>/<repo>/releases/latest/download/taxsim_py-stata.zip. To add it to an
 # earlier release, run it from the Actions tab and enter that release's tag.
 on:
   release:
@@ -32,19 +35,20 @@ jobs:
           cd stata
           zip "../dist/taxsim_py-stata-$TAG.zip" $(ls *.ado *.sthlp *.pkg *.toc 2>/dev/null)
           unzip -l "../dist/taxsim_py-stata-$TAG.zip"
+          cp "../dist/taxsim_py-stata-$TAG.zip" ../dist/taxsim_py-stata.zip
       - uses: actions/upload-artifact@v4
         with:
           name: taxsim_py-stata-${{ env.TAG }}
-          path: dist/taxsim_py-stata-${{ env.TAG }}.zip
-      - name: Attach the zip to the GitHub release
+          path: dist/*.zip
+      - name: Attach the zips to the GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          zip="dist/taxsim_py-stata-$TAG.zip"
+          zips=(dist/taxsim_py-stata-$TAG.zip dist/taxsim_py-stata.zip)
           if gh release view "$TAG" > /dev/null 2>&1; then
-            gh release upload "$TAG" "$zip" --clobber
+            gh release upload "$TAG" "${zips[@]}" --clobber
           else
-            # No release yet: a draft holds the zip until its notes are written and it is published.
-            gh release create "$TAG" "$zip" --verify-tag --draft --title "$TAG" --notes ""
-            echo "Created a draft release for $TAG with the Stata zip; add notes and publish it."
+            # No release yet: a draft holds the zips until its notes are written and it is published.
+            gh release create "$TAG" "${zips[@]}" --verify-tag --draft --title "$TAG" --notes ""
+            echo "Created a draft release for $TAG with the Stata zips; add notes and publish it."
           fi

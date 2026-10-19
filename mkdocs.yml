@@ -24,17 +24,18 @@ nav:
   - Inputs: inputs.md
   - Outputs: outputs.md
   - Files and command line: files.md
+  - Stata: stata.md
   - Browser: browser.md
   - Reference:
-      - Updating the tax law: updating.md
       - TAXSIM errors and corrections: statutory_corrections.md
       - Performance: performance.md
-      - Architecture: architecture.md
-      - Shared functions: shared_functions.md
       - PolicyEngine comparison: policyengine_recent_state_comparison.md
 
-# The rest of docs/ is internal working notes, not part of the site.
+# The rest of docs/ is maintainer notes, not part of the site.
 exclude_docs: |
+  updating.md
+  architecture.md
+  shared_functions.md
   internal/
   oracle_archive/
   pending_issues.md

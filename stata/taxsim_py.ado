@@ -19,7 +19,7 @@ end
 program define _taxsim_py_calculate, rclass
 	version 16
 	syntax [, Replace SAVing(string asis) Full Secondary Wages Interest Long Mortgage Debug ///
-		STATutory MISSing_to_zero THReads(integer 0)]
+		BACKwards_compatible MISSing_to_zero THReads(integer 0)]
 
 	// Results are kept only when asked for.
 	if "`replace'" == "" & `"`saving'"' == "" {
@@ -111,7 +111,7 @@ program define _taxsim_py_calculate, rclass
 	local tpy_input `"`input'"'
 	local tpy_mtr `mtr'
 	local tpy_full = "`full'" != ""
-	local tpy_statutory = "`statutory'" != ""
+	local tpy_backwards = "`backwards_compatible'" != ""
 	local tpy_missing = "`missing_to_zero'" != ""
 	local tpy_workers `threads'
 	local tpy_rows ""

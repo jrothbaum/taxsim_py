@@ -131,9 +131,9 @@ confirm string variable taxsimid
 assert !missing(fiitax)
 assert keepme == id * 10
 
-// 10. statutory, threads() and debug run.
+// 10. backwards_compatible, threads() and debug run.
 make_sample
-taxsim_py, replace statutory threads(2) debug
+taxsim_py, replace backwards_compatible threads(2) debug
 assert r(N) == 3
 confirm file "`r(debug_input)'"
 erase "`r(debug_input)'"

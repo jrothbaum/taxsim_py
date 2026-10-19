@@ -21,7 +21,7 @@ NBER_EXAMPLE = pl.DataFrame({"state": [0], "year": [1970], "mstat": [2], "ltcg":
 
 
 def test_nber_example_gives_nbers_answer() -> None:
-    result = calculate_for_stata(NBER_EXAMPLE, mtr=14, full=True)
+    result = calculate_for_stata(NBER_EXAMPLE, mtr=14, full=True, backwards_compatible=True)
     assert result.get_column("fiitax").to_list() == [16_700.04]
 
 
@@ -94,9 +94,11 @@ def test_missing_taxsimid_is_always_an_error() -> None:
         prepare_inputs(frame, missing_to_zero=True)
 
 
-def test_statutory_mode_is_passed_through() -> None:
-    frame = pl.DataFrame({"year": [2022], "state": [5], "mstat": [1], "pwages": [60_000.0]})
-    assert calculate_for_stata(frame, statutory=True).height == 1
+def test_statutory_is_the_default_and_backwards_compatible_is_taxsim() -> None:
+    frame = pl.DataFrame({"year": [2019], "state": [0], "mstat": [2], "pwages": [140_000.0], "sbusinc": [50_000.0]})
+    statutory = calculate_for_stata(frame).get_column("fica").item()
+    taxsim = calculate_for_stata(frame, backwards_compatible=True).get_column("fica").item()
+    assert (taxsim, statutory) == (21_878.68, 27_604.38)
 
 
 @pytest.mark.skipif(not HAS_READSTAT, reason="needs taxsim-py[readstat]")

@@ -1,15 +1,16 @@
-// Copy the working .ado files into PLUS so Stata runs this checkout. Run from stata/.
+// Copy the working .ado files into PLUS so Stata runs this checkout. Run from stata/testing/.
 // Like net install, each file goes in the PLUS subfolder named by its first character.
 discard
-local files : dir "." files "*.ado"
-local more : dir "." files "*.sthlp"
+local source ".."
+local files : dir "`source'" files "*.ado"
+local more : dir "`source'" files "*.sthlp"
 local files `"`files' `more' taxsim_py.pkg"'
 foreach file of local files {
-	capture confirm file `"`file'"'
+	capture confirm file `"`source'/`file'"'
 	if _rc continue
 	local destination `"`c(sysdir_plus)'`=substr("`file'", 1, 1)'"'
 	capture mkdir `"`destination'"'
-	copy `"`file'"' `"`destination'/`file'"', replace
+	copy `"`source'/`file'"' `"`destination'/`file'"', replace
 }
 discard
 clear

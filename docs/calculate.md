@@ -111,17 +111,12 @@ differences is in [Statutory corrections](statutory_corrections.md).
 
 | `engine` | Behavior |
 |:--|:--|
-| `"rust"` (default) | For real runs: the compiled calculator (built into the platform wheels). About 4 to 8 times faster than Python, and it streams, so large files run in far less memory. Statutory mode only; it raises an error for taxsim mode, `idtl=2` and `keep_intermediate`, and for a state or year it has no law for (states from 1977, federal from 1960). It never falls back to Python. |
-| `"python"` | For developing and testing changes to the tax law: the reference implementation, easy to read, change and debug. Always eager, and the only engine for taxsim mode and detailed output. |
+| `"rust"` (default) | The compiled calculator, built into the platform wheels. About 4 to 8 times faster than Python, and it streams, so large files run in far less memory. Statutory mode only: it raises an error for taxsim mode, `idtl=2` and `keep_intermediate`, and for a state or year it has no law for (states from 1977, federal from 1960). It never falls back to Python. |
+| `"python"` | The slower, pure-Python implementation. It is the only engine for taxsim mode and detailed output, and the one to use on a platform without the compiled calculator. Always eager. |
 
-When you change a calculator or a parameter, work in Python first (`engine="python"`), where
-a change is a few lines in `calculators/` and results appear at once. The compiled calculator
-mirrors it (`rust/src/states/<state>.rs`) and is rebuilt once the Python version is right; the
-engines are compared with `scripts/validate_rust.py`.
-
-Set the default for a whole session with the `TAXSIM_PY_ENGINE` environment variable
-(`rust` or `python`). The compiled calculator matches the Python one for every state and
-year, to floating-point round-off; `scripts/validate_rust.py` checks that.
+Both engines give the same statutory-mode results, to floating-point round-off. Set the
+default for a whole session with the `TAXSIM_PY_ENGINE` environment variable (`rust` or
+`python`).
 
 The engine also decides laziness. Give `engine="rust"` a `LazyFrame` and you get a
 `LazyFrame` back: the input plus the output columns (and `frate`/`srate` with `mtr`), a plan
@@ -134,11 +129,9 @@ calculate_taxes(lf, year=2022, mtr=85).sink_parquet("taxes.parquet")
 ```
 
 The year can come from a column (`year_column`, default `"year"`), so one pass can cover many
-years and states. Defaults, nulls and casts are handled in Polars before the compiled
-calculator sees the data, exactly as for a `DataFrame`. Checks of the data itself (a null or
-unsupported `mstat`, years after 2025) raise when the plan runs, and a `DataFrame` input is
-checked up front. `engine="python"` collects a `LazyFrame` and returns a `DataFrame`.
-`batch_rows` and `max_year_workers` apply to the Python engine only.
+years and states. Checks of the data itself (a null or unsupported `mstat`, years after 2025)
+raise when the plan runs, and a `DataFrame` input is checked up front. `engine="python"`
+collects a `LazyFrame` and returns a `DataFrame`.
 
 ### Speed and memory
 
