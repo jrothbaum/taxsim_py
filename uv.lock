@@ -3659,7 +3659,7 @@ wheels = [
 
 [[package]]
 name = "taxsim-py"
-version = "0.4.0"
+version = "0.4.1"
 source = { editable = "." }
 dependencies = [
     { name = "polars", version = "1.36.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
