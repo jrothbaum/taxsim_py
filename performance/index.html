@@ -926,7 +926,7 @@ peak memory for a single first call in a fresh process, with 16 Polars threads a
 </table>
 <p>Memory is peak process RSS (for Fortran TAXSIM, its executable only).
 PolicyEngine's runner hit the 8 GiB memory budget at 15,000 rows and larger runs were stopped, so
-those cells are dashes; its figures are from an earlier measurement.</p>
+those cells are dashes.</p>
 <h2 id="streaming-a-file">Streaming a file</h2>
 <p><code>calculate_taxes(pl.scan_parquet(path), year=2022, mtr=85).sink_parquet(out)</code> runs the same
 plan without loading the file. On 4 million rows without marginal rates (about 1.0 s,
