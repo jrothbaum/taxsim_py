@@ -243,6 +243,8 @@ With {opt full}, also {cmd:v10}-{cmd:v45}. All carry {cmd:taxsim35}'s variable l
 
 {pstd}
 Starting Python costs about a second on the first call in a session and little on later calls.
+For how long the calculation itself takes, compared with the Fortran {cmd:taxsim35}, see the
+{browse "https://jrothbaum.github.io/taxsim_py/performance/":performance comparison}.
 
 {pstd}
 Results can differ from {cmd:taxsim35} for high incomes, because {cmd:taxsim35} rounds

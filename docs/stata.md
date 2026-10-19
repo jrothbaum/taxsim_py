@@ -165,6 +165,7 @@ taxsim_py, replace backwards_compatible
 ## Good to know
 
 - The first call in a Stata session takes about a second to start Python; later calls are
-  fast.
+  fast. For how long the calculation itself takes, compared with the Fortran `taxsim35`
+  program, see [Performance](performance.md).
 - Results can differ slightly from `taxsim35` at very high incomes, because `taxsim35`
   rounds values when it writes and reads its CSV files and `taxsim_py` does not.
