@@ -125,6 +125,7 @@ class BehaviorProfile:
     complete_west_virginia_1984_head_of_household_table: bool = True
     drop_household_income_record_adjustment: bool = True
     report_base_state_worksheet: bool = True
+    report_social_security_taxable_earnings: bool = True
 
 
 STATUTORY_BEHAVIOR = BehaviorProfile()

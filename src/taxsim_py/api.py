@@ -533,7 +533,7 @@ def calculate_taxes(
         printed = None
     detail_columns: tuple[str, ...] = ()
     if 2 in detail_levels:
-        result = result.with_columns(*federal_detail(result, year_expr))
+        result = result.with_columns(*federal_detail(result, year_expr, behavior))
         if behavior.report_base_state_worksheet:
             # TAXSIM prints the state worksheet from the marginal-rate run.
             printed = None

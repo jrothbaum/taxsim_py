@@ -211,12 +211,14 @@ def taxsim_payroll(
     (tax on the third and fourth items, TAXSIM `setxprof` and `setxsstb`,
     which its QBI deduction nets against non-professional and professional
     income respectively),
-    `addmed`, `fica`, `tfica`, `own_fica_primary` (`comnew(183)`), and the
+    `addmed`, `oasdi_earnings` (both earners' earnings subject to the OASDI wage base),
+    `fica`, `tfica`, `own_fica_primary` (`comnew(183)`), and the
     primary earner's marginal wage rates `oasdi_rate_primary`/`hi_rate_primary`.
     """
     factors = [1.0, net_earnings_factor, net_earnings_factor, net_earnings_factor]
     oasdi_rates = [oasdi_rate, se_oasdi_rate, se_oasdi_rate, se_oasdi_rate]
     streams = []
+    oasdi_earnings = pl.lit(0.0)
     items_by_earner = payroll_items(behavior)
     for names in items_by_earner:
         self_employment_items = [pl.col(name) for name in names[1:]]
@@ -241,6 +243,8 @@ def taxsim_payroll(
             coordinate_on_net_earnings=behavior.coordinate_oasdi_on_net_earnings,
         )
         streams.append(([o + h for o, h in zip(oasdi, hi)], oasdi_capped, hi_capped))
+        net_earnings = pl.sum_horizontal(factor * item for factor, item in zip(factors, items))
+        oasdi_earnings = oasdi_earnings + pl.min_horizontal(net_earnings.clip(0, None), pl.lit(wage_base))
 
     wage_tax = streams[0][0][0] + streams[1][0][0]
     setax_self = streams[0][0][1] + streams[1][0][1]
@@ -268,6 +272,7 @@ def taxsim_payroll(
         "setax_qbi": setax_qbi,
         "setax_sstb": setax_sstb,
         "addmed": addmed,
+        "oasdi_earnings": oasdi_earnings,
         "fica": setax + wage_tax + addmed,
         "tfica": setax + wage_tax / 2 + addmed,
         "own_fica_primary": pl.sum_horizontal(

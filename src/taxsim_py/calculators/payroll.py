@@ -56,6 +56,7 @@ def compute_payroll_tax(
         fica=parts["fica"],
         tfica=parts["tfica"],
         addmed=parts["addmed"],
+        social_security_earnings=parts["oasdi_earnings"],
         payroll_setax=parts["setax"],
         own_fica_primary=parts["own_fica_primary"],
         own_wage_fica_primary=parts["own_wage_fica_primary"],

@@ -37,6 +37,12 @@ CASES = [
         "FED-PAYROLL-005", "spouse business income with primary wages over the base", "fica",
         21_878.68, 27_604.38, year=2019, mstat=2, pwages=140_000, sbusinc=50_000,
     ),
+    # v42 reports earnings under the wage base: $168,600 for the primary earner in 2024
+    # plus the spouse's $40,000.
+    _case(
+        "FED-PAYROLL-006", "couple with one earner over the wage base", "federal_social_security_taxable_earnings",
+        0.0, 208_600.0, year=2024, mstat=2, pwages=200_000, swages=40_000,
+    ),
     # AMT is owed before 2000.
     _case(
         "FED-INCOME-004", "1995 itemizer owing AMT", "fiitax",

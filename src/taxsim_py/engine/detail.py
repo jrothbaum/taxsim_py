@@ -39,7 +39,9 @@ FEDERAL_DETAIL_COLUMNS = tuple(FEDERAL_DETAIL_NAME_TO_TAXSIM)
 TAXSIM_FEDERAL_DETAIL_COLUMNS = tuple(FEDERAL_DETAIL_NAME_TO_TAXSIM.values())
 
 
-def federal_detail(frame: pl.DataFrame, year: pl.Expr) -> list[pl.Expr]:
+def federal_detail(
+    frame: pl.DataFrame, year: pl.Expr, behavior: BehaviorProfile = TAXSIM_BEHAVIOR
+) -> list[pl.Expr]:
     """Expressions for `FEDERAL_DETAIL_COLUMNS` over a resolved frame.
 
     Each is the federal figure TAXSIM prints in that position; pre-1987 law
@@ -93,7 +95,8 @@ def federal_detail(frame: pl.DataFrame, year: pl.Expr) -> list[pl.Expr]:
         pl.when(pre).then(col("pre1987_taxbc")).otherwise(col("regular_tax")).alias("federal_regular_income_tax"),
         col("fica").alias("federal_payroll_tax"),
         # TAXSIM's slot 182 (`ssearn`) is never assigned.
-        pl.lit(0.0).alias("federal_social_security_taxable_earnings"),
+        (col("social_security_earnings") if behavior.report_social_security_taxable_earnings else pl.lit(0.0))
+        .alias("federal_social_security_taxable_earnings"),
         col("niit").alias("federal_net_investment_income_tax"),
         col("addmed").alias("federal_additional_medicare_tax"),
         col("cares").alias("federal_recovery_rebate_credit"),
