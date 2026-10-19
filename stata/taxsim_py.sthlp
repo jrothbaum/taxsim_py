@@ -242,10 +242,7 @@ With {opt full}, also {cmd:v10}-{cmd:v45}. All carry {cmd:taxsim35}'s variable l
 {title:Remarks}
 
 {pstd}
-taxsim-py runs inside Stata's Python, so starting it costs about a second on the first
-call in a session and little on later calls. Two consequences of sharing Stata's process:
-a newer taxsim-py installed while Stata is running is used only after Stata restarts, and a
-failure inside Python (for example running out of memory) can end the Stata session.
+Starting Python costs about a second on the first call in a session and little on later calls.
 
 {pstd}
 Results can differ from {cmd:taxsim35} for high incomes, because {cmd:taxsim35} rounds

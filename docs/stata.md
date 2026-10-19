@@ -168,6 +168,3 @@ taxsim_py, replace backwards_compatible
   fast.
 - Results can differ slightly from `taxsim35` at very high incomes, because `taxsim35`
   rounds values when it writes and reads its CSV files and `taxsim_py` does not.
-- taxsim-py runs inside Stata's process. A newer taxsim-py installed while Stata is running
-  is used only after a restart, and a failure inside Python (such as running out of memory)
-  can end the Stata session.
