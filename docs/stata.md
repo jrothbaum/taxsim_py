@@ -81,7 +81,7 @@ sessions, the command prints the `set python_userpath` line that makes Stata fin
 run it at the start of a session (or put it in your `profile.do`).
 
 If you already manage your own Python environment, install taxsim-py into it yourself,
-with the `readstat` extra, which is how Stata's data reach the library:
+with the `readstat` extra, which lets it read and write Stata `.dta` files:
 
 ```bash
 uv add "taxsim-py[readstat]"

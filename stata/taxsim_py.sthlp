@@ -110,7 +110,7 @@ environment can be used at once, in the same session, with no restart.
 {phang2}
 {bf:(b) Use an environment you already have.} Install taxsim-py into it with
 {cmd:uv add "taxsim-py[readstat]"}. The
-{cmd:[readstat]} part is required: it is how data pass between Stata and taxsim-py.
+{cmd:[readstat]} part is required: it lets taxsim-py read and write Stata {cmd:.dta} files.
 
 {phang}
 {bf:Step 3. Make Stata use it in later sessions.} {cmd:taxsim_py install} prints a
