@@ -58,8 +58,8 @@ Python 3.9 or newer, which `python query` shows. If Stata has none, you can inst
 ([install uv](https://docs.astral.sh/uv/getting-started/installation/)). In a terminal:
 
 ```bash
-uv python install 3.13
-uv python find 3.13        # prints the path to that Python
+uv python install
+uv python find --no-project     # prints the path to that Python
 ```
 
 Then point Stata at the path that `uv python find` printed, as described in Stata's own
