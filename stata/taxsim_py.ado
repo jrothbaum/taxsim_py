@@ -1,4 +1,15 @@
-*! taxsim_py 0.2.0  NBER TAXSIM-compatible tax calculations through the taxsim-py Python package
+*! taxsim_py - NBER TAXSIM-compatible tax calculations through the taxsim-py Python package
+*! Version 0.4.1 - Statutory law is now the default; the new backwards_compatible option reproduces
+*!                 TAXSIM (it replaces the statutory option, which is removed). Statutory results use
+*!                 the compiled engine unless full is given. Detailed output v42 is now reported
+*!                 in statutory mode. Adds the Stata documentation page; a versionless
+*!                 taxsim_py-stata.zip on every release gives a permanent link to the latest.
+*!         0.4.0 - Statutory calculations run in a compiled engine: several times faster and in far
+*!                 less memory. TAXSIM mode and full still use the Python engine.
+*!         0.3.0 - Statutory mode corrects the apparent TAXSIM errors found against the tax forms and
+*!                 instructions (see the TAXSIM errors and corrections page); parameters updated.
+*!         0.2.0 - First Stata release: taxsim35's inputs and outputs, including full and marginal
+*!                 rates, and taxsim_py install to create a Python environment for taxsim-py with uv
 // Calculations run in Stata's Python (Stata 16+), which the user points at an environment
 // with taxsim-py installed; taxsim_py install creates one with uv. Every external program also
 // runs through Stata's Python, never shell, so batch mode works on every system.
