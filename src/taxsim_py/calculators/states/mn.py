@@ -67,13 +67,15 @@ def _pieces(income: pl.Expr, pieces: list[list[float]]) -> pl.Expr:
     return expression
 
 
-def _schedule_tax(taxinc: pl.Expr, fedtax: pl.Expr, status: pl.Expr, y: int) -> pl.Expr:
+def _schedule_tax(taxinc: pl.Expr, fedtax: pl.Expr, status: pl.Expr, y: int, halve_separate: bool = True) -> pl.Expr:
     """Minnesota rate-schedule tax (`mnrate`) for a filer class."""
     p = YearParams(MN_PARAMS, y)
     is_joint = status == "married_joint"
     is_sep = status == "married_separate"
     is_hoh = status == "head_of_household"
-    sep = pl.when(is_sep).then(2.0).otherwise(1.0)
+    # The 2026 build hands the rate routine the joint code with a divisor of 1 for separate returns: the
+    # joint table, neither doubled nor halved.
+    sep = pl.when(is_sep & pl.lit(halve_separate)).then(2.0).otherwise(1.0)
 
     def by_class(tables: dict, income: pl.Expr, factor: float) -> pl.Expr:
         return (
@@ -651,6 +653,9 @@ def compute_mn_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     if y >= 2013:
         exemption_amount = p.num("exemption_amount")
         count = federal_exemption_count(y) if y <= 2018 else depx
+        if 2013 <= y <= 2018 and not behavior.allow_minnesota_personal_exemption_2013_to_2018:
+            # The build reads the exemption amount from a federal table it leaves empty for these years.
+            count = count * 0.0
         exemp = count * exemption_amount
         excess = (fed_agi - ph13).clip(0, None)
         ratio = pl.min_horizontal(
@@ -822,7 +827,7 @@ def compute_mn_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     df, (taxinc,) = checkpoint(df, mn_taxinc=taxinc.clip(0, None))
     if y <= 1986:
         taxinc = (agi - deduc - exemp).clip(0, None)
-    df, (statax,) = checkpoint(df, mn_regular_tax=_schedule_tax(taxinc, fedtax, status, y))
+    df, (statax,) = checkpoint(df, mn_regular_tax=_schedule_tax(taxinc, fedtax, status, y, behavior.double_minnesota_separate_returns))
 
     # --- Alternative minimum tax ---
     if y >= 2001:
@@ -990,6 +995,9 @@ def compute_mn_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             pcred = pl.when(renter).then(renter_refund).otherwise(_property_refund_1989plus(hhy, y))
     else:
         pcred = _property_credit_pre1989(hh, y)
+    if effective_year <= 2023 and not behavior.pay_minnesota_property_tax_refund_through_2023:
+        # The 2026 build dropped the property tax refund through 2023 ("it isn't on the M1 form").
+        pcred = pl.lit(0.0)
     pcred = pl.when(dependent_filer).then(0.0).otherwise(pcred)
     df, (chcr, pcred) = checkpoint(df, mn_chcr=chcr, mn_pcred=pcred.clip(0, None))
 

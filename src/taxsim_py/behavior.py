@@ -88,6 +88,9 @@ class BehaviorProfile:
     assign_south_carolina_business_income_to_its_earner: bool = True
     pay_vermont_telephone_credit: bool = True
     use_vermont_published_brackets: bool = True
+    pay_minnesota_property_tax_refund_through_2023: bool = True
+    double_minnesota_separate_returns: bool = True
+    allow_minnesota_personal_exemption_2013_to_2018: bool = True
     deduct_missouri_federal_tax_after_refundable_credits: bool = True
     compute_missouri_itemized_deduction_before_2018: bool = True
     step_missouri_federal_tax_deduction_share: bool = True
