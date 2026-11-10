@@ -141,6 +141,12 @@ skips would count the EITC slope twice.
 | DC | 2007 | | The married-couple split uses the 2006 rates | Statutory, DC-004: 2007 rates. `use_current_rates_in_dc_earner_split` |
 | DC | 2015 on | | The EITC child track counts any dependent (`depx > 0`), not age-qualified children; the childless investment-income test counts only interest and dividends | Statutory, DC-002: the age-qualified count `dep18` (`use_age_qualified_children_for_dc_eitc`). DC-003: positive capital gains count too (D-40 EITC checklist) (`count_capital_gains_in_dc_childless_eitc_investment_income`) |
 | HI | All | | The pension subtraction reads `data(72)`, which the input reader never sets (pensions are `data(20)`), so pensions are never excluded | Statutory, HI-003: excludes `pensions`. `exclude_hawaii_pensions` |
+| HI | through 2022 | | General, renter, excise, food, low-income and child care credits are not paid beyond the tax (only from 2023) | Statutory: refundable. `pay_hawaii_credits_below_zero_tax` |
+| HI | all | | Child care counts the dependents under 13 (the build's `d(207)`), not all dependents | Statutory: all dependents. `count_all_dependents_for_hawaii_child_care` |
+| HI | 2011-2012 | | The limit on the state tax deduction starts in 2013 | Statutory: 2011. `limit_hawaii_state_tax_deduction_from_2011` |
+| HI | 2009-2015 | | The personal exemption falls continuously with AGI | Statutory: in whole steps. `round_up_phaseout_steps` |
+| HI | all | | The alternative capital gains tax uses the long-term gain input before any federal exclusion | Statutory: gains in AGI. `tax_hawaii_gains_net_of_federal_exclusion` |
+| HI | 2018 on | | Itemized deductions add back state and local taxes over the federal cap | Both modes |
 | IA | 2010 | | The 2010 joint caps (the pre-2009 federal limits) are tested against one more child than intended. The 2024 build also capped the credit in every year 1990-2021; the 2026 build caps 2010 joint returns only | Statutory, IA-001: caps in 2010 only, $16,590, $38,665 and $43,493 for 0, 1 and 2+ children. `apply_iowa_eitc_caps_as_in_2010_law` |
 | IL | 2000-2002 | | The EITC limit subtracts the property tax credit twice | Statutory, IL-002: once. `subtract_illinois_property_credit_once_in_eitc_limit` |
 | IL | 2017 on | | The exemption is allowed at any income | Statutory, IL-001: none above $250,000 ($500,000 joint) (35 ILCS 5/204(g)). `apply_illinois_exemption_income_limit` |

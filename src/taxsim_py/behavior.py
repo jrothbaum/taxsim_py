@@ -132,6 +132,10 @@ class BehaviorProfile:
     pay_maryland_refundable_eitc_only_above_tax: bool = True
     split_iowa_joint_income_by_wages_only: bool = True
     deduct_colorado_federal_tax_after_1977: bool = True
+    pay_hawaii_credits_below_zero_tax: bool = True
+    count_all_dependents_for_hawaii_child_care: bool = True
+    limit_hawaii_state_tax_deduction_from_2011: bool = True
+    tax_hawaii_gains_net_of_federal_exclusion: bool = True
     use_colorado_itemized_deductions_before_1987: bool = True
     phase_out_connecticut_exemption_per_statute: bool = True
     use_connecticut_personal_credit_table_per_statute: bool = True

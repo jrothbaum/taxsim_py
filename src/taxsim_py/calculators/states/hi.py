@@ -50,8 +50,12 @@ def compute_hi_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             .when(files_head_of_household()).then(ph["multiplier_hoh"] * base)
             .otherwise(ph["multiplier_married"] * base / pl.col("hi_sep"))
         )
-        ln6 = (1.0 + (pl.col("hi_agi") - phex) / (step / pl.col("hi_sep"))).floor()
-        phased = pl.col("hi_exema") - pl.col("hi_exema") * ph["share_per_step"] * ln6
+        if behavior.round_up_phaseout_steps:
+            ln6 = (1.0 + (pl.col("hi_agi") - phex) / (step / pl.col("hi_sep"))).floor()
+        else:
+            # TAXSIM lets the exemption fall continuously with AGI.
+            ln6 = (pl.col("hi_agi") - phex) / (step / pl.col("hi_sep"))
+        phased = (pl.col("hi_exema") - pl.col("hi_exema") * ph["share_per_step"] * ln6).clip(0, None)
         df = df.with_columns(hi_exemp=pl.when(pl.col("hi_agi") > phex).then(phased).otherwise(pl.col("hi_exemp")))
     # Dependent filers claim no exemptions (the disability exemption needs
     # an input TAXSIM does not take).
@@ -79,10 +83,17 @@ def compute_hi_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         )
         df = df.with_columns(hi_xitded=pl.col("hi_raw_itemized"))
     else:
-        df = df.with_columns(hi_raw_itemized=pl.col("salt_capped") + pl.col("mortgage"))
+        raw = pl.col("salt_capped") + pl.col("mortgage")
+        if effective_year >= 2018:
+            # Hawaii does not cap the state and local tax deduction as the federal return does.
+            over_cap = (
+                pl.col("state_sales_or_income_tax_ded") + pl.col("original_proptax") - p.num("federal_salt_cap") / pl.col("hi_sep")
+            ).clip(0, None)
+            raw = raw + over_cap
+        df = df.with_columns(hi_raw_itemized=raw)
         df = df.with_columns(hi_xitded=pl.col("hi_raw_itemized"))
 
-    if p.in_effect("state_tax_deduction_agi_limit"):
+    if p.in_effect("state_tax_deduction_agi_limit") and (effective_year >= 2013 or behavior.limit_hawaii_state_tax_deduction_from_2011):
         limits = p.value("state_tax_deduction_agi_limit")
         salt_thr = (
             pl.when(files_head_of_household())
@@ -168,6 +179,9 @@ def compute_hi_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     # --- Capital gains alternative tax, on capital gains in federal AGI
     # (net of the federal long-term exclusion through 1986) ---
     capgn = pl.col("pre1987_capgn") if effective_year <= 1986 else federal_capital_gain_in_agi(year, flate)
+    if not behavior.tax_hawaii_gains_net_of_federal_exclusion:
+        # TAXSIM taxes the long-term gain input, limited to the net gain, before any federal exclusion.
+        capgn = pl.min_horizontal(pl.col("ltcg"), pl.col("stcg") + pl.col("ltcg"))
     has_gain = capgn.clip(0, None) > 0
     brack = pl.when(is_hoh).then(float(p["capital_gains_floor_hoh"])).otherwise(
         p["capital_gains_floor_per_taxpayer"] * pl.col("hi_taxpayers")
@@ -187,7 +201,9 @@ def compute_hi_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     # Child/Dependent Care Credit.
     cap_per_dep = p.num("child_care_credit_cap_per_dependent")
     max_deps = float(p["child_care_credit_max_dependents"])
-    child = pl.min_horizontal(pl.col("childcare"), cap_per_dep * pl.min_horizontal(pl.col("depx"), max_deps))
+    # TAXSIM counts the dependents under 13 (the build's `d(207)`).
+    care_dependents = pl.col("depx") if behavior.count_all_dependents_for_hawaii_child_care else pl.col("dep13")
+    child = pl.min_horizontal(pl.col("childcare"), cap_per_dep * pl.min_horizontal(care_dependents, max_deps))
     child = pl.when(is_joint).then(pl.min_horizontal(child, pl.col("pwages"), pl.col("swages"))).otherwise(child)
     c = p.value("child_care_credit_rate")
     chr_rate = 0.01 * pl.max_horizontal(
@@ -255,7 +271,11 @@ def compute_hi_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         hi_credit=pl.col("hi_gencr") + pl.col("hi_rcred") + pl.col("hi_exc") + pl.col("hi_foodcr")
         + pl.col("hi_chcr") + pl.col("hi_lowcr")
     )
-    df = df.with_columns(hi_statax=pl.col("hi_statax") - pl.col("hi_credit"))
+    if behavior.pay_hawaii_credits_below_zero_tax or effective_year >= 2023:
+        df = df.with_columns(hi_statax=pl.col("hi_statax") - pl.col("hi_credit"))
+    else:
+        # TAXSIM does not pay these credits beyond the tax.
+        df = df.with_columns(hi_statax=(pl.col("hi_statax") - pl.col("hi_credit")).clip(0, None))
 
     # --- Earned income credit ---
     if p.in_effect("eitc_federal_share"):
