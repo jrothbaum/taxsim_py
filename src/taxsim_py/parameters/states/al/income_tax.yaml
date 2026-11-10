@@ -45,6 +45,23 @@ standard_deduction_steps:
     married_joint: {minimum: 5000, maximum: 8500, threshold: 25500, increment: 500, reduction: 175}
     married_separate: {minimum: 2500, maximum: 4250, threshold: 12750, increment: 500, reduction: 88}
 
+# TAXSIM's standard deduction from 2007: a line from the maximum at `start` to the minimum at `end` (joint returns carry
+# a minimum of $4,001 through 2021).
+taxsim_standard_deduction:
+  single:
+    2007: {start: 20500, end: 30000, maximum: 2500, minimum: 2000}
+    2019: {start: 23500, end: 33000, maximum: 2500, minimum: 2000}
+    2022: {start: 26000, end: 35500, maximum: 3000, minimum: 2500}
+  married_joint:
+    2007: {start: 20500, end: 30000, maximum: 7500, minimum: 4001}
+    2019: {start: 23500, end: 33000, maximum: 7500, minimum: 4001}
+    2022: {start: 26000, end: 35500, maximum: 8500, minimum: 5000}
+  head_of_household:
+    2007: {start: 20500, end: 30000, maximum: 4700, minimum: 2000}
+    2019: {start: 23500, end: 33000, maximum: 4700, minimum: 2000}
+    2022: {start: 23500, end: 33000, maximum: 5200, minimum: 2500}
+    2023: {start: 26000, end: 35500, maximum: 5200, minimum: 2500}
+
 # --- Exemptions ---
 personal_exemption:
   joint_or_hoh: 3000
@@ -54,6 +71,9 @@ dependent_exemption_flat: {1977: 300, 2007: null}
 # up to the second, `low` above. Through 2021 TAXSIM moves linearly between
 # the amounts; from 2022 they are steps. Act 2022-297 raised the first
 # breakpoint.
+# TAXSIM's breakpoints for the dependent exemption (the first range falls from the high to the middle amount, the second
+# to nothing).
+taxsim_dependent_exemption_breakpoints: {2007: [20000, 50000], 2021: [20000, 100000], 2022: [50000, 100000]}
 dependent_exemption_by_agi:
   2007: {high: 1000, mid: 500, low: 300, breakpoints: [20000, 100000]}
   2022: {high: 1000, mid: 500, low: 300, breakpoints: [50000, 100000]}

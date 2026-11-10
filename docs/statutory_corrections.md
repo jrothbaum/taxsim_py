@@ -121,6 +121,12 @@ skips would count the EITC slope twice.
 | State | Years | Line | What TAXSIM does | taxsim-py |
 |:--|:--|:--|:--|:--|
 | AL | 2013 on | | The payroll-tax itemized deduction takes half of FICA and then adds the employee-only Additional Medicare tax, which TAXSIM's FICA total already includes, counting it 1.5 times | Statutory, AL-001: counted once. `count_additional_medicare_once_in_alabama_fica_deduction` |
+| AL | 1982 on | | The itemized payroll tax deduction is the taxpayer's own payroll taxes (`c(190)`), not half of the reported total | Statutory: half of FICA. `deduct_half_of_fica_in_alabama_itemized_deduction` |
+| AL | 1977-1981 | | The itemized deduction includes other itemized deductions | Both modes |
+| AL | 2009-2010, 2020 | | The federal tax deduction is net of the Making Work Pay credit (2009-2010) and the recovery rebate (2020) | Statutory: before them. `deduct_alabama_federal_tax_before_stimulus_credits` |
+| AL | 2007 on | | The dependent exemption falls from $1,000 to $500 over the first AGI range, then to nothing over the second, then $300 | Statutory: published steps. `step_alabama_dependent_exemption_per_statute` |
+| AL | 2007 on | | The standard deduction falls linearly between two incomes (a separate return halves the single table; joint returns carry a $4,001 minimum through 2021) | Statutory: published. `step_alabama_standard_deduction_per_statute` |
+| AL | 2022 | | The retirement income exemption starts in 2023 | Statutory: 2022. `exempt_alabama_retirement_income_in_2022` |
 | AR | 2004 | | A chain of year tests checks 2002 twice, so 2004 uses the 1977 thresholds ($3,000, $6,000, $9,000, $15,000, $25,000). $20,000 of taxable income gives $780.00 instead of $721.50 (before the 3% surcharge) | Both modes: $3,400, $6,800, $10,300, $17,100, $28,500 ([DFA 2004 Indexed Tax Brackets](https://dfa.arkansas.gov/wp-content/uploads/2004brackets.pdf)) |
 | AZ | 1998 on | 1139 | The family income credit caps dependents at 4, so the $26,575 limit for five or more (A.R.S. 43-1073) is never used. A 2010 head of household with 5 dependents and $26,000 of wages loses $240 | Both modes: the statute's limits |
 | AZ | All | | The senior property tax credit's income test includes Social Security (which TAXSIM's household income includes), and the credit is not limited to tax paid | Statutory, AZ-001: Social Security excluded and the credit limited to property tax paid (A.R.S. 43-1072). `limit_arizona_property_credit_per_statute` |

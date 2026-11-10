@@ -4,7 +4,7 @@ import polars as pl
 
 from taxsim_py.engine.brackets import bracket_rate, bracket_tax
 from taxsim_py.engine.inputs import aged_count, files_head_of_household, files_joint, files_single, separate_divisor, taxpayer_count
-from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml
+from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml, resolve_year
 from taxsim_py.engine.state import by_filing_status, dividend_exclusion_addback, federal_capital_gain_in_agi, with_state_detail
 from taxsim_py.behavior import BehaviorProfile, TAXSIM_BEHAVIOR
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
@@ -76,7 +76,7 @@ def compute_al_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         # Social Security benefits are exempt from 1984.
         - (pl.col("taxable_social_security") if effective_year >= 1984 else 0.0)
     )
-    if p.in_effect("retirement_exemption_cap"):
+    if p.in_effect("retirement_exemption_cap") and (effective_year >= 2023 or behavior.exempt_alabama_retirement_income_in_2022):
         # Retirement income exemption: up to the cap for each taxpayer 65 or older.
         cap = p.num("retirement_exemption_cap")
         df = df.with_columns(al_agi=pl.col("al_agi") - pl.min_horizontal(pl.col("pensions"), cap * aged_count()))
@@ -87,6 +87,24 @@ def compute_al_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         df = df.with_columns(
             al_stded=(float(sd["rate"]) * pl.col("al_agi")).clip(0, float(sd["cap_per_taxpayer"]) * pl.col("al_taxpayers"))
         )
+    elif not behavior.step_alabama_standard_deduction_per_statute:
+        # TAXSIM: the maximum falls linearly to the minimum between two incomes, every amount halved on a separate return
+        # (which reads the single table).
+        tab = p["taxsim_standard_deduction"]
+
+        def taxsim_field(name: str) -> pl.Expr:
+            by_status = {
+                "single": float(resolve_year(tab["single"], effective_year)[name]),
+                "married_joint": float(resolve_year(tab["married_joint"], effective_year)[name]),
+                "head_of_household": float(resolve_year(tab["head_of_household"], effective_year)[name]),
+            }
+            by_status["married_separate"] = by_status["single"]
+            return by_filing_status(by_status) / pl.col("al_sep")
+
+        start, end = taxsim_field("start"), taxsim_field("end")
+        maximum, minimum = taxsim_field("maximum"), taxsim_field("minimum")
+        reduction = pl.min_horizontal((pl.col("al_agi") - start).clip(0, None), end - start) * (maximum - minimum) / (end - start)
+        df = df.with_columns(al_stded=maximum - reduction)
     elif p.in_effect("standard_deduction_steps"):
         steps = p.value("standard_deduction_steps")
         def field(name: str) -> pl.Expr:
@@ -119,11 +137,15 @@ def compute_al_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     # Itemized deductions: mortgage interest, plus from 1982 property and
     # other taxes, half of wage FICA and self-employment tax.
     if effective_year < 1982:
-        df = df.with_columns(al_xitded_base=pl.col("mortgage"))
+        df = df.with_columns(al_xitded_base=pl.col("mortgage") + pl.col("otheritem"))
     else:
         df = df.with_columns(al_xitded_base=pl.col("mortgage") + pl.col("proptax") + pl.col("otheritem"))
 
-    if effective_year >= 1982:
+    if effective_year >= 1982 and not behavior.deduct_half_of_fica_in_alabama_itemized_deduction:
+        # TAXSIM deducts the taxpayer's own payroll taxes (`c(190)`), including all of the self-employment tax.
+        df = df.with_columns(al_fica_addback=pl.col("tfica") - pl.col("al_setax"))
+        df = df.with_columns(al_xitded=(pl.col("al_xitded_base") + pl.col("al_fica_addback") + pl.col("al_setax")).clip(0, None))
+    elif effective_year >= 1982:
         if behavior.count_additional_medicare_once_in_alabama_fica_deduction:
             # Additional Medicare tax is employee-only and already in `fica` once.
             df = df.with_columns(
@@ -147,9 +169,13 @@ def compute_al_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     else:
         # Tax after nonrefundable credits, plus NIIT, less the EITC and
         # refundable child credit.
+        credit_after_tax = pl.col("eitc") + pl.col("actc")
+        if not behavior.deduct_alabama_federal_tax_before_stimulus_credits:
+            # TAXSIM's federal tax (`c(1)`) is already net of the Making Work Pay credit and the 2020 recovery rebate.
+            credit_after_tax = credit_after_tax + pl.col("making_work_pay") + (pl.col("cares") if effective_year == 2020 else 0.0)
         df = df.with_columns(
             al_fedtax=(
-                pl.col("tax_before_credits") - pl.col("nonrefundable_credits") - pl.col("eitc") - pl.col("actc") + pl.col("niit")
+                pl.col("tax_before_credits") - pl.col("nonrefundable_credits") - credit_after_tax + pl.col("niit")
             ).clip(0, None)
         )
 
@@ -167,7 +193,17 @@ def compute_al_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         dx = p.value("dependent_exemption_by_agi")
         high, mid, low = float(dx["high"]), float(dx["mid"]), float(dx["low"])
         bp1, bp2 = (float(b) for b in dx["breakpoints"])
-        if effective_year >= 2022:
+        if not behavior.step_alabama_dependent_exemption_per_statute:
+            # TAXSIM: down from $1,000 to $500 over the first range, then to nothing over the second, then $300.
+            first, second = (float(b) for b in p.value("taxsim_dependent_exemption_breakpoints"))
+            agi = pl.col("al_agi")
+            amount = (
+                pl.when(agi <= first).then(high - agi / first * mid)
+                .when(agi <= second).then(mid * (1.0 - (agi - first) / (second - first)))
+                .otherwise(low)
+            )
+            df = df.with_columns(al_dep_exemp=amount.clip(0, None) * pl.col("depx"))
+        elif effective_year >= 2022:
             step = pl.when(pl.col("al_agi") >= bp2).then(low).when(pl.col("al_agi") >= bp1).then(mid).otherwise(high)
             df = df.with_columns(al_dep_exemp=step * pl.col("depx"))
         else:

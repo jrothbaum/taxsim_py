@@ -60,6 +60,11 @@ class BehaviorProfile:
     pay_california_yctc_per_young_child: bool = False
     apply_state_childless_eitc_minimum_age: bool = True
     count_additional_medicare_once_in_alabama_fica_deduction: bool = True
+    deduct_half_of_fica_in_alabama_itemized_deduction: bool = True
+    deduct_alabama_federal_tax_before_stimulus_credits: bool = True
+    step_alabama_dependent_exemption_per_statute: bool = True
+    step_alabama_standard_deduction_per_statute: bool = True
+    exempt_alabama_retirement_income_in_2022: bool = True
     limit_arizona_property_credit_per_statute: bool = True
     ignore_federal_salt_cap_in_california: bool = True
     use_age_qualified_children_for_dc_eitc: bool = True
