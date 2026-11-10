@@ -488,6 +488,11 @@ child_tax_credit:
   2023: [[-1.0e+18, 600], [25000, 400], [50000, 200], [75001, 100], [100000, 75], [200000, 50], [350000, 25]]
   2024: [[-1.0e+18, 622], [25000, 414], [50000, 207], [75001, 103], [100000, 77], [200000, 51], [350000, 25]]
   2025: [[-1.0e+18, 637], [25000, 424], [50000, 212], [75001, 106], [100000, 79], [200000, 53], [350000, 26]]
+# TAXSIM mode: the table TAXSIM interpolates ([federal AGI, amount]) and the index
+# it scales by.
+taxsim_child_tax_credit:
+  2023: [[25000, 600], [50000, 400], [75000, 200], [100000, 100], [200000, 75], [350000, 50], [1.0e+20, 25]]
+taxsim_child_tax_credit_index: {2023: 1.0, 2024: 1.035, 2025: 1.06166}
 # Property tax rebate for taxpayers 65 or older with modified AGI up to the
 # limit: property tax (rent at the share) over an amount by income, up to a
 # maximum (halved on separate returns).

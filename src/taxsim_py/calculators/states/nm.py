@@ -215,6 +215,13 @@ def compute_nm_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         # Right-closed tiers: income at a threshold takes the lower row.
         rows = p.value("child_tax_credit")
         ctc = bracket_rate(pl.col("nm_fed_agi") - 0.005, rows) * pl.col("dep18") / sep
+        if not behavior.use_new_mexico_published_child_tax_credit:
+            # TAXSIM interpolates a six-row table of the 2023 amounts and scales it by an index.
+            ctc = (
+                interpolate_table(pl.col("nm_fed_agi") - 0.1, p.value("taxsim_child_tax_credit"))
+                * pl.col("dep18")
+                * p.num("taxsim_child_tax_credit_index")
+            )
     credit = ycred + xtra + chcr + pcred + earncr + ctc
     statax = statax - credit
 

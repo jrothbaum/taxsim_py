@@ -43,7 +43,11 @@ def state_rebate(state: int, year: int, siitax: pl.Expr, tax_before_credits: pl.
             amount = amount + pl.max_horizontal(component["per_person"] * people, component["tax_share"] * siitax)
     if "per_filer" in spec:
         per_filer = float(spec["per_filer"])
-        if "head_of_household" in spec:
+        if "married_separate" in spec:
+            amount = amount + pl.when(files_separate()).then(float(spec["married_separate"])).otherwise(
+                pl.when(files_head_of_household()).then(float(spec.get("head_of_household", per_filer))).otherwise(per_filer * filers)
+            )
+        elif "head_of_household" in spec:
             amount = amount + pl.when(files_head_of_household()).then(float(spec["head_of_household"])).otherwise(per_filer * filers)
         else:
             amount = amount + per_filer * filers

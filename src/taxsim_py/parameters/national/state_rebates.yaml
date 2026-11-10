@@ -51,3 +51,6 @@ ri:
 va:
   2022: {per_filer: 250, limit_to_tax: true}
   2025: {per_filer: 200, limit_to_tax: true}
+nm:
+  # New Mexico 2022 rebate: head of household doubles the single amount.
+  2022: {per_filer: 500, head_of_household: 1000, married_separate: 1000, agi_limit_per_filer: 75000}
