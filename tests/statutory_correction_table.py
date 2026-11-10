@@ -530,6 +530,6 @@ CASES = [
     # tax applies.
     _case(
         "OH-002", "Ohio 1988 two-earner couple", "siitax",
-        1_199.26, 1_020.85, year=1988, state=36, mstat=2, pwages=20_000, swages=20_000,
+        861.72, 1_020.85, year=1988, state=36, mstat=2, pwages=20_000, swages=20_000,
     ),
 ]

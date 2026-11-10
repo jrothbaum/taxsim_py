@@ -116,13 +116,15 @@ def compute_oh_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             p.num("senior_credit") + retcr
         ).otherwise(0.0)
     chcr = regcr
-    if y >= 2021 and p.in_effect("retirement_income_credit") and not behavior.require_age_65_for_ohio_retirement_credit:
+    if p.in_effect("retirement_income_credit") and not behavior.require_age_65_for_ohio_retirement_credit:
         # TAXSIM pays the retirement income credit at any age, from pensions less a cent.
         retcr_any_age = interpolate_table((pl.col("pensions") - 0.01), p.value("retirement_income_credit"))
-        retcr_any_age = retcr_any_age.clip(None, p.num("retirement_income_credit_cap"))
+        if p.in_effect("retirement_income_credit_cap"):
+            retcr_any_age = retcr_any_age.clip(None, p.num("retirement_income_credit_cap"))
         limit = p.num("senior_credit_taxable_income_limit")
-        retcr_any_age = pl.when(taxinc <= limit).then(retcr_any_age).otherwise(0.0)
-        senior_only = pl.when(taxinc <= limit).then(p.num("senior_credit")).otherwise(0.0)
+        within = (taxinc + businc <= limit) if y < 2021 else (taxinc <= limit)
+        retcr_any_age = pl.when(within).then(retcr_any_age).otherwise(0.0)
+        senior_only = pl.when(within).then(p.num("senior_credit")).otherwise(0.0)
         regcr = regcr + pl.when(aged > 0).then(senior_only).otherwise(0.0) + retcr_any_age
     else:
         regcr = regcr + pl.when(aged > 0).then(senior).otherwise(0.0)
@@ -183,7 +185,13 @@ def compute_oh_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             )
         else:
             # TAXSIM subtracts the credit again from whichever method wins.
-            statax = (pl.when(stax2 < stax1).then(stax2).otherwise(method1) - excred).clip(0, None)
+            # It also applies the joint credit to method 1 a second time, and compares method 2
+            # with the once-credited method 1.
+            twice = _joint_credit(method1, taxinc, businc, p, joint_eligible)
+            statax = (pl.when(stax2 < method1).then(stax2).otherwise(twice) - excred).clip(0, None)
+            rate = pl.when(stax2 < method1).then(bracket_rate(taxinc, brackets)).otherwise(
+                bracket_rate((taxinc - dedy).clip(0, None), brackets)
+            )
     else:
         statax = bracket_tax(taxinc, brackets)
         rate = bracket_rate(taxinc, brackets)
