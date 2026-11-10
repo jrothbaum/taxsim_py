@@ -425,6 +425,34 @@ low_income_rebate:
 # From 2022: step schedules for 1..6 persons (one list each), [income, rebate]
 # from the threshold up. Source: PolicyEngine-US
 # gov.states.nm.tax.income.rebates.low_income.
+# TAXSIM's 2022-2023 low income comprehensive tax rebate: [income, amount for 1..6 exemptions]
+# interpolated at income less a cent, times `taxsim_low_income_rebate_inflation`.
+taxsim_low_income_rebate:
+  - [1001, 195, 260, 325, 390, 455, 520]
+  - [1501, 220, 315, 405, 505, 570, 675]
+  - [2501, 220, 315, 405, 505, 570, 705]
+  - [7501, 220, 315, 405, 505, 570, 730]
+  - [8001, 205, 310, 390, 495, 575, 730]
+  - [9001, 185, 285, 375, 480, 575, 700]
+  - [10001, 170, 250, 340, 425, 510, 665]
+  - [11501, 145, 210, 275, 360, 445, 600]
+  - [13001, 130, 185, 235, 295, 365, 480]
+  - [14501, 115, 170, 220, 275, 315, 390]
+  - [16501, 105, 155, 185, 235, 285, 335]
+  - [18001, 100, 130, 165, 210, 250, 300]
+  - [19501, 90, 115, 145, 180, 220, 260]
+  - [21001, 80, 105, 140, 165, 185, 230]
+  - [23001, 80, 105, 140, 165, 185, 230]
+  - [24501, 75, 100, 120, 145, 170, 195]
+  - [26001, 65, 90, 115, 140, 155, 180]
+  - [27501, 55, 80, 105, 130, 140, 170]
+  - [29501, 50, 75, 100, 115, 130, 155]
+  - [31001, 40, 55, 80, 100, 115, 130]
+  - [32501, 35, 50, 65, 80, 100, 105]
+  - [34001, 25, 40, 50, 65, 80, 90]
+  - [36001, 15, 35, 40, 55, 65, 75]
+  - [100000000, 0, 0, 0, 0, 0, 0]
+taxsim_low_income_rebate_inflation: {2022: 1.0, 2023: 1.042, 2024: null}
 low_income_rebate_steps:
   2022:
     - [[0, 195], [1000, 220], [7500, 205], [8000, 185], [9000, 170], [10000, 145], [11500, 130], [13000, 115], [14500, 105], [16500, 100], [18000, 90], [19500, 80], [23000, 75], [24500, 65], [26000, 55], [27500, 50], [29500, 40], [31000, 35], [32500, 25], [34000, 15], [36000, 0]]
@@ -481,6 +509,8 @@ child_care_income_limit:
   2009: 30160
 # Earned income credit: a share of the federal credit.
 eitc_match_rate: {1977: 0.0, 2007: 0.08, 2008: 0.1, 2019: 0.17, 2021: 0.2, 2023: 0.25}
+# The TAXSIM build pays 20% from 2019.
+taxsim_eitc_match_rate: {2019: 0.2, 2023: 0.25}
 # From 2023, child tax credit per child by federal AGI ([AGI above, amount];
 # the tier at a threshold belongs to the lower row), halved on separate
 # returns. Source: PolicyEngine-US gov.states.nm.tax.income.credits.ctc.

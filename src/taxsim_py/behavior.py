@@ -64,6 +64,9 @@ class BehaviorProfile:
     allow_kansas_itemizing_after_2020: bool = True
     apply_kentucky_pension_cap_per_taxpayer: bool = True
     compute_louisiana_tax_per_statute: bool = True
+    compute_new_mexico_deductions_per_statute: bool = True
+    use_new_mexico_low_income_rebate_per_statute: bool = True
+    use_new_mexico_working_families_rates_per_statute: bool = True
     use_new_york_household_credit_table_1990_2016: bool = True
     pay_new_jersey_renter_credit_per_statute: bool = True
     compute_new_jersey_tax_per_statute: bool = True

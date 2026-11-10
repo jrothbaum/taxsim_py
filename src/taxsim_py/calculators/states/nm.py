@@ -10,7 +10,7 @@ from taxsim_py.calculators.federal_pre1987 import PRE1987_PARAMS
 from taxsim_py.engine.brackets import bracket_rate, bracket_tax
 from taxsim_py.engine.inputs import aged_count, federal_exemption_count, files_head_of_household, files_joint, files_separate, files_single, is_dependent_filer, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml, resolve_year
-from taxsim_py.engine.state import by_filing_status, checkpoint, household_income, interpolate_table, unemployment_total, itemize_choice, with_state_detail, dividend_input_adjustment
+from taxsim_py.engine.state import by_filing_status, checkpoint, federal_zero_bracket, household_income, interpolate_table, unemployment_total, itemize_choice, with_state_detail, dividend_input_adjustment
 from taxsim_py.behavior import BehaviorProfile, TAXSIM_BEHAVIOR
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
@@ -139,6 +139,16 @@ def compute_nm_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         stded = by_filing_status(p.value("standard_deduction"))
     else:
         stded = fed_zbr
+    if y >= 1987 and not behavior.compute_new_mexico_deductions_per_statute:
+        # TAXSIM follows the NM line 10 worksheet for the state tax share of the capped SALT
+        # deduction, and keeps the federal standard deduction even when the federal return itemizes.
+        state_and_property = salt_ded + pl.col("proptax")
+        income_share = pl.when(state_and_property > 0).then(salt_ded / state_and_property).otherwise(0.0)
+        capped = pl.min_horizontal(state_and_property, 10_000.0 / sep)
+        removed = pl.min_horizontal(capped * income_share, fed_deduc.clip(0, None))
+        xitded = pl.when(fed_itemizes).then(fed_deduc - removed).otherwise(0.0)
+        if 1991 <= y <= 2024:
+            stded = federal_zero_bracket()
     df, (deduc, xitded, stded) = checkpoint(
         df,
         nm_deduc=pl.max_horizontal(xitded, stded),
@@ -174,7 +184,11 @@ def compute_nm_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         ncred = (ncred + aged).clip(None, 6)
     ycred = pl.lit(0.0)
     for size in range(1, 7):
-        if p.in_effect("low_income_rebate_steps"):
+        if y in (2022, 2023) and not behavior.use_new_mexico_low_income_rebate_per_statute:
+            inflation = p.num("taxsim_low_income_rebate_inflation")
+            rows = [[float(row[0]), float(row[size])] for row in p["taxsim_low_income_rebate"]]
+            lookup = inflation * interpolate_table(modagi - 0.01, rows)
+        elif p.in_effect("low_income_rebate_steps"):
             table = [[float(a), float(b)] for a, b in p.value("low_income_rebate_steps")[size - 1]]
             lookup = bracket_rate(modagi, table)
         else:
@@ -203,7 +217,10 @@ def compute_nm_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         chcr = pl.when(modagi < p.num("child_care_income_limit")).then(
             (pl.min_horizontal(pl.lit(float(p["child_care_credit_cap"])), expense) - fed_ccc).clip(0, None)
         ).otherwise(0.0)
-    earncr = p.num("eitc_match_rate") * pl.col("eitc")
+    match_rate = p.num("eitc_match_rate")
+    if p.in_effect("taxsim_eitc_match_rate") and not behavior.use_new_mexico_working_families_rates_per_statute:
+        match_rate = p.num("taxsim_eitc_match_rate")
+    earncr = match_rate * pl.col("eitc")
     # Property tax rebate for taxpayers 65 or older.
     ptax = pl.col("proptax") + float(p["property_rebate_rent_share"]) * pl.col("rentpaid")
     pmax = interpolate_table(modagi, p["property_rebate_threshold"])
