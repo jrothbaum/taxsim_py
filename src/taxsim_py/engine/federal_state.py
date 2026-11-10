@@ -22,7 +22,8 @@ StateCalculator = Callable[[pl.LazyFrame, int, BehaviorProfile], pl.LazyFrame]
 _SALES_TAX = "__sales_tax"
 _DEDUCTION = "state_sales_or_income_tax_ded"
 _TIE_TOLERANCE = 1e-6
-_KEYS = [_ROW, FORCE_ITEMIZE]
+_PASS = "__resolve_itemized_pass"
+_KEYS = [_ROW, _PASS]
 
 # Federal columns state calculators read that an era's federal calculator
 # does not compute; states see them as 0 (not itemizing).
@@ -150,12 +151,22 @@ def _resolve_federal_and_state(
     base = raw_df.with_row_index(_ROW)
     if _DEDUCTION not in base.columns:
         base = base.with_columns(pl.lit(0.0).alias(_DEDUCTION))
+    if "charity_cash" not in base.columns:
+        base = base.with_columns(charity_cash=pl.lit(0.0))
     standard = base.with_columns(pl.lit(False).alias(FORCE_ITEMIZE))
     if not behavior.keep_itemized_inputs_when_taking_standard_deduction:
-        # The 2026 TAXSIM build zeroes the itemized inputs on its standard-deduction pass,
-        # so the state calculation sees no property tax, mortgage interest or other items.
-        standard = standard.with_columns(proptax=pl.lit(0.0), mortgage=pl.lit(0.0), otheritem=pl.lit(0.0))
-    stacked = pl.concat([base.with_columns(pl.lit(True).alias(FORCE_ITEMIZE)), standard])
+        # The 2026 TAXSIM build zeroes the itemized inputs on its standard-deduction pass, so the
+        # state calculation sees no property tax, mortgage interest or other items. It does not
+        # force the standard deduction: the state income tax it refills as it iterates is still
+        # deducted when larger (the natural choice).
+        standard = standard.with_columns(
+            proptax=pl.lit(0.0), mortgage=pl.lit(0.0), otheritem=pl.lit(0.0), charity_cash=pl.lit(0.0),
+            **{FORCE_ITEMIZE: pl.lit(None, dtype=pl.Boolean)},
+        )
+    stacked = pl.concat(
+        [base.with_columns(pl.lit(True).alias(FORCE_ITEMIZE), pl.lit(True).alias(_PASS)), standard.with_columns(pl.lit(False).alias(_PASS))],
+        how="diagonal_relaxed",
+    )
 
     current = stacked
     for _ in range(ITERATIONS - 1):
@@ -205,14 +216,14 @@ def _resolve_federal_and_state(
         if result_columns is not None:
             out = out.select(*_KEYS, *result_columns)
 
-    itemized = out.filter(pl.col(FORCE_ITEMIZE)).sort(_ROW)
-    standard = out.filter(~pl.col(FORCE_ITEMIZE)).sort(_ROW)
+    itemized = out.filter(pl.col(_PASS)).sort(_ROW)
+    standard = out.filter(~pl.col(_PASS)).sort(_ROW)
     # Ties (to round-off) go to the standard deduction, as in TAXSIM.
     itemize_wins = (
         (itemized.get_column("fiitax") + itemized.get_column("siitax"))
         < (standard.get_column("fiitax") + standard.get_column("siitax")) - _TIE_TOLERANCE
     )
-    columns = [c for c in itemized.columns if c not in _KEYS]
+    columns = [c for c in itemized.columns if c not in (*_KEYS, FORCE_ITEMIZE)]
     return pl.DataFrame(
         {col: itemized.get_column(col).zip_with(itemize_wins, standard.get_column(col)) for col in columns}
     )

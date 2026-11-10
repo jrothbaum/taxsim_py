@@ -419,11 +419,11 @@ CASES = [
     # own business income.
     _case(
         "SC-001", "South Carolina 1983 head of household", "siitax",
-        220.20, 215.0, year=1983, state=41, depx=1, dep13=1, dep17=1, dep18=1, pwages=12_000, childcare=3_000,
+        209.74, 215.0, year=1983, state=41, depx=1, dep13=1, dep17=1, dep18=1, pwages=12_000, childcare=3_000,
     ),
     _case(
         "FED-PAYROLL-005", "South Carolina 2019 couple with spouse business income", "siitax",
-        293.32, 1_928.83, year=2019, state=41, mstat=2, pwages=40_000, sbusinc=30_000,
+        293.32, 1_936.25, year=2019, state=41, mstat=2, pwages=40_000, sbusinc=30_000,
     ),
     _case(
         "FED-PAYROLL-005", "Virginia 2010 couple with spouse business income", "siitax",

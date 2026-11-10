@@ -6,6 +6,7 @@ from taxsim_py.engine.brackets import bracket_rate, bracket_tax, scale_brackets
 from taxsim_py.engine.inputs import aged_count, federal_exemption_count, files_head_of_household, files_joint, files_separate, files_single, is_dependent_filer
 from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml
 from taxsim_py.engine.state import (
+    tier_values,
     phaseout_steps,
     checkpoint,
     household_income,
@@ -103,11 +104,24 @@ def compute_vt_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             if not behavior.use_vermont_capital_gain_exclusion_options:
                 # TAXSIM excludes only the smaller of the long-term gain and the flat amount.
                 dedg = pl.min_horizontal(pl.col("ltcg").clip(0, None), p.num("capital_gain_exclusion_floor"))
+            if y <= 2021 and not behavior.use_vermont_capital_gain_exclusion_options:
+                # 2018-21: 40% of the long-term gain plus the short-term gain (a sign slip), at most 40% of
+                # federal taxable income and $350,000.
+                dedp = 0.4 * (pl.col("ltcg") + pl.col("stcg")).clip(0, None)
+                dedg = pl.min_horizontal(share * fti, dedp, pl.lit(350000.0)).clip(0, None)
             # Taxable Social Security is exempt, phased out above an AGI start.
             ss = pl.col("taxable_social_security")
             starts = p.value("social_security_exemption_start")
             phb = pl.when(is_joint).then(float(starts["married_joint"])).otherwise(float(starts["other"]))
             exssb = ss - ((fed_agi - phb).clip(0, None) / p["social_security_exemption_range"]).clip(None, 1.0) * ss
+            if not behavior.use_vermont_published_standard_deductions:
+                # TAXSIM's `ceil` does not round, so the exempt share comes out a half point low
+                # (2022 on: rounded to the nearest point afterwards).
+                exempt_share = ((phb - fed_agi) / p["social_security_exemption_range"]).clip(0, 1)
+                points = exempt_share * 100.0 - 0.5 if not behavior.round_up_phaseout_steps else (exempt_share * 100.0 - 0.5).ceil()
+                if y >= 2022:
+                    points = points.round(0)
+                exssb = points / 100.0 * ss
             agi = fed_agi - dedg - exssb
             # The federal exemption count is deflated in projected years.
             exemps = federal_exemption_count(y) / flate
@@ -125,6 +139,8 @@ def compute_vt_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         df, (taxinc,) = checkpoint(df, vt_taxinc=taxinc)
         tables = p.value("brackets")
         index = p.num("bracket_index")
+        if p.in_effect("taxsim_bracket_inflation") and not behavior.use_vermont_published_brackets:
+            tables, index = VT_PARAMS["brackets"][2018], p.num("taxsim_bracket_inflation")
         statax = (
             pl.when(is_single).then(bracket_tax(taxinc, scale_brackets(tables["single"], index)))
             .when(is_hoh).then(bracket_tax(taxinc, scale_brackets(tables["head_of_household"], index)))
@@ -135,6 +151,18 @@ def compute_vt_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             .when(is_hoh).then(bracket_rate(taxinc, scale_brackets(tables["head_of_household"], index)))
             .otherwise(bracket_rate(taxinc * sep, scale_brackets(tables["married"], index)))
         )
+        if p.in_effect("taxsim_tax_table") and not behavior.use_vermont_published_brackets:
+            t = p.value("taxsim_tax_table")
+
+            def tminus(table: list, income: pl.Expr) -> tuple[pl.Expr, pl.Expr]:
+                rate_pct, subtract = tier_values(income, [float(r[0]) for r in table], [float(r[1]) for r in table], [float(r[2]) for r in table], strict=True)
+                return income * rate_pct / 100.0 - subtract, rate_pct / 100.0
+
+            single_tax, single_rate = tminus(t["single"], taxinc)
+            hoh_tax, hoh_rate = tminus(t["head_of_household"], taxinc)
+            joint_tax, joint_rate = tminus(t["married"], taxinc * sep)
+            statax = pl.when(is_single).then(single_tax).when(is_hoh).then(hoh_tax).otherwise(joint_tax / sep)
+            rate = pl.when(is_single).then(single_rate).when(is_hoh).then(hoh_rate).otherwise(joint_rate)
         if p.in_effect("minimum_tax_share"):
             statax = pl.when(fed_agi > p["minimum_tax_agi"]).then(
                 pl.max_horizontal(statax, p.num("minimum_tax_share") * fed_agi)
@@ -175,7 +203,7 @@ def compute_vt_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     if p.in_effect("eitc_childless_rate"):
         earncr = pl.when(pl.col("dep17") < 1).then(p.num("eitc_childless_rate") * pl.col("eitc")).otherwise(earncr)
     telcr = pl.lit(0.0)
-    if p.in_effect("telephone_credit"):
+    if p.in_effect("telephone_credit") and behavior.pay_vermont_telephone_credit:
         aged_tel = pl.when(hh < p.num("telephone_credit_aged_income_limit")).then(p.num("telephone_credit")).otherwise(0.0)
         young_tel = pl.lit(0.0)
         if p.in_effect("telephone_credit_income_limit"):
