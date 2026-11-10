@@ -183,6 +183,9 @@ def compute_mo_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         fedtax = (
             pl.col("regular_tax") - ccc_used - pl.col("federal_elder") - pl.col("eitc") - ctc_used - pl.col("making_work_pay")
         )
+        if not behavior.deduct_missouri_federal_tax_after_refundable_credits:
+            # TAXSIM deducts tax after the nonrefundable credits only, plus the alternative minimum tax.
+            fedtax = pl.col("regular_tax") - ccc_used - pl.col("federal_elder") - ctc_used + pl.col("amt")
     fedtax = fedtax.clip(0, None)
     if p.in_effect("federal_tax_deduction_cap_per_taxpayer"):
         fedtax = pl.min_horizontal(fedtax, p.num("federal_tax_deduction_cap_per_taxpayer") * txp)

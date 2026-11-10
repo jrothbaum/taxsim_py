@@ -88,6 +88,7 @@ class BehaviorProfile:
     assign_south_carolina_business_income_to_its_earner: bool = True
     pay_vermont_telephone_credit: bool = True
     use_vermont_published_brackets: bool = True
+    deduct_missouri_federal_tax_after_refundable_credits: bool = True
     use_vermont_nonrefundable_child_care_credit_before_2003: bool = True
     pay_vermont_renter_rebate_after_1999: bool = True
     use_current_federal_standard_deduction_for_south_carolina_addback: bool = True
