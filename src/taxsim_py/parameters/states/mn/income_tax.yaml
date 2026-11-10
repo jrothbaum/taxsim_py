@@ -137,6 +137,10 @@ brackets:
     single: [[0, 0.0535], [26520, 0.068], [87110, 0.0785], [161720, 0.0985]]
     joint: [[0, 0.0535], [38770, 0.068], [154020, 0.0785], [269010, 0.0985]]
     head_of_household: [[0, 0.0535], [32650, 0.068], [131190, 0.0785], [214980, 0.0985]]
+  2021:
+    single: [[0, 0.0535], [27230, 0.068], [89440, 0.0785], [166040, 0.0985]]
+    joint: [[0, 0.0535], [39810, 0.068], [158140, 0.0785], [276200, 0.0985]]
+    head_of_household: [[0, 0.0535], [33520, 0.068], [134700, 0.0785], [220730, 0.0985]]
   2022:
     single: [[0, 0.0535], [28080, 0.068], [92230, 0.0785], [171220, 0.0985]]
     joint: [[0, 0.0535], [41050, 0.068], [163060, 0.0785], [284810, 0.0985]]
@@ -193,7 +197,7 @@ bracket_inflation:
   2018: 1.067
   2019: 1.0
   2020: 1.0165
-  2021: 1.0267722
+  2021: 1.0
   2022: 1.0
 # Multiplier on the tax through 1983.
 surtax: {1977: 1.0, 1982: 1.07, 1983: 1.1, 1984: null}
@@ -512,6 +516,8 @@ federal_joint_standard_deduction:
 # `phaseout_inflation` and the status multiplier; itemized deductions by
 # `itemized_phaseout_rate` of the excess, at most `itemized_phaseout_max_share`.
 phaseout_threshold_base: {2013: 100000}
+# TAXSIM's 2018-2022 start for the limit on itemized deductions and the 2019-2022 standard deduction reduction.
+taxsim_deduction_reduction_start: {2018: 190050, 2019: 194650, 2020: 197850, 2021: 199850, 2022: 206050, 2023: null}
 phaseout_inflation:
   2013: 1.7815
   2014: 1.8115
@@ -737,6 +743,8 @@ marriage_credit_min_taxable_income:
   2019: 39000
   2020: 40000
 marriage_credit_self_employment_share: {1999: 0.5}
+# TAXSIM's share of each spouse's business income (the net earnings factor) in the marriage credit's earnings.
+taxsim_marriage_credit_business_share: {1999: 0.9235}
 marriage_credit_self_employment_tax_share: {1999: 0.5}
 marriage_credit_standard_deduction_share: {1999: 0.5}
 marriage_credit_lower_earner_deduction: {2018: 10650, 2019: 12200}
@@ -1271,6 +1279,18 @@ child_care_credit_max:
   two_or_more: {1977: 300, 1981: 800, 1983: 960, 1984: 1440, 2017: 1200}
 child_care_share_of_federal: {1977: 0.5, 1981: 1.0, 1982: 0.2, 1984: 1.0}
 child_care_phaseout_rate: {1977: 0.05, 1983: 0.052, 2017: 0.05}
+# TAXSIM pays the whole credit for AGI up to this far above `child_care_phaseout_start`, 2017 on.
+taxsim_child_care_full_credit_range: {2017: 50000}
+# TAXSIM's 2021 on credit (a rate falling with AGI on the expenses of children under 13).
+taxsim_child_care_credit_expense_based:
+  2021:
+    expense_per_child: 3000
+    rate_top: 0.35
+    rate_floor: 0.20
+    rate_decrement: 0.01
+    rate_step_start: 15000
+    rate_step: 2000
+    limited_credit_per_child: 600
 # 2013: Minnesota's own computation on expenses.
 child_care_expense_credit:
   2013:

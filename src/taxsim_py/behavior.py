@@ -130,6 +130,13 @@ class BehaviorProfile:
     add_back_iowa_self_employment_tax_twice: bool = True
     reduce_iowa_single_tax_before_2017: bool = True
     double_minnesota_separate_returns: bool = True
+    read_minnesota_child_care_from_federal_credit: bool = True
+    subtract_minnesota_elderly_and_charity_from_income: bool = True
+    compute_minnesota_marriage_credit_earnings_per_statute: bool = True
+    treat_minnesota_other_itemized_as_state_tax_2018_2019: bool = True
+    count_unknown_ages_as_eligible_for_minnesota_childless_credit: bool = True
+    reduce_minnesota_deductions_per_statute: bool = True
+    compute_minnesota_child_care_credit_from_2021_per_statute: bool = True
     allow_minnesota_personal_exemption_2013_to_2018: bool = True
     deduct_missouri_federal_tax_after_refundable_credits: bool = True
     compute_missouri_itemized_deduction_before_2018: bool = True
@@ -261,7 +268,6 @@ FIXED_IN_2026_BUILD = frozenset(
         "deduct_massachusetts_employee_payroll_tax_per_spouse",
         "complete_new_york_1986_maximum_tax_table",
         "limit_ohio_joint_credit_to_joint_returns",
-        "use_minnesota_working_family_tables_by_children",
         "floor_montana_social_security_worksheet",
         "limit_arizona_property_credit_per_statute",
         "apply_michigan_retirement_tiers",

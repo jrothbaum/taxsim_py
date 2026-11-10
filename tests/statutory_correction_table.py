@@ -255,10 +255,11 @@ CASES = [
         2_500.0, 2_500.0, year=2019, state=24, mstat=2, depx=3, dep13=3, dep17=3, dep18=3, pwages=33_000,
     ),
     # Minnesota 2017 on: above the threshold the credit is the lesser of the
-    # federal-based credit ($400) and $600 less 5% of the excess.
+    # federal-based credit ($400) and $600 less 5% of the excess; TAXSIM pays the whole $400 within
+    # $50,000 of the threshold.
     _case(
         "MN-006", "Minnesota 2018 parent above the threshold", "state_child_and_dependent_care_credit",
-        199.50, 399.50, year=2018, state=24, depx=1, dep13=1, dep17=1, dep18=1, pwages=55_000, childcare=2_000,
+        400.0, 399.50, year=2018, state=24, depx=1, dep13=1, dep17=1, dep18=1, pwages=55_000, childcare=2_000,
     ),
     # Minnesota: a household with rent and property tax gets both refunds.
     _case(
