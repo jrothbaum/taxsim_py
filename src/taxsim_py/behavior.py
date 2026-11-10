@@ -30,6 +30,8 @@ class BehaviorProfile:
     honor_separate_and_unmarried_codes_with_dependents: bool = True
     use_published_capital_gains_thresholds: bool = True
     tax_alaska_before_1979: bool = True
+    use_vermont_published_standard_deductions: bool = True
+    use_vermont_capital_gain_exclusion_options: bool = True
     pay_pennsylvania_child_care_credit_only_from_2023: bool = True
     keep_itemized_inputs_when_taking_standard_deduction: bool = True
     use_published_dependent_standard_deduction_minimum: bool = True
@@ -162,6 +164,7 @@ FIXED_IN_2026_BUILD = frozenset(
         "add_washington_working_families_credit",
         "drop_household_income_record_adjustment",
         "apply_illinois_exemption_income_limit",
+        "require_young_child_for_california_yctc",
         "deduct_massachusetts_employee_payroll_tax_per_spouse",
         "complete_new_york_1986_maximum_tax_table",
         "limit_ohio_joint_credit_to_joint_returns",

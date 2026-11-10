@@ -99,6 +99,9 @@ def compute_vt_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
                 share * fti,
                 pl.max_horizontal(capgn.clip(None, p.num("capital_gain_exclusion_floor")), share * capgn),
             )
+            if not behavior.use_vermont_capital_gain_exclusion_options:
+                # TAXSIM excludes only the smaller of the long-term gain and the flat amount.
+                dedg = pl.min_horizontal(pl.col("ltcg").clip(0, None), p.num("capital_gain_exclusion_floor"))
             # Taxable Social Security is exempt, phased out above an AGI start.
             ss = pl.col("taxable_social_security")
             starts = p.value("social_security_exemption_start")
@@ -108,9 +111,11 @@ def compute_vt_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             # The federal exemption count is deflated in projected years.
             exemps = federal_exemption_count(y) / flate
             amounts = p.value("standard_deduction")
-            stded = pl.when(is_hoh).then(float(amounts["head_of_household"])).when(is_joint).then(
-                float(amounts["married_joint"])
-            ).otherwise(float(amounts["single"]))
+            hoh_amount, joint_amount = float(amounts["head_of_household"]), float(amounts["married_joint"])
+            if not behavior.use_vermont_published_standard_deductions and y >= 2022:
+                # TAXSIM computes these as 1.5 and 2 times the single amount.
+                hoh_amount, joint_amount = 1.5 * float(amounts["single"]), 2.0 * float(amounts["single"])
+            stded = pl.when(is_hoh).then(hoh_amount).when(is_joint).then(joint_amount).otherwise(float(amounts["single"]))
             stded = stded + p.num("standard_deduction_aged_addition") * aged
             taxinc = (agi - exemps * p.num("exemption_amount") - stded).clip(0, None)
             detail_agi = agi
