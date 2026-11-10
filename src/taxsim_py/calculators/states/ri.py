@@ -7,7 +7,7 @@ import polars as pl
 from taxsim_py.engine.brackets import bracket_rate, bracket_tax, scale_brackets
 from taxsim_py.engine.inputs import aged_count, federal_exemption_count, files_head_of_household, files_joint, files_separate, files_single, is_dependent_filer, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml
-from taxsim_py.engine.state import checkpoint, household_income, interpolate_table, unemployment_total, with_state_detail
+from taxsim_py.engine.state import phaseout_steps, checkpoint, household_income, interpolate_table, unemployment_total, with_state_detail
 from taxsim_py.behavior import BehaviorProfile, TAXSIM_BEHAVIOR
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
@@ -177,7 +177,7 @@ def compute_ri_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             factor = pl.when(agi > end).then(0.0).when(agi > start).then(kept).otherwise(1.0)
         else:
             d = p.value("deduction_phaseout")
-            steps = ((agi - float(d["start"])).clip(0, None) / float(d["increment"])).ceil()
+            steps = phaseout_steps((agi - float(d["start"])).clip(0, None) / float(d["increment"]), behavior)
             factor = (1 - float(d["share_per_step"]) * steps).clip(0, 1)
         taxinc = (agi - stded * factor / sep - exemp * factor).clip(0, None)
         df, (taxinc,) = checkpoint(df, ri_taxinc=taxinc)

@@ -9,6 +9,7 @@ from taxsim_py.engine.brackets import bracket_rate, bracket_tax
 from taxsim_py.engine.inputs import aged_count, federal_exemption_count, files_joint, files_separate, is_dependent_filer, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml, resolve_year
 from taxsim_py.engine.state import (
+    phaseout_steps,
     itemize_choice,
     by_filing_status,
     checkpoint,
@@ -659,8 +660,9 @@ def compute_mn_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         exemp = exemp - ratio * exemp
         if y >= 2022:
             d22 = _phaseout_2022plus(y)
-            steps = ((fed_agi - _status_value(d22["exemption_start"], pl.col("filing_status"))).clip(0, None)
-                     / _status_value(d22["exemption_step"], pl.col("filing_status"))).ceil()
+            steps = phaseout_steps(
+                (fed_agi - _status_value(d22["exemption_start"], pl.col("filing_status"))).clip(0, None)
+                / _status_value(d22["exemption_step"], pl.col("filing_status")), behavior)
             exemp = (count * exemption_amount * (1 - float(d22["step_fraction"]) * steps)).clip(0, None)
         exemp = pl.when(dependent_filer).then(0.0).otherwise(exemp)
 

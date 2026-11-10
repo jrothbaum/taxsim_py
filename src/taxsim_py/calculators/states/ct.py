@@ -6,6 +6,7 @@ from taxsim_py.engine.brackets import bracket_rate, bracket_tax
 from taxsim_py.engine.inputs import aged_count, files_head_of_household, files_joint, files_separate, files_single, separate_divisor, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml, resolve_year
 from taxsim_py.engine.state import (
+    phaseout_steps,
     by_filing_status,
     checkpoint,
     federal_capital_gain_in_agi,
@@ -168,7 +169,7 @@ def compute_ct_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             if effective_year >= 2022:
                 # $1,000 less for each $1,000 (or part) of AGI over the start.
                 excess = (pl.col("ct_agi") - start).clip(0, None)
-                if not behavior.round_connecticut_exemption_phaseout_to_whole_steps:
+                if not behavior.round_up_phaseout_steps:
                     # TAXSIM's `rup` does not round, so the exemption falls dollar for dollar.
                     return (amount - excess).clip(0, amount)
                 steps = (excess / 1000.0).ceil()
@@ -236,7 +237,7 @@ def compute_ct_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
                 amount = pl.lit(0.0)
                 for status in _STATUSES:
                     start, step_amount, increment, maximum = (float(v) for v in table[status])
-                    steps = ((pl.col("ct_agi") - start).clip(0, None) / increment).ceil()
+                    steps = phaseout_steps((pl.col("ct_agi") - start).clip(0, None) / increment, behavior)
                     amount = pl.when(pl.col("filing_status") == status).then(
                         pl.min_horizontal(maximum, steps * step_amount)
                     ).otherwise(amount)
@@ -386,7 +387,7 @@ def compute_ct_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             width = float(p["property_credit_phaseout_step_width"])
             if effective_year >= 2022:
                 # Each started increment reduces the credit.
-                steps = ((agix - phse).clip(0, None) / width).ceil()
+                steps = phaseout_steps((agix - phse).clip(0, None) / width, behavior)
                 pct = (float(p["property_credit_phaseout_rate"]) * steps).clip(0, 1)
                 pcred = pcred * (1.0 - pct)
             else:

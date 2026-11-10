@@ -72,9 +72,15 @@ class BehaviorProfile:
     use_idaho_published_brackets: bool = True
     initialize_arizona_short_term_loss: bool = True
     use_delaware_published_tax_brackets: bool = True
+    use_maine_published_phaseout_starts: bool = True
+    count_maine_fairness_credit_children_by_dep17: bool = True
+    count_all_dependents_for_maine_dependent_credit: bool = True
+    use_maine_year_standard_deduction: bool = True
+    deduct_maine_pensions_at_any_age: bool = True
+    use_maine_current_deductions_when_itemizing: bool = True
     credit_delaware_spouse_low_income_exclusion_to_spouse: bool = True
     let_delaware_itemize_when_federal_return_takes_standard_deduction: bool = True
-    round_connecticut_exemption_phaseout_to_whole_steps: bool = True
+    round_up_phaseout_steps: bool = True
     give_south_carolina_pension_deduction_to_each_taxpayer: bool = True
     use_south_carolina_published_tax_table: bool = True
     use_current_federal_standard_deduction_for_south_carolina_addback: bool = True

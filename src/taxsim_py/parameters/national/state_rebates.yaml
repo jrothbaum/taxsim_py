@@ -5,7 +5,7 @@
 # Sources: NBER TAXSIM (`rebatef` calls in each state routine) and each state's
 # rebate announcement.
 #
-# Fields: `per_filer` (a dollar amount per filer), `per_person` (per filer and
+# Fields: `per_return` (a flat dollar amount), `per_filer` (a dollar amount per filer), `per_person` (per filer and
 # dependent), `per_child` (per CTC-qualifying child, up to `maximum_children`),
 # `per_other_dependent`, `tax_share` (a share of state tax), `minimum_primary_age`,
 # `agi_limit_per_filer` (no rebate at or above it), `requires_tax` (only with
@@ -42,7 +42,7 @@ il:
 in:
   2022: {per_filer: 325}
 me:
-  2022: {per_filer: 850, agi_limit_per_filer: 100000, head_of_household_agi_limit: 150000}
+  2022: {per_return: 850, agi_limit_per_filer: 100000, head_of_household_agi_limit: 150000}
 ma:
   2022: {tax_share: 0.14031}
 ri:

@@ -8,6 +8,7 @@ from taxsim_py.engine.brackets import bracket_rate, bracket_tax
 from taxsim_py.engine.inputs import aged_count, federal_exemption_count, files_head_of_household, files_joint, files_separate, files_single, is_dependent_filer, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml
 from taxsim_py.engine.state import (
+    phaseout_steps,
     federal_dividend_exclusion_limit,
     by_filing_status,
     pre1987_federal_itemizing,
@@ -319,7 +320,7 @@ def compute_md_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         ctc = pl.when(pl.col("agi") <= float(credit["agi_cap"])).then(float(credit["amount"]) * pl.col("dep6")).otherwise(0.0)
         if p.in_effect("child_tax_credit_phaseout"):
             po = p.value("child_tax_credit_phaseout")
-            steps = ((pl.col("agi") - float(po["threshold"])).clip(0, None) / float(po["increment"])).ceil()
+            steps = phaseout_steps((pl.col("agi") - float(po["threshold"])).clip(0, None) / float(po["increment"]), behavior)
             ctc = (float(credit["amount"]) * pl.col("dep6") - float(po["rate"]) * steps).clip(0, None)
         df = df.with_columns(md_statax=pl.col("md_statax") - ctc)
 

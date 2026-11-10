@@ -8,6 +8,7 @@ from taxsim_py.engine.brackets import bracket_rate, bracket_tax
 from taxsim_py.engine.inputs import aged_count, federal_exemption_count, files_head_of_household, files_joint, files_separate, files_single, is_dependent_filer, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml, resolve_year
 from taxsim_py.engine.state import (
+    phaseout_steps,
     federal_dividend_exclusion_limit,
     by_filing_status,
     household_income,
@@ -66,6 +67,7 @@ def compute_me_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     if effective_year >= 1984:
         me_agi = me_agi - pl.col("taxable_social_security")
     # Pension deduction (2000+), per taxpayer, reduced by Social Security benefits.
+    is_hoh_return = files_head_of_household()
     if p.in_effect("pension_deduction_per_taxpayer"):
         pended = p.num("pension_deduction_per_taxpayer")
         pension_deduction = pl.min_horizontal(
@@ -77,6 +79,27 @@ def compute_me_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             width = by_filing_status({k: float(v) for k, v in po["width"].items()})
             share = ((pl.col("agi") - start).clip(0, None) / width).clip(None, 1.0)
             pension_deduction = pension_deduction * (1.0 - share)
+        if effective_year >= 2022 and not behavior.deduct_maine_pensions_at_any_age:
+            # TAXSIM gives the deduction to a taxpayer aged 55 or over, and reduces each
+            # spouse's cap by that spouse's share of Social Security (split the same way).
+            joint = files_joint()
+            page, sage = pl.col("page"), pl.when(joint & (pl.col("sage") == 0)).then(40).otherwise(pl.col("sage"))
+            h_old, w_old = page >= 55, sage >= 55
+            def allocate(total: pl.Expr) -> tuple[pl.Expr, pl.Expr]:
+                to_h = pl.when(~joint).then(total).when(h_old & ~w_old).then(total).when(~h_old & w_old).then(0.0).otherwise(total / 2)
+                return to_h, pl.when(joint).then(total - to_h).otherwise(0.0)
+            pent, pens = allocate(pl.col("pensions"))
+            ssbt, ssbs = allocate(pl.col("gssi"))
+            pent = pl.when(page <= 54).then(0.0).otherwise(pent)
+            pens = pl.when(sage <= 54).then(0.0).otherwise(pens)
+            cap = pended
+            pension_deduction = (
+                pl.min_horizontal(pent, (cap - ssbt).clip(0, None)) + pl.min_horizontal(pens, (cap - ssbs).clip(0, None))
+            )
+            if effective_year >= 2025:
+                thres = pl.when(is_hoh_return).then(187500.0).otherwise(125000.0 * pl.col("me_txp"))
+                frac = ((pl.col("agi") - thres) / 100000.0).clip(0, 1)
+                pension_deduction = pension_deduction * (1.0 - frac)
         me_agi = me_agi - pension_deduction
     df = df.with_columns(me_agi=me_agi)
 
@@ -101,13 +124,9 @@ def compute_me_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     else:
         # The federal standard deduction, 0 when itemizing federally.
         stded = pl.when(~pl.col("itemizes")).then(pl.col("standard_deduction")).otherwise(0.0)
-        if year == 2023:
-            # TAXSIM's 2023 aged addition is $100 below the statutory value
-            # used by the federal port; Maine reads that federal result.
-            stale_aged_adjustment = pl.when(
-                pl.col("filing_status").is_in(["single", "head_of_household"])
-            ).then(100.0 * aged_count() / flate).otherwise(0.0)
-            stded = (stded - stale_aged_adjustment).clip(0, None)
+        if 1989 <= effective_year <= 2017 and not behavior.use_maine_year_standard_deduction:
+            # TAXSIM uses the 2021 federal amounts for every year not handled below.
+            stded = pl.when(files_joint()).then(25100.0).when(files_head_of_household()).then(18800.0).otherwise(12550.0)
         if p.in_effect("standard_deduction_married_override"):
             gets_override = is_joint | is_sep
             old = p.num("standard_deduction_aged_addition")
@@ -152,8 +171,18 @@ def compute_me_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         xitded = pl.min_horizontal(xitd_cap, (itemized_deduction_local - statit).clip(0, None))
 
     xitded = pl.when(itemizing_gate).then(xitded).otherwise(0.0)
+    if p.in_effect("taxsim_itemizing_standard_deduction") and not behavior.use_maine_current_deductions_when_itemizing:
+        t = p.value("taxsim_itemizing_standard_deduction")
+        stale_std = by_filing_status({k: float(v) for k, v in t["base"].items()}) + by_filing_status(
+            {k: float(v) for k, v in t["aged"].items()}
+        ) * aged_count()
+        stale_itemized = pl.min_horizontal(
+            pl.lit(p.num("taxsim_itemized_deduction_cap")), pl.col("proptax") + pl.col("mortgage")
+        )
+        stded = pl.when(itemizing_gate).then(stale_std).otherwise(stded)
+        xitded = pl.when(itemizing_gate).then(stale_itemized).otherwise(0.0)
 
-    df = df.with_columns(me_xitded=xitded, me_deduc=_max2(stded, xitded))
+    df = df.with_columns(me_xitded=xitded, me_stded=stded, me_deduc=_max2(stded, xitded))
 
     if p.in_effect("deduction_phaseout_proportional"):
         dp = p.value("deduction_phaseout_proportional")
@@ -167,6 +196,8 @@ def compute_me_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         )
     if p.in_effect("deduction_phaseout_start"):
         phased = by_filing_status(p.value("deduction_phaseout_start")) * p.num("phaseout_index")
+        if p.in_effect("taxsim_deduction_phaseout_index") and not behavior.use_maine_published_phaseout_starts:
+            phased = by_filing_status(p.value("taxsim_deduction_phaseout_base")) * p.num("taxsim_deduction_phaseout_index")
         xl4 = by_filing_status(p["deduction_phaseout_range"])
         over = pl.col("me_agi") >= phased
         df = df.with_columns(
@@ -185,6 +216,8 @@ def compute_me_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         xmp_amt = p.num("personal_exemption")
         exemp = xmp_amt * pl.col("me_txp")
         phasex = by_filing_status(p.value("exemption_phaseout_start")) * p.num("phaseout_index")
+        if p.in_effect("taxsim_exemption_phaseout_index") and not behavior.use_maine_published_phaseout_starts:
+            phasex = by_filing_status(p.value("taxsim_exemption_phaseout_base")) * p.num("taxsim_exemption_phaseout_index")
         rng = float(p["exemption_phaseout_range"])
         over = pl.col("me_agi") > phasex
         exemp = pl.when(over).then(exemp * (1.0 - ((pl.col("me_agi") - phasex) / (rng / pl.col("me_sep"))).clip(0, 1))).otherwise(exemp)
@@ -196,6 +229,10 @@ def compute_me_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     # --- Tax ---
     table = p.value("brackets")
     aif = p.num("bracket_inflation")
+    if p.in_effect("taxsim_brackets") and not behavior.use_maine_published_phaseout_starts:
+        table, aif = p.value("taxsim_brackets"), 1.0
+    if p.in_effect("taxsim_bracket_inflation") and not behavior.use_maine_published_phaseout_starts:
+        aif = p.num("taxsim_bracket_inflation")
 
     tinc = pl.col("me_taxinc") / me_texp
     stat = bracket_tax(tinc / aif, table) * aif
@@ -240,7 +277,9 @@ def compute_me_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     depcrd = pl.lit(0.0)
     dep_refundable = pl.lit(0.0)
     if p.in_effect("dependent_credit_per_child"):
-        depcrd = pl.min_horizontal(p.num("dependent_credit_per_child") * pl.col("dep17"), pl.col("me_statax"))
+        excess = (pl.col("me_agi") - 200000.0 * pl.col("me_txp")).clip(0, None)
+        full = (p.num("dependent_credit_per_child") * pl.col("depx") - phaseout_steps(excess / 1000.0, behavior) * 7.5).clip(0, None)
+        depcrd = pl.min_horizontal(full, pl.col("me_statax"))
     elif p.in_effect("dependent_exemption_credit"):
         dep = p.value("dependent_exemption_credit")
         if "start_joint" in dep and "start_hoh" in dep:
@@ -250,9 +289,18 @@ def compute_me_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             )
         else:
             start = pl.when(is_joint).then(float(dep["start_joint"])).otherwise(float(dep["start_other"]))
-        steps = ((pl.col("me_agi") - start).clip(0, None) / float(dep["increment"])).ceil()
+        steps = phaseout_steps((pl.col("me_agi") - start).clip(0, None) / float(dep["increment"]), behavior)
         # A dependent under 6 counts `young_multiplier` times.
         dependents = pl.col("depx") + (float(dep["young_multiplier"]) - 1.0) * pl.col("dep6").clip(None, pl.col("depx"))
+        if not behavior.count_all_dependents_for_maine_dependent_credit:
+            # TAXSIM counts the dependents under 17, and a single return's phase-out starts at $125,000.
+            dependents = pl.col("dep17") + (float(dep["young_multiplier"]) - 1.0) * pl.col("dep6")
+            if "start_single" in dep:
+                start = (
+                    pl.when(is_joint).then(float(dep["start_joint"])).when(is_hoh).then(float(dep["start_hoh"]))
+                    .when(is_sep).then(float(dep["start_separate"])).otherwise(125000.0)
+                )
+                steps = phaseout_steps((pl.col("me_agi") - start).clip(0, None) / float(dep["increment"]), behavior)
         statutory = (float(dep["amount"]) * dependents - float(dep["step"]) * steps).clip(0, None)
         depcrd = pl.min_horizontal(statutory, pl.col("me_statax"))
         if effective_year >= 2024:
@@ -390,7 +438,7 @@ def compute_me_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         ptfc = pl.when(is_sep).then(0.0).otherwise(ptfc)
     if p.in_effect("property_tax_fairness_credit_schedule"):
         d = p.value("property_tax_fairness_credit_schedule")
-        kids = pl.col("dep17")
+        kids = pl.col("dep17") if behavior.count_maine_fairness_credit_children_by_dep17 else pl.col("depx")
         base = (
             pl.when(files_single()).then(float(d["single"]))
             .when(is_joint & (kids < 1) | is_hoh & (kids <= 1)).then(float(d["hoh_one_child"]))
@@ -406,7 +454,7 @@ def compute_me_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             - pl.min_horizontal(capgn, 0.0)
         )
         credit = (pl.min_horizontal(base, countable) - float(d["income_rate"]) * fair_income).clip(0, None)
-        credit = pl.min_horizontal(credit, pl.when(senior).then(float(d["cap_senior"])).otherwise(float(d["cap"])))
+        credit = pl.min_horizontal(credit, pl.when(aged_count() > 0).then(float(d["cap_senior"])).otherwise(float(d["cap"])))
         ptfc = pl.when(is_sep).then(0.0).otherwise(credit)
 
     # --- Sales Tax Fairness Credit (2016+, refundable) ---
@@ -439,7 +487,7 @@ def compute_me_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         ).otherwise(0.0)
     elif p.in_effect("sales_tax_fairness_credit_schedule"):
         d = p.value("sales_tax_fairness_credit_schedule")
-        children = pl.col("dep17")
+        children = pl.col("dep17") if behavior.count_maine_fairness_credit_children_by_dep17 else pl.col("depx")
         extra_joint = pl.lit(0.0)
         for threshold, amount in d["additional"]["joint"]:
             extra_joint = pl.when(children >= threshold).then(float(amount)).otherwise(extra_joint)
@@ -452,7 +500,7 @@ def compute_me_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             row = d[status]
             if not row["increment"]:
                 continue
-            reduction = ((tis - float(row["start"])).clip(0, None) / float(row["increment"])).ceil() * float(row["step"])
+            reduction = phaseout_steps((tis - float(row["start"])).clip(0, None) / float(row["increment"]), behavior) * float(row["step"])
             credit = pl.when(pl.col("filing_status") == status).then(
                 (float(row["base"]) + extra - reduction).clip(0, None)
             ).otherwise(credit)

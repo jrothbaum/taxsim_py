@@ -374,7 +374,14 @@ Taxsim mode now follows the statutory rule for these (they remain in
 | ID | 2022-23 | The 2022 bracket tops are $1 lower than the statute, and the 2023 no-tax amount is $4,489 | Statutory: published. `use_idaho_published_brackets` |
 | ID | 2022 on | The building fund tax limit is the federal filing requirement by status and age | Both modes |
 | AZ | 2021-23 | A short-term loss variable is never set (-9), so every return deducts 25% of its long-term gains plus $9 | Statutory: 25% of gains. `initialize_arizona_short_term_loss` |
-| CT | 2022 on | The exemption falls dollar for dollar above the AGI start because the rounding helper `rup` does not round | Statutory: $1,000 steps. `round_connecticut_exemption_phaseout_to_whole_steps` |
+| CT and others | 2022 on | Phase-outs fall continuously because the helpers `ceil` and `rup` only round when an option (`extnd(88)`) is set, which never happens | Statutory: whole steps. `round_up_phaseout_steps` |
+| ME | 1989-2017 | The standard deduction is the 2021 federal amount ($12,550, $18,800 head of household, $25,100 joint) in every year not given its own formula | Statutory: that year's amount. `use_maine_year_standard_deduction` |
+| ME | 2022 on | On a federal itemizing pass the standard deduction is the 2021 federal amount plus $1,700/$1,350 per taxpayer 65 or older, and itemized deductions are property tax plus mortgage interest up to a cap | Statutory: published. `use_maine_current_deductions_when_itemizing` |
+| ME | 2022 on | The deduction and exemption phase-outs start at the 2018 start times the build's own indexes, and the tax brackets are the build's unrounded tops (and 2018-21 indexes) | Statutory: published. `use_maine_published_phaseout_starts` |
+| ME | 2022 on | The pension deduction goes to a taxpayer aged 55 or over, split like Social Security | Statutory: any age. `deduct_maine_pensions_at_any_age` |
+| ME | 2018 on | The dependent credit counts dependents under 17 in 2022 on (all dependents 2018-21) and a single return's 2025 phase-out starts at $125,000 | Statutory: all dependents. `count_all_dependents_for_maine_dependent_credit` |
+| ME | 2022 on | The fairness credits count children as dependents (`depx`), not those under 17 | Statutory: under 17. `count_maine_fairness_credit_children_by_dep17` |
+| ME | 2022 | The one-time $850 relief payment is per return, not per filer | TAXSIM mode only |
 | DE | 2014-23 | The tax is rate times income less a rounded amount (the 5.55% row subtracts $386, the statute $385.50) | Statutory: published. `use_delaware_published_tax_brackets` |
 | DE | 2018 on | On a standard-deduction pass the build zeroes the federal itemized totals, so Delaware does not itemize | Statutory: Delaware itemizes on its own. `let_delaware_itemize_when_federal_return_takes_standard_deduction` |
 | DE | 2000 on | A spouse aged 60 or over with low earnings gets the extra $2,000 pension exclusion added to the taxpayer's line, replacing it | Statutory: added to the spouse's. `credit_delaware_spouse_low_income_exclusion_to_spouse` |

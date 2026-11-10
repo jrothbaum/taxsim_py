@@ -12,6 +12,7 @@ from taxsim_py.engine.eitc import eitc_age_eligible, eitc_filer_eligible, federa
 from taxsim_py.engine.inputs import aged_count, federal_exemption_count, files_head_of_household, files_joint, files_separate, files_single, is_dependent_filer, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml, resolve_year
 from taxsim_py.engine.state import (
+    phaseout_steps,
     dividend_input_adjustment,
     itemize_choice,
     by_filing_status,
@@ -716,7 +717,7 @@ def compute_ny_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             thr = by_filing_status({k: float(v) for k, v in t["threshold"].items()})
             gate = fed_agi < thr
         if "per_child" in t:
-            reduction = t["phaseout_rate"] * (1000.0 * ((fed_agi - thr).clip(0, None) / 1000.0).ceil())
+            reduction = t["phaseout_rate"] * (1000.0 * phaseout_steps((fed_agi - thr).clip(0, None) / 1000.0, behavior))
             available = (t["per_child"] * dep17 - reduction).clip(0, None)
             base = pl.min_horizontal(available, t["refundable_rate"] * (pl.col("earned_income") - t["earned_income_floor"]))
         if t["share"]:

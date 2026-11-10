@@ -9,7 +9,7 @@ import polars as pl
 from taxsim_py.engine.brackets import bracket_rate, bracket_tax
 from taxsim_py.engine.inputs import aged_count, files_head_of_household, files_joint, files_separate, files_single, is_dependent_filer, separate_divisor, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml, resolve_year
-from taxsim_py.engine.state import by_filing_status, dividend_input_adjustment, forced_standard, household_income, interpolate_table, with_state_detail
+from taxsim_py.engine.state import phaseout_steps, by_filing_status, dividend_input_adjustment, forced_standard, household_income, interpolate_table, with_state_detail
 from taxsim_py.behavior import BehaviorProfile, TAXSIM_BEHAVIOR
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
@@ -200,7 +200,7 @@ def compute_ca_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         # over the threshold, and not below zero.
         per_person = p.num("exemption_credit_personal")
         per_dependent = p.num("exemption_credit_per_dependent")
-        steps = ((pl.col("agi") - phase_start).clip(0, None) / phase_step).ceil()
+        steps = phaseout_steps((pl.col("agi") - phase_start).clip(0, None) / phase_step, behavior)
         reduction = steps * float(p["exemption_credit_phaseout"]["per_credit"])
         df = df.with_columns(
             ca_phaded2=phase_start,

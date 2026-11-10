@@ -7,7 +7,7 @@ import polars as pl
 from taxsim_py.engine.brackets import bracket_rate, bracket_tax
 from taxsim_py.engine.inputs import aged_count, files_joint, files_separate, separate_divisor, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml, resolve_year
-from taxsim_py.engine.state import by_filing_status, dividend_input_adjustment, dividend_exclusion_addback, household_income, interpolate_table, with_state_detail
+from taxsim_py.engine.state import phaseout_steps, by_filing_status, dividend_input_adjustment, dividend_exclusion_addback, household_income, interpolate_table, with_state_detail
 from taxsim_py.behavior import BehaviorProfile, TAXSIM_BEHAVIOR
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
@@ -381,7 +381,7 @@ def compute_co_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
                 threshold = pl.when(pl.col("filing_status") == status).then(
                     float(fac["reduction_threshold"][status])
                 ).otherwise(threshold)
-            increments = ((pl.col("agi") - threshold).clip(0, None) / float(fac["reduction_increment"])).ceil()
+            increments = phaseout_steps((pl.col("agi") - threshold).clip(0, None) / float(fac["reduction_increment"]), behavior)
             remaining = 1.0 - (increments * float(fac["reduction_rate"])).clip(None, 1.0)
             children = pl.col("dep6") + float(fac["older_child_share"]) * (pl.col("dep17") - pl.col("dep6")).clip(0, None)
             co_ctc = co_ctc + float(fac["amount"]) * children * remaining

@@ -41,6 +41,8 @@ def state_rebate(state: int, year: int, siitax: pl.Expr, tax_before_credits: pl.
     if "components" in spec:
         for component in spec["components"]:
             amount = amount + pl.max_horizontal(component["per_person"] * people, component["tax_share"] * siitax)
+    if "per_return" in spec:
+        amount = amount + float(spec["per_return"])
     if "per_filer" in spec:
         per_filer = float(spec["per_filer"])
         if "married_separate" in spec:

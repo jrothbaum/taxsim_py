@@ -6,7 +6,7 @@ import polars as pl
 
 from taxsim_py.engine.inputs import aged_count, files_joint, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml
-from taxsim_py.engine.state import with_state_detail, dividend_input_adjustment, unemployment_total
+from taxsim_py.engine.state import phaseout_steps, with_state_detail, dividend_input_adjustment, unemployment_total
 from taxsim_py.behavior import BehaviorProfile, TAXSIM_BEHAVIOR
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
@@ -75,11 +75,11 @@ def compute_pa_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     forgiven_share = (1.0 - remain / p.num("forgiveness_phaseout")).clip(0, None)
     if p.in_effect("forgiveness_step"):
         step = p.value("forgiveness_step")
-        forgiven_share = (1.0 - float(step["share"]) * (remain / float(step["income"])).ceil()).clip(0, None)
+        forgiven_share = (1.0 - float(step["share"]) * phaseout_steps(remain / float(step["income"]), behavior)).clip(0, None)
     elif behavior.apply_pennsylvania_forgiveness_rules:
         # Forgiveness falls 10% for each tenth of the phaseout (or part).
         tenth = p.num("forgiveness_phaseout") / 10.0
-        forgiven_share = (1.0 - 0.1 * (remain / tenth).ceil()).clip(0, None)
+        forgiven_share = (1.0 - 0.1 * phaseout_steps(remain / tenth, behavior)).clip(0, None)
     credit = statax * forgiven_share
     statax = statax - credit
     care_share = p.num("child_care_credit_share") if p.in_effect("child_care_credit_share") else 0.0

@@ -6,6 +6,7 @@ from taxsim_py.engine.brackets import bracket_rate, bracket_tax, scale_brackets
 from taxsim_py.engine.inputs import aged_count, federal_exemption_count, files_head_of_household, files_joint, files_separate, files_single, is_dependent_filer
 from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml
 from taxsim_py.engine.state import (
+    phaseout_steps,
     checkpoint,
     household_income,
     interpolate_table,
@@ -216,7 +217,7 @@ def compute_vt_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     if p.in_effect("child_tax_credit"):
         credit = p.value("child_tax_credit")
         excess = (fed_agi - float(credit["reduction_start"])).clip(0, None)
-        reduction = float(credit["reduction_amount"]) * (excess / float(credit["reduction_increment"])).ceil()
+        reduction = float(credit["reduction_amount"]) * phaseout_steps(excess / float(credit["reduction_increment"]), behavior)
         # Counts without ages fall back to the under-6 count.
         young = pl.max_horizontal(pl.col("children_under_7"), pl.col("dep6")) if credit["age_limit"] >= 7 else pl.col("dep6")
         if not behavior.count_vermont_child_credit_by_statutory_age:

@@ -199,6 +199,15 @@ def dividend_exclusion_addback(year: int, behavior: BehaviorProfile = TAXSIM_BEH
     return pl.min_horizontal(excluded, federal_dividend_exclusion_limit(year, behavior)).clip(0, None)
 
 
+def phaseout_steps(steps: pl.Expr, behavior: "BehaviorProfile") -> pl.Expr:
+    """Whole steps of a phase-out: the count rounded up.
+
+    TAXSIM's helpers `ceil` and `rup` only round when an option (`extnd(88)`) is set, which it
+    never is, so its phase-outs fall continuously (`round_up_phaseout_steps`).
+    """
+    return steps.ceil() if behavior.round_up_phaseout_steps else steps
+
+
 def tier_values(value: pl.Expr, uppers: list[float], *columns: list[float], strict: bool = False) -> list[pl.Expr]:
     """Values from the first tier whose upper bound is at least `value` (the last tier beyond).
 

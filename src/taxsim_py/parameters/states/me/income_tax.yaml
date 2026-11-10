@@ -86,6 +86,13 @@ standard_deduction_single_and_hoh:
 # plus an amount per taxpayer 65 or older.
 standard_deduction_nonconforming:
   2025: {single: 15000, married_joint: 30000, head_of_household: 22500, married_separate: 15000, aged_single: 2000, aged_married: 1600}
+# The TAXSIM build, on a federal itemizing pass from 2022, uses the 2021 federal standard deduction
+# (plus an amount per taxpayer 65 or older) and caps itemized property tax and mortgage interest here.
+taxsim_itemizing_standard_deduction:
+  2022:
+    base: {single: 12550, married_joint: 25100, head_of_household: 18800, married_separate: 12550}
+    aged: {single: 1700, married_joint: 1350, head_of_household: 1700, married_separate: 1350}
+taxsim_itemized_deduction_cap: {2022: 31150, 2023: 33200, 2024: 35000, 2025: 36300}
 # From 2013 itemized deductions (less the state tax share) are capped.
 # Source for 2022 on: PolicyEngine-US gov.states.me.tax.income.deductions.itemized.cap.
 itemized_deduction_cap: {2013: 27500, 2014: 27950, 2015: 28350, 2016: 28450, 2017: 28600, 2018: 29050, 2019: 29550, 2020: 30050, 2021: 30400, 2022: 31150, 2023: 33200, 2024: 35250, 2025: 36300}
@@ -105,6 +112,19 @@ deduction_phaseout_start:
   2024: {single: 97150, married_joint: 194300, married_separate: 97150, head_of_household: 145750}
   2025: {single: 100000, married_joint: 200050, married_separate: 100000, head_of_household: 150000}
 deduction_phaseout_range: {single: 75000, married_joint: 150000, head_of_household: 112500, married_separate: 75000}
+# The TAXSIM build's own bracket tops: the 2018 tops times a factor for 2022-23, typed values after.
+taxsim_bracket_inflation: {2018: 1.0155, 2019: 1.052, 2020: 1.052, 2021: 1.0635, 2022: null}
+taxsim_brackets:
+  2022: [[0, 0.058], [22977.9, 0.0675], [54450.0, 0.0715]]
+  2023: [[0, 0.058], [24497.1, 0.0675], [58050.0, 0.0715]]
+  2024: [[0, 0.058], [26060, 0.0675], [61600, 0.0715]]
+  2025: [[0, 0.058], [26799, 0.0675], [63499, 0.0715]]
+# The TAXSIM build indexes the 2018 phase-out starts by its own factors instead of the published
+# starts above.
+taxsim_deduction_phaseout_base: {single: 83850, married_joint: 167700, head_of_household: 125750, married_separate: 83850}
+taxsim_deduction_phaseout_index: {2022: 1.0238, 2023: 1.0915, 2024: 1.1586, 2025: 1.1926}
+taxsim_exemption_phaseout_base: {single: 266700, married_joint: 320000, head_of_household: 293350, married_separate: 160000}
+taxsim_exemption_phaseout_index: {2022: 1.073, 2023: 1.1491, 2024: 1.215, 2025: 1.25}
 phaseout_index: {2018: 1.0, 2019: 1.018, 2020: 1.03625, 2021: 1.048125, 2022: 1.0}
 
 # --- Exemptions ---
