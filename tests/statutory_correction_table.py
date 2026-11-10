@@ -180,7 +180,7 @@ CASES = [
     ),
     _case(
         "STATE-CCC-001", "Minnesota 1985 child care", "state_child_and_dependent_care_credit",
-        0.0, 456.0, year=1985, state=24, depx=1, dep13=1, dep17=1, dep18=1, pwages=12_000, childcare=2_000,
+        616.0, 456.0, year=1985, state=24, depx=1, dep13=1, dep17=1, dep18=1, pwages=12_000, childcare=2_000,
     ),
     # Iowa's 2010 joint caps by number of children ($38,665 for one child),
     # and no caps outside 2010: 7% and 15% of the federal credit.

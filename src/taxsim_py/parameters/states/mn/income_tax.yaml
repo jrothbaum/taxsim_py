@@ -157,6 +157,14 @@ brackets:
     single: [[0, 0.0535], [32570, 0.068], [106990, 0.0785], [198630, 0.0985]]
     joint: [[0, 0.0535], [47620, 0.068], [189180, 0.0785], [330410, 0.0985]]
     head_of_household: [[0, 0.0535], [40100, 0.068], [161130, 0.0785], [264050, 0.0985]]
+# TAXSIM scales its 2021 table instead of using the published 2022 on tables.
+taxsim_brackets:
+  2022:
+    single: [[0, 0.0535], [27230, 0.068], [89440, 0.0785], [166040, 0.0985]]
+    joint: [[0, 0.0535], [39810, 0.068], [158140, 0.0785], [276200, 0.0985]]
+    head_of_household: [[0, 0.0535], [33520, 0.068], [134700, 0.0785], [220730, 0.0985]]
+  2025: null
+taxsim_bracket_inflation: {2022: 1.0312, 2023: 1.10419, 2024: 1.1638, 2025: null}
 bracket_inflation:
   1977: 1.0
   1979: 1.1011
@@ -532,6 +540,10 @@ phaseout_inflation:
   2023: 2.2065
   2024: 2.3255
   2025: 2.3905
+# TAXSIM's exemption phaseout start (2021 on): the capped status code, scaled by a factor of its own.
+taxsim_exemption_phaseout_start:
+  2021: {single: 199850, married: 299750, head_of_household: 249800}
+taxsim_exemption_phaseout_inflation: {2021: 1.0, 2022: 1.0302, 2023: 1.1741, 2024: 1.1835}
 phaseout_multiplier: {single: 1.0, married_joint: 1.5, married_separate: 1.5, head_of_household: 1.25}
 exemption_phaseout_rate: {2011: 0.02}
 exemption_phaseout_step: {2011: 2500}
@@ -621,6 +633,9 @@ amt_exclusion:
     2019: 58190
     2020: 59150
     2021: 59750
+    2022: 61610
+    2023: 65970
+    2024: 69532
   married:
     2001: 40000
     2006: 60000
@@ -639,6 +654,9 @@ amt_exclusion:
     2019: 77590
     2020: 78880
     2021: 79660
+    2022: 82150
+    2023: 87960
+    2024: 92710
   # Head of household equals single (TAXSIM has 2010's $49,960 for 2009).
   head_of_household:
     2001: 30000
@@ -658,6 +676,9 @@ amt_exclusion:
     2019: 58190
     2020: 59150
     2021: 59750
+    2022: 61610
+    2023: 65970
+    2024: 69532
 amt_phaseout_start: {single: 112500, married: 150000, head_of_household: 112500}
 amt_phaseout_rate: {2001: 0.25}
 
@@ -1070,9 +1091,9 @@ working_family_credit_two_children:
 # 2014-2021: phase-in rate up to the maximum, less the phase-out rate above the start.
 working_family_credit_schedule:
   no_child:
-    maximum: {2014: 130, 2015: 132, 2016: 133, 2017: 134, 2018: 136, 2019: 279, 2020: 284, 2021: 286}
-    phase_in_end: {2014: 6180, 2015: 6280, 2016: 6310, 2017: 6360, 2018: 6480, 2019: 7150, 2020: 7350, 2021: 7340}
-    phase_out_start: {2014: 8130, 2015: 8260, 2016: 8300, 2017: 8360, 2018: 8530, 2019: 8730, 2020: 8870, 2021: 8960}
+    maximum: {2014: 130, 2015: 132, 2016: 133, 2017: 134, 2018: 136, 2019: 279, 2020: 284, 2021: 286, 2022: 295}
+    phase_in_end: {2014: 6180, 2015: 6280, 2016: 6310, 2017: 6360, 2018: 6480, 2019: 7150, 2020: 7350, 2021: 7340, 2022: 7570}
+    phase_out_start: {2014: 8130, 2015: 8260, 2016: 8300, 2017: 8360, 2018: 8530, 2019: 8730, 2020: 8870, 2021: 8960, 2022: 9240}
     phase_out_start_joint:
       2014: 13560
       2015: 13780
@@ -1082,10 +1103,11 @@ working_family_credit_schedule:
       2019: 14570
       2020: 14810
       2021: 14960
+      2022: 15430
     phase_in_rate: {2014: 0.021, 2019: 0.039}
     phase_out_rate: {2014: 0.0201, 2019: 0.02}
   one_child:
-    maximum: {2014: 1040, 2015: 1057, 2016: 1061, 2017: 1070, 2018: 1091, 2019: 1117, 2020: 1136, 2021: 1147}
+    maximum: {2014: 1040, 2015: 1057, 2016: 1061, 2017: 1070, 2018: 1091, 2019: 1117, 2020: 1136, 2021: 1147, 2022: 1183}
     phase_in_end:
       2014: 11120
       2015: 11300
@@ -1095,6 +1117,7 @@ working_family_credit_schedule:
       2019: 11950
       2020: 12150
       2021: 12270
+      2022: 12560
     phase_out_start:
       2014: 21190
       2015: 21520
@@ -1104,6 +1127,7 @@ working_family_credit_schedule:
       2019: 22770
       2020: 23150
       2021: 23380
+      2022: 24110
     phase_out_start_joint:
       2014: 26620
       2015: 27040
@@ -1113,10 +1137,11 @@ working_family_credit_schedule:
       2019: 28610
       2020: 29080
       2021: 29380
+      2022: 30290
     phase_in_rate: {2014: 0.0935}
     phase_out_rate: {2014: 0.0602, 2019: 0.06}
   two_children:
-    maximum: {2014: 2006, 2015: 2038, 2016: 2047, 2017: 2064, 2018: 2104, 2019: 2156, 2020: 2191, 2021: 2213}
+    maximum: {2014: 2006, 2015: 2038, 2016: 2047, 2017: 2064, 2018: 2104, 2019: 2156, 2020: 2191, 2021: 2213, 2022: 2283}
     phase_in_end:
       2014: 18240
       2015: 18530
@@ -1126,9 +1151,10 @@ working_family_credit_schedule:
       2019: 19600
       2020: 19950
       2021: 20120
+      2022: 20750
     # Unmarried filers' start (TAXSIM's `w22`, defined but never read: it uses
     # the one-child start for two or more children).
-    phase_out_start: {2014: 25130, 2015: 25530, 2016: 25640, 2017: 25850, 2018: 26360, 2019: 27000, 2020: 27450, 2021: 27720}
+    phase_out_start: {2014: 25130, 2015: 25530, 2016: 25640, 2017: 25850, 2018: 26360, 2019: 27000, 2020: 27450, 2021: 27720, 2022: 28590}
     phase_out_start_joint:
       2014: 30560
       2015: 31050
@@ -1138,14 +1164,15 @@ working_family_credit_schedule:
       2019: 32840
       2020: 33380
       2021: 33720
+      2022: 34770
     phase_in_rate: {2014: 0.11}
     phase_out_rate: {2014: 0.1082, 2019: 0.105}
   three_children:
-    maximum: {2019: 2500, 2020: 2541, 2021: 2566}
-    phase_in_end: {2019: 20000, 2020: 20350, 2021: 20530}
+    maximum: {2019: 2500, 2020: 2541, 2021: 2566, 2022: 2646}
+    phase_in_end: {2019: 20000, 2020: 20350, 2021: 20530, 2022: 21170}
     # TAXSIM's `w32` and `wj32`, defined but never read.
-    phase_out_start: {2019: 27300, 2020: 27750, 2021: 28030}
-    phase_out_start_joint: {2019: 33140, 2020: 33690, 2021: 34030}
+    phase_out_start: {2019: 27300, 2020: 27750, 2021: 28030, 2022: 28900}
+    phase_out_start_joint: {2019: 33140, 2020: 33690, 2021: 34030, 2022: 35090}
     phase_in_rate: {2019: 0.125}
     phase_out_rate: {2019: 0.105}
 # 1998-2018: no credit when the federal EITC is below this.
@@ -1206,6 +1233,9 @@ child_care_income_limit:
     2019: 64230
     2020: 65100
     2021: 65630
+    2022: 67300
+    2023: 71210
+    2024: 75055
   two_or_more:
     1977: 15000
     1981: 31000
@@ -1240,6 +1270,9 @@ child_care_income_limit:
     2019: 76230
     2020: 77100
     2021: 77630
+    2022: 79300
+    2023: 83907
+    2024: 88438
 child_care_phaseout_start:
   1977: 12000
   1981: 15000
@@ -1274,6 +1307,9 @@ child_care_phaseout_start:
   2019: 52230
   2020: 53100
   2021: 53630
+  2022: 55300
+  2023: 59210
+  2024: 62410
 child_care_credit_max:
   one: {1977: 150, 1981: 400, 1983: 480, 1984: 720, 2017: 600}
   two_or_more: {1977: 300, 1981: 800, 1983: 960, 1984: 1440, 2017: 1200}

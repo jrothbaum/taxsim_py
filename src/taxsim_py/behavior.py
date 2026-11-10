@@ -137,6 +137,9 @@ class BehaviorProfile:
     count_unknown_ages_as_eligible_for_minnesota_childless_credit: bool = True
     reduce_minnesota_deductions_per_statute: bool = True
     compute_minnesota_child_care_credit_from_2021_per_statute: bool = True
+    use_minnesota_2022_working_family_credit_per_statute: bool = True
+    use_minnesota_published_brackets_from_2022: bool = True
+    phase_out_minnesota_exemptions_per_statute: bool = True
     allow_minnesota_personal_exemption_2013_to_2018: bool = True
     deduct_missouri_federal_tax_after_refundable_credits: bool = True
     compute_missouri_itemized_deduction_before_2018: bool = True

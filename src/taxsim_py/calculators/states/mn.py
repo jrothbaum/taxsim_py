@@ -6,7 +6,7 @@ import polars as pl
 
 from taxsim_py.calculators.federal_pre1987 import PRE1987_PARAMS
 from taxsim_py.engine.brackets import bracket_rate, bracket_tax
-from taxsim_py.engine.inputs import aged_count, federal_exemption_count, files_joint, files_separate, is_dependent_filer, taxpayer_count
+from taxsim_py.engine.inputs import aged_count, federal_exemption_count, files_head_of_household, files_joint, files_separate, is_dependent_filer, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml, resolve_year
 from taxsim_py.engine.state import (
     federal_zero_bracket,
@@ -69,7 +69,16 @@ def _pieces(income: pl.Expr, pieces: list[list[float]]) -> pl.Expr:
     return expression
 
 
-def _schedule_tax(taxinc: pl.Expr, fedtax: pl.Expr, status: pl.Expr, y: int, halve_separate: bool = True) -> pl.Expr:
+def _brackets(p: YearParams, published: bool) -> tuple[dict | list, float]:
+    """The rate tables and inflation factor: TAXSIM scales its 2021 table from 2022 on."""
+    if not published and p.in_effect("taxsim_bracket_inflation"):
+        return p.value("taxsim_brackets"), p.num("taxsim_bracket_inflation")
+    return p.value("brackets"), p.num("bracket_inflation")
+
+
+def _schedule_tax(
+    taxinc: pl.Expr, fedtax: pl.Expr, status: pl.Expr, y: int, halve_separate: bool = True, published: bool = True
+) -> pl.Expr:
     """Minnesota rate-schedule tax (`mnrate`) for a filer class."""
     p = YearParams(MN_PARAMS, y)
     is_joint = status == "married_joint"
@@ -98,8 +107,7 @@ def _schedule_tax(taxinc: pl.Expr, fedtax: pl.Expr, status: pl.Expr, y: int, hal
             .otherwise(joint)
         )
 
-    tables = p.value("brackets")
-    factor = p.num("bracket_inflation")
+    tables, factor = _brackets(p, published)
     if y <= 1984:
         tax = bracket_tax(taxinc, _scaled(tables, factor))
     elif y <= 1986:
@@ -124,7 +132,9 @@ def _schedule_tax(taxinc: pl.Expr, fedtax: pl.Expr, status: pl.Expr, y: int, hal
     return tax
 
 
-def _schedule_rate(taxinc: pl.Expr, fedtax: pl.Expr, status: pl.Expr, y: int, halve_separate: bool = True) -> pl.Expr:
+def _schedule_rate(
+    taxinc: pl.Expr, fedtax: pl.Expr, status: pl.Expr, y: int, halve_separate: bool = True, published: bool = True
+) -> pl.Expr:
     """Rate left by the final lookup in Minnesota's schedule routine."""
     p = YearParams(MN_PARAMS, y)
     is_joint = status == "married_joint"
@@ -146,8 +156,7 @@ def _schedule_rate(taxinc: pl.Expr, fedtax: pl.Expr, status: pl.Expr, y: int, ha
             .otherwise(bracket_rate(taxinc * sep, _scaled(tables["joint"], factor)))
         )
 
-    tables = p.value("brackets")
-    factor = p.num("bracket_inflation")
+    tables, factor = _brackets(p, published)
     if y <= 1984:
         return bracket_rate(taxinc, _scaled(tables, factor))
     if y <= 1986:
@@ -399,6 +408,13 @@ def _statutory_working_family_credit(
         reduction = (income - threshold).clip(0, None) * by_count(pre["phase_out_rate"])
         return pl.when(eligible).then((credit - reduction).clip(0, None)).otherwise(0.0)
     d = resolve_year(c["by_year"], y)
+    if not unknown_ages_eligible:
+        # TAXSIM (`m1cwfc`): no age or separate-return test, but nothing for a childless return with a taxpayer 65 or older;
+        # children are those under 18.
+        taxsim_base = float(c["child_amount"]) * pl.col("dep18") + float(c["phase_in_rate"]) * earned.clip(0, float(d["phase_in_end"]))
+        taxsim_threshold = pl.when(is_joint).then(float(d["phase_out_joint"])).otherwise(float(d["phase_out_other"]))
+        taxsim_credit = (taxsim_base - float(c["phase_out_rate"]) * (income - taxsim_threshold).clip(0, None)).clip(0, None)
+        return pl.when((pl.col("depx") > 0) | (aged_count() == 0)).then(taxsim_credit).otherwise(0.0)
     base = float(c["child_amount"]) * pl.col("dep17") + float(c["phase_in_rate"]) * earned.clip(0, float(d["phase_in_end"]))
     threshold = pl.when(is_joint).then(float(d["phase_out_joint"])).otherwise(float(d["phase_out_other"]))
     reduction = (income - threshold).clip(0, None) * float(c["phase_out_rate"])
@@ -417,7 +433,7 @@ def _working_family_credit(
     p = YearParams(MN_PARAMS, y)
     nkid = pl.col("depx").floor()
     eitc = pl.col("eitc")
-    if y >= 2022:
+    if y >= 2023 or (y == 2022 and behavior.use_minnesota_2022_working_family_credit_per_statute):
         return _statutory_working_family_credit(
             y, pl.col("earned_income"), pl.col("agi"), is_joint, behavior.count_unknown_ages_as_eligible_for_minnesota_childless_credit
         )
@@ -670,6 +686,12 @@ def compute_mn_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         mult = by_filing_status(p["phaseout_multiplier"])
         ph13 = p.num("phaseout_threshold_base") * aif91 * mult / sep if y >= 2013 else pl.lit(0.0)
         phded = p.num("phaseout_threshold_base") * aif91 / sep if y >= 2013 else pl.lit(0.0)
+        if y >= 2021 and not behavior.phase_out_minnesota_exemptions_per_statute:
+            # TAXSIM (2021 on): start by capped status code (joint, head of household, other) scaled by its own factor.
+            starts = p.value("taxsim_exemption_phaseout_start")
+            ph13 = pl.when(is_joint | is_sep).then(float(starts["married"])).when(
+                files_head_of_household()
+            ).then(float(starts["head_of_household"])).otherwise(float(starts["single"])) * p.num("taxsim_exemption_phaseout_inflation")
     if y >= 2013:
         exemption_amount = p.num("exemption_amount")
         count = federal_exemption_count(y) if y <= 2018 else depx
@@ -683,7 +705,7 @@ def compute_mn_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             p.num("exemption_phaseout_rate") * excess / (p.num("exemption_phaseout_step") / sep),
         )
         exemp = exemp - ratio * exemp
-        if y >= 2022:
+        if y >= 2022 and behavior.phase_out_minnesota_exemptions_per_statute:
             d22 = _phaseout_2022plus(y)
             steps = phaseout_steps(
                 (fed_agi - _status_value(d22["exemption_start"], pl.col("filing_status"))).clip(0, None)
@@ -869,7 +891,9 @@ def compute_mn_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     df, (taxinc,) = checkpoint(df, mn_taxinc=taxinc.clip(0, None))
     if y <= 1986:
         taxinc = (agi - deduc - exemp).clip(0, None)
-    df, (statax,) = checkpoint(df, mn_regular_tax=_schedule_tax(taxinc, fedtax, status, y, behavior.double_minnesota_separate_returns))
+    df, (statax,) = checkpoint(df, mn_regular_tax=_schedule_tax(
+        taxinc, fedtax, status, y, behavior.double_minnesota_separate_returns, behavior.use_minnesota_published_brackets_from_2022
+    ))
 
     # --- Alternative minimum tax ---
     if y >= 2001:
@@ -947,10 +971,12 @@ def compute_mn_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
                 xl10 = pl.lit(0.0)
         else:
             xl10 = p.num("marriage_credit_lower_earner_deduction")
+            if y >= 2019 and not behavior.compute_minnesota_marriage_credit_earnings_per_statute:
+                xl10 = stded / 2
         xl11 = (earn - xl10).clip(0, None)
         single = pl.lit("single")
-        x1 = _schedule_tax(xl11, fedtax, single, y)
-        x2 = _schedule_tax((taxinc - xl11).clip(0, None), fedtax, single, y)
+        x1 = _schedule_tax(xl11, fedtax, single, y, True, behavior.use_minnesota_published_brackets_from_2022)
+        x2 = _schedule_tax((taxinc - xl11).clip(0, None), fedtax, single, y, True, behavior.use_minnesota_published_brackets_from_2022)
         statm = pl.when(
             (taxinc < p.num("marriage_credit_min_taxable_income")) | (earn < p.num("marriage_credit_min_earnings"))
         ).then(0.0).otherwise(statax)
@@ -988,9 +1014,10 @@ def compute_mn_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             - c13["rate_step_decrement"] * ((agi - c13["rate_start"]) / c13["rate_step"]).clip(0, None),
         )
         cost = chr_rate * child
-    elif 1987 <= y <= 2016 and not behavior.read_minnesota_child_care_from_federal_credit:
-        # The 2026 build takes its share of the federal credit's qualifying expenses.
-        cost = p.num("child_care_share_of_federal") * pl.col("ccc_expense")
+    elif y <= 2016 and not behavior.read_minnesota_child_care_from_federal_credit:
+        # The 2026 build takes its share of the federal credit's qualifying expenses (the input itself before 1987).
+        expense = pl.col("childcare").clip(0, None) if y <= 1986 else pl.col("ccc_expense")
+        cost = p.num("child_care_share_of_federal") * expense
     elif y <= 1986 and not behavior.read_federal_child_care_credit_before_1987:
         # TAXSIM reads a federal figure its early routine never fills.
         cost = pl.lit(0.0)
@@ -1089,13 +1116,17 @@ def compute_mn_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         crfuel = pl.when(taxinc <= limit).then(fuel["amount"] / sep).otherwise(0.0)
 
     statax = (statax - credit).clip(0, None) - chcr - work - pcred - crfuel
-    rate_expr = _schedule_rate(taxinc, fedtax, status, y, behavior.double_minnesota_separate_returns)
+    rate_expr = _schedule_rate(
+        taxinc, fedtax, status, y, behavior.double_minnesota_separate_returns, behavior.use_minnesota_published_brackets_from_2022
+    )
     if y <= 1986:
         first_taxinc = pl.col("mn_taxinc")
-        first_tax = _schedule_tax(first_taxinc, fedtax, status, y)
-        political_tax = _schedule_tax(taxinc, fedtax, status, y)
+        first_tax = _schedule_tax(first_taxinc, fedtax, status, y, True, behavior.use_minnesota_published_brackets_from_2022)
+        political_tax = _schedule_tax(taxinc, fedtax, status, y, True, behavior.use_minnesota_published_brackets_from_2022)
         rate_expr = pl.when(first_tax > political_tax).then(
-            _schedule_rate(first_taxinc, fedtax, status, y, behavior.double_minnesota_separate_returns)
+            _schedule_rate(
+                first_taxinc, fedtax, status, y, behavior.double_minnesota_separate_returns, behavior.use_minnesota_published_brackets_from_2022
+            )
         ).otherwise(rate_expr)
     return with_state_detail(
         df.with_columns(siitax=statax * flate),
