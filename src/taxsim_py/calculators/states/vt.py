@@ -6,6 +6,7 @@ from taxsim_py.engine.brackets import bracket_rate, bracket_tax, scale_brackets
 from taxsim_py.engine.inputs import aged_count, federal_exemption_count, files_head_of_household, files_joint, files_separate, files_single, is_dependent_filer
 from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml
 from taxsim_py.engine.state import (
+    federal_zero_bracket,
     tier_values,
     phaseout_steps,
     checkpoint,
@@ -86,11 +87,14 @@ def compute_vt_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
                 taxinc = (taxinc - pl.min_horizontal(share * fti, capgn.clip(None, p.num("capital_gain_exclusion_cap")))).clip(0, None)
             elif p.in_effect("capital_gain_exclusion_floor"):
                 dgain = pl.max_horizontal(capgn.clip(None, p.num("capital_gain_exclusion_floor")), share * capgn)
+                if not behavior.use_vermont_capital_gain_exclusion_options:
+                    # TAXSIM dropped the percentage option and keeps the flat amount only.
+                    dgain = capgn.clip(None, p.num("capital_gain_exclusion_floor"))
                 taxinc = (taxinc - pl.min_horizontal(share * fti, dgain)).clip(0, None)
             if p.in_effect("itemized_addback_multiple"):
                 itemized = pl.col("itemized_deduction")
                 salt = pl.col("state_sales_or_income_tax_ded")
-                addd50 = pl.min_horizontal(itemized, salt)
+                addd50 = pl.min_horizontal(itemized - federal_zero_bracket(), salt)
                 addit = (
                     (itemized - (pl.col("charity_cash") + salt)).clip(0, None)
                     - p.num("itemized_addback_multiple") * pl.col("standard_deduction")
@@ -238,9 +242,19 @@ def compute_vt_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         else:
             pcred = excess.clip(0, None)
         pcred = pl.when(vthy > p["renter_rebate_income_limit"]).then(0.0).otherwise(pcred)
+        if y >= 2000 and not behavior.pay_vermont_renter_rebate_after_1999:
+            # TAXSIM pays it only in 1998-99, and in 2020 as a tenth of rent up to $2,500.
+            pcred = pl.lit(0.0)
+            if y == 2020:
+                below = vthy < (32800.0 + pl.col("stcg") - 1.0) * 4142.0
+                pcred = pl.when(below & (vthy <= 47000.0)).then(0.1 * rentpaid.clip(None, 2500.0)).otherwise(0.0)
     ctc = pl.lit(0.0)
     if p.in_effect("child_care_full_refundable_rate"):
         chcref = p.num("child_care_full_refundable_rate") * fed_ccc
+        chcr = pl.lit(0.0)
+    elif y <= 2002 and not behavior.use_vermont_nonrefundable_child_care_credit_before_2003:
+        # TAXSIM pays 72% of the federal credit as refundable in every year outside 2003-21.
+        chcref = 0.72 * fed_ccc
         chcr = pl.lit(0.0)
     if p.in_effect("child_tax_credit"):
         credit = p.value("child_tax_credit")

@@ -12,7 +12,7 @@ from taxsim_py.calculators.federal import compute_federal_income_tax
 from taxsim_py.calculators.payroll import compute_payroll_tax
 from taxsim_py.engine.inputs import taxpayer_count
 from taxsim_py.engine.sales_tax import state_sales_tax_deduction
-from taxsim_py.engine.state import FORCE_ITEMIZE
+from taxsim_py.engine.state import FORCE_ITEMIZE, ZERO_BRACKET_ZEROED
 
 ITERATIONS = 3
 _ROW = "__resolve_row"
@@ -163,8 +163,13 @@ def _resolve_federal_and_state(
             proptax=pl.lit(0.0), mortgage=pl.lit(0.0), otheritem=pl.lit(0.0), charity_cash=pl.lit(0.0),
             **{FORCE_ITEMIZE: pl.lit(None, dtype=pl.Boolean)},
         )
+    # TAXSIM zeroes the federal zero bracket amount (`comnew(3)`, read by states) only on the pass that
+    # forces itemizing.
     stacked = pl.concat(
-        [base.with_columns(pl.lit(True).alias(FORCE_ITEMIZE), pl.lit(True).alias(_PASS)), standard.with_columns(pl.lit(False).alias(_PASS))],
+        [
+            base.with_columns(pl.lit(True).alias(FORCE_ITEMIZE), pl.lit(True).alias(_PASS), pl.lit(True).alias(ZERO_BRACKET_ZEROED)),
+            standard.with_columns(pl.lit(False).alias(_PASS), pl.lit(False).alias(ZERO_BRACKET_ZEROED)),
+        ],
         how="diagonal_relaxed",
     )
 

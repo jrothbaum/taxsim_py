@@ -247,6 +247,13 @@ def checkpoint(df: pl.DataFrame, **expressions: pl.Expr) -> tuple[pl.DataFrame, 
 # `force_itemize` column: True or False when the itemize choice is forced
 # (the federal-state resolver runs both), null when it is not.
 FORCE_ITEMIZE = "force_itemize"
+# True on the pass that forces itemizing, where TAXSIM zeroes the federal zero bracket amount.
+ZERO_BRACKET_ZEROED = "zero_bracket_zeroed"
+
+
+def federal_zero_bracket() -> pl.Expr:
+    """TAXSIM `comnew(3)`: the standard deduction, 0 on the pass that forces itemizing."""
+    return pl.when(pl.col(ZERO_BRACKET_ZEROED).fill_null(False)).then(0.0).otherwise(pl.col("standard_deduction"))
 
 
 def _forced() -> pl.Expr:

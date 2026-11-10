@@ -8,6 +8,7 @@ from taxsim_py.engine.brackets import bracket_rate, bracket_tax, scale_brackets
 from taxsim_py.engine.inputs import aged_count, federal_exemption_count, files_head_of_household, files_joint, files_separate, files_single, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml, resolve_year
 from taxsim_py.engine.state import (
+    federal_zero_bracket,
     earned_minimum,
     FORCE_ITEMIZE,
     dividend_input_adjustment,
@@ -183,7 +184,7 @@ def compute_sc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             dedphs = deducp - itemized
             tx = pl.when((fed_agi > phas92) & (deducp > 0)).then(salt - dedphs * salt / deducp).otherwise(salt)
             # The addback is limited to the itemized total above the federal standard deduction.
-            tx = pl.min_horizontal(tx, itemized - pl.col("standard_deduction"))
+            tx = pl.min_horizontal(tx, itemized - federal_zero_bracket())
     else:
         cap = p.num("salt_cap") / sep if p.in_effect("salt_cap") else pl.col("salt_capped")
         room = (cap - pl.col("proptax")).clip(0, None)
