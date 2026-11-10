@@ -120,7 +120,7 @@ skips would count the EITC slope twice.
 
 | State | Years | Line | What TAXSIM does | taxsim-py |
 |:--|:--|:--|:--|:--|
-| AL | 2013 on | | The payroll-tax itemized deduction takes half of FICA and then adds the employee-only Additional Medicare tax, which TAXSIM's FICA total already includes, counting it 1.5 times | Statutory, AL-001: counted once. `count_additional_medicare_once_in_alabama_fica_deduction` |
+| AL | 2013 on | | (2024 build only; the 2026 build deducts the taxpayer's own payroll taxes, below) The payroll-tax itemized deduction takes half of FICA and then adds the employee-only Additional Medicare tax, which TAXSIM's FICA total already includes, counting it 1.5 times | Statutory, AL-001: counted once. `count_additional_medicare_once_in_alabama_fica_deduction` |
 | AL | 1982 on | | The itemized payroll tax deduction is the taxpayer's own payroll taxes (`c(190)`), not half of the reported total | Statutory: half of FICA. `deduct_half_of_fica_in_alabama_itemized_deduction` |
 | AL | 1977-1981 | | The itemized deduction includes other itemized deductions | Both modes |
 | AL | 2009-2010, 2020 | | The federal tax deduction is net of the Making Work Pay credit (2009-2010) and the recovery rebate (2020) | Statutory: before them. `deduct_alabama_federal_tax_before_stimulus_credits` |
