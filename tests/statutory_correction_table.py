@@ -253,7 +253,7 @@ CASES = [
     # Minnesota: a household with rent and property tax gets both refunds.
     _case(
         "MN-007", "Minnesota 2015 renter who also paid property tax", "mn_pcred",
-        601.29, 1_855.10, year=2015, state=24, pwages=20_000, rentpaid=6_000, proptax=2_000,
+        0.0, 1_855.10, year=2015, state=24, pwages=20_000, rentpaid=6_000, proptax=2_000,
     ),
     # Missouri: before 1991 no Medicare tax on wages above the Social
     # Security base (1.45% of $20,400 less in the payroll deduction).
