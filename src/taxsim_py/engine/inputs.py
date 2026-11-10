@@ -100,9 +100,20 @@ def with_input_defaults(frame: pl.DataFrame | pl.LazyFrame, year: pl.Expr) -> pl
 SUPPORTED_MSTAT = (1, 2, 3, 6, 8, 33, 66)
 
 
-def filing_status() -> pl.Expr:
-    """Filing status from `mstat` and `depx`."""
+def filing_status(any_code_with_dependents_heads_household: bool = False) -> pl.Expr:
+    """Filing status from `mstat` and `depx`.
+
+    The 2026 TAXSIM build gives head of household status to codes 6, 33 and 66
+    when there are dependents (`any_code_with_dependents_heads_household`).
+    """
     mstat = pl.col("mstat")
+    if any_code_with_dependents_heads_household:
+        return (
+            pl.when(mstat.is_in([1, 3, 33, 6, 66]) & (pl.col("depx") > 0)).then(pl.lit("head_of_household"))
+            .when(mstat.is_in([1, 3, 8, 33])).then(pl.lit("single"))
+            .when(mstat == 2).then(pl.lit("married_joint"))
+            .when(mstat.is_in([6, 66])).then(pl.lit("married_separate"))
+        )
     return (
         pl.when(mstat.is_in([1, 3]) & (pl.col("depx") > 0)).then(pl.lit("head_of_household"))
         .when(mstat.is_in([1, 3, 8, 33])).then(pl.lit("single"))

@@ -31,7 +31,7 @@ _PRE1987_ONLY = (
     "pre1987_deduc", "pre1987_earncr", "pre1987_pref", "pre1987_pretax", "pre1987_taxbc", "pre1987_twoded",
 )
 _LAW87_ONLY = (
-    "actc", "amt", "amt_income", "cares", "ccc", "ccc_uncapped", "charity_cash", "eitc", "eitc_before_age_test", "eitc_before_filer_test",
+    "actc", "amt", "amt_income", "cares", "economic_stimulus_rebate", "ccc", "ccc_uncapped", "charity_cash", "eitc", "eitc_before_age_test", "eitc_before_filer_test",
     "federal_elder", "itemized_before_limit", "nonrefundable_credits", "itemized_deduction", "ltg", "making_work_pay", "odc",
     "personal_exemptions", "qbi_deduction", "salt_capped", "schedule_tax", "se_adjustment", "setax",
     "standard_deduction", "tax_before_credits",
@@ -150,9 +150,12 @@ def _resolve_federal_and_state(
     base = raw_df.with_row_index(_ROW)
     if _DEDUCTION not in base.columns:
         base = base.with_columns(pl.lit(0.0).alias(_DEDUCTION))
-    stacked = pl.concat(
-        [base.with_columns(pl.lit(True).alias(FORCE_ITEMIZE)), base.with_columns(pl.lit(False).alias(FORCE_ITEMIZE))]
-    )
+    standard = base.with_columns(pl.lit(False).alias(FORCE_ITEMIZE))
+    if not behavior.keep_itemized_inputs_when_taking_standard_deduction:
+        # The 2026 TAXSIM build zeroes the itemized inputs on its standard-deduction pass,
+        # so the state calculation sees no property tax, mortgage interest or other items.
+        standard = standard.with_columns(proptax=pl.lit(0.0), mortgage=pl.lit(0.0), otheritem=pl.lit(0.0))
+    stacked = pl.concat([base.with_columns(pl.lit(True).alias(FORCE_ITEMIZE)), standard])
 
     current = stacked
     for _ in range(ITERATIONS - 1):

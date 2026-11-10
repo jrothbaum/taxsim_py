@@ -65,14 +65,15 @@ def federal_detail(
         col("taxable_unemployment").alias("federal_taxable_unemployment_compensation"),
         col("taxable_social_security").alias("federal_taxable_social_security_benefits"),
         pl.when(pre).then(col("pre1987_zbr"))
-        .when(itemizes).then(0.0)
+        .when(itemizes & (col("year") < 2024)).then(0.0)
         .otherwise(col("standard_deduction")).alias("federal_standard_deduction"),
         pl.when(pre)
         .then(col("pre1987_amex"))
         .otherwise(col("personal_exemptions"))
         .alias("federal_personal_exemptions"),
         col("exemption_phaseout").alias("federal_exemption_phaseout"),
-        col("deduction_phaseout").alias("federal_itemized_deduction_phaseout"),
+        pl.when(pre | itemizes | (col("year") > 2003)).then(col("deduction_phaseout")).otherwise(0.0)
+        .alias("federal_itemized_deduction_phaseout"),
         pl.when(pre).then(col("pre1987_deduc"))
         .when(itemizes).then(col("itemized_deduction"))
         .otherwise(0.0).alias("federal_itemized_deductions"),

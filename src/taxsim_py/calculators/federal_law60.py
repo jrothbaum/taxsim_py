@@ -38,7 +38,7 @@ def compute_federal_income_tax_law60(
         df.collect_schema().names() if isinstance(df, pl.LazyFrame) else list(df.columns)
     )
     df = df.with_columns(
-        filing_status=filing_status(),
+        filing_status=filing_status(not behavior.honor_separate_and_unmarried_codes_with_dependents),
         wages=pl.col("pwages") + pl.col("swages"),
     )
     for col in (

@@ -203,6 +203,7 @@ def taxsim_payroll(
     addmed_threshold: pl.Expr,
     own_share_self_employment: float,
     behavior: BehaviorProfile = TAXSIM_BEHAVIOR,
+    wage_hi_rate: float | None = None,
 ) -> dict[str, pl.Expr]:
     """Payroll and self-employment tax as TAXSIM's `sstax` computes them.
 
@@ -237,7 +238,7 @@ def taxsim_payroll(
         hi, hi_capped = _capped_items(
             items,
             factors,
-            [hi_rate] * 4,
+            [hi_rate if wage_hi_rate is None else wage_hi_rate, hi_rate, hi_rate, hi_rate],
             hi_wage_base,
             factor_in_rate=True,
             coordinate_on_net_earnings=behavior.coordinate_oasdi_on_net_earnings,
@@ -265,6 +266,22 @@ def taxsim_payroll(
             earnings = earnings + net_earnings_factor * (pl.col("psemp") + pl.col("ssemp"))
             earnings = earnings + net_earnings_factor * (pl.col(names[2]) + pl.col(names[3]))
     addmed = additional_medicare_tax(earnings, addmed_threshold, addmed_rate)
+    employer_above_base = pl.lit(0.0)
+    employee_medicare_on_full_base = pl.lit(0.0)
+    if not behavior.apply_payroll_wage_bases_correctly:
+        # The 2026 TAXSIM build leaves the employer's halves uncapped in `fica`, and
+        # charges the wage-side Medicare tax on the full cap once earnings
+        # (wages plus net self-employment income) reach it, even with no wages.
+        for names in items_by_earner:
+            wages = pl.col(names[0]).clip(0, None)
+            employer_above_base = employer_above_base + (wages - wage_base).clip(0, None) * oasdi_rate / 2
+            if wage_hi_rate is not None:
+                employer_above_base = employer_above_base + (wages - hi_wage_base).clip(0, None) * wage_hi_rate / 2
+                if hi_wage_base < 1.0e14:
+                    net_se = net_earnings_factor * pl.sum_horizontal(pl.col(name).clip(0, None) for name in names[1:])
+                    employee_medicare_on_full_base = employee_medicare_on_full_base + pl.when(
+                        wages + net_se >= hi_wage_base
+                    ).then((hi_wage_base - wages).clip(0, None) * wage_hi_rate / 2).otherwise(0.0)
     primary = streams[0]
     return {
         "wage_tax": wage_tax,
@@ -273,8 +290,8 @@ def taxsim_payroll(
         "setax_sstb": setax_sstb,
         "addmed": addmed,
         "oasdi_earnings": oasdi_earnings,
-        "fica": setax + wage_tax + addmed,
-        "tfica": setax + wage_tax / 2 + addmed,
+        "fica": setax + wage_tax + employer_above_base + employee_medicare_on_full_base + addmed,
+        "tfica": setax + wage_tax / 2 + employee_medicare_on_full_base + addmed,
         "own_fica_primary": pl.sum_horizontal(
             share * tax for share, tax in zip((1.0, *[own_share_self_employment] * 3), primary[0])
         ),

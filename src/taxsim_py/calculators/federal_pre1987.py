@@ -36,7 +36,7 @@ def compute_federal_income_tax_pre1987(
         df.collect_schema().names() if isinstance(df, pl.LazyFrame) else list(df.columns)
     )
     df = df.with_columns(
-        filing_status=filing_status(),
+        filing_status=filing_status(not behavior.honor_separate_and_unmarried_codes_with_dependents),
         wages=pl.col("pwages") + pl.col("swages"),
     )
     if FORCE_ITEMIZE not in (df.collect_schema().names() if isinstance(df, pl.LazyFrame) else df.columns):

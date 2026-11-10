@@ -27,6 +27,7 @@ def payroll_parts(year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> dic
         oasdi_rate=p.num("oasdi_rate_combined"),
         se_oasdi_rate=p.num("se_oasdi_rate"),
         hi_rate=p.num("se_hi_rate"),
+        wage_hi_rate=p.num("hi_rate_combined"),
         net_earnings_factor=p.num("se_net_earnings_factor"),
         addmed_rate=p.num("additional_medicare_rate"),
         addmed_threshold=threshold_expr,

@@ -84,6 +84,20 @@ recovery_rebate:
     phaseout_end: {single: 80000, married_joint: 160000, head_of_household: 120000, married_separate: 80000}
     payment: {per_adult: 1400, per_dependent: 1400}
   2022: null
+# 2008 economic stimulus rebate (Economic Stimulus Act of 2008), claimed as a
+# credit on the 2008 return: the smaller of tax and `per_filer` per filer, plus
+# `per_child` per qualifying child, less `phaseout_rate` of AGI over
+# `phaseout_start` per filer. Needs income over `minimum_income`, tax, or AGI
+# over the standard deduction. Source: 2008 Form 1040 instructions, Recovery
+# Rebate Credit worksheet.
+economic_stimulus_rebate:
+  2008:
+    per_filer: 600
+    per_child: 300
+    phaseout_start: 75000
+    phaseout_rate: 0.05
+    minimum_income: 3000
+  2009: null
 # 2009-2010 Making Work Pay credit per taxpayer: a rate on earned income up to
 # the maximum, less a rate on AGI above the start, none at the ceiling, less
 # Social Security benefits up to the offset.

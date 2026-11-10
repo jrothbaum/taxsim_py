@@ -11,7 +11,7 @@ from taxsim_py.engine.brackets import bracket_rate, bracket_rate_by_status, brac
 from taxsim_py.engine.capital_gains import preferential_rate_tax
 from taxsim_py.engine.credits import child_care_credit_rate
 from taxsim_py.engine.eitc import eitc_age_eligible, eitc_filer_eligible, trapezoid_credit
-from taxsim_py.engine.inputs import aged_count, files_joint, files_separate, filing_status, is_dependent_filer
+from taxsim_py.engine.inputs import aged_count, files_joint, files_separate, files_single, filing_status, is_dependent_filer
 from taxsim_py.engine.niit import net_investment_income_tax
 from taxsim_py.engine.social_security import taxable_social_security
 from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml, resolve_year, validate_brackets
@@ -48,6 +48,32 @@ SEPRET_BY_STATUS = {
     "head_of_household": 1.0,
     "married_separate": 2.0,
 }
+
+
+def _qbi_deduction_single_formula(year: int, dividends: pl.Expr) -> pl.Expr:
+    """Qualified business income deduction as the 2026 TAXSIM build computes it.
+
+    All self-employment, S corporation and business income earns the full
+    rate with no self-employment tax netting; professional income, less half
+    of all self-employment tax, phases out over a flat $50,000 above the
+    status threshold. The total is capped at the rate times taxable income
+    less net long-term gain and dividends.
+    """
+    p = YearParams(FEDERAL_INCOME_TAX_PARAMS, year)
+    rate = p.num("qbi_deduction_rate")
+    amounts = p.value("qbi_phase_in_start")
+    start = pl.when(files_joint()).then(float(amounts["married_joint"])).otherwise(float(amounts["unmarried"]))
+    if "married_separate" in amounts:
+        start = pl.when(files_separate()).then(float(amounts["married_separate"])).otherwise(start)
+    taxable = pl.col("taxable_income")
+    phased_share = 1 - ((taxable - start) / p.num("qbi_taxsim_phase_in_width")).clip(0, 1)
+    pass_through = pl.col("pbusinc") + pl.col("sbusinc") + pl.col("scorp") + pl.col("psemp") + pl.col("ssemp")
+    professional = pl.col("pprofinc").clip(0, None) + pl.col("sprofinc").clip(0, None)
+    deduction = rate * ((professional - 0.5 * pl.col("setax")) * phased_share + pass_through)
+    long_term = pl.col("ltcg")
+    net_gain = pl.min_horizontal(long_term, long_term + pl.col("stcg")).clip(0, None)
+    cap = rate * (taxable - (net_gain + dividends)).clip(0, None)
+    return pl.min_horizontal(deduction, cap).clip(0, None)
 
 
 def _qbi_deduction(year: int, dividends: pl.Expr, capgn: pl.Expr) -> pl.Expr:
@@ -295,12 +321,16 @@ def _by_status_at(table: dict, year: int) -> pl.Expr:
     return by_filing_status({status: resolve_year(table[status], year) for status in FILING_STATUSES})
 
 
-def _gross_se_income() -> pl.Expr:
-    """Self-employment, business and professional income."""
-    return (
-        pl.col("psemp") + pl.col("ssemp")
-        + pl.col("pbusinc") + pl.col("pprofinc") + pl.col("sbusinc") + pl.col("sprofinc")
-    )
+def _gross_se_income(behavior: BehaviorProfile) -> pl.Expr:
+    """Self-employment, business and professional income.
+
+    The 2026 TAXSIM build treats `pbusinc`, `pprofinc`, `sbusinc` and `sprofinc`
+    as memo items for self-employment tax and the QBI deduction, not income.
+    """
+    income = pl.col("psemp") + pl.col("ssemp")
+    if behavior.count_business_and_professional_inputs_as_income:
+        income = income + pl.col("pbusinc") + pl.col("pprofinc") + pl.col("sbusinc") + pl.col("sprofinc")
+    return income
 
 
 def _dividends() -> pl.Expr:
@@ -350,7 +380,7 @@ def compute_federal_income_tax(
 
         return compute_federal_income_tax_pre1987(df, year, behavior)
     df = df.with_columns(
-        filing_status=filing_status(),
+        filing_status=filing_status(not behavior.honor_separate_and_unmarried_codes_with_dependents),
         wages=pl.col("pwages") + pl.col("swages"),
     )
     df = with_defaults(df, (
@@ -376,7 +406,7 @@ def _income(
     # applicable share of self-employment tax.
     pt_p = YearParams(PAYROLL_TAX_PARAMS, year)
     payroll = payroll_parts(year, behavior)
-    gross_se_income = _gross_se_income()
+    gross_se_income = _gross_se_income(behavior)
 
     # The payroll figures are kept for the payroll step.
     prerequisites = payroll_prerequisites(year, behavior)
@@ -435,7 +465,7 @@ def _income(
         + dividends_with_fudge
         + pl.col("pensions")
         + schedule_e
-        + pl.col("nonprop")
+        + pl.col("nonprop") * (1.0 if behavior.count_nonproperty_income_once else 2.0)
     )
 
     # Prefer split unemployment amounts when they exceed the combined input.
@@ -530,7 +560,7 @@ def _income(
 def _deductions(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame | pl.LazyFrame:
     """Standard or itemized deduction, exemptions and taxable income."""
     sepret_expr = _sepret()
-    gross_se_income = _gross_se_income()
+    gross_se_income = _gross_se_income(behavior)
     analytic_rate = _models_analytic_rate(year)
 
     # Married-separate uses half of the joint standard deduction.
@@ -557,6 +587,8 @@ def _deductions(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorPr
     # income with earned income).
     dependent_p = YearParams(FEDERAL_INCOME_TAX_PARAMS["dependent_standard_deduction"], year)
     dependent_minimum = dependent_p.num("minimum")
+    if not behavior.use_published_dependent_standard_deduction_minimum and dependent_p.in_effect("taxsim_minimum"):
+        dependent_minimum = dependent_p.num("taxsim_minimum")
     dependent_addition = dependent_p.num("earned_income_addition")
     dependent = is_dependent_filer()
     dependent_earnings = pl.col("wages") + (gross_se_income + pl.col("scorp")).clip(0, None) + dependent_addition
@@ -689,7 +721,11 @@ def _deductions(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorPr
         taxable_income=(pl.col("agi") - deduction - amex - senior).clip(0, None),
     )
     if income_p.in_effect("qbi_deduction_rate"):
-        df = df.with_columns(qbi_deduction=_qbi_deduction(year, _dividends(), _capital_gain(year)))
+        if behavior.use_form_8995a_qbi_streams:
+            qbi = _qbi_deduction(year, _dividends(), _capital_gain(year))
+        else:
+            qbi = _qbi_deduction_single_formula(year, _dividends())
+        df = df.with_columns(qbi_deduction=qbi)
         df = df.with_columns(taxable_income=(pl.col("taxable_income") - pl.col("qbi_deduction")).clip(0, None))
     else:
         df = df.with_columns(qbi_deduction=pl.lit(0.0))
@@ -718,6 +754,11 @@ def _regular_tax(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorP
     max_rate = cg_p.num("maximum_rate") if cg_p.in_effect("maximum_rate") else None
     rate_0_ceiling_expr = _by_status_at(cg_p["rate_0_ceiling"], year)
     rate_15_ceiling_expr = _by_status_at(cg_p["rate_15_ceiling"], year)
+    if not behavior.use_published_capital_gains_thresholds and cg_p.in_effect("taxsim_rate_15_ceiling_single"):
+        # TAXSIM's regular-tax copy of the single threshold differs from its AMT copy.
+        rate_15_ceiling_expr = pl.when(files_single()).then(cg_p.num("taxsim_rate_15_ceiling_single")).otherwise(
+            rate_15_ceiling_expr
+        )
     plain_ordinary_tax = bracket_tax_by_status(pl.col("taxable_income"), brackets_by_status)
 
     if year == 1987:
@@ -1011,7 +1052,7 @@ def _credits(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorProfi
     if year <= 2002:
         phaseout_income = phaseout_income - _capital_gain(year).clip(None, 0) - _schedule_e().clip(None, 0)
         loss_share = eitc_p.num("loss_addback_share") if year >= 1997 else 0.0
-        business = _gross_se_income() + pl.col("scorp")
+        business = _gross_se_income(behavior) + pl.col("scorp")
         phaseout_income = phaseout_income - loss_share * business.clip(None, 0)
     eitc_ordinary = (
         pl.when(pl.col("rate_in").is_not_null())
@@ -1027,15 +1068,15 @@ def _credits(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorProfi
         )
         .otherwise(0.0)
     )
-    # Investment income above the annual limit reduces EITC dollar-for-dollar.
-    if year < 1996:
-        # The disqualified-investment-income test begins in 1996.
-        eitc_reduction = pl.lit(0.0)
-    else:
+    # Investment income above the annual limit disqualifies the credit entirely.
+    eitc = eitc_ordinary
+    if year >= 1996:
         dylim = float(resolve_year(FEDERAL_EITC_PARAMS_MISC["dylim"], year))
         disqy = _capital_gain(year).clip(0, None) + _dividends() + pl.col("intrec") + pl.col("otherprop").clip(0, None)
-        eitc_reduction = (disqy - dylim).clip(0, None)
-    eitc = (eitc_ordinary - eitc_reduction).clip(0, None)
+        if not behavior.count_business_and_professional_inputs_as_income:
+            # The 2026 TAXSIM build counts these memo items and S corporation income here.
+            disqy = disqy + pl.col("pbusinc") + pl.col("sbusinc") + pl.col("scorp").clip(0, None)
+        eitc = pl.when(disqy > dylim).then(0.0).otherwise(eitc)
     childless = pl.col("num_children") == 0
     eitc_before_filer_test = eitc
     eitc = pl.when(eitc_filer_eligible(childless, year)).then(eitc).otherwise(0.0)
@@ -1119,6 +1160,49 @@ def _credits(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorProfi
         # Fully refundable.
         nonrefundable_credit = pl.lit(0.0)
         actc = combined_after_phaseout
+    elif not behavior.floor_child_credit_phaseout_at_zero and year >= 2024:
+        # The 2026 TAXSIM build follows Form 8812 but counts every dependent it treats as
+        # EITC-eligible (`dep18`) as a qualifying child, and lets the other dependent credit
+        # count toward the refundable credit.
+        children = pl.col("dep18")
+        base = children * ctc_p.num("amount_per_child") + odc_p.num("amount") * (pl.col("depx") - children)
+        after_phaseout = (base - 0.05 * (agi.clip(0, None) - odc_threshold_expr).clip(0, None)).clip(0, None)
+        tax_room = pl.col("tax_before_credits").clip(0, None)
+        remaining_after_ccc = (pl.col("tax_before_credits") - pl.col("ccc") - pl.col("elderly_credit_raw")).clip(0, None)
+        nonrefundable_credit = pl.min_horizontal(pl.min_horizontal(after_phaseout, tax_room), remaining_after_ccc)
+        unused = (after_phaseout - pl.min_horizontal(after_phaseout, tax_room)).clip(0, None)
+        capped = pl.min_horizontal(unused, children * ctc_p.num("actc_max_refundable_per_child"))
+        earned_formula = pl.when(children > 0).then(
+            ctc_p.num("actc_rate") * (pl.col("earned_income").clip(0, None) - ctc_p.num("actc_earned_income_floor")).clip(0, None)
+        ).otherwise(0.0)
+        employee_payroll_tax = 0.5 * (pl.col("__payroll_wage_tax") + pl.col("__payroll_setax"))
+        actc = pl.when(children >= 3).then(
+            pl.min_horizontal(capped, pl.max_horizontal(earned_formula, employee_payroll_tax))
+        ).otherwise(pl.min_horizontal(capped, earned_formula))
+    elif not behavior.floor_child_credit_phaseout_at_zero and year >= 1998:
+        # The 2026 TAXSIM build lets the phaseout push the nonrefundable credit
+        # below zero (an added tax) through 2020, and bases the refundable credit
+        # on what the nonrefundable credit leaves of the credit before the phaseout.
+        reduction = 0.05 * (agi.clip(0, None) - odc_threshold_expr).clip(0, None)
+        signed_credit = combined_base - reduction
+        if year >= 2022:
+            signed_credit = signed_credit.clip(0, None)
+        remaining_after_ccc = (pl.col("tax_before_credits") - pl.col("ccc") - pl.col("elderly_credit_raw")).clip(0, None)
+        nonrefundable_credit = pl.min_horizontal(signed_credit, remaining_after_ccc)
+        unused_nonrefundable = combined_base - nonrefundable_credit
+        if not ctc_p.in_effect("actc_rate"):
+            # 1998-2000: three or more children, limited by employee payroll tax over the EITC.
+            limit = (0.5 * (pl.col("__payroll_wage_tax") + pl.col("__payroll_setax")) - pl.col("eitc")).clip(0, None)
+            actc = pl.when(ideps >= 3).then(pl.min_horizontal(limit, reduction.clip(0, None))).otherwise(0.0)
+        else:
+            earned_formula = ctc_p.num("actc_rate") * (
+                pl.col("earned_income").clip(0, None) - ctc_p.num("actc_earned_income_floor")
+            ).clip(0, None)
+            if ctc_p.in_effect("actc_max_refundable_per_child"):
+                actc_cap = pl.min_horizontal(unused_nonrefundable, ctc_p.num("actc_max_refundable_per_child") * ideps)
+            else:
+                actc_cap = unused_nonrefundable
+            actc = pl.min_horizontal(actc_cap, earned_formula).clip(0, None)
     elif not ctc_p.in_effect("actc_rate"):
         # TAXSIM's additional credit for three or more children before 2001 is
         # built from a payroll-tax figure it never sets, so it is always 0.
@@ -1171,12 +1255,23 @@ def _net_tax(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorProfi
     niit_p = YearParams(FEDERAL_NIIT_PARAMS, year)
     niit_threshold_expr = _by_status_at(niit_p["threshold"], year)
     niit_expense_cap = niit_p.num("expense_cap") if niit_p.in_effect("expense_cap") else float("inf")
+    if behavior.count_business_and_professional_inputs_as_income:
+        net_investment_income = (
+            pl.col("intrec") + _dividends() + _capital_gain(year) + pl.col("otherprop")
+        ).clip(0, None)
+    else:
+        # The 2026 TAXSIM build floors only interest, dividends and gains, then adds
+        # Schedule E income and the business memo items, which can be negative.
+        net_investment_income = (
+            (pl.col("intrec") + _dividends() + _capital_gain(year)).clip(0, None)
+            + _schedule_e() + pl.col("pbusinc") + pl.col("sbusinc")
+        )
     niit = net_investment_income_tax(
-        net_investment_income=(pl.col("intrec") + _dividends() + _capital_gain(year) + pl.col("otherprop")).clip(0, None),
+        net_investment_income=net_investment_income,
         agi=agi,
         threshold=niit_threshold_expr,
         rate=niit_p.num("rate"),
-        state_tax_deduction_claimed=pl.col("state_sales_or_income_tax_ded"),
+        state_tax_deduction_claimed=pl.when(pl.col("itemizes")).then(pl.col("state_sales_or_income_tax_ded")).otherwise(0.0),
         expense_cap=niit_expense_cap,
     )
     df = df.with_columns(niit=niit)
@@ -1244,6 +1339,27 @@ def _net_tax(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorProfi
     # Dependent filers get no recovery rebate.
     df = df.with_columns(cares=pl.when(is_dependent_filer()).then(0.0).otherwise(cares))
 
+    # 2008 economic stimulus rebate, limited by tax before the rebate.
+    if credits_p.in_effect("economic_stimulus_rebate"):
+        esr = credits_p.value("economic_stimulus_rebate")
+        filers = pl.when(files_joint()).then(2.0).otherwise(1.0)
+        tax_after_credits = (
+            pl.col("tax_before_credits") - pl.col("ccc") - pl.col("elderly_credit") - pl.col("odc")
+        )
+        qualifies = (
+            (pl.col("wages") + pl.col("gssi") > esr["minimum_income"])
+            | (tax_after_credits > 1)
+            | (agi > pl.col("standard_deduction"))
+        )
+        phaseout = esr["phaseout_rate"] * (agi - esr["phaseout_start"] * filers).clip(0, None)
+        base = pl.min_horizontal((pl.col("tax_before_credits") - pl.col("ccc") - pl.col("odc")).clip(0, None), esr["per_filer"] * filers)
+        rebate_2008 = pl.when(qualifies).then(
+            (base + esr["per_child"] * pl.col("dep17") - phaseout).clip(0, None)
+        ).otherwise(0.0)
+    else:
+        rebate_2008 = pl.lit(0.0)
+    df = df.with_columns(economic_stimulus_rebate=pl.when(is_dependent_filer()).then(0.0).otherwise(rebate_2008))
+
     # Making Work Pay credit, per taxpayer.
     if credits_p.in_effect("making_work_pay"):
         mwp = credits_p.value("making_work_pay")
@@ -1286,6 +1402,7 @@ def _net_tax(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorProfi
             - pl.col("elderly_credit")
             - pl.col("eitc")
             - pl.col("cares")
+            - pl.col("economic_stimulus_rebate")
             - pl.col("making_work_pay")
             - pl.col("telephone_excise_credit")
             + pl.col("niit")

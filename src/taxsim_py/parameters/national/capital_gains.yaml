@@ -187,6 +187,9 @@ rate_0_ceiling:
     2023: 89250
     2024: 94050
     2025: 96700
+# TAXSIM mode: the regular-tax copy of the single 20% rate threshold in 2022
+# ($100 below the AMT copy and the published $459,750).
+taxsim_rate_15_ceiling_single: {2022: 459650, 2023: null}
 rate_15_ceiling:
   single:
     1987: 1000000000000000.0

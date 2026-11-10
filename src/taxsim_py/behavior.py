@@ -22,6 +22,25 @@ class BehaviorProfile:
 
     mode: CalculationMode = CalculationMode.STATUTORY
     coordinate_oasdi_on_net_earnings: bool = True
+    apply_payroll_wage_bases_correctly: bool = True
+    use_form_8995a_qbi_streams: bool = True
+    floor_child_credit_phaseout_at_zero: bool = True
+    count_business_and_professional_inputs_as_income: bool = True
+    count_nonproperty_income_once: bool = True
+    honor_separate_and_unmarried_codes_with_dependents: bool = True
+    use_published_capital_gains_thresholds: bool = True
+    tax_alaska_before_1979: bool = True
+    pay_pennsylvania_child_care_credit_only_from_2023: bool = True
+    keep_itemized_inputs_when_taking_standard_deduction: bool = True
+    use_published_dependent_standard_deduction_minimum: bool = True
+    limit_arkansas_low_income_table_to_its_range: bool = True
+    use_arkansas_statutory_step_credits: bool = True
+    leave_out_one_time_state_rebates: bool = True
+    count_vermont_child_credit_by_statutory_age: bool = True
+    use_colorado_statutory_sales_tax_refund: bool = True
+    weight_falling_tables_correctly: bool = True
+    use_wisconsin_form_standard_deduction: bool = True
+    use_wisconsin_statutory_school_credit: bool = True
     enforce_schedule_se_minimum: bool = True
     prevent_negative_self_employment_tax: bool = True
     count_self_employment_once_for_additional_medicare: bool = True
@@ -129,9 +148,37 @@ class BehaviorProfile:
 
 
 STATUTORY_BEHAVIOR = BehaviorProfile()
+# Switches whose TAXSIM error was fixed by the 2026 build (taxsim_2026_11_09.f):
+# TAXSIM mode now keeps the statutory value for them.
+FIXED_IN_2026_BUILD = frozenset(
+    {
+        "coordinate_oasdi_on_net_earnings",
+        "prevent_negative_self_employment_tax",
+        "include_business_income_before_1987",
+        "add_amt_before_2000",
+        "allow_other_dependent_credit_after_2021",
+        "assign_business_income_to_its_earner",
+        "count_self_employment_once_for_additional_medicare",
+        "add_washington_working_families_credit",
+        "drop_household_income_record_adjustment",
+        "apply_illinois_exemption_income_limit",
+        "deduct_massachusetts_employee_payroll_tax_per_spouse",
+        "complete_new_york_1986_maximum_tax_table",
+        "limit_ohio_joint_credit_to_joint_returns",
+        "use_minnesota_working_family_tables_by_children",
+        "floor_montana_social_security_worksheet",
+        "limit_arizona_property_credit_per_statute",
+        "apply_michigan_retirement_tiers",
+        "count_capital_gains_in_dc_childless_eitc_investment_income",
+    }
+)
 TAXSIM_BEHAVIOR = BehaviorProfile(
     mode=CalculationMode.TAXSIM,
-    **{f.name: not f.default for f in fields(BehaviorProfile) if f.name != "mode"},
+    **{
+        f.name: f.default if f.name in FIXED_IN_2026_BUILD else not f.default
+        for f in fields(BehaviorProfile)
+        if f.name != "mode"
+    },
 )
 
 
