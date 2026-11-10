@@ -67,6 +67,13 @@ class BehaviorProfile:
     count_capital_gains_in_dc_childless_eitc_investment_income: bool = True
     exclude_children_under_4_from_ny_empire_credit: bool = True
     pay_new_york_empire_child_credit_per_statute: bool = True
+    step_ohio_exemption_by_income: bool = True
+    read_children_under_6_from_dep6: bool = True
+    give_south_carolina_pension_deduction_to_each_taxpayer: bool = True
+    use_south_carolina_published_tax_table: bool = True
+    use_current_federal_standard_deduction_for_south_carolina_addback: bool = True
+    use_ohio_published_tax_brackets: bool = True
+    require_age_65_for_ohio_retirement_credit: bool = True
     subtract_new_york_social_security_at_any_age: bool = True
     compute_new_york_supplemental_tax_per_statute: bool = True
     use_new_york_statutory_child_care_credit: bool = True

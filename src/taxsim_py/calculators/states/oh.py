@@ -12,6 +12,20 @@ from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, reso
 OH_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "oh" / "income_tax.yaml")
 
 
+def _taxsim_tax(taxinc: pl.Expr, table: dict) -> tuple[pl.Expr, pl.Expr]:
+    """Tax and rate from the TAXSIM build's own table (`tplus` and `tminus`)."""
+    rows = table["rows"]
+    tops = [float(r[0]) for r in rows]
+    rate_pct, third = tier_values(taxinc, tops, [float(r[1]) for r in rows], [float(r[2]) for r in rows], strict=True)
+    if table["kind"] == "minus":
+        tax = taxinc * rate_pct / 100.0 - third
+    else:
+        (lower,) = tier_values(taxinc, tops, [0.0] + tops[:-1], strict=True)
+        tax = third + rate_pct * (taxinc - lower) / 100.0
+    tax = pl.when(taxinc <= float(table["no_tax_at_or_below"])).then(0.0).otherwise(tax)
+    return tax, rate_pct / 100.0
+
+
 def _joint_credit(statax: pl.Expr, taxinc: pl.Expr, businc: pl.Expr, p: YearParams, eligible: pl.Expr) -> pl.Expr:
     """Tax after the joint filing credit."""
     rows = p.value("joint_credit_share")
@@ -72,6 +86,8 @@ def compute_oh_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             )
             if p.in_effect("high_income_limit"):
                 amount = pl.when(agi > p.num("high_income_limit")).then(0.0).otherwise(amount)
+        if p.in_effect("taxsim_exemption_table") and not behavior.step_ohio_exemption_by_income:
+            amount = interpolate_table(agi, p.value("taxsim_exemption_table"))
         exemp = amount * exemptions
     exemp = pl.when(is_dependent_filer()).then(0.0).otherwise(exemp)
     df, (taxinc,) = checkpoint(df, oh_taxinc=(agi - businc - exemp).clip(0, None))
@@ -100,7 +116,16 @@ def compute_oh_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             p.num("senior_credit") + retcr
         ).otherwise(0.0)
     chcr = regcr
-    regcr = regcr + pl.when(aged > 0).then(senior).otherwise(0.0)
+    if y >= 2021 and p.in_effect("retirement_income_credit") and not behavior.require_age_65_for_ohio_retirement_credit:
+        # TAXSIM pays the retirement income credit at any age, from pensions less a cent.
+        retcr_any_age = interpolate_table((pl.col("pensions") - 0.01), p.value("retirement_income_credit"))
+        retcr_any_age = retcr_any_age.clip(None, p.num("retirement_income_credit_cap"))
+        limit = p.num("senior_credit_taxable_income_limit")
+        retcr_any_age = pl.when(taxinc <= limit).then(retcr_any_age).otherwise(0.0)
+        senior_only = pl.when(taxinc <= limit).then(p.num("senior_credit")).otherwise(0.0)
+        regcr = regcr + pl.when(aged > 0).then(senior_only).otherwise(0.0) + retcr_any_age
+    else:
+        regcr = regcr + pl.when(aged > 0).then(senior).otherwise(0.0)
 
     excred = pl.lit(0.0)
     if p.in_effect("exemption_credit"):
@@ -162,7 +187,9 @@ def compute_oh_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     else:
         statax = bracket_tax(taxinc, brackets)
         rate = bracket_rate(taxinc, brackets)
-        if p.in_effect("zero_bracket"):
+        if p.in_effect("taxsim_tax_table") and not behavior.use_ohio_published_tax_brackets:
+            statax, rate = _taxsim_tax(taxinc, p.value("taxsim_tax_table"))
+        elif p.in_effect("zero_bracket"):
             statax = pl.when(taxinc <= p.num("zero_bracket")).then(0.0).otherwise(statax)
         statax = statax + statb
         statax = (statax - regcr).clip(0, None)

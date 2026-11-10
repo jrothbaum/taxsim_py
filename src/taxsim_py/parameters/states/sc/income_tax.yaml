@@ -46,6 +46,12 @@ brackets:
   2023: [[0, 0.0], [3330, 0.03], [16680, 0.064]]
   2024: [[0, 0.0], [3460, 0.03], [17330, 0.062]]
   2025: [[0, 0.0], [3560, 0.03], [17830, 0.06]]
+# The TAXSIM build's own table: [top of bracket, rate in percent, amount subtracted].
+taxsim_tax_table:
+  2022: [[3199, 0, 0], [16039, 3, 96.0], [1.0e+20, 6.5, 658]]
+  2023: [[3330, 0, 0], [16680, 3, 99.9], [1.0e+20, 6.4, 667]]
+  2024: [[3460, 0, 0], [17330, 3, 104.0], [1.0e+20, 6.2, 659]]
+  2025: [[3560, 0, 0], [17830, 3, 106.8], [1.0e+20, 6.0, 641.7]]
 # Index for bracket thresholds (and through 1984 the deductions and exemption).
 bracket_index:
   1977: 1.0

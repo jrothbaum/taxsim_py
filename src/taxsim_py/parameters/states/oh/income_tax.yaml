@@ -309,6 +309,30 @@ dependent_exemption: {1996: 850.0, 1997: 1050.0, 1999: null}
 exemption_low_income: {2014: 2200.0, 2016: 2250.0, 2017: 2300.0, 2018: 2350.0, 2020: 2400.0}
 exemption_middle_income: {2014: 1950.0, 2016: 2000.0, 2017: 2050.0, 2018: 2100.0, 2020: 2150.0}
 exemption_low_income_agi: 40000.0
+# The TAXSIM build's own tax tables. `plus` rows are [top of bracket, rate in percent, tax
+# at the bottom of the bracket]; `minus` rows are [top of bracket, rate in percent, amount
+# subtracted]. No tax at or below `no_tax_at_or_below`.
+taxsim_tax_table:
+  2022:
+    kind: plus
+    no_tax_at_or_below: 25000
+    rows: [[26050, 0, 0], [46101, 2.765, 360.39], [92150, 3.226, 915.07], [115300, 3.688, 2400.64], [1.0e+20, 3.99, 3254.41]]
+  2023:
+    kind: minus
+    no_tax_at_or_below: 26050
+    rows: [[26050, 0, 0], [100000, 2.75, 355.68], [115300, 3.688, 1293.68], [1.0e+20, 3.75, 1365.17]]
+  2024:
+    kind: minus
+    no_tax_at_or_below: 0
+    rows: [[26050, 0, 0], [100000, 2.75, 355.68], [1.0e+20, 3.5, 1105.68]]
+  2025:
+    kind: minus
+    no_tax_at_or_below: 0
+    rows: [[26050, 0, 0], [100000, 2.75, 374.37], [1.0e+20, 3.125, 730.68]]
+# The TAXSIM build interpolates the exemption between these ([AGI up to, amount]) instead of stepping it.
+taxsim_exemption_table:
+  2021: [[40000, 2400], [80000, 2150], [750000, 1900], [1.0e+20, 1900]]
+  2025: [[40000, 2400], [80000, 2150], [750000, 1900], [1.0e+20, 0]]
 exemption_middle_income_agi: 80000.0
 # From 2025: no personal exemption, and no joint filing credit, above this Ohio
 # AGI. Source: PolicyEngine-US gov.states.oh.tax.income.exemptions.personal and

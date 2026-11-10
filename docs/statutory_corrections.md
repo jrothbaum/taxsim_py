@@ -364,3 +364,10 @@ Taxsim mode now follows the statutory rule for these (they remain in
 | NY | all years | The pension exclusion applies at 59½ (age 60 in whole years), not 65 (the 2024 build used 65) | Both modes: 60 |
 | NY | 2022 on | The itemized deduction phase-out thresholds for 2022-25 come from the build's table | Both modes (published amounts) |
 | Federal | 2018 on | Other itemized deductions sit outside the SALT cap (the 2024 build counted them with state and local taxes) | Both modes |
+| All | 2022 on | The count of children under 6 (`numlt(6)`) is read from `dep13`, and `dep6` is ignored | Statutory: `dep6`. `read_children_under_6_from_dep6` |
+| OH | 2021 on | The personal exemption interpolates between $2,400 (to $40,000), $2,150 (to $80,000) and $1,900 | Statutory: steps. `step_ohio_exemption_by_income` |
+| OH | 2022-25 | The tax comes from the build's own rounded tables (`tplus`, `tminus`) | Statutory: the published brackets. `use_ohio_published_tax_brackets` |
+| OH | 2021 on | The retirement income credit ($200 at most) is paid at any age, from pensions less a cent | Statutory: aged 65 or over. `require_age_65_for_ohio_retirement_credit` |
+| SC | 2022 on | The tax comes from rounded subtract-from-flat-rate tables | Statutory: the published brackets. `use_south_carolina_published_tax_table` |
+| SC | 2022 on | The retirement deduction goes to the spouse aged 55 or over (half each if both or neither), $3,000 each | Statutory: $3,000 per taxpayer. `give_south_carolina_pension_deduction_to_each_taxpayer` |
+| SC | 2022 on | The state tax added back for itemizers is measured against the 2021 federal standard deduction | Statutory: the current one. `use_current_federal_standard_deduction_for_south_carolina_addback` |

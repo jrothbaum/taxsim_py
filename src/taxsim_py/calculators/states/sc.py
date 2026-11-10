@@ -14,6 +14,7 @@ from taxsim_py.engine.state import (
     checkpoint,
     dividend_exclusion_addback,
     pre1987_federal_itemizing,
+    tier_values,
     unemployment_total,
     with_state_detail,
 )
@@ -87,6 +88,16 @@ def compute_sc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     if p.in_effect("retirement_deduction_per_taxpayer"):
         young_cap = p.num("retirement_deduction_per_taxpayer")
         retded = pensions.clip(0, young_cap * txp)
+        if y >= 2022 and not behavior.give_south_carolina_pension_deduction_to_each_taxpayer:
+            # TAXSIM gives pensions to the spouse aged 55 or over (half each when both
+            # or neither are) and caps each share at the young amount.
+            page, sage = pl.col("page"), pl.col("sage")
+            husband_old, wife_old = page >= 55, sage >= 55
+            to_husband = pl.when(~is_joint).then(pensions).when(husband_old & ~wife_old).then(pensions).when(~husband_old & wife_old).then(0.0).otherwise(pensions / 2)
+            to_wife = pl.when(is_joint).then(pensions - to_husband).otherwise(0.0)
+            retded = (
+                to_husband.clip(0, young_cap) + pl.when(sage > 0).then(to_wife.clip(0, young_cap)).otherwise(0.0)
+            )
         if p.in_effect("retirement_deduction_aged_per_taxpayer"):
             aged_cap = p.num("retirement_deduction_aged_per_taxpayer")
             aged_ded = pl.when(is_joint & (aged == 1)).then(pensions.clip(0, aged_cap + young_cap)).otherwise(
@@ -171,6 +182,12 @@ def compute_sc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         cap = p.num("salt_cap") / sep if p.in_effect("salt_cap") else pl.col("salt_capped")
         room = (cap - pl.col("proptax") - pl.col("otheritem")).clip(0, None)
         tx = pl.min_horizontal(salt, pl.min_horizontal(itemized.clip(0, None), room))
+        if y >= 2022 and not behavior.use_current_federal_standard_deduction_for_south_carolina_addback:
+            # TAXSIM compares the itemized total with the 2021 standard deduction plus the aged addition.
+            base = by_filing_status({"single": 12550.0, "married_separate": 12550.0, "married_joint": 25100.0, "head_of_household": 18800.0})
+            extra = by_filing_status({"single": 1700.0, "married_separate": 1700.0, "married_joint": 1350.0, "head_of_household": 1700.0})
+            excess = (itemized - base - extra * aged).clip(0, None)
+            tx = pl.min_horizontal(salt, pl.min_horizontal(excess, room))
     tx = pl.when(fed_itemizes).then(tx).otherwise(0.0)
 
     # --- Long-term capital gain deduction ---
@@ -220,6 +237,12 @@ def compute_sc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         statax = bracket_tax(taxinc, table)
         rate = bracket_rate(taxinc, table)
         detail_taxinc = taxinc
+    if p.in_effect("taxsim_tax_table") and not behavior.use_south_carolina_published_tax_table:
+        # TAXSIM subtracts a rounded amount from the top-rate tax (`tminus`).
+        rows = p.value("taxsim_tax_table")
+        rate_pct, subtract = tier_values(taxinc, [float(r[0]) for r in rows], [float(r[1]) for r in rows], [float(r[2]) for r in rows], strict=True)
+        statax = taxinc * rate_pct / 100.0 - subtract
+        rate = rate_pct / 100.0
     df, (statax,) = checkpoint(df, sc_tax_before_credits=statax)
 
     # --- Credits (nonrefundable) ---

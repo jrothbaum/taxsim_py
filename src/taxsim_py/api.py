@@ -468,7 +468,9 @@ def calculate_taxes(
     if state_id_type == "fips":
         state_expr = state_expr.replace_strict(FIPS_TO_TAXSIM, return_dtype=pl.Int64)
     year_expr = pl.lit(int(year)) if year is not None else pl.col(year_column).cast(pl.Int64)
-    work = with_input_defaults(work.with_columns(state_expr.alias("state")), year_expr)
+    work = with_input_defaults(
+        work.with_columns(state_expr.alias("state")), year_expr, not behavior.read_children_under_6_from_dep6
+    )
 
     def resolve(rows: pl.DataFrame) -> pl.DataFrame:
         result_columns = None
