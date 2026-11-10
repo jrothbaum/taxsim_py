@@ -255,3 +255,13 @@ timed CPS sample against PolicyEngine and Tax-Calculator. The harness calls
 PolicyEngine's `PolicyEngineRunner` directly, not `StitchedRunner`, which
 delegates years before 2021 to NBER TAXSIM. TAXSIM generations and archived
 executable outputs are described in [`oracle_archive/`](oracle_archive/README.md).
+
+## The 2026 build stops on some records
+
+TAXSIM stops the whole run, with no output, when it reaches these inputs. `scripts/oracle.py` isolates such records
+by halving the batch and leaves them out of the comparison.
+
+| State | Years | Input | Cause |
+| --- | --- | --- | --- |
+| NJ | 1977-2020 | Dependent filer (`mstat=8`) | The pension exclusion table is indexed by the taxpayer count, which is 0 for a dependent filer, so `tablki` reads past the array (`STOP 229`) |
+| WV | before 2016 | Taxpayer 65 or older with a property tax credit | The senior credit's income limit calls `povertf`, which only has poverty lines from 2016 (`STOP 5140`) |

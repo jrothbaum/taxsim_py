@@ -40,6 +40,26 @@ _WARMUP_VALUES = {"taxsimid": _WARMUP_ID, "year": 2000, "mstat": 1}
 
 
 def _run(cases: pl.DataFrame, columns: list[str], executable: Path) -> pl.DataFrame:
+    """Run TAXSIM on `cases`. A record that makes the build stop (it stops the whole run) is
+    isolated by halving the batch and left out of the result.
+
+    Known stops: NJ dependent filers before 2021 (the pension exclusion table is indexed by a
+    taxpayer count of 0, `tablki` stop 229) and WV filers 65 or older with a property tax credit
+    before 2016 (`povertf` stop 5140).
+    """
+    try:
+        return _run_once(cases, columns, executable)
+    except RuntimeError as error:
+        if "STOP" not in str(error) or cases.height == 0:
+            raise
+        if cases.height == 1:
+            return pl.DataFrame()
+        half = cases.height // 2
+        parts = [p for p in (_run(cases[:half], columns, executable), _run(cases[half:], columns, executable)) if p.height]
+        return pl.concat(parts, how="diagonal_relaxed") if parts else pl.DataFrame()
+
+
+def _run_once(cases: pl.DataFrame, columns: list[str], executable: Path) -> pl.DataFrame:
     lines = [" ".join(columns)]
     # Output controls (the header TAXSIM prints) follow the first record.
     first = cases.row(0, named=True)

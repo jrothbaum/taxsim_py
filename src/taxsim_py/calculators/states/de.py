@@ -5,7 +5,7 @@ import polars as pl
 from taxsim_py.engine.brackets import bracket_rate, bracket_tax
 from taxsim_py.engine.inputs import aged_count, files_joint, is_dependent_filer, separate_divisor, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml
-from taxsim_py.engine.state import by_filing_status, dividend_input_adjustment, forced_standard, higher_earner_share, unemployment_total, with_state_detail
+from taxsim_py.engine.state import by_filing_status, dividend_input_adjustment, forced_standard, higher_earner_share, tier_values, unemployment_total, with_state_detail
 from taxsim_py.behavior import BehaviorProfile, TAXSIM_BEHAVIOR
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
@@ -133,6 +133,9 @@ def compute_de_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     if effective_year == 1999:
         df = df.with_columns(de_xitded=pl.when(forced_standard()).then(0.0).otherwise(pl.col("de_xitded")))
 
+    if effective_year >= 2018 and not behavior.let_delaware_itemize_when_federal_return_takes_standard_deduction:
+        # TAXSIM zeroes the federal itemized totals it hands the state on a standard-deduction pass.
+        df = df.with_columns(de_xitded=pl.when(pl.col("itemizes")).then(pl.col("de_xitded")).otherwise(0.0))
     df = df.with_columns(de_deduc=pl.max_horizontal(pl.col("de_stded"), pl.col("de_xitded")))
 
     # --- Exemption (through 1995) ---
@@ -165,9 +168,16 @@ def compute_de_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
 
     # --- Tax ---
     brackets = p.value("brackets")
-    stat = bracket_tax(pl.col("de_taxinc"), brackets)
-    stat_h = bracket_tax(pl.col("de_taxinh"), brackets)
-    stat_w = bracket_tax(pl.col("de_taxinw"), brackets)
+    def tax_of(income: pl.Expr) -> pl.Expr:
+        if p.in_effect("taxsim_tax_table") and not behavior.use_delaware_published_tax_brackets:
+            rows = p.value("taxsim_tax_table")
+            rate_pct, subtract = tier_values(income, [float(r[0]) for r in rows], [float(r[1]) for r in rows], [float(r[2]) for r in rows], strict=True)
+            return income * rate_pct / 100.0 - subtract
+        return bracket_tax(income, brackets)
+
+    stat = tax_of(pl.col("de_taxinc"))
+    stat_h = tax_of(pl.col("de_taxinh"))
+    stat_w = tax_of(pl.col("de_taxinw"))
     df = df.with_columns(de_statax=pl.when(is_joint_relief).then(pl.min_horizontal(stat, stat_h + stat_w)).otherwise(stat))
 
     # --- Child/Dependent Care Credit ---
@@ -180,7 +190,9 @@ def compute_de_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     # --- Personal exemption credit (1996+) ---
     if p.in_effect("personal_exemption_credit"):
         per_unit = p.num("personal_exemption_credit")
-        df = df.with_columns(de_pecred=(pl.col("de_num") + aged_count()) * per_unit)
+        # The extra credit is for each taxpayer 60 or older (the 2024 build used 65).
+        aged_60 = (pl.col("page") >= 60).cast(pl.Float64) + (pl.col("sage") >= 60).cast(pl.Float64)
+        df = df.with_columns(de_pecred=(pl.col("de_num") + aged_60) * per_unit)
     else:
         df = df.with_columns(de_pecred=pl.lit(0.0))
 
