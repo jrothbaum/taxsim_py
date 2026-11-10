@@ -139,6 +139,9 @@ def compute_co_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         fedded = (pl.col("pre1987_taxbc") - pl.col("credit") - pl.col("pre1987_earncr")).clip(0, None)
         share = pl.when((pl.col("co_agi") > 0) & (pl.col("agi") > 0)).then(pl.col("co_agi") / pl.col("agi")).otherwise(1.0)
         df = df.with_columns(co_fedded=pl.min_horizontal(fedded * share, fedded).clip(0, None))
+        if effective_year >= 1978 and not behavior.deduct_colorado_federal_tax_after_1977:
+            # TAXSIM computes the federal tax deduction through 1977 only.
+            df = df.with_columns(co_fedded=pl.lit(0.0))
 
         # --- Standard deduction ---
         if p.in_effect("standard_deduction_percent"):
@@ -170,6 +173,9 @@ def compute_co_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         # Federal itemized deductions (zero when not itemizing federally)
         # less state income or sales tax, plus a gasoline tax allowance.
         itemizing = pl.col("pre1987_itemizes").cast(pl.Float64)
+        if not behavior.use_colorado_itemized_deductions_before_1987:
+            # The itemized deduction is computed only when a diagnostic option is set; TAXSIM never uses it.
+            itemizing = pl.lit(0.0)
         gas = p.value("gasoline_tax_deduction")
         df = df.with_columns(
             co_xitded=itemizing * (pl.col("pre1987_deduc") - pl.col("state_sales_or_income_tax_ded"))
@@ -242,9 +248,18 @@ def compute_co_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         # 1992+: the state income tax deducted federally is added back when
         # itemizing.
         if effective_year >= 1992:
-            addback = pl.when(pl.col("itemizes")).then(
-                pl.min_horizontal(pl.col("state_sales_or_income_tax_ded").clip(0, None), pl.col("itemized_deduction"))
-            ).otherwise(0.0)
+            state_tax = pl.col("state_sales_or_income_tax_ded").clip(0, None)
+            capped_taxes = pl.col("salt_capped") - pl.col("otheritem")
+            if effective_year >= 2022 and not behavior.use_colorado_statutory_high_income_addback:
+                # TAXSIM (2022 on) adds back the state tax up to the whole capped amount of state and local taxes.
+                state_tax = pl.min_horizontal(state_tax, capped_taxes)
+            elif effective_year >= 2018:
+                # Only the state tax that fits under the federal cap on state and local taxes was deducted.
+                state_and_property = state_tax + pl.col("original_proptax")
+                state_tax = pl.when(state_and_property > capped_taxes).then(
+                    (capped_taxes - pl.col("original_proptax")).clip(0, None)
+                ).otherwise(state_tax)
+            addback = pl.when(pl.col("itemizes")).then(pl.min_horizontal(state_tax, pl.col("itemized_deduction"))).otherwise(0.0)
             taxinc = taxinc + addback
 
         if p.in_effect("high_income_addback"):
@@ -255,6 +270,12 @@ def compute_co_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             claimed = pl.when(pl.col("itemizes")).then(pl.col("itemized_deduction")).otherwise(
                 0.0 if bool(hi["itemized_only"]) else pl.col("standard_deduction")
             )
+            if not behavior.use_colorado_statutory_high_income_addback:
+                # TAXSIM has no 2022 addback; from 2023 it adds back the larger deduction over $12,000 ($16,000 joint).
+                claimed = pl.max_horizontal(pl.col("standard_deduction"), pl.col("itemized_deduction"))
+                limit = pl.when(joint).then(float(hi["taxsim_limit_joint"])).otherwise(float(hi["taxsim_limit_other"]))
+                if effective_year < 2023:
+                    limit = pl.lit(1.0e20)
             taxinc = taxinc + pl.when(pl.col("agi") > threshold).then((claimed - limit).clip(0, None)).otherwise(0.0)
             if "qbi_deduction" in df.collect_schema().names():
                 qbi_limit = pl.when(joint).then(float(hi["qbi_agi_limit_joint"])).otherwise(float(hi["qbi_agi_limit_other"]))
@@ -264,7 +285,11 @@ def compute_co_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         # The pension exclusion comes before the 2000-2002 marriage penalty
         # subtraction for joint returns, which is less the federal standard
         # deduction.
-        taxinc = (taxinc - pl.col("co_pension_exclusion")).clip(0, None)
+        pension_exclusion = pl.col("co_pension_exclusion")
+        if effective_year <= 2020 and not behavior.subtract_colorado_pensions_for_nonitemizers_before_2021:
+            # TAXSIM's pension subtraction sits inside its itemizer-only add-back block, which starts in 1992.
+            pension_exclusion = pl.when(pl.col("itemizes") & (effective_year >= 1992)).then(pension_exclusion).otherwise(0.0)
+        taxinc = (taxinc - pension_exclusion).clip(0, None)
         if p.in_effect("marriage_penalty_subtraction"):
             xmar = p.num("marriage_penalty_subtraction")
             is_joint = files_joint()
@@ -319,6 +344,15 @@ def compute_co_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         df = df.with_columns(co_salesrefund=bracket_rate(coagi, refund) * pl.col("co_taxpayers"))
     else:
         df = df.with_columns(co_salesrefund=interpolate_table(coagi, refund) * pl.col("co_taxpayers"))
+
+    if not behavior.use_colorado_statutory_sales_tax_refund and p.in_effect("taxsim_senior_housing_credit"):
+        # TAXSIM pays a refundable senior housing credit to returns with a taxpayer 65 or older (2022, 2024).
+        sh = p.value("taxsim_senior_housing_credit")
+        reduction = (pl.col("agi") - float(sh["floor"])).clip(0, None) * float(sh["rate"]) / (500.0 * pl.col("co_sep"))
+        senior_housing = pl.when((aged_count() > 0) & (pl.col("agi") < float(sh["agi_limit"]))).then(
+            (float(sh["maximum"]) - reduction).clip(0, None)
+        ).otherwise(0.0)
+        df = df.with_columns(co_salesrefund=pl.col("co_salesrefund") + senior_housing)
 
     # --- Child care credit: a share of the federal credit up to tax ---
     child_fed = pl.min_horizontal(pl.col("federal_chcr"), pl.col("regular_tax")).clip(0, None)
@@ -387,6 +421,9 @@ def compute_co_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             co_ctc = co_ctc + float(fac["amount"]) * children * remaining
     else:
         co_ctc = pl.lit(0.0)
+        if p.in_effect("taxsim_child_credit") and not behavior.use_colorado_statutory_sales_tax_refund:
+            # TAXSIM's 2000-2001 credit counts the children under 13 (its "under 6" helper reads that count).
+            co_ctc = p.num("taxsim_child_credit") * pl.col("dep13")
 
     # The pre-1987 nonrefundable credits are limited to tax; the sales tax
     # refund, child care, earned income and child tax credits are refundable.

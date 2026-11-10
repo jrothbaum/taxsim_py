@@ -126,6 +126,10 @@ class BehaviorProfile:
     use_maryland_itemized_deduction_without_federal_itemizing: bool = True
     pay_maryland_refundable_eitc_only_above_tax: bool = True
     split_iowa_joint_income_by_wages_only: bool = True
+    deduct_colorado_federal_tax_after_1977: bool = True
+    use_colorado_itemized_deductions_before_1987: bool = True
+    subtract_colorado_pensions_for_nonitemizers_before_2021: bool = True
+    use_colorado_statutory_high_income_addback: bool = True
     credit_iowa_dependents_before_1998: bool = True
     add_back_iowa_self_employment_tax_twice: bool = True
     reduce_iowa_single_tax_before_2017: bool = True

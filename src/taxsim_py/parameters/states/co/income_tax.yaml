@@ -104,8 +104,8 @@ aged_marriage_subtraction: {2001: 900, 2003: null}
 # only), as is the qualified business income deduction above the QBI AGI
 # limits.
 high_income_addback:
-  2022: {agi_threshold: 400000, limit_joint: 60000, limit_other: 30000, itemized_only: true, qbi_agi_limit_joint: 1000000, qbi_agi_limit_other: 500000}
-  2023: {agi_threshold: 300000, limit_joint: 16000, limit_other: 12000, itemized_only: false, qbi_agi_limit_joint: 1000000, qbi_agi_limit_other: 500000}
+  2022: {agi_threshold: 400000, limit_joint: 60000, limit_other: 30000, itemized_only: true, qbi_agi_limit_joint: 1000000, qbi_agi_limit_other: 500000, taxsim_limit_joint: 16000, taxsim_limit_other: 12000}
+  2023: {agi_threshold: 300000, limit_joint: 16000, limit_other: 12000, itemized_only: false, qbi_agi_limit_joint: 1000000, qbi_agi_limit_other: 500000, taxsim_limit_joint: 16000, taxsim_limit_other: 12000}
 
 # --- Credits ---
 # Through 1986, property tax and heating credits for taxpayers 65 or older,
@@ -163,6 +163,13 @@ sales_tax_refund:
 
 # TAXSIM mode: the refund table TAXSIM interpolates between thresholds
 # ([modified AGI, amount]; a single amount is flat).
+# Refundable credit TAXSIM pays to returns with a taxpayer 65 or older.
+taxsim_senior_housing_credit:
+  2022: {maximum: 1000, agi_limit: 75000, floor: 25000, rate: 10}
+  2023: null
+  2024: {maximum: 800, agi_limit: 125000, floor: 25000, rate: 8}
+  2025: null
+taxsim_child_credit: {2000: 300, 2002: null}
 taxsim_sales_tax_refund:
   2022: [[48000, 153], [95000, 208], [151000, 234], [209000, 285], [268000, 300], [1.0e+20, 486]]
   2023: 800
