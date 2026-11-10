@@ -39,8 +39,40 @@ _WARMUP_ID = 999_999_999
 _WARMUP_VALUES = {"taxsimid": _WARMUP_ID, "year": 2000, "mstat": 1}
 
 
+def _is_nj_dependent_filer_stop(row: dict) -> bool:
+    """A TAXSIM error, not a value: `mstat=8` sets the taxpayer count to 0 and NJ's pension
+    exclusion table (`penpoa`, two columns) is read at that index, outside the array. The build
+    stops (`tablki`, 229) from 1977 to 2020, so it has no answer for these records.
+    """
+    return row.get("state") == 31 and row.get("mstat") == 8 and row.get("year") <= 2020
+
+
 def _run(cases: pl.DataFrame, columns: list[str], executable: Path) -> pl.DataFrame:
-    return _run_once(cases, columns, executable)
+    """Run TAXSIM on `cases`.
+
+    A stop ends the whole run, so a failing batch is halved until the stopping record is found.
+    The record is left out, with an error line on stderr, only when it is an NJ dependent filer
+    (above). Any other stop raises.
+    """
+    try:
+        return _run_once(cases, columns, executable)
+    except RuntimeError as error:
+        if "STOP" not in str(error) or cases.height == 0:
+            raise
+        if cases.height == 1:
+            row = cases.row(0, named=True)
+            if not _is_nj_dependent_filer_stop(row):
+                raise
+            print(
+                f"TAXSIM ERROR: taxsimid {row['taxsimid']} (NJ {row['year']}, dependent filer): "
+                "the build stops reading an array outside its bounds; no oracle value "
+                "(docs/pending_issues.md)",
+                file=sys.stderr,
+            )
+            return pl.DataFrame()
+        half = cases.height // 2
+        parts = [p for p in (_run(cases[:half], columns, executable), _run(cases[half:], columns, executable)) if p.height]
+        return pl.concat(parts, how="diagonal_relaxed") if parts else pl.DataFrame()
 
 
 def _run_once(cases: pl.DataFrame, columns: list[str], executable: Path) -> pl.DataFrame:
