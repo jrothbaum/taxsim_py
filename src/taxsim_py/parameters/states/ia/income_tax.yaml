@@ -23,6 +23,8 @@ brackets:
   1998: [[0, 0.0036], [1000, 0.0072], [2000, 0.0243], [4000, 0.045], [9000, 0.0612], [15000, 0.0648], [20000, 0.068], [30000, 0.0792], [45000, 0.0898]]
   2019: [[0, 0.0033], [1000, 0.0067], [2000, 0.0225], [4000, 0.0414], [9000, 0.0563], [15000, 0.0596], [20000, 0.0625], [30000, 0.0744], [45000, 0.0853]]
 bracket_inflation: {1977: 1.0, 1979: 1.023, 1987: 1.0, 1989: 1.016, 1990: 1.038, 1991: 1.06, 1995: 1.068, 1996: 1.089, 1997: 1.112, 1998: 1.136, 1999: 1.148, 2000: 1.162, 2001: 1.185, 2002: 1.211, 2003: 1.224, 2004: 1.242, 2005: 1.269, 2006: 1.3, 2007: 1.343, 2008: 1.379, 2009: 1.407, 2010: 1.428, 2011: 1.439, 2012: 1.469, 2013: 1.494, 2014: 1.515, 2015: 1.539, 2016: 1.554, 2017: 1.573, 2018: 1.598, 2019: 1.638, 2020: 1.666, 2021: 1.676, 2022: 1.743, 2023: 1.743, 2024: 1.743}
+# TAXSIM's 2020 factor is the 2019 one (it keeps 1.666 for its PolicyEngine comparison runs only).
+taxsim_bracket_inflation: {2020: 1.638, 2021: null}
 # From 2023 the main tax uses these schedules by filing status (not
 # inflated); `other` covers every non-joint status. 2025: a flat 3.8%
 # (S.F. 2442). Source: PolicyEngine-US
@@ -72,7 +74,7 @@ unemployment_addback_per_taxpayer: {2009: 2400, 2010: null}
 # Federal income tax is deductible through 2022.
 federal_tax_deduction: {1977: true, 2023: false}
 # Share of the federal QBI deduction allowed, from 2019.
-qbi_deduction_share: {2019: 0.25, 2021: 0.5}
+qbi_deduction_share: {2019: 0.25, 2021: 0.5, 2022: 0.75}
 
 # --- Deductions ---
 # Standard deduction: a share of AGI up to the cap (single and separate
@@ -101,6 +103,9 @@ amt_share_of_federal: {1982: 0.25, 1983: 0.7, 1985: null}
 # exemption, which falls by `amt_exclusion_phaseout_rate` above the
 # threshold. None at incomes up to `no_tax_income_limit`, or with a
 # taxpayer 65 or older up to `amt_aged_exempt_income`.
+# 2023 on, TAXSIM's alternate tax for filers outside the joint and head-of-household statuses is all income
+# above these floors (no taxpayer 65 or older / one or more).
+taxsim_alternate_floor: {2023: {general: 9000, aged: 24000}}
 amt_rate: {1985: 0.09, 1986: 0.075, 1998: 0.068, 1999: 0.067, 2023: null}
 amt_exclusion_base_by_status: {single: 26000, married_joint: 35000, head_of_household: 26000, married_separate: 17500}
 amt_exclusion_phaseout_threshold_by_status: {single: 112500, married_joint: 150000, head_of_household: 112500, married_separate: 75000}
@@ -123,6 +128,7 @@ child_care_credit_federal_share:
   1990: [[10000, 0.75], [20000, 0.65], [25000, 0.55], [35000, 0.5], [40000, 0.4], [45000, 0.3], [50000, 0.2], [100000000, 0.1]]
   1993: [[10000, 0.75], [20000, 0.65], [25000, 0.55], [35000, 0.5], [40000, 0.4], [100000000, 0.0]]
   2006: [[10000, 0.75], [20000, 0.65], [25000, 0.55], [35000, 0.5], [40000, 0.4], [45000, 0.3], [100000000, 0.0]]
+  2021: [[10000, 0.75], [20000, 0.65], [25000, 0.55], [35000, 0.5], [40000, 0.4], [90000, 0.3], [100000000, 0.0]]
 # Earned income credit from 1990: a share of the federal credit below the
 # Iowa AGI cap.
 eitc_rate: {1977: 0.0, 1990: 0.05, 1991: 0.06, 1992: 0.065, 2007: 0.07, 2013: 0.14, 2014: 0.15}

@@ -32,7 +32,7 @@ for key in ("depx",):
 frame = pl.DataFrame([record])
 expected = run_oracle(frame, idtl=2)
 actual = calculate_taxes(frame, calculation_mode="taxsim", engine="python", idtl=2, taxsim_names=True)
-for column in ("fiitax", "siitax", "v10", "v13", "v18", "v19", "v28", "v30", "v31", "v32", "v33", "v34", "v35", "v36", "v37", "v38", "v39", "v40", "v41", "staxbc"):
+for column in ("fiitax", "siitax", "tfica", "fica", "v10", "v13", "v18", "v19", "v28", "v30", "v31", "v32", "v33", "v34", "v35", "v36", "v37", "v38", "v39", "v40", "v41", "staxbc"):
     if column in expected.columns and column in actual.columns:
         flag = "" if abs(expected[column][0] - actual[column][0]) < 0.02 else "   <-- differs"
         print(f"{column:8} oracle {expected[column][0]:>14.2f}   python {actual[column][0]:>14.2f}{flag}")

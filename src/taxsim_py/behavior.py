@@ -47,6 +47,10 @@ class BehaviorProfile:
     enforce_schedule_se_minimum: bool = True
     prevent_negative_self_employment_tax: bool = True
     count_self_employment_once_for_additional_medicare: bool = True
+    use_additional_medicare_separate_threshold: bool = True
+    use_iowa_2020_bracket_inflation_per_statute: bool = True
+    include_state_taxes_in_iowa_itemized_deduction_from_2020: bool = True
+    compute_iowa_tax_from_2023_per_statute: bool = True
     include_unemployment_in_california_total_income: bool = True
     include_business_and_rental_income_in_california_minimum_tax: bool = True
     count_pre_1998_nonrefundable_credits_correctly: bool = True

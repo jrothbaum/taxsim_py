@@ -48,6 +48,11 @@ CASES = [
         "FED-PAYROLL-008", "1980 wages over the Medicare base with self-employment income", "fica",
         3_698.62, 3_175.34, year=1980, pwages=30_000, psemp=50_000,
     ),
+    # TAXSIM gives separate returns the $200,000 single Additional Medicare threshold ($125,000 in law).
+    _case(
+        "FED-PAYROLL-009", "2013 married separate return with $260,000 of wages", "addmed",
+        540.0, 1_215.0, year=2013, mstat=6, pwages=260_000,
+    ),
     # TAXSIM's regular-tax 20% threshold for single filers is $100 below the published one.
     _case(
         "FED-INCOME-015", "2022 single with large capital gains", "fiitax",

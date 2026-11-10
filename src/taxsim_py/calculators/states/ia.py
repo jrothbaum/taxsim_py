@@ -107,9 +107,11 @@ def compute_ia_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     if effective_year <= 2022 and not behavior.deduct_iowa_federal_tax_after_refundable_credits:
         # TAXSIM deducts tax before the refundable credits: regular tax, AMT and NIIT less the child care and
         # child credits it applied.
-        # The child credit it takes off can be negative (adding tax) through 2000 only.
-        child_credit = pl.col("odc") if effective_year <= 2000 else pl.col("odc").clip(0, None)
-        fedded = (pl.col("regular_tax") + pl.col("payroll_setax") - pl.col("ccc") - child_credit - pl.col("addmed")).clip(0, None)
+        # The child credits it takes off are the nonrefundable and the refundable amounts, which cancel when
+        # the nonrefundable one is negative (it is not floored).
+        # 2021: the build holds the whole (fully refundable) child tax credit in both of the credit variables.
+        child_credits = (pl.col("odc") + pl.col("actc")) * (2.0 if effective_year == 2021 else 1.0)
+        fedded = pl.col("regular_tax") + pl.col("payroll_setax") - pl.col("ccc") - child_credits - pl.col("addmed")
     if not p.value("federal_tax_deduction"):
         fedded = pl.lit(0.0)
     dedbus = p.num("qbi_deduction_share") * pl.col("qbi_deduction") if effective_year >= 2019 else pl.lit(0.0)
@@ -148,7 +150,11 @@ def compute_ia_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         dedphs = pl.min_horizontal(dlim1, dlim2)
         df = df.with_columns(ia_xitded=(deduc1 - dedphs).clip(0, None))
     if effective_year >= 2020:
-        df = df.with_columns(ia_xitded=salt_capped_plus_mortgage)
+        # TAXSIM counts property tax and mortgage interest only.
+        taxsim_itemized = pl.col("proptax") + pl.col("mortgage")
+        df = df.with_columns(
+            ia_xitded=salt_capped_plus_mortgage if behavior.include_state_taxes_in_iowa_itemized_deduction_from_2020 else taxsim_itemized
+        )
 
     df = df.with_columns(ia_xitded=pl.when(forced_standard()).then(0.0).otherwise(pl.col("ia_xitded")))
 
@@ -179,7 +185,7 @@ def compute_ia_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     dedw_general = pl.max_horizontal(stded_h_general, xitdw)
     # The 2026 TAXSIM build splits the federal tax without the self-employment tax and adds that tax back
     # only through 1986.
-    split_fedded = fedded if behavior.add_back_iowa_self_employment_tax_twice else (fedded - pl.col("ia_setax")).clip(0, None)
+    split_fedded = fedded if behavior.add_back_iowa_self_employment_tax_twice else fedded - pl.col("ia_setax")
     setax_again = pl.col("ia_setax") if behavior.add_back_iowa_self_employment_tax_twice else pl.lit(0.0)
     feddh = pl.when(pl.col("ia_agi") != 0).then(split_fedded * agih / pl.col("ia_agi")).otherwise(0.0)
     feddw = split_fedded - feddh
@@ -200,6 +206,8 @@ def compute_ia_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
 
     # --- Tax ---
     aif = p.num("bracket_inflation")
+    if p.in_effect("taxsim_bracket_inflation") and not behavior.use_iowa_2020_bracket_inflation_per_statute:
+        aif = p.num("taxsim_bracket_inflation")
     table = p.value("brackets")
     statax = bracket_tax(pl.col("ia_taxinc") / aif, table) * aif
     single_rate = bracket_rate(pl.col("ia_taxinc") / aif, table)
@@ -390,9 +398,19 @@ def compute_ia_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     is_single = files_single()
     # TAXSIM applies the single-filer worksheet from 2017 only.
     if effective_year >= 2017 or behavior.reduce_iowa_single_tax_before_2017:
+        # The worksheet's income adds back excluded pensions and the Social Security Iowa does not tax; from 2017
+        # the floor is the aged one for a taxpayer 65 or older.
+        reported_benefits = 0.5 * pl.min_horizontal(
+            pl.col("gssi"), (pl.col("agi") - pl.col("taxable_social_security") - 25_000).clip(0, None)
+        )
+        modified_income = pl.col("ia_agi")
+        floor = pl.lit(exy_single)
+        if effective_year >= 2017:
+            modified_income = modified_income + pl.col("ia_penexc") + pl.when(pl.col("gssi") > 0).then(reported_benefits).otherwise(0.0)
+            floor = pl.when(pl.col("page") >= 65).then(float(p["amt_aged_exempt_income"]["single"])).otherwise(floor)
         df = df.with_columns(
             ia_statax=pl.when(is_single).then(
-                pl.max_horizontal(pl.min_horizontal(pl.col("ia_agi") - exy_single, pl.col("ia_statax")), 0.0)
+                pl.max_horizontal(pl.min_horizontal(modified_income - floor, pl.col("ia_statax")), 0.0)
             ).otherwise(pl.col("ia_statax"))
         )
     if effective_year >= 2007:
@@ -413,6 +431,9 @@ def compute_ia_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             ia_statax=pl.when((pl.col("ia_statax") > 0) & low_income).then(0.0).otherwise(pl.col("ia_statax"))
         )
 
+    if effective_year >= 2023 and not behavior.compute_iowa_tax_from_2023_per_statute:
+        df = df.with_columns(ia_statax=_taxsim_tax_from_2023(p))
+
     df = df.with_columns(siitax=pl.col("ia_statax") * flate)
     return with_state_detail(
         df,
@@ -425,3 +446,27 @@ def compute_ia_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         credits=pl.col("ia_gcred") + pl.col("ia_chcr") + pl.col("ia_earncr"),
         rate=rate_expr,
     )
+
+
+def _taxsim_tax_from_2023(p: YearParams) -> pl.Expr:
+    """TAXSIM's Iowa tax from 2023 (`iatax23`): federal taxable income less pensions and taxable Social Security
+    benefits, taxed by status, the exemption credit, the alternate tax and the refundable credits.
+    """
+    aged_pension_exclusion = (pl.col("page") >= 55) | (pl.col("sage") >= 55) | (aged_count() == 1)
+    pended = pl.when(aged_pension_exclusion).then(pl.col("pensions")).otherwise(0.0)
+    taxinc = (pl.col("taxable_income") - pended - pl.col("taxable_social_security")).clip(0, None)
+    schedules = p.value("brackets_by_status")
+    regtax = pl.when(files_joint()).then(bracket_tax(taxinc, schedules["joint"])).otherwise(bracket_tax(taxinc, schedules["other"]))
+    deduction = pl.max_horizontal(pl.col("itemized_deduction"), pl.col("standard_deduction"))
+    income_for_alternate = taxinc + deduction + pl.col("qbi_deduction") + pl.col("senior_deduction")
+    aged = aged_count() >= 1
+    floors = p.value("taxsim_alternate_floor")
+    combined_floor = pl.when(aged).then(32000.0).otherwise(13500.0)
+    single_floor = pl.when(aged).then(float(floors["aged"])).otherwise(float(floors["general"]))
+    uses_combined = files_joint() | files_head_of_household()
+    altax = pl.when(uses_combined).then(
+        p.num("alternate_tax_rate") * (income_for_alternate - combined_floor).clip(0, None)
+    ).otherwise((income_for_alternate - single_floor).clip(0, None))
+    taxbc = pl.min_horizontal(regtax - pl.col("ia_gcred"), altax)
+    chcr = pl.col("ccc_uncapped") * interpolate_table(taxinc, p.value("child_care_credit_federal_share"))
+    return taxbc.clip(0, None) - chcr - pl.col("ia_earncr")

@@ -18,9 +18,11 @@ PAYROLL_INPUTS = tuple(name for names in PAYROLL_ITEMS for name in names)
 def payroll_parts(year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> dict[str, pl.Expr]:
     """TAXSIM's payroll figures for `year` (see `engine.payroll_tax.taxsim_payroll`)."""
     p = YearParams(PAYROLL_TAX_PARAMS, year)
-    threshold_expr = by_filing_status(
-        {status: resolve_year(p["additional_medicare_threshold"][status], year) for status in FILING_STATUSES}
-    )
+    thresholds = {status: resolve_year(p["additional_medicare_threshold"][status], year) for status in FILING_STATUSES}
+    if not behavior.use_additional_medicare_separate_threshold:
+        # The 2026 build gives separate returns the single threshold.
+        thresholds["married_separate"] = thresholds["single"]
+    threshold_expr = by_filing_status(thresholds)
     return taxsim_payroll(
         wage_base=p.num("oasdi_wage_base"),
         hi_wage_base=p.num("hi_wage_base"),
