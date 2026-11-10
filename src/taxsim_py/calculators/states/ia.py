@@ -9,6 +9,7 @@ from taxsim_py.engine.brackets import bracket_rate, bracket_tax
 from taxsim_py.engine.inputs import aged_count, files_head_of_household, files_joint, files_separate, files_single, separate_divisor, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml
 from taxsim_py.engine.state import (
+    split_agi,
     federal_dividend_exclusion_limit,
     by_filing_status,
     forced_standard,
@@ -103,6 +104,12 @@ def compute_ia_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     fedded = pl.col("fiitax").clip(0, None)
     if effective_year >= 2022:
         fedded = (pl.col("fiitax") - pl.col("addmed")).clip(0, None)  # Additional Medicare tax is not income tax
+    if effective_year <= 2022 and not behavior.deduct_iowa_federal_tax_after_refundable_credits:
+        # TAXSIM deducts tax before the refundable credits: regular tax, AMT and NIIT less the child care and
+        # child credits it applied.
+        # The child credit it takes off can be negative (adding tax) through 2000 only.
+        child_credit = pl.col("odc") if effective_year <= 2000 else pl.col("odc").clip(0, None)
+        fedded = (pl.col("regular_tax") + pl.col("payroll_setax") - pl.col("ccc") - child_credit).clip(0, None)
     if not p.value("federal_tax_deduction"):
         fedded = pl.lit(0.0)
     dedbus = p.num("qbi_deduction_share") * pl.col("qbi_deduction") if effective_year >= 2019 else pl.lit(0.0)
@@ -160,7 +167,10 @@ def compute_ia_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
 
     # --- Joint returns may file combined: each spouse on their own share ---
     agih = higher_earner_share(pl.col("ia_agi"))
-    agiw = pl.col("ia_agi") - agih
+    if effective_year >= 1987 and not behavior.split_iowa_joint_income_by_wages_only:
+        agih, agiw = split_agi(pl.col("ia_agi"))
+    else:
+        agiw = pl.col("ia_agi") - agih
     is_mfc = is_joint & (pl.col("ia_agi") > 0) & pl.lit(bool(p.value("combined_return_allowed")))
     stded_h_general = (pct * pl.col("ia_agi")).clip(0, cap_single)
     xitdh = pl.when(pl.col("ia_agi") != 0).then(pl.col("ia_xitded") * agih / pl.col("ia_agi")).otherwise(0.0)

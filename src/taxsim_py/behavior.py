@@ -89,6 +89,8 @@ class BehaviorProfile:
     pay_vermont_telephone_credit: bool = True
     use_vermont_published_brackets: bool = True
     pay_minnesota_property_tax_refund_through_2023: bool = True
+    deduct_iowa_federal_tax_after_refundable_credits: bool = True
+    split_iowa_joint_income_by_wages_only: bool = True
     double_minnesota_separate_returns: bool = True
     allow_minnesota_personal_exemption_2013_to_2018: bool = True
     deduct_missouri_federal_tax_after_refundable_credits: bool = True
