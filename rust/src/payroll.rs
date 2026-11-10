@@ -11,6 +11,7 @@ pub struct PayrollParams {
     oasdi_rate: f64,
     se_oasdi_rate: f64,
     hi_rate: f64,
+    wage_hi_rate: f64,
     nef: f64,
     addmed_rate: f64,
     addmed_threshold: [f64; 4],
@@ -26,6 +27,7 @@ impl PayrollParams {
             oasdi_rate: p.f("oasdi_rate_combined")?,
             se_oasdi_rate: p.f("se_oasdi_rate")?,
             hi_rate: p.f("se_hi_rate")?,
+            wage_hi_rate: p.f("hi_rate_combined")?,
             nef: p.f("se_net_earnings_factor")?,
             addmed_rate: p.f("additional_medicare_rate")?,
             addmed_threshold: status_at(crate::params::get(doc, "additional_medicare_threshold")?, year)?,
@@ -103,7 +105,7 @@ pub fn payroll(i: &PayrollInputs, p: &PayrollParams) -> (Payroll, f64) {
         [(i.pwages, [i.psemp, i.pbusinc, i.pprofinc]), (i.swages, [i.ssemp, i.sbusinc, i.sprofinc])];
     let factors = [1.0, n, n, n];
     let oasdi_rates = [p.oasdi_rate, p.se_oasdi_rate, p.se_oasdi_rate, p.se_oasdi_rate];
-    let hi_rates = [p.hi_rate; 4];
+    let hi_rates = [p.wage_hi_rate, p.hi_rate, p.hi_rate, p.hi_rate];
 
     let mut stream_taxes = [[0.0; 4]; 2];
     let mut primary_caps = (false, false);

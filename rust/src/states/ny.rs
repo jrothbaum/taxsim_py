@@ -671,7 +671,8 @@ pub fn tax(i: &Inp, f: &Fed, p: &NyParams) -> f64 {
         agi += ny_ui - f.taxable_unemployment;
     }
     let agieic = agi;
-    agi -= i.pensions.min(p.pension_exclusion * aged);
+    let pension_aged = (i.page >= 60.0) as u8 as f64 + (i.sage >= 60.0) as u8 as f64;
+    agi -= i.pensions.min(p.pension_exclusion * pension_aged);
     agi += p.capital_gains_addback * fullcg.max(0.0);
     if y >= 1984 {
         agi -= f.taxable_social_security;
@@ -704,10 +705,10 @@ pub fn tax(i: &Inp, f: &Fed, p: &NyParams) -> f64 {
         xitded = if fed_itemizes && deducp > 0.0 { ((deducp - salt_ded) * fed_deduc / deducp).max(0.0) } else { 0.0 };
     } else {
         let sttax = match p.salt_cap {
-            Some(cap) => (cap / sep).min(i.proptax + salt_ded + i.otheritem),
-            None => f.salt_capped,
+            Some(cap) => (cap / sep).min(i.proptax + salt_ded),
+            None => f.salt_capped - i.otheritem,
         };
-        xitded = deducp + i.proptax + i.otheritem - sttax;
+        xitded = deducp + i.proptax - sttax;
         let t = p.limit_thresholds.expect("itemized limit thresholds");
         let phase = if is_single { t[0] } else if is_hoh { t[1] } else { t[2] / sep };
         let dedphs = (p.limit_max_share * xitded).min(p.limit_rate * (fed_agi - phase));

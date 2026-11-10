@@ -66,6 +66,12 @@ class BehaviorProfile:
     deduct_massachusetts_employee_payroll_tax_per_spouse: bool = True
     count_capital_gains_in_dc_childless_eitc_investment_income: bool = True
     exclude_children_under_4_from_ny_empire_credit: bool = True
+    pay_new_york_empire_child_credit_per_statute: bool = True
+    subtract_new_york_social_security_at_any_age: bool = True
+    compute_new_york_supplemental_tax_per_statute: bool = True
+    use_new_york_statutory_child_care_credit: bool = True
+    use_new_york_dependent_standard_deduction_alone: bool = True
+    interpolate_new_york_household_credit_per_person: bool = True
     count_only_children_under_13_for_oregon_dependent_care: bool = True
     exclude_transfers_from_provisional_income: bool = True
     assign_business_income_to_its_earner: bool = True

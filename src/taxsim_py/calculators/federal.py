@@ -598,7 +598,10 @@ def _deductions(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorPr
     df = df.with_columns(standard_deduction=std_ded_expr)
 
     itemized_p = YearParams(FEDERAL_ITEMIZED_PARAMS, year)
-    salt_uncapped_expr = pl.col("proptax") + pl.col("otheritem") + pl.col("state_sales_or_income_tax_ded")
+    # Other itemized deductions sit outside the SALT cap (the 2026 build; earlier builds
+    # counted them with state and local taxes). `salt_capped` carries them for the
+    # state calculators, which read it as the federal itemized total less mortgage interest.
+    salt_uncapped_expr = pl.col("proptax") + pl.col("state_sales_or_income_tax_ded")
     if itemized_p.in_effect("salt_cap"):
         salt_cap_expr = pl.lit(itemized_p.num("salt_cap")) / sepret_expr
         if itemized_p.in_effect("salt_phaseout"):
@@ -611,6 +614,7 @@ def _deductions(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorPr
         salt_capped = salt_uncapped_expr.clip(0, None).clip(None, salt_cap_expr)
     else:
         salt_capped = salt_uncapped_expr.clip(0, None)
+    salt_capped = salt_capped + pl.col("otheritem")
 
     # The cash-contribution AGI cap is suspended for 2020 and 2021.
     agix = pl.col("agi").clip(0, None)

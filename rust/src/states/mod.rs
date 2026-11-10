@@ -333,11 +333,7 @@ impl Interp {
         let lower_value = self.values[(count - 1).min(last)];
         let upper_value = self.values[count.min(last)];
         let weight = (income - lower_threshold) / (upper_threshold - lower_threshold);
-        if upper_value > lower_value {
-            weight * lower_value + (1.0 - weight) * upper_value
-        } else {
-            weight * upper_value + (1.0 - weight) * lower_value
-        }
+        (1.0 - weight) * lower_value + weight * upper_value
     }
 }
 

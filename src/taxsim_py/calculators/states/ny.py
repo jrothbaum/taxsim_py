@@ -6,6 +6,8 @@ import polars as pl
 
 from taxsim_py.calculators.federal_pre1987 import PRE1987_PARAMS
 from taxsim_py.engine.brackets import bracket_rate, bracket_tax, scale_brackets
+from taxsim_py.calculators.federal import FEDERAL_CREDITS_PARAMS
+from taxsim_py.engine.credits import child_care_credit_rate
 from taxsim_py.engine.eitc import eitc_age_eligible, eitc_filer_eligible, federal_eitc
 from taxsim_py.engine.inputs import aged_count, federal_exemption_count, files_head_of_household, files_joint, files_separate, files_single, is_dependent_filer, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml, resolve_year
@@ -76,6 +78,27 @@ def _supplemental(statax: pl.Expr, taxinc: pl.Expr, agi: pl.Expr, status: pl.Exp
     return statax + pl.when(agi > float(d["top_agi"])).then(high).otherwise(supplemental)
 
 
+def _taxsim_new_york_tax(taxinc: pl.Expr, agi: pl.Expr, status: pl.Expr, p: YearParams) -> pl.Expr:
+    """The TAXSIM build's 2022+ tax: bracket tax plus a phased-in recapture (`nyminus`)."""
+    t = p.value("taxsim_new_york_tax")
+    result = pl.lit(0.0)
+    for status_name, key in _CLASS.items():
+        c = t[key]
+        uppers = [float(b[0]) for b in c["brackets"]]
+        rate_pct, subtract = tier_values(taxinc, uppers, [float(b[1]) for b in c["brackets"]], [float(b[2]) for b in c["brackets"]], strict=True)
+        flat = taxinc * rate_pct / 100.0
+        progressive = flat - subtract
+        rows = c["worksheets"]
+        sheet_uppers = [float(r[0]) for r in rows]
+        added, own_benefit = tier_values(taxinc, sheet_uppers, [float(r[1]) for r in rows], [float(r[2]) for r in rows], strict=True)
+        (previous,) = tier_values(taxinc, sheet_uppers, [107650.0] + sheet_uppers[:-1], strict=True)
+        benefit = pl.when(own_benefit == 0).then(flat - progressive).otherwise(own_benefit)
+        share = pl.min_horizontal(pl.lit(50000.0), (agi - previous).clip(0, None)) / 50000.0
+        tax = pl.when(agi > 25.0e6).then(flat).otherwise(progressive + added + benefit * share)
+        result = pl.when(status == status_name).then(tax).otherwise(result)
+    return result
+
+
 def _recapture(
     statax: pl.Expr,
     taxinc: pl.Expr,
@@ -89,6 +112,8 @@ def _recapture(
     is_single_class = status.is_in(["single", "married_separate"])
     is_hoh = status == "head_of_household"
     is_joint = status == "married_joint"
+    if p.in_effect("taxsim_new_york_tax") and not behavior.compute_new_york_supplemental_tax_per_statute:
+        return _taxsim_new_york_tax(taxinc, agi, status, p)
     if p.in_effect("supplemental_tax"):
         return _supplemental(statax, taxinc, agi, status, p)
     if p.in_effect("recapture_tiers"):
@@ -362,12 +387,17 @@ def compute_ny_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     if y == 2020:
         agi = agi + pl.col("ny_ui") - pl.col("taxable_unemployment")
     agieic = agi
-    # Pensions of taxpayers 65 or older are exempt up to a cap each; Social
+    # Pensions of taxpayers 59½ or older are exempt up to a cap each; Social
     # Security is exempt from 1984.
-    agi = agi - pl.min_horizontal(pl.col("pensions"), float(p["pension_exclusion_per_aged_taxpayer"]) * aged)
+    pension_aged = (pl.col("page") >= 60).cast(pl.Float64) + (pl.col("sage") >= 60).cast(pl.Float64)
+    agi = agi - pl.min_horizontal(pl.col("pensions"), float(p["pension_exclusion_per_aged_taxpayer"]) * pension_aged)
     agi = agi + p.num("capital_gains_addback") * fullcg.clip(0, None)
     if y >= 1984:
-        agi = agi - pl.col("taxable_social_security")
+        ss_exclusion = pl.col("taxable_social_security")
+        if y >= 2022 and not behavior.subtract_new_york_social_security_at_any_age:
+            # TAXSIM zeroes the whole exclusion unless a spouse is 60 or older.
+            ss_exclusion = pl.when(pension_aged > 0).then(ss_exclusion).otherwise(0.0)
+        agi = agi - ss_exclusion
     # Intermediate results are stored as columns so later formulas refer to
     # them instead of repeating their full expressions.
     df = df.with_columns(ny_agi=agi, ny_agieic=agieic, ny_fed_agi=fed_agi, ny_capgn=capgn)
@@ -387,7 +417,11 @@ def compute_ny_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     else:
         stded = pl.when(is_single | is_sep).then(pl.lit(stds)).when(is_hoh).then(pl.lit(stdh)).otherwise(pl.lit(stdm))
     if p.in_effect("standard_deduction_dependent"):
-        stded = pl.when(dependent_filer).then(p.num("standard_deduction_dependent")).otherwise(stded)
+        if y >= 2022 and not behavior.use_new_york_dependent_standard_deduction_alone:
+            # TAXSIM adds the dependent amount to the regular standard deduction.
+            stded = pl.when(dependent_filer).then(stded + p.num("standard_deduction_dependent")).otherwise(stded)
+        else:
+            stded = pl.when(dependent_filer).then(p.num("standard_deduction_dependent")).otherwise(stded)
 
     # --- Itemized deductions ---
     agix = agi.clip(0, None)
@@ -399,10 +433,10 @@ def compute_ny_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         ).otherwise(0.0)
     else:
         if p.in_effect("salt_cap"):
-            sttax = pl.min_horizontal(p.num("salt_cap") / sep, pl.col("proptax") + salt_ded + pl.col("otheritem"))
+            sttax = pl.min_horizontal(p.num("salt_cap") / sep, pl.col("proptax") + salt_ded)
         else:
-            sttax = pl.col("salt_capped")
-        xitded = deducp + pl.col("proptax") + pl.col("otheritem") - sttax
+            sttax = pl.col("salt_capped") - pl.col("otheritem")
+        xitded = deducp + pl.col("proptax") - sttax
         phase = (
             pl.when(is_single).then(p.num("itemized_limit_threshold", "single"))
             .when(is_hoh).then(p.num("itemized_limit_threshold", "head_of_household"))
@@ -537,9 +571,17 @@ def compute_ny_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         # The federal exemption count is deflated with other federal values
         # when a later year is projected.
         extra_people = exemps / flate - 1.0
+        extra_credit = interpolate_table(fed_agi, household["per_additional_person"])
+        married_credit = interpolate_table(fed_agi, household["married"])
+        if p.in_effect("taxsim_household_credit_per_additional_person") and not behavior.interpolate_new_york_household_credit_per_person:
+            steps = p.value("taxsim_household_credit_per_additional_person")
+            extra_credit = pl.lit(0.0)
+            for upper, amount in reversed(steps):
+                extra_credit = pl.when(fed_agi <= upper).then(float(amount)).otherwise(extra_credit)
+            # No credit at all above the last step.
+            married_credit = pl.when(fed_agi > float(steps[-1][0])).then(0.0).otherwise(married_credit)
         hcred = pl.when(is_single).then(interpolate_table(fed_agi, household["single"])).otherwise(
-            (interpolate_table(fed_agi, household["married"])
-             + extra_people * interpolate_table(fed_agi, household["per_additional_person"])) / sep
+            (married_credit + extra_people * extra_credit) / sep
         )
     hcred = pl.when(dependent_filer).then(0.0).otherwise(hcred)
     df = df.with_columns(ny_hcred=hcred)
@@ -555,7 +597,29 @@ def compute_ny_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         # TAXSIM reads a federal figure its early routine never fills.
         chcrbc = pl.lit(0.0)
     c = p.value("child_care_share")
-    if not isinstance(c, dict):
+    if p.in_effect("taxsim_child_care_credit") and not behavior.use_new_york_statutory_child_care_credit:
+        t = p.value("taxsim_child_care_credit")
+        rows = t["table"]
+        percentage = pl.lit(float(t["top_percentage"]))
+        for index in range(len(rows) - 1, -1, -1):
+            upper, high_percentage, low_percentage = (float(v) for v in rows[index])
+            previous = float(rows[index - 1][0]) if index else None
+            if previous is None:
+                piece = pl.lit(high_percentage)
+            else:
+                piece = high_percentage - (agi - previous) * (high_percentage - low_percentage) / (upper - previous)
+            percentage = pl.when(agi < upper).then(piece).otherwise(percentage)
+        limits = t["expense_limits"]
+        children = pl.col("dep13")
+        limit = pl.lit(0.0)
+        for count, amount in enumerate(limits, start=1):
+            limit = pl.when(children >= count).then(float(amount)).otherwise(limit)
+        earned = pl.when(is_joint).then(pl.min_horizontal(pl.col("pwages"), pl.col("swages"))).otherwise(pl.col("wages"))
+        expense = pl.min_horizontal(limit, earned, pl.col("childcare")).clip(0, None)
+        rate = child_care_credit_rate(pl.col("agi"), YearParams(FEDERAL_CREDITS_PARAMS["child_care_credit"], y).value("rate"))
+        chcr = rate * expense * percentage
+        statax = statax - chcr
+    elif not isinstance(c, dict):
         chcr = pl.min_horizontal(statax, float(c) * chcrbc)
         statax = (statax - chcr).clip(0, None)
     else:
@@ -641,6 +705,22 @@ def compute_ny_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     # Empire State child credit.
     eschcr = pl.lit(0.0)
     e = p.value("empire_child_credit") if p.in_effect("empire_child_credit") else {}
+    t = p.value("taxsim_empire_child_credit") if p.in_effect("taxsim_empire_child_credit") else None
+    if t is not None and not behavior.pay_new_york_empire_child_credit_per_statute:
+        e = {}
+        # TAXSIM's `numlt(17)` returns the count of dependents under 19.
+        dep17 = pl.col("dep18")
+        base = pl.lit(0.0)
+        gate = pl.lit(True)
+        if "threshold" in t:
+            thr = by_filing_status({k: float(v) for k, v in t["threshold"].items()})
+            gate = fed_agi < thr
+        if "per_child" in t:
+            reduction = t["phaseout_rate"] * (1000.0 * ((fed_agi - thr).clip(0, None) / 1000.0).ceil())
+            available = (t["per_child"] * dep17 - reduction).clip(0, None)
+            base = pl.min_horizontal(available, t["refundable_rate"] * (pl.col("earned_income") - t["earned_income_floor"]))
+        if t["share"]:
+            eschcr = pl.when(gate).then(t["share"] * pl.max_horizontal(float(t["minimum_per_child"]) * dep17, base)).otherwise(0.0)
     if "income_limit" in e:
         cphase = pl.when(is_single | is_hoh).then(float(e["income_limit"]["single"])).otherwise(
             float(e["income_limit"]["married"]) / sep

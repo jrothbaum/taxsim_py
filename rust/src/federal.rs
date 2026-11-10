@@ -269,6 +269,14 @@ enum Rebate {
     Single { phaseout_start: [f64; 4], phaseout_end: [f64; 4], per_adult: f64, per_dependent: f64 },
 }
 
+struct StimulusRebate {
+    per_filer: f64,
+    per_child: f64,
+    phaseout_start: f64,
+    phaseout_rate: f64,
+    minimum_income: f64,
+}
+
 struct MakingWorkPay {
     max_credit: f64,
     phaseout_start: f64,
@@ -334,6 +342,7 @@ pub struct FedParams {
     ss: SocialSecurity,
     rebate: Rebate,
     making_work_pay: Option<MakingWorkPay>,
+    stimulus: Option<StimulusRebate>,
     telephone: Option<Telephone>,
     div_adjustment: f64,
 }
@@ -630,6 +639,16 @@ impl FedParams {
                 per_dependent: num(get(get(r, "payment")?, "per_dependent")?)?,
             },
         };
+        let stimulus = match cr.opt("economic_stimulus_rebate")? {
+            Some(e) => Some(StimulusRebate {
+                per_filer: num(get(e, "per_filer")?)?,
+                per_child: num(get(e, "per_child")?)?,
+                phaseout_start: num(get(e, "phaseout_start")?)?,
+                phaseout_rate: num(get(e, "phaseout_rate")?)?,
+                minimum_income: num(get(e, "minimum_income")?)?,
+            }),
+            None => None,
+        };
         let making_work_pay = match cr.opt("making_work_pay")? {
             Some(m) => Some(MakingWorkPay {
                 max_credit: num(get(m, "max_credit")?)?,
@@ -724,6 +743,7 @@ impl FedParams {
             ss,
             rebate,
             making_work_pay,
+            stimulus,
             telephone,
             div_adjustment: num(get(&adj_doc, "household_income_dividend_adjustment")?)?,
         })
@@ -950,7 +970,7 @@ pub fn federal(i: &Inp, ded: f64, itemizes: bool, p: &FedParams) -> Fed {
         std_ded = std_ded.min(p.dep_min.max(earnings));
     }
 
-    let salt_uncapped = i.proptax + i.otheritem + ded;
+    let salt_uncapped = i.proptax + ded;
     let salt_capped = match p.salt_cap {
         Some(cap) => {
             let mut cap_expr = cap / sepret;
@@ -960,7 +980,7 @@ pub fn federal(i: &Inp, ded: f64, itemizes: bool, p: &FedParams) -> Fed {
             salt_uncapped.max(0.0).min(cap_expr)
         }
         None => salt_uncapped.max(0.0),
-    };
+    } + i.otheritem;
     let alim50 = p.charity_share * agi.max(0.0);
     let char_cash = alim50.min(i.charity_cash).max(0.0);
     let mut itemized_deduction = salt_capped + i.mortgage + char_cash;
@@ -1183,13 +1203,12 @@ pub fn federal(i: &Inp, ded: f64, itemizes: bool, p: &FedParams) -> Fed {
         None => 0.0,
     };
     // The disqualified-investment-income test begins in 1996.
-    let eitc_reduction = if year < 1996 {
-        0.0
-    } else {
+    // Over the limit the whole credit is lost.
+    let disqualified = year >= 1996 && {
         let disqy = capgn.max(0.0) + div_f + i.intrec + i.otherprop.max(0.0);
-        (disqy - p.eitc_dylim).max(0.0)
+        disqy > p.eitc_dylim
     };
-    let mut eitc = (eitc_ordinary - eitc_reduction).max(0.0);
+    let mut eitc = if disqualified { 0.0 } else { eitc_ordinary };
     let eitc_before_filer_test = eitc;
     let childless = num_children == 0.0;
     if dependent || (year != 2021 && childless && i.aged_count() >= i.taxpayer_count()) {
@@ -1311,6 +1330,21 @@ pub fn federal(i: &Inp, ded: f64, itemizes: bool, p: &FedParams) -> Fed {
             }
         }
     };
+    // 2008 economic stimulus rebate, limited by tax before the rebate.
+    let stimulus_rebate = match &p.stimulus {
+        Some(e) if !dependent => {
+            let tax_after_credits = tax_before_credits - ccc - elderly_credit - odc;
+            let qualifies = wages + i.gssi > e.minimum_income || tax_after_credits > 1.0 || agi > std_ded;
+            if qualifies {
+                let phaseout = e.phaseout_rate * (agi - e.phaseout_start * adults).max(0.0);
+                let base = (tax_before_credits - ccc - odc).max(0.0).min(e.per_filer * adults);
+                (base + e.per_child * i.dep17 - phaseout).max(0.0)
+            } else {
+                0.0
+            }
+        }
+        _ => 0.0,
+    };
     // Making Work Pay credit, per taxpayer.
     let making_work_pay = match &p.making_work_pay {
         Some(m) => {
@@ -1347,7 +1381,7 @@ pub fn federal(i: &Inp, ded: f64, itemizes: bool, p: &FedParams) -> Fed {
     } else {
         ccc + elderly_credit + odc
     };
-    let fiitax = tax_before_credits - odc - actc - ccc - elderly_credit - eitc - cares - making_work_pay
+    let fiitax = tax_before_credits - odc - actc - ccc - elderly_credit - eitc - cares - stimulus_rebate - making_work_pay
         - telephone_excise_credit
         + niit;
 

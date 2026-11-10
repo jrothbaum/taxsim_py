@@ -514,7 +514,7 @@ capital_gains_addback: {1977: 0.2, 1978: 0.1, 1983: 0.0}
 # Federal charitable deduction for nonitemizers added back: 2020 per return
 # (halved on separate returns), 2021 per taxpayer.
 charity_nonitemizer_addback: {2020: 300, 2022: null}
-# Pension exclusion per taxpayer 65 or older.
+# Pension exclusion per taxpayer aged 59½ or older (age 60 in whole years).
 pension_exclusion_per_aged_taxpayer: 20000
 
 # --- Itemized deductions ---
@@ -524,9 +524,9 @@ salt_cap: {2018: 10000, 2025: null}
 # From 2018: limitation above these federal AGI thresholds (married separate
 # gets half the married amount).
 itemized_limit_threshold:
-  single: {2018: 266700, 2019: 273150, 2020: 278300, 2021: 282400}
-  head_of_household: {2018: 293350, 2019: 300450, 2020: 306150, 2021: 310600}
-  married: {2018: 320000, 2019: 327750, 2020: 334000, 2021: 338850}
+  single: {2018: 266700, 2019: 273150, 2020: 278300, 2021: 282400, 2022: 290850, 2023: 313200, 2024: 330200, 2025: 340700}
+  head_of_household: {2018: 293350, 2019: 300450, 2020: 306150, 2021: 310600, 2022: 319950, 2023: 344500, 2024: 363250, 2025: 374800}
+  married: {2018: 320000, 2019: 327750, 2020: 334000, 2021: 338850, 2022: 349000, 2023: 375850, 2024: 396250, 2025: 408850}
 itemized_limit_rate: {2018: 0.03}
 itemized_limit_max_share: {2018: 0.8}
 # 1988-1990 reduction: a share of itemized deductions times a factor that rises
@@ -723,6 +723,32 @@ recapture_tiers:
         - [1.0e+20, 0.103, 47403, 5000000]
       top_additions: [[269300, 742], [1616450, 2143], [5000000, 47403], [1.0e+20, 79903]]
   2022: null
+# The TAXSIM build computes the 2022+ tax (nyminus) from its own rate tables
+# ([taxable income below, rate in percent, amount subtracted]) and worksheet
+# rows ([taxable income below, amount added, benefit recaptured; 0 = the
+# bracket's own benefit]). Its 2023 table differs from the statute in places
+# (for example the head-of-household second bracket ends at 17,700).
+taxsim_new_york_tax:
+  2022:
+    single:
+      brackets: [[8500, 4.0, 0], [11700, 4.5, 42.5], [13900, 5.25, 130.25], [80650, 5.85, 213.65], [215400, 6.25, 536.25], [1077550, 6.85, 1828.65], [5000000, 9.65, 32000.05], [25000000, 10.3, 64500.05], [1.0e+20, 10.9, 214500.05]]
+      worksheets: [[215400, 0, 0], [1077550, 536, 1293], [5000000, 1829, 30172], [1.0e+20, 32000, 32500]]
+    married:
+      brackets: [[17150, 4.0, 0], [23600, 4.5, 85.75], [27900, 5.25, 262.75], [161550, 5.85, 430.15], [323200, 6.25, 1076.35], [2155350, 6.85, 3015.55], [5000000, 9.65, 63365.35], [25000000, 10.3, 95865.35], [1.0e+20, 10.9, 245865.35]]
+      worksheets: [[161550, 0, 0], [323200, 430, 646], [2155350, 1076, 1940], [5000000, 3016, 60350], [1.0e+20, 63365, 32500]]
+    head_of_household:
+      brackets: [[12800, 4.0, 0], [17650, 4.5, 64.0], [20900, 5.25, 196.38], [107650, 5.85, 321.78], [269300, 6.25, 752.38], [1616450, 6.85, 2368.18], [5000000, 9.65, 47628.78], [25000000, 10.3, 80128.78], [1.0e+20, 10.9, 230128.78]]
+      worksheets: [[269300, 0, 0], [1641450, 752, 1616], [5000000, 2368, 45261], [1.0e+20, 47629, 32500]]
+  2023:
+    single:
+      brackets: [[8500, 4.0, 0], [11700, 4.5, 42.5], [13900, 5.25, 130.25], [80650, 5.5, 165.0], [215400, 6.0, 568.25], [1077550, 6.85, 2399.15], [5000000, 9.65, 32570.55], [25000000, 10.3, 65070.55], [1.0e+20, 10.9, 215070.55]]
+      worksheets: [[215400, 0, 0], [1077550, 568, 1831], [5000000, 2399, 30172], [1.0e+20, 32571, 32500]]
+    married:
+      brackets: [[17150, 4.0, 0], [23600, 4.5, 85.75], [27900, 5.25, 262.75], [161550, 5.5, 332.5], [323200, 6.0, 1140.25], [2155350, 6.85, 3887.45], [5000000, 9.65, 64237.25], [25000000, 10.3, 96737.25], [1.0e+20, 10.9, 248737.25]]
+      worksheets: [[161550, 0, 0], [323200, 333, 807], [2155350, 1140, 2747], [5000000, 3887, 60350], [1.0e+20, 64237, 32500]]
+    head_of_household:
+      brackets: [[12800, 4.0, 0], [17700, 4.5, 64.0], [20900, 5.25, 196.38], [107650, 5.5, 248.63], [269300, 6.0, 786.88], [1616450, 6.85, 3075.93], [5000000, 9.65, 48336.53], [25000000, 10.3, 80836.53], [1.0e+20, 10.9, 230836.53]]
+      worksheets: [[269300, 0, 0], [1641450, 787, 2289], [5000000, 3076, 45261], [1.0e+20, 48337, 32500]]
 # From 2022, supplemental tax (N.Y. Tax Law 601(d-1)): a base for the bracket
 # plus a share of the incremental benefit phased in over `phase_in_length` of
 # AGI above the larger of the bracket start and `min_agi` ([taxable income at
@@ -791,6 +817,11 @@ household_credit:
     per_additional_person: [[20000, 15], [25000, 10], [32000, 5], [1.0e+20, 0]]
 # 1982-1985 addition to the household credit.
 household_credit_addition: {1982: 5, 1986: null}
+# From 2022 the TAXSIM build
+# adds a flat amount per additional exemption by income ([AGI up to, amount]) in place
+# of the interpolated `per_additional_person` table, with no credit above the last bound.
+taxsim_household_credit_per_additional_person:
+  2022: [[20000, 15], [25000, 10], [32000, 5]]
 # Child and dependent care credit as a share of the federal credit: through
 # 1995 one share; 1996 by AGI ([AGI, share] interpolated); 1997-1999 a full
 # share
@@ -839,6 +870,16 @@ child_care_share:
     floor_share: 0.2
   2000:
     pieces: [[0, 1.1, 0.0], [25000, 1.1, 6.6e-06], [40000, 1.0, 0.0], [50000, 1.0, 5.3e-05], [65000, 0.2, 0.0]]
+# From 2022 the TAXSIM build (nytax22) pays the federal credit rate times New York's
+# own expense limit (by number of children under 13) times a percentage read from this
+# table ([AGI below, percentage at the lower end, percentage at the upper end]; linear
+# in between; the first row's lower percentage below the first bound and 0.2 beyond the
+# last).
+taxsim_child_care_credit:
+  2022:
+    expense_limits: [3000, 6000, 7500, 8500, 9000]
+    table: [[25000, 1.1, 1.067], [30000, 1.099, 1.067], [35000, 1.066, 1.034], [50000, 1.033, 1.0], [55000, 1.162, 0.863], [60000, 0.927, 0.601], [65000, 1.07, 0.476], [150000, 0.6, 0.6]]
+    top_percentage: 0.2
 # Real property tax credit (refundable) from 1978, by household income, with
 # separate tables for taxpayers 65 or older; no credit above the income limit.
 # 1982-1984 the aged maximum is one amount up to `aged_maximum_step` and another
@@ -955,6 +996,26 @@ empire_child_credit:
     amount: 330
     phaseout_per_1000: 16.5
     threshold: {single: 75000, head_of_household: 75000, married_joint: 110000, married_separate: 55000}
+# What the TAXSIM build pays instead (nyctc): `ctc` is taken from a variable that
+# stays zero in 2022 and 2025 (nothing paid); in 2023-24 it is `share` of the larger of
+# `minimum_per_child` per child under 17 and a 2024 amount (`per_child` less the
+# phase-out, capped at `refundable_rate` of earned income over the floor), and only
+# when federal AGI is below the threshold.
+taxsim_empire_child_credit:
+  2022: {share: 0}
+  2023:
+    share: 0.33
+    minimum_per_child: 100
+    threshold: {single: 75000, head_of_household: 75000, married_joint: 110000, married_separate: 55000}
+  2024:
+    share: 0.33
+    minimum_per_child: 100
+    threshold: {single: 75000, head_of_household: 75000, married_joint: 110000, married_separate: 55000}
+    per_child: 1000
+    phaseout_rate: 0.05
+    earned_income_floor: 3000
+    refundable_rate: 0.15
+  2025: {share: 0}
 # Children under 4 qualify for the Empire State child credit only from 2023
 # (Tax Law 606(c-1)).
 empire_child_credit_excludes_under_4: {2006: true, 2023: false}
