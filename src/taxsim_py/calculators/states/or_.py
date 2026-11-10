@@ -92,11 +92,20 @@ def compute_or_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     fedtax = (fedtax - pl.col("making_work_pay")).clip(0, None)
     fedtax = (fedtax - pl.col("cares")).clip(0, None)
     if y == 2021:
-        fedtax = (fedtax - pl.col("actc")).clip(0, None)
+        fedtax = (fedtax - pl.col("actc") - fed_ccc).clip(0, None)
     units = pl.when(is_joint | is_hoh).then(2.0).otherwise(1.0)
-    fedlim = pl.lit(0.0)
-    for bound, divisor in reversed(p["federal_tax_limit_phaseout"]):
-        fedlim = pl.when(agi < bound * units).then(p.num("federal_tax_limit") / sep / divisor).otherwise(fedlim)
+    if y >= 2022 and not behavior.phase_out_oregon_federal_tax_limit_in_steps:
+        # TAXSIM interpolates a table of limits by federal AGI per person.
+        per_person_agi = pl.when(is_joint | is_hoh).then(fed_agi / 2).otherwise(fed_agi / sep)
+        fedlim = interpolate_table(per_person_agi, p.value("taxsim_federal_tax_limit_table")) / sep
+    elif behavior.phase_out_oregon_federal_tax_limit_in_steps:
+        fedlim = pl.lit(0.0)
+        for bound, divisor in reversed(p["federal_tax_limit_phaseout"]):
+            fedlim = pl.when(agi < bound * units).then(p.num("federal_tax_limit") / sep / divisor).otherwise(fedlim)
+    else:
+        # TAXSIM phases the limit out continuously, by federal AGI over $122,500 per unit.
+        full_limit = p.num("federal_tax_limit") / sep
+        fedlim = (full_limit - (fed_agi - 122_500.0 * units).clip(0, None) * full_limit / (units * 25_000.0)).clip(0, None)
     df, (fedtax,) = checkpoint(df, or_fedtax=fedtax.clip(pl.lit(0.0), fedlim))
 
     # --- Standard deduction ---
@@ -104,7 +113,10 @@ def compute_or_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         c = p.value("standard_deduction_share")
         stded = (c["rate"] * agi).clip(c["low"] / sep, c["high"] / sep)
     else:
-        stded = by_filing_status(p.value("standard_deduction")) * p.num("standard_deduction_index")
+        index = p.num("standard_deduction_index")
+        if p.in_effect("taxsim_standard_deduction_index") and not behavior.use_oregon_standard_deduction_index_per_statute:
+            index = p.num("taxsim_standard_deduction_index")
+        stded = by_filing_status(p.value("standard_deduction")) * index
     if p.in_effect("standard_deduction_aged_addition"):
         stded = stded + aged * by_filing_status(p.value("standard_deduction_aged_addition"))
         # Returns with no taxpayer (dependent filers).
@@ -121,7 +133,7 @@ def compute_or_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     tx = salt if y <= 2017 else pl.lit(0.0)
     if y >= 1991:
         if p.in_effect("salt_cap"):
-            xlin8 = pl.min_horizontal(p.num("salt_cap") / sep, pl.col("proptax") + pl.col("otheritem"))
+            xlin8 = pl.min_horizontal(p.num("salt_cap") / sep, pl.col("proptax")) + pl.col("otheritem")
         else:
             xlin8 = tx + pl.col("proptax") + pl.col("otheritem")
         xtot = xlin8 + pl.col("mortgage") + pl.col("charity_cash")
@@ -172,6 +184,11 @@ def compute_or_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             (agi > p["minimum_tax_agi_threshold"] / sep) & (prefs > p["minimum_tax_agi_preference_threshold"] / sep)
         )
         statax = statax + pl.when(qualifies).then(bracket_tax(prefs, p.value("minimum_tax_brackets"))).otherwise(0.0)
+    if y >= 2022 and not behavior.tax_oregon_dependent_filers_per_statute:
+        # TAXSIM divides taxable income by zero taxpayers, which leaves no tax
+        # at the top bracket's rate.
+        statax = pl.when(txp < 1).then(0.0).otherwise(statax)
+        table_rate = pl.when(txp < 1).then(bracket_rate(pl.lit(1.0e12), schedule["single"] if "single" in schedule else schedule["split"])).otherwise(table_rate)
     df, (statax,) = checkpoint(df, or_taxbc=statax.clip(0, None))
     taxbc_state = statax
 
@@ -275,7 +292,32 @@ def compute_or_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     credits = credit + (famcr if y >= 2003 else 0.0) + (earncr if y >= 2006 else 0.0)
 
     # --- Working family household and dependent care credit 2016 on ---
-    if p.in_effect("dependent_care_shares"):
+    if effective_year >= 2016 and not behavior.apply_oregon_dependent_care_credit_per_statute:
+        dependent_care = p["taxsim_dependent_care"]
+        children = pl.col("dep13").clip(None, 2)
+        expens = pl.min_horizontal(pl.col("childcare"), 12_000.0 * children)
+        earned_primary = pl.col("pwages") + pl.col("psemp") + pl.col("pbusinc") + pl.col("pprofinc")
+        earned_spouse = pl.col("swages") + pl.col("ssemp") + pl.col("sbusinc") + pl.col("sprofinc")
+        expens = pl.when(pl.col("mstat") == 2).then(pl.min_horizontal(expens, earned_primary, earned_spouse)).otherwise(
+            pl.min_horizontal(expens, earned_primary)
+        ).clip(0, None)
+        agip = pl.max_horizontal(agi, fed_agi) - 0.003
+        household = (txp + depx).clip(2, 8)
+        percent_by_row = [float(v) for v in dependent_care["percent"]]
+        percent = pl.lit(0.0)
+        row_in_table = pl.lit(0)
+        for size in range(8, 1, -1):
+            limits = dependent_care["income_limits"][f"household_{size}"]
+            row = sum(((agip * float(resolve_year(dependent_care["income_scaling"], effective_year))) >= float(t)).cast(pl.Int64) for t in limits) + 1
+            row_in_table = pl.when(household == size).then(row).otherwise(row_in_table)
+        for position, value in enumerate(percent_by_row, start=1):
+            percent = pl.when(row_in_table == position).then(value).otherwise(percent)
+        young = pl.col("dep6") > 0
+        percent = pl.when(row_in_table <= 23).then(percent + pl.when(young).then(2.0).otherwise(0.0)).otherwise(percent)
+        wfhdc = pl.when((pl.col("dep13") > 0) & (pl.col("childcare") > 0) & (agip > 0)).then(expens * percent / 100.0).otherwise(0.0)
+        statax = statax - wfhdc
+        credits = credits + wfhdc
+    elif p.in_effect("dependent_care_shares"):
         num = exemps.floor()
         poverty = p.value("poverty_line")
         agi_limit = p.value("dependent_care_agi_limit")
@@ -298,11 +340,22 @@ def compute_or_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         credits = credits + wfhdc
 
     statax = pl.when(statax > 0).then(statax * p.num("tax_multiplier")).otherwise(statax)
-    if p.in_effect("kicker") and (y == 2019 or behavior.pay_oregon_2015_2017_kickers):
-        statax = statax - p.num("kicker") * taxbc_state
-        credits = credits + p.num("kicker") * taxbc_state
+    kicker = None
+    if p.in_effect("kicker") and (y != 2019 or behavior.pay_oregon_2019_kicker) and (y == 2019 or behavior.pay_oregon_2015_2017_kickers):
+        kicker = p.num("kicker")
+    elif y == 2021 and not behavior.omit_oregon_2021_kicker:
+        kicker = 0.17341
+    if kicker is not None:
+        statax = statax - kicker * taxbc_state
+        credits = credits + kicker * taxbc_state
 
-    if p.in_effect("kids_credit"):
+    if y >= 2022 and not behavior.pay_oregon_kids_credit_per_statute:
+        kids = p.value("taxsim_kids_credit")
+        factor = ((agi - float(kids["income_limit"])) / 5000.0).clip(0, 1)
+        kids_credit = float(kids["amount"]) * pl.col("dep13").clip(None, 5) * (1 - factor)
+        statax = statax - kids_credit
+        credits = credits + kids_credit
+    elif p.in_effect("kids_credit"):
         kids = p.value("kids_credit")
         reduction = ((agi - float(kids["reduction_start"])) / float(kids["reduction_width"])).clip(0, 1)
         kids_credit = float(kids["amount"]) * pl.col("dep6").clip(None, float(kids["child_limit"])) * (1 - reduction)

@@ -389,6 +389,20 @@ CASES = [
         "OR-005", "Oregon 2017 single", "siitax",
         3_361.79, 3_162.50, year=2017, state=38, pwages=50_000,
     ),
+    # Oregon in the 2026 build: the 2021 surplus credit is paid, a dependent
+    # filer pays no tax from 2022, and the Kids Credit counts children under 13.
+    _case(
+        "OR-006", "Oregon 2021 single", "siitax",
+        3_398.28, 4_155.89, year=2021, state=38, pwages=60_000,
+    ),
+    _case(
+        "OR-008", "Oregon 2022 dependent filer", "siitax",
+        0.0, 118.28, year=2022, state=38, mstat=8, pwages=1_000, intrec=3_000,
+    ),
+    _case(
+        "OR-009", "Oregon 2023 parent of a child under 13", "siitax",
+        -1_359.55, -359.55, year=2023, state=38, depx=1, dep13=1, dep17=1, dep18=1, pwages=12_000,
+    ),
     # Pennsylvania tax forgiveness: eligibility income includes unemployment
     # compensation, and forgiveness falls in 10% steps.
     _case(

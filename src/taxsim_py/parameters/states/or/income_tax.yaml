@@ -151,6 +151,19 @@ federal_tax_limit:
   2024: 8250.0
   2025: 8500
 federal_tax_limit_phaseout: [[125000, 1.0], [130000, 1.25], [135000, 1.675], [140000, 2.53], [145000, 5.15]]
+# TAXSIM's 2022-2025 federal tax subtraction limit: [federal AGI per person, limit]
+# interpolated (the limit steps down by a fifth of the full amount, rounded).
+taxsim_federal_tax_limit_table:
+  2022: [[125000, 7250], [130000, 5800], [135000, 4350], [140000, 2900], [145000, 1450], [100000000, 0]]
+  2023: [[125000, 7800], [130000, 6250], [135000, 4700], [140000, 3100], [145000, 1550], [100000000, 0]]
+  2024: [[125000, 8250], [130000, 6600], [135000, 4950], [140000, 3300], [145000, 1650], [100000000, 0]]
+  2025: [[125000, 8500], [130000, 6800], [135000, 5100], [140000, 3400], [145000, 1700], [100000000, 0]]
+# TAXSIM's Oregon Kids Credit (2022 on): per child under 13, up to five, phased out
+# over $5,000 of Oregon AGI above the income limit.
+taxsim_kids_credit:
+  2022: {amount: 0, income_limit: 25000}
+  2023: {amount: 1000, income_limit: 25750}
+  2025: {amount: 1050, income_limit: 31550}
 # 2008 federal rebate deducted from federal tax: per taxpayer and per dependent.
 federal_rebate_subtraction:
   2008: {taxpayer: 600.0, dependent: 300.0}
@@ -169,6 +182,33 @@ standard_deduction:
   2023: {single: 2605.0, married_joint: 5210.0, married_separate: 2605.0, head_of_household: 4195.0}
   2024: {single: 2745.0, married_joint: 5495.0, married_separate: 2745.0, head_of_household: 4420.0}
   2025: {single: 2835.0, married_joint: 5670.0, married_separate: 2835.0, head_of_household: 4560.0}
+# TAXSIM's working family household and dependent care credit (2016 on): income is
+# scaled to 2024 dollars by `income_scaling`, then the row of `income_limits` (by
+# household size 2-8) that it falls under gives the `percent` of expenses. The credit
+# gains 2 points with a child under 6 and loses 3 with no child under 13.
+taxsim_dependent_care:
+  income_limits:
+    household_2: [2044, 4088, 6132, 8176, 10220, 12264, 14308, 16352, 18396, 22484, 24528, 26572, 28616, 30660, 32704, 40880, 42924, 44968, 47012, 49056, 51100, 53144, 57232, 61320]
+    household_3: [2582, 5164, 7746, 10328, 12910, 15492, 18074, 20626, 23238, 28402, 30984, 33566, 36148, 38730, 41312, 51640, 54222, 56804, 59386, 61968, 64550, 67132, 72296, 77460]
+    household_4: [3120, 6240, 9360, 12480, 15600, 18720, 21840, 24960, 28080, 34320, 37440, 40560, 43680, 46800, 49920, 62400, 65520, 68640, 71760, 74880, 78000, 81120, 87360, 93600]
+    household_5: [3658, 7316, 10974, 14632, 18290, 21948, 25606, 29264, 32922, 40238, 43896, 47554, 51212, 54870, 58528, 73160, 76818, 80476, 84134, 87792, 91450, 95108, 102424, 109740]
+    household_6: [4196, 8392, 12588, 16784, 20980, 25176, 29372, 33568, 37764, 46156, 50352, 54548, 58744, 62940, 67136, 83920, 88116, 92312, 96508, 100704, 104900, 109096, 117488, 125880]
+    household_7: [4734, 9468, 14202, 18936, 23670, 28404, 33138, 37872, 42606, 52074, 56808, 61542, 66276, 71010, 75744, 94680, 99414, 104148, 108882, 113616, 118616, 123084, 132552, 142020]
+    household_8: [5272, 10544, 15816, 21088, 26360, 31632, 36904, 42176, 47488, 57992, 63264, 68536, 73808, 79080, 84352, 105440, 110712, 115984, 121256, 126528, 131800, 137072, 147616, 158160]
+  percent: [8, 18, 28, 38, 48, 53, 58, 63, 68, 73, 69, 64, 59, 53, 48, 45, 43, 38, 33, 28, 18, 8, 6, 4]
+  income_scaling:
+    2016: 1.276271186440678
+    2017: 1.2487562189054726
+    2018: 1.240527182866557
+    2019: 1.2057646116893515
+    2020: 1.1802507836990597
+    2021: 1.180474697716077
+    2022: 1.1306
+    2023: 1.042
+    2024: 1.0
+    2025: 0.9735
+# TAXSIM rounds the 2016 index to 1.314 (the statute's is 2,155 / 1,640).
+taxsim_standard_deduction_index: {2016: 1.314, 2017: null}
 standard_deduction_index:
   1977: 1.0
   2003: 1.02
@@ -291,6 +331,7 @@ exemption_credit:
   2018: 201.0
   2019: 206.0
   2020: 210.0
+  2021: 213.0
   2022: 219.0
   2023: 236.0
   2024: 249.0

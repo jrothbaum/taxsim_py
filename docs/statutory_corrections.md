@@ -193,6 +193,15 @@ skips would count the EITC slope twice.
 | OR | 2015, 2017 | 17709 | The surplus credit (kicker) is computed into a variable that is never used | Statutory, OR-005: 5.6% of tax. `pay_oregon_2015_2017_kickers` |
 | OR | 2016 on | | The working family household and dependent care credit counts every dependent | Statutory, OR-003: only children under 13 (ORS 315.264, IRC 21(b)). `count_only_children_under_13_for_oregon_dependent_care` |
 | OR | 2019 | 17710-17712 | The kicker is never reset, so later Oregon records in the same file inherit it (-$11,535.43 instead of $3,489.42) | Both modes: 2019 only |
+| OR | 2019, 2021 | `ortax77` | Each surplus credit line overwrites the one before, so only the last survives: the 2019 credit (17.171%) is never paid and 17.341% of tax is paid in 2021 | Statutory, OR-006: 2019 paid, 2021 not (the published credit for 2021 is not coded). `pay_oregon_2019_kicker`, `omit_oregon_2021_kicker` |
+| OR | through 2021 | `ortax77` | The federal tax subtraction limit phases out continuously over $25,000 of federal AGI per unit above $122,500, in every year | Statutory, OR-007: the published steps. `phase_out_oregon_federal_tax_limit_in_steps` |
+| OR | 2022 on | `ortax22` | The federal tax subtraction limit is read from a table by interpolation, on federal AGI per person | Statutory, OR-007. `phase_out_oregon_federal_tax_limit_in_steps` |
+| OR | 2016 | | The standard deduction index is rounded to 1.314 (the published deduction is $2,155) | Statutory: $2,155. `use_oregon_standard_deduction_index_per_statute` |
+| OR | 2016 on | | The dependent care credit uses the 2024 publication's table at every year (income scaled by the poverty guideline), for any child under 13 | Statutory, OR-003: that year's table. `apply_oregon_dependent_care_credit_per_statute` |
+| OR | 2022 on | `ortax22` | The Kids Credit counts children under 13 (`numlt(6)`) rather than under 6, with its own income limits | Statutory, OR-009: children under 6. `pay_oregon_kids_credit_per_statute` |
+| OR | 2022 on | `ortax22` | A dependent filer's taxable income is divided by zero taxpayers, so the tax is always $0 | Statutory, OR-008: taxed on the single schedule. `tax_oregon_dependent_filers_per_statute` |
+| OR | 2018 on | | Other itemized deductions sit outside the $10,000 state and local tax cap | Both modes |
+| OR | 2021 | `ortax77` | The federal tax subtraction also takes off the refundable child and dependent care credit | Both modes |
 | PA | All | 17749 | Tax forgiveness ignores nontaxable income such as unemployment and phases out smoothly rather than in 10% steps | Statutory, PA-001: eligibility income adds unemployment compensation and exempt pensions; 10% steps. `apply_pennsylvania_forgiveness_rules` |
 | RI | 2003-2009 | 17998, 18056-18074 | The capital gains rates also apply to short-term gains ($1,000 more tax on a $20,000 short-term gain) | Statutory, RI-001: net long-term gain only. `use_net_long_term_gain_in_rhode_island` |
 | RI | 2003-2010 | 18020-18021 | Married filing separately gets the full married standard deduction | Statutory, RI-002: half. `halve_rhode_island_separate_standard_deduction` |

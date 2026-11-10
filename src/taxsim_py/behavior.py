@@ -119,6 +119,9 @@ class BehaviorProfile:
     use_new_york_statutory_child_care_credit: bool = True
     use_new_york_dependent_standard_deduction_alone: bool = True
     interpolate_new_york_household_credit_per_person: bool = True
+    phase_out_oregon_federal_tax_limit_in_steps: bool = True
+    use_oregon_standard_deduction_index_per_statute: bool = True
+    apply_oregon_dependent_care_credit_per_statute: bool = True
     count_only_children_under_13_for_oregon_dependent_care: bool = True
     exclude_transfers_from_provisional_income: bool = True
     assign_business_income_to_its_earner: bool = True
@@ -175,6 +178,10 @@ class BehaviorProfile:
     subtract_ohio_exemption_credit_once: bool = True
     replace_federal_unemployment_in_oregon_1981_1984: bool = True
     pay_oregon_2015_2017_kickers: bool = True
+    pay_oregon_2019_kicker: bool = True
+    tax_oregon_dependent_filers_per_statute: bool = True
+    pay_oregon_kids_credit_per_statute: bool = True
+    omit_oregon_2021_kicker: bool = True
     apply_pennsylvania_forgiveness_rules: bool = True
     use_net_long_term_gain_in_rhode_island: bool = True
     halve_rhode_island_separate_standard_deduction: bool = True
