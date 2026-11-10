@@ -174,6 +174,14 @@ def _resolve_federal_and_state(
     )
 
     current = stacked
+    if year >= 2018:
+        # From 2018 TAXSIM's federal calculation deducts the larger of the state tax and its
+        # estimated general sales tax, so its first pass (no state tax yet) already deducts the
+        # sales tax. Earlier years read a sales tax input that is never set.
+        first = _federal(stacked, year, behavior).select(*_KEYS, pl.col(_SALES_TAX).alias("__first_sales_tax")).collect()
+        current = stacked.drop(_DEDUCTION).join(
+            first.select(*_KEYS, pl.col("__first_sales_tax").alias(_DEDUCTION)), on=_KEYS, how="left"
+        )
     for _ in range(ITERATIONS - 1):
         # TAXSIM deducts the larger of state income tax and its estimated
         # general sales tax federally.

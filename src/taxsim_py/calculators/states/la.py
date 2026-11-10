@@ -7,7 +7,8 @@ import polars as pl
 from taxsim_py.engine.brackets import bracket_rate, bracket_tax
 from taxsim_py.engine.inputs import aged_count, files_head_of_household, files_joint, files_single, separate_divisor, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml
-from taxsim_py.engine.state import with_state_detail
+from taxsim_py.engine.payroll_tax import payroll_items
+from taxsim_py.engine.state import allocate_pension, with_state_detail
 from taxsim_py.behavior import BehaviorProfile, TAXSIM_BEHAVIOR
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
@@ -28,6 +29,9 @@ def compute_la_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     is_hoh = files_head_of_household()
 
     df = deflate_for_extrapolation(df, flate)
+
+    if effective_year >= 2021 and not behavior.compute_louisiana_tax_per_statute:
+        return _taxsim_from_2021(df, effective_year, flate, p, behavior)
 
     # --- AGI --- less exempt retirement income and Social Security, net of
     # the federal tax attributable to them.
@@ -91,6 +95,8 @@ def compute_la_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         la_fedtax = (pl.col("fiitax") + pl.col("pre1987_earncr")).clip(0, None)
     else:
         la_fedtax = (pl.col("regular_tax") - pl.col("nonrefundable_credits")).clip(0, None) + pl.col("amt").clip(0, None)
+        if not behavior.exclude_niit_from_louisiana_federal_tax_deduction:
+            la_fedtax = la_fedtax + pl.col("niit")
     if not p.value("federal_tax_deduction"):
         la_fedtax = pl.lit(0.0)
 
@@ -124,6 +130,8 @@ def compute_la_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     # Dependents and taxpayers 65 or older each count toward the reduction.
     dependents = pl.col("depx") + aged_count() if p.in_effect("dependent_tax_reduction_amount") else pl.lit(0.0)
     brackets = p.value("brackets") if p.in_effect("brackets") else None
+    if p.in_effect("taxsim_brackets") and not behavior.use_louisiana_brackets_per_statute:
+        brackets = p.value("taxsim_brackets")
     if brackets is None:
         rate = p.num("flat_rate")
         statax = rate * pl.col("la_taxinc")
@@ -134,7 +142,10 @@ def compute_la_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     else:
         single_table, married_table, hoh_table = brackets["single"], brackets["married_joint"], brackets["head_of_household"]
         tax_single = (bracket_tax(pl.col("la_taxinc"), single_table) - p["dependent_credit_rate"] * xmpd * dependents).clip(0, None)
-        tax_married = (bracket_tax(pl.col("la_taxinc"), married_table) - p["dependent_credit_rate"] * xmpd * dependents).clip(0, None)
+        married_reductions = 1.0 if behavior.reduce_louisiana_joint_tax_once_for_dependents else (2.0 if effective_year <= 2021 else 1.0)
+        tax_married = bracket_tax(pl.col("la_taxinc"), married_table)
+        for _ in range(int(married_reductions)):
+            tax_married = (tax_married - p["dependent_credit_rate"] * xmpd * dependents).clip(0, None)
         if not p.in_effect("dependent_tax_reduction_amount"):
             tax_hoh = bracket_tax(pl.col("la_taxinc"), hoh_table)
         elif "first" in p.value("dependent_credit_hoh"):
@@ -172,7 +183,11 @@ def compute_la_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         amt_ed = p.num("education_credit_per_dependent")
         edcr = pl.when(pl.col("depx") >= 1).then(amt_ed * pl.col("depx")).otherwise(0.0)
 
-    if p.in_effect("federal_credit_share"):
+    if not behavior.allow_louisiana_federal_credit_share_per_statute:
+        # TAXSIM overwrites the credit: a tenth of the federal nonrefundable
+        # credits and earned income credit in 1980-1984, otherwise nothing.
+        fedcr = 0.1 * (pl.col("credit") + pl.col("pre1987_earncr")) if 1980 <= effective_year <= 1984 else pl.lit(0.0)
+    elif p.in_effect("federal_credit_share"):
         # From 2022 Louisiana has no credit for the federal elderly credit.
         elder = pl.lit(0.0) if effective_year >= 2022 else pl.col("federal_elder")
         fedcr = p.num("federal_credit_share") * (pl.col("federal_chcr") + elder)
@@ -185,17 +200,19 @@ def compute_la_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     chcref = pl.lit(0.0)
     if p.in_effect("child_care_credit"):
         cc = p.value("child_care_credit")
-        base = pl.col("la_agi").clip(0, None)
+        taxsim_credit = not behavior.use_louisiana_child_care_credit_per_statute
+        base = pl.col("agi").clip(0, None) if taxsim_credit else pl.col("la_agi").clip(0, None)
+        child_care = pl.col("federal_chcr") if taxsim_credit else pl.col("ccc")
         cap1_over60 = float(cc["top_cap"])
         tiers = cc["tiers"]
         ceiling1, rate1, refundable1 = tiers[0]
         ceiling2, rate2, refundable2 = tiers[1]
         ceiling3, rate3, refundable3 = tiers[2]
-        chcref = pl.when(base <= ceiling1).then(rate1 * pl.col("ccc")).otherwise(0.0)
+        chcref = pl.when(base <= ceiling1).then(rate1 * child_care).otherwise(0.0)
         chcr = (
-            pl.when((base > ceiling1) & (base <= ceiling2)).then(rate2 * pl.col("ccc"))
-            .when((base > ceiling2) & (base <= ceiling3)).then(rate3 * pl.col("ccc"))
-            .when(base > ceiling3).then(pl.min_horizontal(cc["top_rate"] * pl.col("ccc"), cap1_over60))
+            pl.when((base > ceiling1) & (base <= ceiling2)).then(rate2 * child_care)
+            .when((base > ceiling2) & (base <= ceiling3)).then(rate3 * child_care)
+            .when(base > ceiling3).then(pl.min_horizontal(cc["top_rate"] * child_care, cap1_over60))
             .otherwise(0.0)
         )
 
@@ -217,4 +234,93 @@ def compute_la_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         eic=earncr,
         credits=credit + earncr + chcref,
         rate=rate_expr,
+    )
+
+
+
+def _taxsim_from_2021(df: pl.DataFrame, year: int, flate: float, p: YearParams, behavior: BehaviorProfile) -> pl.DataFrame:
+    """The 2026 TAXSIM build's Louisiana tax from 2021 (`latax21`)."""
+    txp = taxpayer_count()
+    primary_aged = (pl.col("page") >= 65)
+    spouse_aged = (pl.col("sage") >= 65)
+    fed_agi = pl.col("agi")
+
+    # Retirement income exemption, per taxpayer 65 or older.
+    limit = p.num("aged_pension_exemption")
+    pension = pl.col("pensions")
+    pent_all, pens_all = allocate_pension(pension, 55.0)
+    aged = aged_count()
+    single_aged = (txp == 1) & (aged == 1)
+    pent = pl.when(single_aged).then(pension.clip(0, limit)).when((aged > 0) & primary_aged).then(pent_all.clip(0, limit)).otherwise(0.0)
+    pens = pl.when((aged > 0) & ~single_aged & spouse_aged).then(pens_all.clip(0, limit)).otherwise(0.0)
+    subtr = pent + pens + pl.col("taxable_social_security")
+
+    # The federal income tax deduction exists in 2021 only.
+    if year == 2021:
+        fedtax = pl.col("regular_tax") + pl.col("amt") + pl.col("niit") - pl.col("federal_chcr")
+        ftadd = pl.when((fed_agi > 0) & (fedtax > 0) & (subtr > 0)).then(fedtax * pl.min_horizontal(pl.lit(1.0), subtr / fed_agi)).otherwise(0.0)
+    else:
+        fedtax = pl.lit(0.0)
+        ftadd = pl.lit(0.0)
+    agi = fed_agi - subtr + ftadd
+
+    is_hoh = files_head_of_household()
+    if year <= 2024:
+        taxinc = (agi - fedtax).clip(0, None)
+        rates = (0.02, 0.04, 0.06) if year == 2021 else (0.0185, 0.035, 0.0425)
+        aa = taxinc
+        ab = pl.min_horizontal(12_500.0 * txp, aa)
+        exemption = pl.when(is_hoh).then(9000.0).otherwise(4500.0 * txp) + (pl.col("depx") + aged) * 1000.0
+        aft = (ab - exemption) * rates[0]
+        agt = pl.when(aa - ab > 0).then(pl.min_horizontal(aa - ab, 37_500.0 * txp) * rates[1]).otherwise(0.0)
+        aht = pl.when(aa - 50_000.0 * txp > 0).then((aa - 50_000.0 * txp) * rates[2]).otherwise(0.0)
+        taxbc = aft + agt + aht
+        exemp = exemption
+    else:
+        stded = pl.when(files_joint() | is_hoh).then(25_000.0).otherwise(12_500.0)
+        taxinc = agi - stded
+        taxbc = 0.03 * taxinc
+        exemp = stded
+
+    # Credits.
+    agip = (fed_agi - 0.02).clip(0, None)
+    child_care = pl.col("federal_chcr")
+    chcrnoref = (
+        pl.when(agip <= 25_000).then(0.0)
+        .when(agip <= 35_000).then(0.3 * child_care)
+        .when(agip <= 60_000).then(0.1 * child_care)
+        .otherwise(pl.min_horizontal(0.1 * child_care, pl.lit(25.0)))
+    )
+    # The blindness credit needs a blind-taxpayer input TAXSIM does not have.
+    blindcr = pl.lit(0.0)
+    earncr = 0.05 * pl.col("eitc")
+
+    wages, businesses = [], []
+    for names in payroll_items(behavior):
+        wage = pl.col(names[0]).clip(0, None)
+        self_employed = pl.sum_horizontal(pl.col(name).clip(0, None) for name in names[1:])
+        wages.append(wage)
+        businesses.append(wage + 0.9235 * self_employed)
+    earnmin = pl.when(pl.col("mstat") == 2).then(pl.min_horizontal(businesses[0], businesses[1])).otherwise(businesses[0])
+    if year == 2021:
+        expense = pl.min_horizontal(pl.col("childcare"), 8000.0 * pl.col("dep13").clip(None, 2))
+        chcref = pl.when(fed_agi <= 25_000).then(0.25 * pl.min_horizontal(expense, earnmin)).otherwise(0.0)
+    else:
+        frac = 0.35 - 0.05 * (agip - 15_000).clip(0, None) / 10_000
+        chcref = pl.when((agip <= 25_000) & (pl.col("dep13") > 0)).then(
+            pl.min_horizontal(earnmin, 0.5 * frac * pl.col("ccc_expense"))
+        ).otherwise(0.0)
+    nonrefundable = pl.min_horizontal(taxbc, blindcr + chcrnoref)
+    credit = nonrefundable + earncr + chcref
+    statax = taxbc - credit
+    df = df.with_columns(siitax=statax * flate)
+    return with_state_detail(
+        df,
+        agi=agi,
+        exemptions=exemp,
+        taxable_income=taxinc,
+        child_care_credit=chcref + chcrnoref,
+        eic=earncr,
+        credits=credit,
+        rate=pl.lit(0.0),
     )

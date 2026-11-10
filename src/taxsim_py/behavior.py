@@ -63,6 +63,12 @@ class BehaviorProfile:
     add_washington_working_families_credit: bool = True
     allow_kansas_itemizing_after_2020: bool = True
     apply_kentucky_pension_cap_per_taxpayer: bool = True
+    compute_louisiana_tax_per_statute: bool = True
+    exclude_niit_from_louisiana_federal_tax_deduction: bool = True
+    use_louisiana_brackets_per_statute: bool = True
+    reduce_louisiana_joint_tax_once_for_dependents: bool = True
+    allow_louisiana_federal_credit_share_per_statute: bool = True
+    use_louisiana_child_care_credit_per_statute: bool = True
     apply_kentucky_pension_exclusion_schedule: bool = True
     step_kentucky_family_size_credit_by_poverty_share: bool = True
     limit_kentucky_itemized_deductions_to_mortgage_interest: bool = True

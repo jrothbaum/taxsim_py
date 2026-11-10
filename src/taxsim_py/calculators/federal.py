@@ -915,14 +915,14 @@ def _regular_tax(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorP
 
 def _alternative_minimum_tax(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame | pl.LazyFrame:
     """Alternative minimum tax and tax before credits."""
-    # AMT income: AGI, minus mortgage interest if itemizing (SALT is never
-    # deductible for AMT; mortgage interest is deductible for both).
+    # AMT income: AGI, minus mortgage interest and other itemized deductions if
+    # itemizing (state and local taxes are never deductible for AMT).
     sepret_expr = _sepret()
     amt_p = YearParams(FEDERAL_AMT_PARAMS, year)
     cg_p = YearParams(FEDERAL_CAPITAL_GAINS_PARAMS, year)
     amt_exemption_expr = _by_status_at(amt_p["exemption"], year)
     amt_phaseout_threshold_expr = _by_status_at(amt_p["exemption_phaseout_threshold"], year)
-    amt_income = pl.col("agi") - pl.when(pl.col("itemizes")).then(pl.col("mortgage")).otherwise(0.0)
+    amt_income = pl.col("agi") - pl.when(pl.col("itemizes")).then(pl.col("mortgage") + pl.col("otheritem")).otherwise(0.0)
     if year in (1991, 1992) and not behavior.exempt_amt_from_itemized_limit_1991_1992:
         # TAXSIM adds the itemized-deduction limitation back for itemizers.
         amt_income = amt_income + pl.when(pl.col("itemizes")).then(pl.col("deduction_phaseout")).otherwise(0.0)
@@ -1038,7 +1038,7 @@ def _credits(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorProfi
     federal_chcr = ccc
     if year < 1998 and not behavior.apply_nonrefundable_credits_before_1998:
         federal_chcr = pl.min_horizontal(ccc_amount.clip(0, None), pl.col("regular_tax"))
-    df = df.with_columns(ccc=ccc, ccc_uncapped=ccc_amount.clip(0, None), federal_chcr=federal_chcr)
+    df = df.with_columns(ccc=ccc, ccc_uncapped=ccc_amount.clip(0, None), federal_chcr=federal_chcr, ccc_expense=ccc_expense)
     if analytic_rate:
         df = df.with_columns(analytic_ccc_expense=ccc_expense)
 

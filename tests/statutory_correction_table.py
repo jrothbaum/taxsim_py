@@ -456,7 +456,7 @@ CASES = [
     ),
     _case(
         "VA-002", "Virginia 2021 itemizer at $340,000", "siitax",
-        16_924.92, 16_835.39, year=2021, state=47, pwages=340_000, proptax=15_000, mortgage=20_000,
+        16_924.91, 16_835.39, year=2021, state=47, pwages=340_000, proptax=15_000, mortgage=20_000,
     ),
     # Vermont 1977-1988: no student credit (there is no student input).
     _case(
