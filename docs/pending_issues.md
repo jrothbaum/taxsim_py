@@ -258,10 +258,12 @@ executable outputs are described in [`oracle_archive/`](oracle_archive/README.md
 
 ## The 2026 build stops on some records
 
-TAXSIM stops the whole run, with no output, when it reaches these inputs. `scripts/oracle.py` isolates such records
-by halving the batch. It leaves a record out (and says so on stderr) only when its inputs match one of the stops below; any other stop raises.
+The shipped source stops the whole run, with no output, on two kinds of record. Both are bugs in the source,
+and `scripts/build_oracle.sh` fixes them in the oracle build (`taxsim2026_mtr.exe`) instead of skipping records:
 
-| State | Years | Input | Cause |
-| --- | --- | --- | --- |
-| NJ | 1977-2020 | Dependent filer (`mstat=8`) | The pension exclusion table is indexed by the taxpayer count, which is 0 for a dependent filer, so `tablki` reads past the array (`STOP 229`) |
-| WV | before 2016 | Taxpayer 65 or older with a property tax credit | The senior credit's income limit calls `povertf`, which only has poverty lines from 2016 (`STOP 5140`) |
+| State | Years | Input | Cause | Fix in the oracle build |
+| --- | --- | --- | --- | --- |
+| NJ | 1977-2020 | Dependent filer (`mstat=8`) | The pension exclusion table is indexed by the taxpayer count, which is 0 for a dependent filer, so `tablki` reads before the array (`STOP 229`) | Index at least 1 (the single-filer table) |
+| WV | before 2016 | Taxpayer 65 or older with a property tax credit | The senior credit calls `povertf`, which stops for years before 2016. Its result only feeds an `if` whose body is commented out | `povertf` returns the 2016 line (no effect on the tax) |
+
+For NJ the oracle value for a dependent filer with pension income rests on that single-filer choice.

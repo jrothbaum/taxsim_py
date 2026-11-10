@@ -39,48 +39,8 @@ _WARMUP_ID = 999_999_999
 _WARMUP_VALUES = {"taxsimid": _WARMUP_ID, "year": 2000, "mstat": 1}
 
 
-def _explained_stop(row: dict) -> bool:
-    """True when `row` has the inputs of a stop we have traced to the Fortran (necessary conditions only).
-
-    NJ, 1977-2020, dependent filer: the pension exclusion table is indexed by a taxpayer
-    count of 0 and `tablki` stops (229). WV before 2016, a taxpayer 65 or older with
-    property tax: the senior credit's income limit calls `povertf`, which only has poverty
-    lines from 2016, and stops (5140).
-    """
-    state, year, mstat = row.get("state"), row.get("year"), row.get("mstat")
-    if state == 31:
-        return mstat == 8 and year <= 2020
-    if state == 49:
-        aged = (row.get("page") or 0) >= 65 or (row.get("sage") or 0) >= 65
-        return aged and (row.get("proptax") or 0) > 0 and year <= 2015
-    return False
-
-
 def _run(cases: pl.DataFrame, columns: list[str], executable: Path) -> pl.DataFrame:
-    """Run TAXSIM on `cases`.
-
-    The build stops the whole run, with no output, on the records `_explained_stop` describes.
-    When a run stops, the batch is halved until the stopping record is found; it is left out
-    (and reported on stderr) only if its inputs match an explained stop. Any other stop raises.
-    """
-    try:
-        return _run_once(cases, columns, executable)
-    except RuntimeError as error:
-        if "STOP" not in str(error) or cases.height == 0:
-            raise
-        if cases.height == 1:
-            row = cases.row(0, named=True)
-            if not _explained_stop(row):
-                raise
-            print(
-                f"oracle: left out taxsimid {row['taxsimid']} (state {row['state']}, year {row['year']}): "
-                "TAXSIM stops on this input (see docs/pending_issues.md)",
-                file=sys.stderr,
-            )
-            return pl.DataFrame()
-        half = cases.height // 2
-        parts = [p for p in (_run(cases[:half], columns, executable), _run(cases[half:], columns, executable)) if p.height]
-        return pl.concat(parts, how="diagonal_relaxed") if parts else pl.DataFrame()
+    return _run_once(cases, columns, executable)
 
 
 def _run_once(cases: pl.DataFrame, columns: list[str], executable: Path) -> pl.DataFrame:
