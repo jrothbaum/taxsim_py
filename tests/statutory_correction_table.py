@@ -185,7 +185,7 @@ CASES = [
     ),
     _case(
         "IA-001", "Iowa 2019 single parent above the 2010 cap", "ia_earncr",
-        0.0, 74.19, year=2019, state=16, depx=1, dep13=1, dep17=1, dep18=1, pwages=38_000,
+        74.19, 74.19, year=2019, state=16, depx=1, dep13=1, dep17=1, dep18=1, pwages=38_000,
     ),
     # Illinois 2000-2002: the EITC is limited to tax after the property tax
     # credit, subtracted once ($165 left, not $90).

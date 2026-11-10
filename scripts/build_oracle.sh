@@ -9,6 +9,9 @@
 #  2. povertf stops (5140) for years before 2016, which WV's senior property tax credit
 #     reaches. The value only feeds an `if` whose body is commented out, so any
 #     value gives the same tax; return the 2016 line.
+#  3. Iowa (iatax77) adds the uninitialised `xm` to the head-of-household personal credit for
+#     1977-1997, so the tax depends on stack garbage (0 or +$10 in two builds). Use xmp(law),
+#     the credit the line above it adds for the same purpose.
 set -e
 cd "$(dirname "$0")/.."
 SRC=${1:-taxsim_2026_11_09.f}
@@ -26,7 +29,16 @@ new = "       else\n          povertf=povert(1,2016)+isize*povert(2,2016)\n     
 assert text.count(old) == 1, "povertf patch did not apply"
 open(path, "w").write(text.replace(old, new))
 PY
-for pattern in 'isgn=1,int(extnd(54))' 'povert(1,2016)+isize'; do
+# Iowa 1977-1997 head-of-household credit: uninitialised xm -> xmp(law).
+python3 - "$PATCHED" <<'PY'
+import sys
+path = sys.argv[1]
+text = open(path).read()
+old = "      if(nfile.eq.3)gcred = gcred+xm\n"
+assert text.count(old) == 1, "iowa xm patch did not apply"
+open(path, "w").write(text.replace(old, "      if(nfile.eq.3)gcred = gcred+xmp(law)\n"))
+PY
+for pattern in 'isgn=1,int(extnd(54))' 'povert(1,2016)+isize' 'gcred+xmp(law)'; do
   grep -q "$pattern" "$PATCHED" || { echo "patch did not apply: $pattern" >&2; exit 1; }
 done
 gfortran -O2 -std=legacy -o taxsim2026_mtr.exe "$PATCHED"

@@ -109,7 +109,7 @@ def compute_ia_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         # child credits it applied.
         # The child credit it takes off can be negative (adding tax) through 2000 only.
         child_credit = pl.col("odc") if effective_year <= 2000 else pl.col("odc").clip(0, None)
-        fedded = (pl.col("regular_tax") + pl.col("payroll_setax") - pl.col("ccc") - child_credit).clip(0, None)
+        fedded = (pl.col("regular_tax") + pl.col("payroll_setax") - pl.col("ccc") - child_credit - pl.col("addmed")).clip(0, None)
     if not p.value("federal_tax_deduction"):
         fedded = pl.lit(0.0)
     dedbus = p.num("qbi_deduction_share") * pl.col("qbi_deduction") if effective_year >= 2019 else pl.lit(0.0)
@@ -177,19 +177,23 @@ def compute_ia_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     xitdw = pl.col("ia_xitded") - xitdh
     dedh_general = pl.when(stded_h_general >= xitdw).then(stded_h_general).otherwise(xitdh)
     dedw_general = pl.max_horizontal(stded_h_general, xitdw)
-    feddh = pl.when(pl.col("ia_agi") != 0).then(fedded * agih / pl.col("ia_agi")).otherwise(0.0)
-    feddw = fedded - feddh
+    # The 2026 TAXSIM build splits the federal tax without the self-employment tax and adds that tax back
+    # only through 1986.
+    split_fedded = fedded if behavior.add_back_iowa_self_employment_tax_twice else (fedded - pl.col("ia_setax")).clip(0, None)
+    setax_again = pl.col("ia_setax") if behavior.add_back_iowa_self_employment_tax_twice else pl.lit(0.0)
+    feddh = pl.when(pl.col("ia_agi") != 0).then(split_fedded * agih / pl.col("ia_agi")).otherwise(0.0)
+    feddw = split_fedded - feddh
     agiw_positive = is_mfc & (agiw > 0)
     taxinh = (
         pl.when(agiw_positive)
-        .then((agih - dedh_general + 0.25 * pl.col("ia_setax") - feddh - 0.5 * dedbus).clip(0, None))
+        .then((agih - dedh_general + 0.25 * setax_again - feddh - 0.5 * dedbus).clip(0, None))
         .when(is_mfc)
         .then(pl.col("ia_taxinc"))
         .otherwise(pl.lit(0.0))
     )
     taxinw = (
         pl.when(agiw_positive)
-        .then((agiw - dedw_general + 0.25 * pl.col("ia_setax") - feddw - 0.5 * dedbus).clip(0, None))
+        .then((agiw - dedw_general + 0.25 * setax_again - feddw - 0.5 * dedbus).clip(0, None))
         .otherwise(pl.lit(0.0))
     )
     df = df.with_columns(ia_taxinh=taxinh, ia_taxinw=taxinw, ia_agi_higher_earner=agih, ia_agi_lower_earner=agiw)
@@ -211,10 +215,10 @@ def compute_ia_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
 
     if effective_year <= 1986:
         taxinh2 = pl.when(is_mfc).then(
-            (pl.col("ia_agi_higher_earner") - dedh_general + pl.col("ia_setax") * pl.col("ia_agi_higher_earner") / pl.col("ia_agi").clip(1e-9, None) - fedded * pl.col("ia_agi_higher_earner") / pl.col("ia_agi").clip(1e-9, None)).clip(0, None)
+            (pl.col("ia_agi_higher_earner") - dedh_general + pl.col("ia_setax") * pl.col("ia_agi_higher_earner") / pl.col("ia_agi").clip(1e-9, None) - split_fedded * pl.col("ia_agi_higher_earner") / pl.col("ia_agi").clip(1e-9, None)).clip(0, None)
         ).otherwise(pl.lit(0.0))
         taxinw2 = pl.when(is_mfc).then(
-            (pl.col("ia_agi_lower_earner") - dedw_general + pl.col("ia_setax") * pl.col("ia_agi_lower_earner") / pl.col("ia_agi").clip(1e-9, None) - fedded * pl.col("ia_agi_lower_earner") / pl.col("ia_agi").clip(1e-9, None)).clip(0, None)
+            (pl.col("ia_agi_lower_earner") - dedw_general + pl.col("ia_setax") * pl.col("ia_agi_lower_earner") / pl.col("ia_agi").clip(1e-9, None) - split_fedded * pl.col("ia_agi_lower_earner") / pl.col("ia_agi").clip(1e-9, None)).clip(0, None)
         ).otherwise(pl.lit(0.0))
         stath = bracket_tax(taxinh2 / aif, table) * aif
         statw = bracket_tax(taxinw2 / aif, table) * aif
@@ -250,13 +254,17 @@ def compute_ia_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     # --- Personal Exemption Credit ---
     xmp = p.num("personal_exemption_credit")
     is_hoh = files_head_of_household()
+    # Through 1997 TAXSIM credits no dependents and adds the head-of-household amount twice.
+    statutory_credits = effective_year >= 1998 or behavior.credit_iowa_dependents_before_1998
+    dependents = pl.col("depx") if statutory_credits else pl.lit(0.0)
+    hoh_repeat = 0.0 if statutory_credits else xmp
     if p.in_effect("personal_credit_taxpayer_addition"):
         extra = p.num("personal_credit_taxpayer_addition")
-        gcred = (xmp + extra) * (pl.col("ia_taxpayers") + aged_count()) + xmp * pl.col("depx")
-        gcred = pl.when(is_hoh).then(gcred + xmp + extra).otherwise(gcred)
+        gcred = (xmp + extra) * (pl.col("ia_taxpayers") + aged_count()) + xmp * dependents
+        gcred = pl.when(is_hoh).then(gcred + xmp + extra + hoh_repeat).otherwise(gcred)
     elif effective_year <= 1997:
-        gcred = (xmp / 2.0) * (pl.col("ia_taxpayers") + aged_count()) + xmp * pl.col("depx")
-        gcred = pl.when(is_hoh).then(gcred + xmp / 2.0).otherwise(gcred)
+        gcred = (xmp / 2.0) * (pl.col("ia_taxpayers") + aged_count()) + xmp * dependents
+        gcred = pl.when(is_hoh).then(gcred + xmp / 2.0 + hoh_repeat).otherwise(gcred)
     else:
         gcred = xmp * (pl.col("depx") + pl.col("ia_taxpayers")) + (xmp / 2.0) * aged_count()
         gcred = pl.when(is_hoh).then(gcred + xmp).otherwise(gcred)
@@ -338,13 +346,16 @@ def compute_ia_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             earncr = pl.when(is_joint & (earncr > 0)).then(e["share"] * xlin5).otherwise(earncr)
 
         caps_this_year = effective_year == p.num("eitc_eligibility_caps_year")
-        if p.in_effect("eitc_eligibility_caps") and (caps_this_year or not behavior.apply_iowa_eitc_caps_as_in_2010_law):
+        if p.in_effect("eitc_eligibility_caps") and caps_this_year:
             caps = p.value("eitc_eligibility_caps")
             cap0, cap1_flat, cap2p_flat = float(caps["none"]), float(caps["one"]), float(caps["two_or_more"])
             over_0_flat = (pl.col("depx") == 0) & ((pl.col("earned_income") > cap0) | (pl.col("ia_agi") > cap0))
             over_1_flat = (pl.col("depx") == 1) & ((pl.col("earned_income") > cap1_flat) | (pl.col("ia_agi") > cap1_flat))
             over_2p_flat = (pl.col("depx") >= 2) & ((pl.col("earned_income") > cap2p_flat) | (pl.col("ia_agi") > cap2p_flat))
             over_flat = over_0_flat | over_1_flat | over_2p_flat
+            if not behavior.apply_iowa_eitc_caps_as_in_2010_law:
+                # TAXSIM caps only joint returns.
+                over_flat = pl.lit(False)
             if p.in_effect("eitc_joint_eligibility_caps"):
                 joint_caps = p.value("eitc_joint_eligibility_caps")
 
@@ -377,11 +388,13 @@ def compute_ia_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         )
     exy_single = p.num("no_tax_income_limit", "single")
     is_single = files_single()
-    df = df.with_columns(
-        ia_statax=pl.when(is_single).then(
-            pl.max_horizontal(pl.min_horizontal(pl.col("ia_agi") - exy_single, pl.col("ia_statax")), 0.0)
-        ).otherwise(pl.col("ia_statax"))
-    )
+    # TAXSIM applies the single-filer worksheet from 2017 only.
+    if effective_year >= 2017 or behavior.reduce_iowa_single_tax_before_2017:
+        df = df.with_columns(
+            ia_statax=pl.when(is_single).then(
+                pl.max_horizontal(pl.min_horizontal(pl.col("ia_agi") - exy_single, pl.col("ia_statax")), 0.0)
+            ).otherwise(pl.col("ia_statax"))
+        )
     if effective_year >= 2007:
         df = df.with_columns(ia_statax=pl.col("ia_statax") - pl.col("ia_earncr") - pl.col("ia_chcr"))
 

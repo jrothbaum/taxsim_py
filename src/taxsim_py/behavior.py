@@ -122,6 +122,9 @@ class BehaviorProfile:
     use_maryland_itemized_deduction_without_federal_itemizing: bool = True
     pay_maryland_refundable_eitc_only_above_tax: bool = True
     split_iowa_joint_income_by_wages_only: bool = True
+    credit_iowa_dependents_before_1998: bool = True
+    add_back_iowa_self_employment_tax_twice: bool = True
+    reduce_iowa_single_tax_before_2017: bool = True
     double_minnesota_separate_returns: bool = True
     allow_minnesota_personal_exemption_2013_to_2018: bool = True
     deduct_missouri_federal_tax_after_refundable_credits: bool = True
