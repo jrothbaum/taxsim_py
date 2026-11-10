@@ -111,7 +111,7 @@ def compute_ia_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         # the nonrefundable one is negative (it is not floored).
         # 2021: the build holds the whole (fully refundable) child tax credit in both of the credit variables.
         child_credits = (pl.col("odc") + pl.col("actc")) * (2.0 if effective_year == 2021 else 1.0)
-        fedded = pl.col("regular_tax") + pl.col("payroll_setax") - pl.col("ccc") - child_credits - pl.col("addmed")
+        fedded = (pl.col("pre1987_taxbc") if effective_year <= 1986 else pl.col("regular_tax")) + pl.col("payroll_setax") - pl.col("ccc") - child_credits - pl.col("addmed")
     if not p.value("federal_tax_deduction"):
         fedded = pl.lit(0.0)
     dedbus = p.num("qbi_deduction_share") * pl.col("qbi_deduction") if effective_year >= 2019 else pl.lit(0.0)
@@ -173,7 +173,7 @@ def compute_ia_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
 
     # --- Joint returns may file combined: each spouse on their own share ---
     agih = higher_earner_share(pl.col("ia_agi"))
-    if effective_year >= 1987 and not behavior.split_iowa_joint_income_by_wages_only:
+    if not behavior.split_iowa_joint_income_by_wages_only:
         agih, agiw = split_agi(pl.col("ia_agi"))
     else:
         agiw = pl.col("ia_agi") - agih

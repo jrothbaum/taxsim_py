@@ -264,3 +264,15 @@ The shipped source stops the whole run, with no output, on two kinds of record.
 | --- | --- | --- | --- | --- |
 | NJ | 1977-2020 | Dependent filer (`mstat=8`) | `mstat=8` sets the taxpayer count `d(7)=0` on purpose, and NJ's pension exclusion table `penpoa(2,4,2)` is read at that index, before the array, so `tablki` stops (229). The source defines no answer | An error in TAXSIM. `scripts/oracle.py` leaves these records out and prints `TAXSIM ERROR` for each |
 | WV | before 2016 | Taxpayer 65 or older with a property tax credit | The senior credit calls `povertf`, which stops for years before 2016. Its result only feeds an `if` whose body is commented out | `scripts/build_oracle.sh` makes `povertf` return the 2016 line; no effect on the tax |
+
+## Federal 1977-81 differences that surface in state results
+
+Two Iowa 1977-81 cases (a couple with professional and S corporation income; a single filer with non-property income)
+still differ because the federal tax does: the 2026 build's 1977-81 federal income tax on these incomes (the
+maximum-tax and earned-income rules) is not yet reproduced. Federal 1977-81 is part of the federal 2026 pass.
+
+## Uninitialised variables in the shipped source
+
+| State | Years | Cause | Handling |
+| --- | --- | --- | --- |
+| IA | 1977-1997 | `iatax77` adds `xm` to the head-of-household credit, but `xm` is set only for 1998 on, so the credit depends on stack garbage (0 and +$10 in two compiles) | The oracle build sets it to the year's credit (`scripts/build_oracle.sh`); taxsim mode credits the head of household that amount twice |
