@@ -25,6 +25,8 @@ brackets:
   2023: [[0, 0.0], [4490, 0.058]]
   2024: [[0, 0.0], [4673, 0.05695]]
   2025: [[0, 0.0], [4811, 0.053]]
+# The TAXSIM build's 2022 table has its bracket tops one dollar lower.
+taxsim_brackets: {2022: [[0, 0.01], [1661, 0.03], [4986, 0.045], [8310, 0.06]], 2023: [[0, 0.0], [4489, 0.058]], 2024: null}
 bracket_inflation: {1977: 1.0, 2001: 1.0, 2003: 1.086, 2005: 1.104, 2006: 1.159, 2007: 1.198, 2009: 1.272, 2010: 1.32288, 2011: 1.338, 2012: 1.38, 2013: 1.409, 2014: 1.429, 2015: 1.452, 2016: 1.454, 2017: 1.472, 2018: 1.504, 2019: 1.541, 2020: 1.567, 2021: 1.588, 2022: 1.0}
 
 # --- Deductions ---
@@ -103,3 +105,10 @@ building_fund_tax:
     amount: 10
     limit: {single_or_hoh: 3300, married_joint: 5400, married_separate: 1000}
 building_fund_limit_aged: 1000
+# From 2022 the limit is the federal filing requirement by status, higher when a taxpayer is
+# 65 or older: [single, single aged, head of household, head of household aged, joint, joint aged].
+building_fund_filing_requirement:
+  2022: [12950, 14700, 19400, 21450, 25900, 28700]
+  2023: [13850, 15700, 20800, 22650, 27700, 30700]
+  2024: [14600, 16550, 21900, 23850, 29200, 32200]
+  2025: [15000, 17000, 22500, 24500, 30000, 33200]

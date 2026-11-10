@@ -159,6 +159,8 @@ def compute_id_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
 
     # --- Tax ---
     brackets = p.value("brackets")
+    if p.in_effect("taxsim_brackets") and not behavior.use_idaho_published_brackets:
+        brackets = p.value("taxsim_brackets")
     aif = p.num("bracket_inflation")
     txp = pl.when(pl.col("filing_status").is_in(["married_joint", "head_of_household"])).then(2.0).otherwise(1.0)
     tinc = pl.col("id_taxinc") / txp
@@ -195,6 +197,15 @@ def compute_id_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             .otherwise(float(limits["married_separate"]))
         )
         lim = lim + pl.when(pl.col("filing_status") != "married_separate").then(p["building_fund_limit_aged"] * aged_count()).otherwise(0.0)
+        if p.in_effect("building_fund_filing_requirement"):
+            r = [float(v) for v in p.value("building_fund_filing_requirement")]
+            is_hoh = pl.col("filing_status") == "head_of_household"
+            is_aged = aged_count() > 0
+            lim = (
+                pl.when(files_joint()).then(pl.when(is_aged).then(r[5]).otherwise(r[4]))
+                .when(is_hoh).then(pl.when(is_aged).then(r[3]).otherwise(r[2]))
+                .otherwise(pl.when(is_aged).then(r[1]).otherwise(r[0]))
+            )
         df = df.with_columns(
             id_statax=pl.when(pl.col("id_household_income") > lim).then(pl.col("id_statax") + float(bf["amount"])).otherwise(pl.col("id_statax"))
         )

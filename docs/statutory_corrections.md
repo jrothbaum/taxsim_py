@@ -371,3 +371,7 @@ Taxsim mode now follows the statutory rule for these (they remain in
 | SC | 2022 on | The tax comes from rounded subtract-from-flat-rate tables | Statutory: the published brackets. `use_south_carolina_published_tax_table` |
 | SC | 2022 on | The retirement deduction goes to the spouse aged 55 or over (half each if both or neither), $3,000 each | Statutory: $3,000 per taxpayer. `give_south_carolina_pension_deduction_to_each_taxpayer` |
 | SC | 2022 on | The state tax added back for itemizers is measured against the 2021 federal standard deduction | Statutory: the current one. `use_current_federal_standard_deduction_for_south_carolina_addback` |
+| ID | 2022-23 | The 2022 bracket tops are $1 lower than the statute, and the 2023 no-tax amount is $4,489 | Statutory: published. `use_idaho_published_brackets` |
+| ID | 2022 on | The building fund tax limit is the federal filing requirement by status and age | Both modes |
+| AZ | 2021-23 | A short-term loss variable is never set (-9), so every return deducts 25% of its long-term gains plus $9 | Statutory: 25% of gains. `initialize_arizona_short_term_loss` |
+| CT | 2022 on | The exemption falls dollar for dollar above the AGI start because the rounding helper `rup` does not round | Statutory: $1,000 steps. `round_connecticut_exemption_phaseout_to_whole_steps` |

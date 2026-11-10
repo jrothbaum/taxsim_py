@@ -69,6 +69,9 @@ class BehaviorProfile:
     pay_new_york_empire_child_credit_per_statute: bool = True
     step_ohio_exemption_by_income: bool = True
     read_children_under_6_from_dep6: bool = True
+    use_idaho_published_brackets: bool = True
+    initialize_arizona_short_term_loss: bool = True
+    round_connecticut_exemption_phaseout_to_whole_steps: bool = True
     give_south_carolina_pension_deduction_to_each_taxpayer: bool = True
     use_south_carolina_published_tax_table: bool = True
     use_current_federal_standard_deduction_for_south_carolina_addback: bool = True

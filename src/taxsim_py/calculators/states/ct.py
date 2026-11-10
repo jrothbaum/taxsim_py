@@ -167,7 +167,11 @@ def compute_ct_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             amount, start = float(terms["amount"]), float(terms["phaseout_start"])
             if effective_year >= 2022:
                 # $1,000 less for each $1,000 (or part) of AGI over the start.
-                steps = ((pl.col("ct_agi") - start).clip(0, None) / 1000.0).ceil()
+                excess = (pl.col("ct_agi") - start).clip(0, None)
+                if not behavior.round_connecticut_exemption_phaseout_to_whole_steps:
+                    # TAXSIM's `rup` does not round, so the exemption falls dollar for dollar.
+                    return (amount - excess).clip(0, amount)
+                steps = (excess / 1000.0).ceil()
                 return (amount - 1000.0 * steps).clip(0, amount)
             return (amount - (pl.col("ct_agi") - start)).clip(0, amount)
 

@@ -20,6 +20,15 @@ STATE_ADJUSTMENT_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "state_adjust
 # limits; separate returns are treated as single.
 _RICH_STATUSES = ["married_joint", "head_of_household"]
 
+def _capital_gain_deduction(year: int, behavior: BehaviorProfile) -> pl.Expr:
+    """25% of long-term gains. Through 2023 TAXSIM nets a short-term loss variable it never
+    sets (-9), so every return gets a deduction of 25% of gains plus $9."""
+    gains = pl.col("ltcg")
+    if year <= 2023 and not behavior.initialize_arizona_short_term_loss:
+        gains = gains + 9.0
+    return 0.25 * gains.clip(0, None)
+
+
 def compute_az_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
     effective_year, flate = resolve_state_year(year, behavior, AZ_PARAMS)
     p = YearParams(AZ_PARAMS, effective_year)
@@ -68,6 +77,7 @@ def compute_az_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         az_agi_1=pl.col("agi") + pl.col("az_div_addback") + pl.col("az_twoded_addback") - exempt_ss
         # 2025 on: Arizona subtracts the federal senior deduction from its income.
         - (pl.col("senior_deduction") if effective_year >= 2025 else 0.0)
+        - (_capital_gain_deduction(effective_year, behavior) if effective_year >= 2021 else 0.0)
     )
     # Through 1989 federal income tax, before the EITC and nonrefundable
     # credits, is subtracted from AGI.
