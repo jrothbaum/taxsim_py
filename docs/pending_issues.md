@@ -259,7 +259,7 @@ executable outputs are described in [`oracle_archive/`](oracle_archive/README.md
 ## The 2026 build stops on some records
 
 TAXSIM stops the whole run, with no output, when it reaches these inputs. `scripts/oracle.py` isolates such records
-by halving the batch and leaves them out of the comparison.
+by halving the batch. It leaves a record out (and says so on stderr) only when its inputs match one of the stops below; any other stop raises.
 
 | State | Years | Input | Cause |
 | --- | --- | --- | --- |
