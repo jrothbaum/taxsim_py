@@ -486,11 +486,11 @@ CASES = [
     ),
     _case(
         "WI-005", "Wisconsin 2005 head of household at $35,000", "siitax",
-        1_821.40, 1_644.50, year=2005, state=50, depx=1, dep13=1, dep17=1, dep18=1, pwages=35_000,
+        1_644.50, 1_644.50, year=2005, state=50, depx=1, dep13=1, dep17=1, dep18=1, pwages=35_000,
     ),
     _case(
         "WI-005", "Wisconsin 1995 separate return at $5,200", "siitax",
-        50.21, 52.02, year=1995, state=50, mstat=6, pwages=5_200,
+        52.02, 52.02, year=1995, state=50, mstat=6, pwages=5_200,
     ),
     _case(
         "WI-006", "Wisconsin 1990 long-term loss and short-term gain", "siitax",

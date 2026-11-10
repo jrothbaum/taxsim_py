@@ -563,6 +563,8 @@ married_couple_credit:
 # `small_rate` up to `small_limit` and by `rate` above it. TAXSIM's 1983 test
 # repeats the small-excess condition, so excesses above the limit get no
 # credit.
+# TAXSIM counts a fifth of rent as property tax in the homestead credit from 1991.
+taxsim_rent_share: {1991: 0.2}
 homestead_credit:
   1977:
     income_limit: 9300

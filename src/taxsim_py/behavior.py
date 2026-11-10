@@ -64,6 +64,8 @@ class BehaviorProfile:
     allow_kansas_itemizing_after_2020: bool = True
     apply_kentucky_pension_cap_per_taxpayer: bool = True
     compute_louisiana_tax_per_statute: bool = True
+    count_wisconsin_rent_at_statutory_share: bool = True
+    exclude_other_itemized_deductions_from_wisconsin_credit: bool = True
     compute_new_mexico_deductions_per_statute: bool = True
     use_new_mexico_low_income_rebate_per_statute: bool = True
     use_new_mexico_working_families_rates_per_statute: bool = True
@@ -237,6 +239,7 @@ STATUTORY_BEHAVIOR = BehaviorProfile()
 FIXED_IN_2026_BUILD = frozenset(
     {
         "coordinate_oasdi_on_net_earnings",
+        "start_wisconsin_standard_deduction_tiers_at_their_range",
         "disallow_new_jersey_capital_losses",
         "prevent_negative_self_employment_tax",
         "include_business_income_before_1987",

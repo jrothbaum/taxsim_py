@@ -190,6 +190,8 @@ def compute_wi_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             xitded = gross - pl.col("state_sales_or_income_tax_ded") - pl.col("proptax")
     else:
         xitded = contr + inrst
+        if y >= 1987 and not behavior.exclude_other_itemized_deductions_from_wisconsin_credit:
+            xitded = xitded + pl.col("otheritem")
     xitded = xitded.clip(0, None)
     if y == 1999 and not behavior.keep_wisconsin_1999_itemized_credit:
         # TAXSIM zeroes it on the federal standard-deduction run.
@@ -409,7 +411,11 @@ def compute_wi_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     income_test = hy if y <= 1988 else hymod
     # TAXSIM's 1989-1990 test uses net income but the reduction gross income.
     reduce_on = hymod if y >= 1991 or (y >= 1989 and behavior.use_wisconsin_net_household_income_1989_1990) else hy
-    ptax = pl.min_horizontal(pl.col("proptax") + c["rent_share"] * rentpaid, pl.lit(float(c["tax_cap"])))
+    rent_share = c["rent_share"]
+    if y >= 1991 and not behavior.count_wisconsin_rent_at_statutory_share:
+        # TAXSIM takes a fifth of rent as property tax from 1991.
+        rent_share = float(p.num("taxsim_rent_share"))
+    ptax = pl.min_horizontal(pl.col("proptax") + rent_share * rentpaid, pl.lit(float(c["tax_cap"])))
     tablea = pl.when(reduce_on > c["income_floor"]).then((reduce_on - c["income_floor"]) * c["income_rate"]).otherwise(0.0)
     tableb = (ptax - tablea).clip(0, None)
     pcred = (
