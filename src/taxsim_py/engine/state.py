@@ -199,6 +199,21 @@ def dividend_exclusion_addback(year: int, behavior: BehaviorProfile = TAXSIM_BEH
     return pl.min_horizontal(excluded, federal_dividend_exclusion_limit(year, behavior)).clip(0, None)
 
 
+def earned_minimum(year: int) -> pl.Expr:
+    """TAXSIM `earnmin`: the lower earner's wages plus net business income on a joint return, else the taxpayer's.
+
+    Net business income is positive items times .9235 from 1990 (all of it before).
+    """
+    factor = 0.9235 if year >= 1990 else 1.0
+
+    def net(wages: str, *items: str) -> pl.Expr:
+        return pl.col(wages).clip(0, None) + factor * pl.sum_horizontal(pl.col(i).clip(0, None) for i in items)
+
+    primary = net("pwages", "psemp", "pbusinc", "pprofinc")
+    secondary = net("swages", "ssemp", "sbusinc", "sprofinc")
+    return pl.when(pl.col("filing_status") == "married_joint").then(pl.min_horizontal(primary, secondary)).otherwise(primary)
+
+
 def phaseout_steps(steps: pl.Expr, behavior: "BehaviorProfile") -> pl.Expr:
     """Whole steps of a phase-out: the count rounded up.
 

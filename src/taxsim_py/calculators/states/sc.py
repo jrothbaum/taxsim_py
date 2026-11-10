@@ -8,6 +8,7 @@ from taxsim_py.engine.brackets import bracket_rate, bracket_tax, scale_brackets
 from taxsim_py.engine.inputs import aged_count, federal_exemption_count, files_head_of_household, files_joint, files_separate, files_single, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml, resolve_year
 from taxsim_py.engine.state import (
+    earned_minimum,
     FORCE_ITEMIZE,
     dividend_input_adjustment,
     by_filing_status,
@@ -91,7 +92,9 @@ def compute_sc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         if y >= 2022 and not behavior.give_south_carolina_pension_deduction_to_each_taxpayer:
             # TAXSIM gives pensions to the spouse aged 55 or over (half each when both
             # or neither are) and caps each share at the young amount.
-            page, sage = pl.col("page"), pl.col("sage")
+            page = pl.col("page")
+            # TAXSIM assumes a joint spouse with no age is 40.
+            sage = pl.when(is_joint & (pl.col("sage") == 0)).then(40.0).otherwise(pl.col("sage").cast(pl.Float64))
             husband_old, wife_old = page >= 55, sage >= 55
             to_husband = pl.when(~is_joint).then(pensions).when(husband_old & ~wife_old).then(pensions).when(~husband_old & wife_old).then(0.0).otherwise(pensions / 2)
             to_wife = pl.when(is_joint).then(pensions - to_husband).otherwise(0.0)
@@ -118,6 +121,9 @@ def compute_sc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         stded = pl.min_horizontal(share["rate"] * ag * index, index * share["cap_per_taxpayer"] * txp)
         gross, _, _ = pre1987_federal_itemizing(y)
         xitded = (gross - pl.col("state_sales_or_income_tax_ded")).clip(0, None)
+        if not behavior.subtract_state_tax_from_south_carolina_itemized_deductions:
+            # The 2026 build no longer takes the state income tax out of the itemized total here.
+            xitded = gross.clip(0, None)
         # TAXSIM's 1980-law rerun does not reach the state's copy.
         fedtax = pl.col("sc_federal_tax_1980") if "sc_federal_tax_1980" in df.collect_schema().names() else pl.col("fiitax")
         xitded = (xitded + fedtax.clip(0, p.num("federal_tax_deduction_cap") * txp)).clip(0, None)
@@ -176,11 +182,11 @@ def compute_sc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
                 )
             dedphs = deducp - itemized
             tx = pl.when((fed_agi > phas92) & (deducp > 0)).then(salt - dedphs * salt / deducp).otherwise(salt)
-            # The federal zero bracket is 0 for itemizers.
-            tx = pl.min_horizontal(tx, itemized)
+            # The addback is limited to the itemized total above the federal standard deduction.
+            tx = pl.min_horizontal(tx, itemized - pl.col("standard_deduction"))
     else:
         cap = p.num("salt_cap") / sep if p.in_effect("salt_cap") else pl.col("salt_capped")
-        room = (cap - pl.col("proptax") - pl.col("otheritem")).clip(0, None)
+        room = (cap - pl.col("proptax")).clip(0, None)
         tx = pl.min_horizontal(salt, pl.min_horizontal(itemized.clip(0, None), room))
         if y >= 2022 and not behavior.use_current_federal_standard_deduction_for_south_carolina_addback:
             # TAXSIM compares the itemized total with the 2021 standard deduction plus the aged addition.
@@ -193,7 +199,13 @@ def compute_sc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     # --- Long-term capital gain deduction ---
     dedgan = pl.lit(0.0)
     if p.in_effect("capital_gain_deduction"):
-        dedgan = p.num("capital_gain_deduction") * pl.col("ltcg").clip(0, None)
+        # Net of a short-term loss; 1993-94 net of any short-term gain too.
+        stcg = pl.col("stcg")
+        if y in (1993, 1994):
+            base = (pl.col("ltcg") - stcg).clip(0, None)
+        else:
+            base = (pl.col("ltcg") - (-stcg).clip(0, None)).clip(0, None)
+        dedgan = p.num("capital_gain_deduction") * base
 
     add = pl.lit(0.0)
     if p.in_effect("married_standard_deduction_addback"):
@@ -213,10 +225,13 @@ def compute_sc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     if p.in_effect("federal_standard_deduction_increase_addback"):
         increase = by_filing_status(p.value("federal_standard_deduction_increase_addback"))
         add = add + pl.when(fed_itemizes).then(0.0).otherwise(increase) + pl.col("senior_deduction")
+    if y >= 2021 and not behavior.allow_qbi_deduction_in_south_carolina:
+        # TAXSIM adds back the federal qualified business income deduction.
+        add = add + pl.col("qbi_deduction")
     exemp = pl.lit(0.0)
     if p.in_effect("dependent_exemption"):
         # TAXSIM's `numlt(6)` counts children under 13 (its age bands are off by one).
-        young = pl.col("dep6") if behavior.count_children_under_6_by_dep6 else pl.col("dep13")
+        young = pl.col("dep6") if (behavior.count_children_under_6_by_dep6 or y < 2022) else pl.col("dep13")
         exemp = p.num("dependent_exemption") * (depx + young)
     taxinc = (agi + tx - dedgan + add - exemp - adjust).clip(0, None)
     df, (taxinc,) = checkpoint(df, sc_taxinc=taxinc)
@@ -236,6 +251,8 @@ def compute_sc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         detail_taxinc = pl.when(is_single).then(single_income).otherwise(married_income)
     else:
         table = scale_brackets(brackets, p.num("bracket_index"))
+        if p.in_effect("taxsim_brackets") and not behavior.use_south_carolina_published_tax_table:
+            table = p.value("taxsim_brackets")
         statax = bracket_tax(taxinc, table)
         rate = bracket_rate(taxinc, table)
         detail_taxinc = taxinc
@@ -248,8 +265,8 @@ def compute_sc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     df, (statax,) = checkpoint(df, sc_tax_before_credits=statax)
 
     # --- Credits (nonrefundable) ---
-    nccp = depx.clip(None, 2).floor()
-    expenses = pl.min_horizontal(p.num("child_care_expense_per_child") * nccp, pl.col("childcare"))
+    nccp = pl.col("dep13").clip(None, 2).floor()
+    expenses = pl.min_horizontal(p.num("child_care_expense_per_child") * nccp, pl.col("childcare"), earned_minimum(y)).clip(0, None)
     chcr = p["child_care_rate"] * expenses
     if p.in_effect("child_care_cap_per_child"):
         chcr = pl.min_horizontal(p.num("child_care_cap_per_child") * nccp, chcr)
@@ -257,15 +274,15 @@ def compute_sc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
 
     twocrd = pl.lit(0.0)
     if p.in_effect("two_earner_earnings_max"):
-        busnes = (pl.col("psemp") + pl.col("ssemp")).clip(0, None) - 0.5 * pl.col("setax")
-        husb = pl.col("pwages").clip(0, None) + 0.5 * busnes
-        wife = pl.col("swages").clip(0, None) + 0.5 * busnes
-        if y >= 2018 and behavior.assign_business_income_to_its_earner:
+        # Each spouse's wages plus business income, less half of that spouse's own self-employment
+        # tax. The 2026 TAXSIM build hands the husband both spouses' business income (and the wife both
+        # professional incomes), as the 2024 build did.
+        husb = pl.col("pwages") + pl.col("psemp") - pl.col("payroll_setax_primary") / 2
+        wife = pl.col("swages") + pl.col("ssemp") - pl.col("payroll_setax_secondary") / 2
+        if behavior.assign_south_carolina_business_income_to_its_earner:
             husb = husb + pl.col("pbusinc") + pl.col("pprofinc")
             wife = wife + pl.col("sbusinc") + pl.col("sprofinc")
-        elif y >= 2018:
-            # TAXSIM gives the husband both business incomes and the wife
-            # both professional incomes.
+        else:
             husb = husb + pl.col("pbusinc") + pl.col("sbusinc")
             wife = wife + pl.col("pprofinc") + pl.col("sprofinc")
         earnls = pl.min_horizontal(husb, wife).clip(0, p.num("two_earner_earnings_max"))

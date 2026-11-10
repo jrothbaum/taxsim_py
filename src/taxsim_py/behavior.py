@@ -83,6 +83,9 @@ class BehaviorProfile:
     round_up_phaseout_steps: bool = True
     give_south_carolina_pension_deduction_to_each_taxpayer: bool = True
     use_south_carolina_published_tax_table: bool = True
+    allow_qbi_deduction_in_south_carolina: bool = True
+    subtract_state_tax_from_south_carolina_itemized_deductions: bool = True
+    assign_south_carolina_business_income_to_its_earner: bool = True
     use_current_federal_standard_deduction_for_south_carolina_addback: bool = True
     use_ohio_published_tax_brackets: bool = True
     require_age_65_for_ohio_retirement_credit: bool = True
