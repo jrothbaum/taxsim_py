@@ -20,11 +20,13 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from taxsim_py.engine.inputs import CHILD_AGE_INPUTS, DEPENDENT_DEFAULT_INPUTS, TAXSIM_INPUTS  # noqa: E402
 
-# Keep the frozen local executable as the compatibility baseline when present.
+# The default oracle is the newest NBER build (taxsim2026_mtr.exe, compiled from
+# taxsim_2026_11_09.f by scripts/build_oracle.sh, which fixes its always-zero
+# marginal rates); taxsim2024.exe stays as the frozen earlier baseline.
 # Release and CI jobs can point at PolicyEngine's bundled or an archived NBER
 # build without copying that binary into this repository. Build identity must
 # be recorded because TAXSIM is being sunset and outputs differ by snapshot.
-TAXSIM_EXE = Path(os.environ.get("TAXSIM_EXE", ROOT / "taxsim2024.exe")).expanduser().resolve()
+TAXSIM_EXE = Path(os.environ.get("TAXSIM_EXE", ROOT / "taxsim2026_mtr.exe")).expanduser().resolve()
 # Inputs sent unless a case sets them: controls and child ages change how
 # TAXSIM reads the whole file, so they are only sent when used.
 _OPTIONAL = {"idtl", "mtr", "opt1", "opt1v", "opt2", "opt2v", *CHILD_AGE_INPUTS}
@@ -53,6 +55,10 @@ def _run(cases: pl.DataFrame, columns: list[str], executable: Path) -> pl.DataFr
             f"{executable} failed: {result.stderr}\n{result.stdout[-2000:]}"
         )
     out_lines = [ln for ln in result.stdout.splitlines() if ln.strip()]
+    # The 2026 build also prints debug lines (` dagi 1234.5`) to stdout; keep
+    # only lines with the header's number of fields.
+    fields = out_lines[0].count(",")
+    out_lines = [ln for ln in out_lines if ln.count(",") == fields]
     header = [h.strip() for h in out_lines[0].split(",")]
     rows = [[v.strip() for v in ln.split(",")] for ln in out_lines[1:]]
     out = pl.DataFrame(rows, schema=header, orient="row")

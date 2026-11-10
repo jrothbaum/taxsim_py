@@ -37,7 +37,12 @@ from oracle import TAXSIM_EXE, knife_edge_ids, run_oracle  # noqa: E402
 # 6391.575) a hair on one side or the other in double precision, so the two
 # implementations occasionally round that one case differently by a cent -
 # confirmed harmless (see validate_federal.py history), not a real error.
-COMPARED_COLUMNS = ["fiitax", "frate", "fica", "ficar", "tfica", *FEDERAL_DETAIL_COLUMNS]
+# The 2026 build no longer reports `ficar` (always 0) or `credits`, so they are
+# not compared (docs/pending_issues.md).
+NOT_REPORTED_BY_ORACLE = {"ficar", "credits"}
+COMPARED_COLUMNS = [
+    c for c in ["fiitax", "frate", "fica", "ficar", "tfica", *FEDERAL_DETAIL_COLUMNS] if c not in NOT_REPORTED_BY_ORACLE
+]
 RATE_COLUMNS = ["frate"]
 MISMATCH_TOLERANCE = 0.015
 
@@ -54,7 +59,7 @@ MISMATCH_TOLERANCE = 0.015
 # their sourcing. A failure in a DIFFERENT year is still a real regression
 # to investigate; a 2023 failure should be checked against this list before
 # assuming it's new.
-KNOWN_ORACLE_DIVERGENT_YEARS = {2023}
+KNOWN_ORACLE_DIVERGENT_YEARS: set[int] = set()
 
 def main() -> None:
     # The API derives the sales-tax deduction itself.
@@ -75,11 +80,6 @@ def main() -> None:
         for c in COMPARED_COLUMNS
     ]
     comparison = comparison.with_columns(diff_exprs)
-    # TAXSIM's 1987-1997 credit total reads a variable it never sets there.
-    comparison = comparison.with_columns(
-        pl.when(pl.col("year").is_between(1987, 1997)).then(0.0).otherwise(pl.col("credits_diff")).alias("credits_diff")
-    )
-
     is_mismatch = pl.any_horizontal(
         [pl.col(f"{c}_diff") > MISMATCH_TOLERANCE for c in COMPARED_COLUMNS]
     )
@@ -110,6 +110,9 @@ def main() -> None:
     unexpected = mismatches.filter(~divergent)
 
     print(f"Ran {comparison.height} test cases across {COMPARED_COLUMNS}.")
+    for row in known_divergent.iter_rows(named=True):
+        failed = [c for c in COMPARED_COLUMNS if row[f"{c}_diff"] > MISMATCH_TOLERANCE]
+        print("  DIVERGENT", row["description"], {c: (row[c], row[f"{c}_expected"]) for c in failed})
     if not known_divergent.is_empty():
         print(
             f"{known_divergent.height} failures are in {sorted(KNOWN_ORACLE_DIVERGENT_YEARS)} or in cases marked "

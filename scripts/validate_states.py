@@ -25,14 +25,17 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from taxsim_py import calculate_taxes  # noqa: E402
 from taxsim_py.calculators.states import get_state_calculator  # noqa: E402
-from taxsim_py.engine.detail import TAXSIM_STATE_DETAIL_COLUMNS as STATE_DETAIL_COLUMNS  # noqa: E402
+from taxsim_py.engine.detail import TAXSIM_STATE_DETAIL_COLUMNS as _ALL_STATE_DETAIL_COLUMNS  # noqa: E402
+
+STATE_DETAIL_COLUMNS = [] if _os.environ.get("TAXSIM_VALIDATE_DETAIL") == "0" else list(_ALL_STATE_DETAIL_COLUMNS)
 from taxsim_py.engine import federal_state  # noqa: E402
 from oracle import TAXSIM_EXE, knife_edge_ids, run_oracle  # noqa: E402
 from state_new_inputs import build_new_input_cases  # noqa: E402
 
 # The state tax, its marginal rate, and TAXSIM's detailed state outputs.
+# TAXSIM_VALIDATE_DETAIL=0 compares only the state tax and its marginal rate.
 COMPARED_COLUMNS = ["siitax", "srate", *STATE_DETAIL_COLUMNS]
-RATE_COLUMNS = ["srate", "v41"]
+RATE_COLUMNS = ["srate"] if _os.environ.get("TAXSIM_VALIDATE_DETAIL") == "0" else ["srate", "v41"]
 # Federal tax, payroll tax and the standard deduction (v13), which states read.
 FEDERAL_COLUMNS = ["fiitax", "fica", "v13"]
 OREGON = 38
@@ -96,14 +99,7 @@ _FEDERAL_DIVERGENT_YEARS = {2023}
 # Minnesota's 2009 head-of-household AMT exclusion, Nebraska's 1996-1997
 # additional-tax bands and 2017 inflation factor, West Virginia's 2011 family
 # credit limit.
-KNOWN_ORACLE_DIVERGENT_STATE_YEARS = {
-    "AR": {2004},
-    "CA": {2001, 2018},
-    "MD": {2019, 2020, 2021, 2022, 2023},
-    "MN": {2009},
-    "NE": {1996, 1997, 2017},
-    "WV": {2011},
-}
+KNOWN_ORACLE_DIVERGENT_STATE_YEARS: dict[str, set[int]] = {}
 _FEDERAL_TOLERANCE = 0.015
 
 
@@ -180,7 +176,7 @@ def main() -> None:
     # prints. They count as round-off when itemizing on ties reproduces it.
     worksheet_only = results.join(expected, on="taxsimid").filter(
         pl.all_horizontal(_close(c) for c in ("siitax", "srate")),
-        ~pl.all_horizontal(_close(c) for c in STATE_DETAIL_COLUMNS),
+        ~pl.all_horizontal([pl.lit(True), *[_close(c) for c in STATE_DETAIL_COLUMNS]]),
     )
     itemize_ties: set[int] = set()
     if not worksheet_only.is_empty():
@@ -255,11 +251,8 @@ def main() -> None:
                 pl.col("oracle_divergent").fill_null(False) if "oracle_divergent" in cases.columns else pl.lit(False)
             ),
         )
-        divergent_years = KNOWN_ORACLE_DIVERGENT_STATE_YEARS.get(state_name, set())
         comparison = comparison.join(flags, on="taxsimid").with_columns(
-            oracle_divergent=pl.col("case_divergent")
-            | _federal_divergence()
-            | pl.col("year").is_in(list(divergent_years))
+            oracle_divergent=pl.lit(False)
         )
         # A missing result counts as a mismatch.
         diff_exprs = [
