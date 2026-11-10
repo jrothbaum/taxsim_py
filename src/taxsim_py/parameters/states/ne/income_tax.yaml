@@ -89,6 +89,17 @@ brackets:
     single: [[0, 0.0246], [4030, 0.0351], [24120, 0.0501], [38870, 0.052]]
     married_joint: [[0, 0.0246], [8040, 0.0351], [48250, 0.0501], [77730, 0.052]]
     head_of_household: [[0, 0.0246], [7510, 0.0351], [38590, 0.0501], [57630, 0.052]]
+# The TAXSIM build's 2022-2023 tables: its 2014 thresholds times its own inflation factor.
+taxsim_brackets:
+  2022:
+    single: [[0, 0.0246], [3432.0, 0.0351], [20592.0, 0.0501], [33176.0, 0.0684]]
+    married_joint: [[0, 0.0246], [6864.0, 0.0351], [41184.0, 0.0501], [66352.0, 0.0684]]
+    head_of_household: [[0, 0.0246], [6406.4, 0.0351], [32947.2, 0.0501], [49192.0, 0.0684]]
+  2023:
+    single: [[0, 0.0246], [3694.2, 0.0351], [22165.2, 0.0501], [35710.6, 0.0664]]
+    married_joint: [[0, 0.0246], [7388.4, 0.0351], [44330.4, 0.0501], [71421.2, 0.0664]]
+    head_of_household: [[0, 0.0246], [6895.84, 0.0351], [35464.32, 0.0501], [52950.2, 0.0664]]
+  2024: null
 bracket_inflation:
   1977: 1
   2014: 1
@@ -98,7 +109,7 @@ bracket_inflation:
   2018: 1.05
   2019: 1.0767
   2020: 1.097
-  2021: 1.113
+  2021: 1.113086
   2022: 1
 # 1987: the schedule applies to taxable income above a zero bracket.
 zero_bracket:
@@ -222,6 +233,12 @@ itemized_limit_inflation:
   2015: 1.033
   2016: 1.0376
   2017: 1.046
+# The TAXSIM build's typos in those tables, by year and filing status (and its
+# 2017 inflation factor of 1.08).
+taxsim_additional_tax_bounds:
+  1996: {single: [117950, 141950, 297950, 382950]}
+  1997: {married_joint: [121200, 161200, 421200, 575950]}
+taxsim_itemized_limit_inflation: {2017: 1.08, 2018: null}
 itemized_limit_status_multiplier: {single: 1.0, married_joint: 1.2, married_separate: 0.6, head_of_household: 1.1}
 # 1993-2017: the standard deduction falls by this share of federal AGI above the
 # threshold.

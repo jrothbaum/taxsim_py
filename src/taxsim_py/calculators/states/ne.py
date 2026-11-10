@@ -7,7 +7,7 @@ import polars as pl
 from taxsim_py.engine.brackets import bracket_rate, bracket_tax, scale_brackets
 from taxsim_py.engine.inputs import aged_count, federal_exemption_count, files_joint, files_separate, files_single, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml, resolve_year
-from taxsim_py.engine.state import by_filing_status, checkpoint, with_state_detail
+from taxsim_py.engine.state import by_filing_status, checkpoint, federal_zero_bracket, with_state_detail
 from taxsim_py.behavior import BehaviorProfile, TAXSIM_BEHAVIOR
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
@@ -53,13 +53,16 @@ def compute_ne_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     salt_ded = pl.col("state_sales_or_income_tax_ded")
     itemizes = pl.col("itemizes")
 
+    limit_inflation = p.num("itemized_limit_inflation")
+    if y == 2017 and not behavior.use_nebraska_high_income_tables_per_statute:
+        limit_inflation = float(p.num("taxsim_itemized_limit_inflation"))
     if y <= 2012:
         base = p.num("itemized_limit_threshold_base") * (p.num("itemized_limit_inflation") if y >= 1992 else 1.0)
         phas92 = base / sep
     elif y <= 2017:
         phas92 = (
             p.num("itemized_limit_threshold_base")
-            * p.num("itemized_limit_inflation")
+            * limit_inflation
             * by_filing_status(p["itemized_limit_status_multiplier"])
         )
     else:
@@ -67,6 +70,9 @@ def compute_ne_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
 
     if y <= 1986:
         statax = p.num("federal_tax_share") * pl.col("pre1987_pretax").clip(0, None)
+        if not behavior.tax_nebraska_before_1987_per_statute:
+            # TAXSIM takes a share of a federal tax variable it never sets.
+            statax = pl.lit(0.0)
         taxbc = pl.col("pre1987_taxbc")
         almtax = pl.col("pre1987_almtax")
         fed_ccc = pl.col("federal_chcr")
@@ -84,12 +90,22 @@ def compute_ne_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         # --- Deductions ---
         fed_itemized = pl.when(itemizes).then(pl.col("itemized_deduction")).otherwise(0.0)
         fed_std = pl.when(itemizes).then(0.0).otherwise(pl.col("standard_deduction"))
+        if not behavior.zero_nebraska_standard_deduction_when_federal_itemizes:
+            # TAXSIM keeps the federal standard deduction (zero only on its forced-itemizing pass).
+            fed_std = federal_zero_bracket()
         if y <= 2017:
             xitded = (fed_itemized - salt_ded).abs() * itemizes.cast(pl.Float64)
             stded = fed_std
         else:
             stit = pl.min_horizontal(p.num("salt_cap") / sep, salt_ded)
             xitded = (fed_itemized - stit).abs() * itemizes.cast(pl.Float64)
+            if not behavior.limit_nebraska_property_tax_deduction_to_federal_cap:
+                # TAXSIM removes the capped state and property tax, then adds the property tax back.
+                cap = p.num("salt_cap") / sep
+                xitded = (
+                    (fed_itemized - pl.min_horizontal(cap, salt_ded + pl.col("proptax"))).clip(0, None)
+                    + pl.min_horizontal(cap, pl.col("proptax"))
+                ) * itemizes.cast(pl.Float64)
             std = p["standard_deduction"]
             aged_add = p["standard_deduction_aged_addition"]
             stded = by_filing_status({
@@ -137,7 +153,10 @@ def compute_ne_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
                 rt = pl.when(status == status_name).then(bracket_rate(income, brackets)).otherwise(rt)
         else:
             factor = p.num("bracket_inflation")
-            tables = {status_name: scale_brackets(values, factor) for status_name, values in p.value("brackets").items()}
+            source = p.value("brackets")
+            if p.in_effect("taxsim_brackets") and not behavior.use_nebraska_high_income_tables_per_statute:
+                source = p.value("taxsim_brackets")
+            tables = {status_name: scale_brackets(values, factor) for status_name, values in source.items()}
             taxy = pl.when(is_sep).then(2.0 * taxinc).otherwise(taxinc)
             dagi = pl.when(is_sep).then(2.0 * fed_agi).otherwise(fed_agi)
             table_of = {"single": "single", "married_joint": "married_joint",
@@ -150,13 +169,17 @@ def compute_ne_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
                 rt = pl.when(status == status_name).then(bracket_rate(taxy, brackets)).otherwise(rt)
             df, (statax, rt) = checkpoint(df, ne_table_tax=statax, ne_rt=rt)
             if p.in_effect("additional_tax_rates"):
-                bound_factor = p.num("itemized_limit_inflation") if y >= 2013 else 1.0
+                bound_factor = limit_inflation if y >= 2013 else 1.0
                 rates = p.value("additional_tax_rates")
                 surtax = pl.lit(0.0)
                 cap_amount = pl.lit(0.0)
                 top = pl.lit(0.0)
                 for status_name, table_name in table_of.items():
                     bounds = [float(b) * bound_factor for b in p.value("additional_tax_bounds", table_name)]
+                    if not behavior.use_nebraska_high_income_tables_per_statute:
+                        typos = NE_PARAMS["taxsim_additional_tax_bounds"].get(y, {})
+                        if table_name in typos:
+                            bounds = [float(b) for b in typos[table_name]]
                     amount, capped = _additional_tax(dagi, bounds, rates)
                     surtax = pl.when(status == status_name).then(amount).otherwise(surtax)
                     cap_amount = pl.when(status == status_name).then(capped).otherwise(cap_amount)
@@ -202,6 +225,23 @@ def compute_ne_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         refundable_zone = fed_agi <= float(ref["agi_limit"])
         share = 1.0 - ref["share_step"] * (fed_agi - float(ref["full_share_agi"])).clip(0, None)
         chcref = pl.when(refundable_zone).then(share * fed_ccc).otherwise(0.0)
+        if not behavior.pay_nebraska_refundable_child_care_per_statute and y <= 2023:
+            # TAXSIM takes a share of the federal credit before its liability limit.
+            fagi = fed_agi - 0.002
+            credit_before_limit = pl.col("ccc_uncapped")
+            if y <= 2020:
+                share = (1 - 0.01 * (fagi - 22_000) / 1000).clip(0, 1)
+                chcref = pl.when(refundable_zone).then(share * credit_before_limit).otherwise(0.0)
+            elif y == 2021:
+                earned_primary = pl.col("pwages") + pl.col("psemp") + pl.col("pbusinc") + pl.col("pprofinc")
+                earned_spouse = pl.col("swages") + pl.col("ssemp") + pl.col("sbusinc") + pl.col("sprofinc")
+                earnmin = pl.when(is_joint).then(pl.min_horizontal(earned_primary, earned_spouse)).otherwise(earned_primary)
+                x6 = pl.min_horizontal(pl.col("childcare"), earnmin, 8000.0 * pl.col("dep13").clip(None, 2))
+                x9 = (1 - 0.1 * (fagi - 22_000) / 1000).clip(0, 1)
+                chcref = pl.when(fagi <= 29_000).then(x6 * 0.5 * x9).otherwise(0.0)
+            else:
+                share = (1 - 0.1 * (fagi - 22_000) / 1000).clip(0, 1)
+                chcref = pl.when(fagi < 29_000).then(share * credit_before_limit).otherwise(0.0)
     credit = credit + pl.when(refundable_zone).then(0.0).otherwise(chcr)
     df, (statax,) = checkpoint(df, ne_tax_before_credits=statax)
     statax = statax + p.num("minimum_tax_share") * almtax

@@ -64,6 +64,11 @@ class BehaviorProfile:
     allow_kansas_itemizing_after_2020: bool = True
     apply_kentucky_pension_cap_per_taxpayer: bool = True
     compute_louisiana_tax_per_statute: bool = True
+    tax_nebraska_before_1987_per_statute: bool = True
+    limit_nebraska_property_tax_deduction_to_federal_cap: bool = True
+    use_nebraska_high_income_tables_per_statute: bool = True
+    pay_nebraska_refundable_child_care_per_statute: bool = True
+    zero_nebraska_standard_deduction_when_federal_itemizes: bool = True
     exclude_niit_from_louisiana_federal_tax_deduction: bool = True
     use_louisiana_brackets_per_statute: bool = True
     reduce_louisiana_joint_tax_once_for_dependents: bool = True
