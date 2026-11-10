@@ -63,6 +63,11 @@ class BehaviorProfile:
     add_washington_working_families_credit: bool = True
     allow_kansas_itemizing_after_2020: bool = True
     apply_kentucky_pension_cap_per_taxpayer: bool = True
+    apply_kentucky_pension_exclusion_schedule: bool = True
+    step_kentucky_family_size_credit_by_poverty_share: bool = True
+    limit_kentucky_itemized_deductions_to_mortgage_interest: bool = True
+    double_kentucky_standard_deduction_for_joint_returns: bool = True
+    file_kentucky_combined_returns_per_statute: bool = True
     deduct_massachusetts_employee_payroll_tax_per_spouse: bool = True
     count_capital_gains_in_dc_childless_eitc_investment_income: bool = True
     exclude_children_under_4_from_ny_empire_credit: bool = True

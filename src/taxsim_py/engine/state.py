@@ -224,6 +224,25 @@ def split_agi(agi: pl.Expr, exclude_primary: pl.Expr | float = 0.0, exclude_spou
     return tinc + cinc - secah, sinc + cinc - secas
 
 
+def allocate_pension(total: pl.Expr, minimum_age: float) -> tuple[pl.Expr, pl.Expr]:
+    """TAXSIM `penalloc`: a pension split between the spouses on a joint return.
+
+    All of it goes to the spouse at or over `minimum_age` when only one is;
+    otherwise it is split evenly. Everyone else keeps all of it. A missing
+    spouse age counts as 40.
+    """
+    sage = pl.when(pl.col("sage") == 0).then(40.0).otherwise(pl.col("sage").cast(pl.Float64))
+    primary_old = pl.col("page") >= minimum_age
+    spouse_old = sage >= minimum_age
+    primary = (
+        pl.when(primary_old & ~spouse_old).then(total)
+        .when(~primary_old & spouse_old).then(0.0)
+        .otherwise(total / 2)
+    )
+    primary = pl.when(pl.col("mstat") == 2).then(primary).otherwise(total)
+    return primary, total - primary
+
+
 def earned_minimum(year: int) -> pl.Expr:
     """TAXSIM `earnmin`: the lower earner's wages plus net business income on a joint return, else the taxpayer's.
 

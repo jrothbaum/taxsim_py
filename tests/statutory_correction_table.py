@@ -43,6 +43,11 @@ CASES = [
         "FED-PAYROLL-007", "wages over the base", "fica",
         36_439.80, 26_079.60, year=2019, pwages=300_000,
     ),
+    # Self-employment Medicare tax is capped by itself in the 2026 build, not after wages.
+    _case(
+        "FED-PAYROLL-008", "1980 wages over the Medicare base with self-employment income", "fica",
+        3_698.62, 3_175.34, year=1980, pwages=30_000, psemp=50_000,
+    ),
     # TAXSIM's regular-tax 20% threshold for single filers is $100 below the published one.
     _case(
         "FED-INCOME-015", "2022 single with large capital gains", "fiitax",

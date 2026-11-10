@@ -243,6 +243,13 @@ def taxsim_payroll(
             factor_in_rate=True,
             coordinate_on_net_earnings=behavior.coordinate_oasdi_on_net_earnings,
         )
+        if hi_wage_base < 1.0e14 and not behavior.apply_payroll_wage_bases_correctly:
+            # TAXSIM caps self-employment Medicare tax at the Medicare wage
+            # base on its own, whatever the wages.
+            positive = [item.clip(0, None) for item in items[1:]]
+            total = pl.sum_horizontal(positive)
+            capped_total = hi_rate * pl.min_horizontal(net_earnings_factor * total, pl.lit(hi_wage_base))
+            hi = [hi[0]] + [pl.when(total > 0).then(capped_total * item / total).otherwise(0.0) for item in positive]
         streams.append(([o + h for o, h in zip(oasdi, hi)], oasdi_capped, hi_capped))
         net_earnings = pl.sum_horizontal(factor * item for factor, item in zip(factors, items))
         oasdi_earnings = oasdi_earnings + pl.min_horizontal(net_earnings.clip(0, None), pl.lit(wage_base))
