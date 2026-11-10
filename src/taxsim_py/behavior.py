@@ -89,6 +89,13 @@ class BehaviorProfile:
     pay_vermont_telephone_credit: bool = True
     use_vermont_published_brackets: bool = True
     deduct_missouri_federal_tax_after_refundable_credits: bool = True
+    compute_missouri_itemized_deduction_before_2018: bool = True
+    step_missouri_federal_tax_deduction_share: bool = True
+    pay_missouri_working_family_credit_by_statute: bool = True
+    split_missouri_joint_income_by_earner_only: bool = True
+    leave_missouri_federal_tax_deduction_uncapped_before_1994: bool = True
+    limit_missouri_payroll_tax_deduction: bool = True
+    deduct_missouri_federal_tax_from_2022: bool = True
     use_vermont_nonrefundable_child_care_credit_before_2003: bool = True
     pay_vermont_renter_rebate_after_1999: bool = True
     use_current_federal_standard_deduction_for_south_carolina_addback: bool = True

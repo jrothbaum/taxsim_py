@@ -9,6 +9,8 @@ from taxsim_py.engine.brackets import bracket_rate, bracket_tax, scale_brackets
 from taxsim_py.engine.inputs import aged_count, files_head_of_household, files_joint, files_separate, is_dependent_filer, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml, resolve_year
 from taxsim_py.engine.state import (
+    split_agi,
+    federal_zero_bracket,
     by_filing_status,
     checkpoint,
     forced_standard,
@@ -64,7 +66,7 @@ def compute_mo_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         dedphs = pl.lit(0.0)
     else:
         fed_itemizes = pl.col("itemizes")
-        fed_zbr = pl.when(fed_itemizes).then(0.0).otherwise(pl.col("standard_deduction"))
+        fed_zbr = federal_zero_bracket()
         agix = agi.clip(0, None)
         alim50 = pl.lit(1.0e20) if y in (2020, 2021) else 0.5 * agix
         fed_char = pl.when(agi < 0).then(0.0).otherwise(pl.min_horizontal(pl.col("charity_cash"), alim50)).clip(0, None)
@@ -142,6 +144,13 @@ def compute_mo_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     else:
         septx = p.num("self_employment_tax_deduction_rate") * setax
     xitded = (xitded - septx).clip(0, None)
+    if y >= 2018 and not behavior.limit_missouri_payroll_tax_deduction:
+        # TAXSIM adds all employee payroll tax (and the additional Medicare tax again), takes out the
+        # state tax's share of the capped state and local deduction, and has no self-employment deduction.
+        cap = YearParams(load_yaml(PARAMETERS_ROOT / "national" / "itemized.yaml"), y).num("salt_cap") / sep
+        asalt = salt_ded + pl.col("proptax")
+        xnet = pl.when(asalt > cap).then(salt_ded / asalt * cap).otherwise(salt_ded)
+        xitded = (pl.col("itemized_before_limit") + pl.col("tfica") + pl.col("addmed") - xnet).clip(0, None)
     stax = salt_ded
     if p.in_effect("itemized_limit_rate"):
         if y >= 2013:
@@ -156,6 +165,9 @@ def compute_mo_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         over = agi - threshold
         xconst = pl.min_horizontal(p.num("itemized_limit_max_share") * xtot, p.num("itemized_limit_rate") * over)
         stax = pl.when((xtot > 0) & (over > 0)).then((xtot - xconst) / xtot * salt_ded).otherwise(salt_ded)
+    if y <= 2017 and y >= 1987 and not behavior.compute_missouri_itemized_deduction_before_2018:
+        # The 2026 build sets the itemized total only from 2018, so earlier years start from zero.
+        xitded = pl.lit(0.0)
     xitded = (xitded - dedphs + (salt_ded - stax)).clip(0, None)
     if y == 1999:
         xitded = pl.when(forced_standard()).then(0.0).otherwise(xitded)
@@ -184,17 +196,29 @@ def compute_mo_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             pl.col("regular_tax") - ccc_used - pl.col("federal_elder") - pl.col("eitc") - ctc_used - pl.col("making_work_pay")
         )
         if not behavior.deduct_missouri_federal_tax_after_refundable_credits:
-            # TAXSIM deducts tax after the nonrefundable credits only, plus the alternative minimum tax.
-            fedtax = pl.col("regular_tax") - ccc_used - pl.col("federal_elder") - ctc_used + pl.col("amt")
+            # TAXSIM deducts the regular tax before any credits, plus the alternative minimum tax.
+            fedtax = pl.col("regular_tax") + pl.col("amt")
     fedtax = fedtax.clip(0, None)
+    fedtax_base = fedtax
     if p.in_effect("federal_tax_deduction_cap_per_taxpayer"):
         fedtax = pl.min_horizontal(fedtax, p.num("federal_tax_deduction_cap_per_taxpayer") * txp)
+    elif not behavior.leave_missouri_federal_tax_deduction_uncapped_before_1994:
+        # TAXSIM applies the $5,000 per taxpayer cap in every year.
+        fedtax = pl.min_horizontal(fedtax, 5000.0 * txp)
     if p.in_effect("federal_tax_deduction_share"):
         share = pl.lit(0.0)
         for upper, value in reversed(p.value("federal_tax_deduction_share")):
             share = pl.when(agi <= upper).then(pl.lit(float(value))).otherwise(share)
         fedtax = share * fedtax
+        if not behavior.step_missouri_federal_tax_deduction_share:
+            # TAXSIM lets the share fall continuously: 35% less 1 point per $7,143 of income over $50,000.
+            continuous = (0.35 - (agi - 50000.0).clip(0, None) / 250000.0).clip(0, 0.35)
+            fedtax = continuous * fedtax_base
+            fedtax = pl.min_horizontal(fedtax, pl.lit(5000.0) * txp)
 
+    if y >= 2022 and not behavior.deduct_missouri_federal_tax_from_2022:
+        # The share is only set when an option the build never turns on is set, so it stays 0.
+        fedtax = pl.lit(0.0)
     df, (fedtax, exemp) = checkpoint(df, mo_fedtax=fedtax, mo_exemp=exemp)
     cg_subtraction = pl.lit(0.0)
     if p.in_effect("capital_gains_subtraction"):
@@ -204,7 +228,18 @@ def compute_mo_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     df, (taxinc,) = checkpoint(df, mo_taxinc=(agi - deduc - fedtax - exemp - cg_subtraction).clip(0, None))
     aif = p.num("bracket_inflation")
     brackets = scale_brackets(p.value("brackets"), aif)
+    if p.in_effect("taxsim_brackets") and not behavior.deduct_missouri_federal_tax_from_2022:
+        brackets = p.value("taxsim_brackets")
     df, (taxh, taxw) = checkpoint(df, mo_taxinc_h=taxinc * agih / agi, mo_taxinc_w=taxinc * agiw / agi)
+    if not behavior.split_missouri_joint_income_by_earner_only:
+        agit, agis = split_agi(agi)
+        total = (agit + agis)
+        deductions = (agi - taxinc).clip(0, None)
+        df, (taxh, taxw) = checkpoint(
+            df,
+            mo_taxinc_h=(agit - deductions * agit / total).clip(0, None),
+            mo_taxinc_w=(agis - deductions * agis / total).clip(0, None),
+        )
     statax = bracket_tax(taxinc, brackets)
     split_tax = bracket_tax(taxh, brackets) + bracket_tax(taxw, brackets)
     rate_expr = pl.when(is_joint & (agi > 0)).then(bracket_rate(taxw, brackets)).otherwise(
@@ -261,6 +296,9 @@ def compute_mo_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             pl.col("dividends") + pl.col("intrec") + (pl.col("stcg") + pl.col("ltcg")).clip(0, None) + pl.col("otherprop").clip(0, None)
         )
         eligible = (investment <= float(c["investment_income_limit"])) & ~is_dependent_filer()
+        if not behavior.pay_missouri_working_family_credit_by_statute:
+            # TAXSIM pays nothing in 2023 and from 2024 a fifth of the federal credit, with no income test.
+            eligible = pl.lit(y >= 2024)
         wftc = pl.when(eligible).then(pl.min_horizontal(float(c["match"]) * pl.col("eitc"), statax.clip(0, None))).otherwise(0.0)
         statax = statax - wftc
 

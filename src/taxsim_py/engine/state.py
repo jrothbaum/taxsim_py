@@ -199,6 +199,31 @@ def dividend_exclusion_addback(year: int, behavior: BehaviorProfile = TAXSIM_BEH
     return pl.min_horizontal(excluded, federal_dividend_exclusion_limit(year, behavior)).clip(0, None)
 
 
+def split_agi(agi: pl.Expr, exclude_primary: pl.Expr | float = 0.0, exclude_spouse: pl.Expr | float = 0.0) -> tuple[pl.Expr, pl.Expr]:
+    """TAXSIM `splitagi`: each spouse's own income on a joint return, the rest shared equally.
+
+    `agi` is the combined income before the exclusions. Pensions and Social Security go to the spouse
+    aged 55 or over (half each when both or neither are), business income to its earner (with each
+    spouse's own self-employment tax half deducted), unemployment by `sui`.
+    """
+    sage = pl.when(pl.col("sage") == 0).then(40.0).otherwise(pl.col("sage").cast(pl.Float64))
+    ui_total = pl.max_horizontal(pl.col("ui"), pl.col("pui") + pl.col("sui"))
+    sui_part = pl.col("sui")
+    pui_part = ui_total - sui_part
+    pension_ss = pl.col("pensions") + pl.col("taxable_social_security")
+    husband_old, wife_old = pl.col("page") >= 55, sage >= 55
+    pent = pl.when(husband_old & ~wife_old).then(pension_ss).when(~husband_old & wife_old).then(0.0).otherwise(pension_ss / 2)
+    pens = pension_ss - pent
+    seih = pl.col("psemp") + pl.col("pbusinc") + pl.col("pprofinc")
+    seis = pl.col("ssemp") + pl.col("sbusinc") + pl.col("sprofinc")
+    secah = pl.col("payroll_setax_primary") / 2
+    secas = pl.col("payroll_setax_secondary") / 2
+    tinc = pl.col("pwages") + seih + pui_part - exclude_primary + pent
+    sinc = pl.col("swages") + seis + sui_part - exclude_spouse + pens
+    cinc = 0.5 * (agi - tinc - sinc + secah + secas)
+    return tinc + cinc - secah, sinc + cinc - secas
+
+
 def earned_minimum(year: int) -> pl.Expr:
     """TAXSIM `earnmin`: the lower earner's wages plus net business income on a joint return, else the taxpayer's.
 
