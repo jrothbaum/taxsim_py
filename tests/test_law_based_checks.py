@@ -205,14 +205,14 @@ def test_2025_additional_medicare_threshold_unchanged_by_statute() -> None:
 @pytest.mark.parametrize("year", [2022, 2023, 2024, 2025])
 def test_other_dependent_credit_applies_after_2021(year: int) -> None:
     """IRC 24(h)(4): $500 nonrefundable credit per dependent who is not a
-    CTC-qualifying child. TAXSIM's source computes it for 2022+ but drops it
-    from the credit total (see FED-INCOME-002)."""
+    CTC-qualifying child. The 2026 TAXSIM build includes it (earlier builds
+    computed it for 2022+ but dropped it from the credit total, FED-INCOME-002)."""
     base = _wage_case(year, 2, 90_000)
     cases = pl.DataFrame([base, {**base, "depx": 1, "dep17": 0, "dep18": 0}])
     statutory = calculate_taxes(cases, calculation_mode="statutory").get_column("fiitax")
     compat = calculate_taxes(cases, calculation_mode="taxsim").get_column("fiitax")
     assert statutory[0] - statutory[1] == pytest.approx(500.0, abs=0.01)
-    assert compat[0] - compat[1] == pytest.approx(0.0, abs=0.01)
+    assert compat[0] - compat[1] == pytest.approx(500.0, abs=0.01)
 
 
 def test_california_yctc_needs_a_young_child() -> None:

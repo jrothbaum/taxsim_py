@@ -1,6 +1,10 @@
 # Pending issues
 
-Status as of 2026-10-12.
+Status as of 2026-10-12. Update 2026-11-09: the new NBER source `taxsim_2026_11_09.f`
+is the oracle for all years; see "The 2026 build" in
+[`statutory_corrections.md`](statutory_corrections.md). Federal 1960-2023 is mostly
+re-baselined (about 300 of 48,700 cases differ); the 2022-2026 states and 2024-2026
+federal law are next.
 
 Line numbers refer to `taxsim_2024_09_21.f`, and "the executable" means `taxsim2024.exe`.
 

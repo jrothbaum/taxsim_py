@@ -98,7 +98,7 @@ def test_statutory_is_the_default_and_backwards_compatible_is_taxsim() -> None:
     frame = pl.DataFrame({"year": [2019], "state": [0], "mstat": [2], "pwages": [140_000.0], "sbusinc": [50_000.0]})
     statutory = calculate_for_stata(frame).get_column("fica").item()
     taxsim = calculate_for_stata(frame, backwards_compatible=True).get_column("fica").item()
-    assert (taxsim, statutory) == (21_878.68, 27_604.38)
+    assert (taxsim, statutory) == (28_044.58, 27_604.38)
 
 
 @pytest.mark.skipif(not HAS_READSTAT, reason="needs taxsim-py[readstat]")

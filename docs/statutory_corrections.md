@@ -73,12 +73,12 @@ applies it per spouse, as the Schedule SE instructions require). Code:
 | 1998-2000 | 25768-25778 | The additional child tax credit for 3 or more children uses a payroll figure that is never set, so it is always $0 (and detailed output v42 is always 0) | Statutory, FED-INCOME-009: the unused credit up to the employee share of payroll tax (and half of self-employment tax) less the EITC (IRC 24(d) as enacted by P.L. 105-34). `allow_additional_child_credit_before_2001` |
 | 2021 | | The EITC is zeroed for married filing separately, although a code comment says they qualify | Not changed: the law requires living apart for six months, which TAXSIM has no input for |
 | 2022 on | 25714 | The Credit for Other Dependents is computed (`500*max(0, data(8)-ideps)`) but never added to the credit total, so adult and age-17 dependents get nothing | Statutory, FED-INCOME-002: $500 per dependent who is not a CTC-qualifying child, with the CTC phaseout (IRC 24(h)(4)-(5)); about 100 CPS units per year. `allow_other_dependent_credit_after_2021`; code: `federal._credits` |
-| 2022 | 27549 | The regular-tax 20% capital gains threshold for single filers is $459,650; the AMT copy uses $459,750 | Both modes: $459,750 (Rev. Proc. 2021-45) |
-| 2022 on | 27945 | The childless EITC minimum age stays at 2021's 19 | Both modes: 25 |
-| 2023 | | The EITC uses the 2022 table scaled by inflation (the year cap `lawend` was left at 2022) | Both modes: the published 2023 table |
-| 2023 | | EITC investment-income limit $10,300; Social Security wage base $153,600; head-of-household AMT exemption left at 2022 | Both modes: $11,000; $160,200; the 2023 amount |
-| 2023 | | The additional standard deduction for age ($1,750 / $1,400) and the young-filer AMT limit ($8,200) repeat 2022 | Both modes: $1,850 / $1,500 and $8,800 |
-| 1995-1996, 2008-2009, 2022-2023 | | Dependent standard deduction minimum $600 (law $650), $850 / $900 (law $900 / $950), and stuck at $1,100 for 2022-2023 (law $1,150 and $1,250); earned-income addition $350 from 2022 (law $400) | Both modes: the published amounts |
+| 2022 | 27549 | The regular-tax 20% capital gains threshold for single filers is $459,650; the AMT copy uses $459,750 | Statutory, FED-INCOME-015: $459,750 for both (Rev. Proc. 2021-45). `use_published_capital_gains_thresholds` |
+| 2022 on | 27945 | The childless EITC minimum age stays at 2021's 19 | Fixed in the 2026 build: 25 in both modes |
+| 2023 | | The EITC uses the 2022 table scaled by inflation (the year cap `lawend` was left at 2022) | Fixed in the 2026 build: the published 2023 table in both modes |
+| 2023 | | EITC investment-income limit $10,300; Social Security wage base $153,600; head-of-household AMT exemption left at 2022 | Fixed in the 2026 build: $11,000; $160,200; the 2023 amount in both modes |
+| 2023 | | The additional standard deduction for age ($1,750 / $1,400) and the young-filer AMT limit ($8,200) repeat 2022 | Fixed in the 2026 build: $1,850 / $1,500 and $8,800 in both modes |
+| 1995-1996, 2022-2023 | | Dependent standard deduction minimum $600 (law $650) in 1995-1996 and stuck at $1,100 for 2022-2023 (law $1,150 and $1,250); the 2008-2009 and earned-income-addition errors are fixed in the 2026 build | Statutory, FED-INCOME-016: the published amounts. `use_published_dependent_standard_deduction_minimum` |
 | 2024 on | | The executable refuses to run past 2023 (a hard year check and the `xndxa(1981:2023)` array bound) | taxsim-py uses actual law through 2025 and raises an error after |
 | All | 27940-27952 | The executable ignores reported ages under 65: it pays the childless EITC below the minimum age ($529 for a 17-year-old with $8,000 of wages in 2019) and never caps young filers' AMT exemption. The source applies both | taxsim-py uses the reported ages |
 
@@ -299,3 +299,55 @@ These were logged as possible errors and, on review, match the law.
 | Minnesota 1977-1986 state income tax add-back dropped | The 1977-1986 Minnesota itemized deduction already excludes state income tax, so the add-back would count it twice. |
 | North Carolina detail output shows federal exemptions less the state adjustment (through 2011) | That difference is the exemption North Carolina allows. |
 | South Carolina $15,000 age deduction (1999 on) whatever the income | The deduction is reduced by the retirement deduction, so the total is $15,000 per taxpayer 65 or older. |
+
+## The 2026 build (`taxsim_2026_11_09.f`)
+
+The newest NBER source (build `2026110917`, built with `scripts/build_oracle.sh`) is
+now the oracle for all years. It covers federal law through 2026 and state law
+through 2025 (2026 state law is extrapolated). Line numbers in this section refer
+to `taxsim_2026_11_09.f`. Status: federal 1960-2023 is being re-baselined; state
+2022 on and the 2024-2026 federal law are not yet done.
+
+### New errors in the 2026 build
+
+| Years | Line | What TAXSIM does | taxsim-py |
+| --- | --- | --- | --- |
+| All | 47651 | The marginal-rate loop starts at `isgn=0`, whose zero perturbation exits the loop at once, so `frate` and `srate` are always 0 | Rates are computed as before. `scripts/build_oracle.sh` builds `taxsim2026_mtr.exe`, the same source with the loop starting at 1, as the rate oracle |
+| All | 47583-47591 | `ficar` is never assigned (always 0) | Not compared; the value stays the weighted payroll rate |
+| All | 45230-45290 | The employer's halves of `fica` are not capped: OASDI above the wage base is still charged 6.2%, and Medicare above the cap in 1990-1993 | Statutory: capped. Taxsim mode: uncapped. `apply_payroll_wage_bases_correctly` |
+| 1960-1993 | 45247-45255 | Once wages plus net self-employment income reach the Medicare cap, the employee Medicare tax is charged on the full cap even with no wages | Same switch |
+| 2018 on | 41729-41860, `pbusinc` etc. | `pbusinc`, `pprofinc`, `sbusinc` and `sprofinc` are not income (only self-employment tax and the QBI deduction use them), and they count as investment income for the EITC test and the net investment income tax | Statutory: income. `count_business_and_professional_inputs_as_income` |
+| 2018 on | 42520-42545 | The QBI deduction treats all self-employment (`psemp`, `ssemp`), S corporation and business income as qualified, nets half of all self-employment tax against professional income only, and phases out over $50,000 for every filing status | Statutory: Form 8995-A streams. `use_form_8995a_qbi_streams` |
+| All | 41930 | `nonprop` enters adjusted gross income twice | Statutory: once. `count_nonproperty_income_once` |
+| 1998-2000, 2018-2020 | 43298-43310 | The child credit phaseout is not floored: a filer with no qualifying children above the threshold has a negative credit (an added tax of 5% of the excess), and the refundable credit is based on what the nonrefundable credit leaves of the credit before the phaseout | Statutory: floored. `floor_child_credit_phaseout_at_zero` |
+| All | 47420-47440 | Codes 6, 66 and 33 with dependents file as head of household | Statutory: separate or single. `honor_separate_and_unmarried_codes_with_dependents` |
+| 1991-2003 | output | `v16` (itemized deduction phaseout) is 0 when the standard deduction is taken | Both modes report 0 |
+
+### Errors of the 2024 build the 2026 build fixes
+
+Taxsim mode now follows the statutory rule for these (they remain in
+`FIXED_IN_2026_BUILD` in `behavior.py`; the switches go in a later cleanup).
+
+| Years | What the 2024 build did | Now |
+| --- | --- | --- |
+| 1960-1989 | Wage Medicare tax used one half of the rate | Both halves charged (`hi_rate_combined`), in both modes |
+| All | The EITC fell dollar for dollar above the investment income limit | The credit is 0 above the limit, in both modes |
+| 1995-1999 | No AMT | AMT applies (`add_amt_before_2000`) |
+| 2022 on | Credit for other dependents computed but dropped | Applied (`allow_other_dependent_credit_after_2021`) |
+| All | Self-employment wage-base coordination, loss handling, Additional Medicare and the spouse split | Statutory (FED-PAYROLL-001 to 005) |
+| Before 1987 | Business income not income | Income (`include_business_income_before_1987`) |
+| 2008 | No stimulus rebate | Rebate credit, in both modes (`economic_stimulus_rebate`) |
+| 2013 on | Net investment income tax deducted state tax for non-itemizers | Only itemizers deduct it, in both modes |
+
+### State differences found so far (2022 on)
+
+| State | Years | What the 2026 build does | taxsim-py |
+| --- | --- | --- | --- |
+| All with a rebate | 2021-2025 | One-time rebates (AZ, CO, CT, DE, GA, HI, ID, IL, IN, ME, MA, RI, VA and others) are subtracted in the year they were paid, one year after the tax year that earned them | Statutory: not paid. Taxsim mode: `parameters/national/state_rebates.yaml`. `leave_out_one_time_state_rebates` |
+| AR | 2022 on | The tax before credits is capped at AGI times the low-income table's `ftax / finish`, at every AGI, not only inside the table's range; the step table is not used | Statutory: step table. `limit_arkansas_low_income_table_to_its_range` |
+| AR | 2021 on | The lesser of a return with the pension exclusion (up to $6,000 per spouse aged 55 or over, pensions allocated by age) and a return with no exclusion and a credit per taxpayer aged 65 or over | Same switch family: `use_arkansas_statutory_step_credits` |
+| AR | 2022-2025 | The inflation relief and qualified individual credits fall continuously with taxable income, and joint returns compare the joint and split returns after each one's credits | Same switch |
+| VT | 2022 on | The child tax credit counts children under 13 (TAXSIM's age bands for 6 and 7 are the under-13 count) when no ages are given | Statutory: under 6 (under 7 from 2025). `count_vermont_child_credit_by_statutory_age` |
+| WA | 2023 on | The Working Families Tax Credit is paid | Both modes (`add_washington_working_families_credit` is now fixed in taxsim mode) |
+| All | 2021 on and earlier | The table lookup `tablki` weights a table that rises with income the wrong way round (the 2024 build) | Both modes weight rising tables correctly. A table that falls with income is weighted the wrong way round by the 2026 build: taxsim mode reproduces that (`weight_falling_tables_correctly`) |
+| CO | 2022 on | The sales tax refund is interpolated between thresholds from its own table | Statutory: steps. `use_colorado_statutory_sales_tax_refund` |

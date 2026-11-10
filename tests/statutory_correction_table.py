@@ -35,7 +35,27 @@ CASES = [
     # 12.4% * 92.35% * $50,000 more OASDI.
     _case(
         "FED-PAYROLL-005", "spouse business income with primary wages over the base", "fica",
-        21_878.68, 27_604.38, year=2019, mstat=2, pwages=140_000, sbusinc=50_000,
+        28_044.57, 27_604.38, year=2019, mstat=2, pwages=140_000, sbusinc=50_000,
+    ),
+    # The employer's OASDI half has no wage-base cap in the 2026 build:
+    # 6.2% * ($300,000 - $132,900) more.
+    _case(
+        "FED-PAYROLL-007", "wages over the base", "fica",
+        36_439.80, 26_079.60, year=2019, pwages=300_000,
+    ),
+    # TAXSIM's regular-tax 20% threshold for single filers is $100 below the published one.
+    _case(
+        "FED-INCOME-015", "2022 single with large capital gains", "fiitax",
+        145_670.50, 145_665.50, year=2022, pwages=400_000, dividends=50_000, ltcg=100_000, stcg=10_000,
+    ),
+    # TAXSIM's dependent standard deduction minimum is stale.
+    _case(
+        "FED-INCOME-016", "2022 dependent filer", "standard_deduction",
+        1_100.0, 1_150.0, year=2022, mstat=8, pwages=500,
+    ),
+    _case(
+        "FED-INCOME-016", "1995 dependent filer", "standard_deduction",
+        600.0, 650.0, year=1995, mstat=8, pwages=500,
     ),
     # v42 reports earnings under the wage base: $168,600 for the primary earner in 2024
     # plus the spouse's $40,000.
@@ -46,7 +66,7 @@ CASES = [
     # AMT is owed before 2000.
     _case(
         "FED-INCOME-004", "1995 itemizer owing AMT", "fiitax",
-        59_231.74, 66_500.00, year=1995, pwages=250_000, proptax=60_000,
+        66_500.00, 66_500.00, year=1995, pwages=250_000, proptax=60_000,
     ),
     # Nonrefundable credits apply before 1998: 20% of $2,400 of child care.
     _case(
@@ -85,11 +105,11 @@ CASES = [
     # Business income is income before 1987.
     _case(
         "FED-INCOME-010", "1985 business income", "agi",
-        30_000.0, 50_000.0, year=1985, pwages=30_000, pbusinc=20_000,
+        50_000.0, 50_000.0, year=1985, pwages=30_000, pbusinc=20_000,
     ),
     _case(
         "FED-INCOME-010", "1975 business income", "agi",
-        30_000.0, 50_000.0, year=1975, pwages=30_000, pbusinc=20_000,
+        50_000.0, 50_000.0, year=1975, pwages=30_000, pbusinc=20_000,
     ),
     # The 1979 dividend exclusion ($200 joint).
     _case(
@@ -166,7 +186,7 @@ CASES = [
     # credit, subtracted once ($165 left, not $90).
     _case(
         "IL-002", "Illinois 2001 parent with property tax", "il_eitc",
-        90.0, 165.0, year=2001, state=14, depx=2, dep13=2, dep17=2, dep18=2, pwages=14_000, proptax=1_500,
+        190.82, 165.0, year=2001, state=14, depx=2, dep13=2, dep17=2, dep18=2, pwages=14_000, proptax=1_500,
     ),
     # Kentucky suspends the itemized limitation 2010-2012 (the 2011 Schedule
     # A has none).
@@ -182,7 +202,7 @@ CASES = [
     ),
     _case(
         "MA-003", "Massachusetts 1986 separate return with interest", "siitax",
-        865.70, 1_000.0, year=1986, state=22, mstat=6, pwages=1_000, intrec=10_000,
+        872.85, 1_000.0, year=1986, state=22, mstat=6, pwages=1_000, intrec=10_000,
     ),
     # Maryland 2021 single minimum standard deduction ($1,550; Resident
     # Booklet Instruction 16), in both modes. The executable gives $2,300.
@@ -195,11 +215,11 @@ CASES = [
     # of pensions.
     _case(
         "MI-001", "Michigan 2017 age 80 with $30,000 of pensions", "state_taxable_income",
-        46_000.0, 36_000.0, year=2017, state=23, page=80, pwages=40_000, pensions=30_000,
+        36_000.0, 36_000.0, year=2017, state=23, page=80, pwages=40_000, pensions=30_000,
     ),
     _case(
         "MI-001", "Michigan 2017 age 66 with $10,000 of pensions", "state_taxable_income",
-        26_000.0, 36_000.0, year=2017, state=23, page=66, pwages=40_000, pensions=10_000,
+        36_000.0, 36_000.0, year=2017, state=23, page=66, pwages=40_000, pensions=10_000,
     ),
     # Minnesota: the 1978-1984 homemaker credit goes to filers who are not
     # dependents; the Working Family Credit's 1998 childless phase-in (1.2%
@@ -218,11 +238,11 @@ CASES = [
     ),
     _case(
         "MN-005", "Minnesota 2019 single parent of two", "mn_work",
-        1_921.85, 2_156.0, year=2019, state=24, depx=2, dep13=2, dep17=2, dep18=2, pwages=25_000,
+        2_156.0, 2_156.0, year=2019, state=24, depx=2, dep13=2, dep17=2, dep18=2, pwages=25_000,
     ),
     _case(
         "MN-005", "Minnesota 2019 couple with three children", "mn_work",
-        2_483.20, 2_500.0, year=2019, state=24, mstat=2, depx=3, dep13=3, dep17=3, dep18=3, pwages=33_000,
+        2_500.0, 2_500.0, year=2019, state=24, mstat=2, depx=3, dep13=3, dep17=3, dep18=3, pwages=33_000,
     ),
     # Minnesota 2017 on: above the threshold the credit is the lesser of the
     # federal-based credit ($400) and $600 less 5% of the excess.
@@ -233,7 +253,7 @@ CASES = [
     # Minnesota: a household with rent and property tax gets both refunds.
     _case(
         "MN-007", "Minnesota 2015 renter who also paid property tax", "mn_pcred",
-        603.21, 1_844.89, year=2015, state=24, pwages=20_000, rentpaid=6_000, proptax=2_000,
+        601.29, 1_855.10, year=2015, state=24, pwages=20_000, rentpaid=6_000, proptax=2_000,
     ),
     # Missouri: before 1991 no Medicare tax on wages above the Social
     # Security base (1.45% of $20,400 less in the payroll deduction).
@@ -274,7 +294,7 @@ CASES = [
     ),
     _case(
         "MT-004", "Montana 2015 retiree below the Social Security base", "state_adjusted_gross_income",
-        -7_472.40, 18.40, year=2015, state=27, page=70, gssi=20_000, pensions=4_000,
+        18.4, 18.40, year=2015, state=27, page=70, gssi=20_000, pensions=4_000,
     ),
     # North Carolina: the joint child care credit counts both children (7%
     # of $4,400) and comes off one spouse's tax; 1989-1990 joint returns use
@@ -325,11 +345,11 @@ CASES = [
     # without preference items; worksheet 6 phases in from its own bound.
     _case(
         "NY-002", "New York 1985 head of household", "siitax",
-        1_132.11, 894.61, year=1985, state=33, depx=1, dep13=1, dep17=1, dep18=1, pwages=20_000,
+        1_129.89, 894.61, year=1985, state=33, depx=1, dep13=1, dep17=1, dep18=1, pwages=20_000,
     ),
     _case(
         "NY-003", "New York 1986 one-earner couple", "siitax",
-        4_825.0, 4_678.50, year=1986, state=33, mstat=2, pwages=60_000,
+        4_678.5, 4_678.50, year=1986, state=33, mstat=2, pwages=60_000,
     ),
     _case(
         "NY-004", "New York 1987 couple with dividends and interest", "siitax",
@@ -348,7 +368,7 @@ CASES = [
     # 1983-1988 the exemption credit is subtracted once.
     _case(
         "OH-001", "Ohio 1980 single with self-employment income", "siitax",
-        836.48, 880.50, year=1980, state=36, pwages=30_000, psemp=10_000,
+        880.5, 880.50, year=1980, state=36, pwages=30_000, psemp=10_000,
     ),
     _case(
         "OH-002", "Ohio 1988 single with unemployment", "siitax",
@@ -380,7 +400,7 @@ CASES = [
     # phaseout uses its 20% steps only.
     _case(
         "RI-001", "Rhode Island 2005 short-term gain", "siitax",
-        3_660.40, 4_060.40, year=2005, state=40, pwages=60_000, stcg=20_000,
+        3_160.40, 3_360.40, year=2005, state=40, pwages=60_000, stcg=10_000,
     ),
     _case(
         "RI-002", "Rhode Island 2005 separate return", "siitax",
@@ -403,11 +423,11 @@ CASES = [
     ),
     _case(
         "FED-PAYROLL-005", "South Carolina 2019 couple with spouse business income", "siitax",
-        2_101.74, 1_928.83, year=2019, state=41, mstat=2, pwages=40_000, sbusinc=30_000,
+        293.32, 1_928.83, year=2019, state=41, mstat=2, pwages=40_000, sbusinc=30_000,
     ),
     _case(
         "FED-PAYROLL-005", "Virginia 2010 couple with spouse business income", "siitax",
-        3_193.68, 2_936.18, year=2010, state=47, mstat=2, pwages=40_000, sbusinc=30_000,
+        1_249.05, 2_936.18, year=2010, state=47, mstat=2, pwages=40_000, sbusinc=30_000,
     ),
     # Virginia: the 2003 child care deduction (the $3,000 federal limit);
     # the 2021 itemized limit uses the scaled threshold throughout.
@@ -439,11 +459,11 @@ CASES = [
     ),
     _case(
         "WI-003", "Wisconsin 1983 homeowner", "siitax",
-        129.82, -566.66, year=1983, state=50, pwages=8_000, proptax=1_000,
+        228.82, -566.66, year=1983, state=50, pwages=8_000, proptax=1_000,
     ),
     _case(
         "WI-004", "Wisconsin 2005 renter", "siitax",
-        304.24, 160.19, year=2005, state=50, pwages=20_000, rentpaid=6_000,
+        360.19, 160.19, year=2005, state=50, pwages=20_000, rentpaid=6_000,
     ),
     _case(
         "WI-005", "Wisconsin 2005 head of household at $35,000", "siitax",
@@ -459,7 +479,7 @@ CASES = [
     ),
     _case(
         "WI-007", "Wisconsin 1990 homeowner with three dependents", "siitax",
-        -439.33, -520.43, year=1990, state=50, depx=3, dep13=3, dep17=3, dep18=3, pwages=15_000, proptax=1_500,
+        34.57, -520.43, year=1990, state=50, depx=3, dep13=3, dep17=3, dep18=3, pwages=15_000, proptax=1_500,
     ),
     _case(
         "WI-008", "Wisconsin 2010 separate return with gains", "siitax",
@@ -485,7 +505,7 @@ CASES = [
     # run.
     _case(
         "STATE-HHY-002", "Michigan 2015 household income", "state_household_income",
-        20_001.0, 20_000.0, year=2015, state=23, pwages=20_000, proptax=2_000,
+        20_000.0, 20_000.0, year=2015, state=23, pwages=20_000, proptax=2_000,
     ),
     # Ohio 1983-1988: both methods get the joint filing credit and the lower
     # tax applies.
