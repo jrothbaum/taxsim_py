@@ -148,7 +148,7 @@ def _resolve_federal_and_state(
     `keep_columns` they set. When `result_columns` is supplied, intermediates
     are also discarded before choosing between itemized and standard results.
     """
-    base = raw_df.with_row_index(_ROW)
+    base = raw_df.with_row_index(_ROW).with_columns(original_proptax=pl.col("proptax"))
     if _DEDUCTION not in base.columns:
         base = base.with_columns(pl.lit(0.0).alias(_DEDUCTION))
     if "charity_cash" not in base.columns:

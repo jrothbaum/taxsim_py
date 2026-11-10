@@ -64,6 +64,12 @@ class BehaviorProfile:
     allow_kansas_itemizing_after_2020: bool = True
     apply_kentucky_pension_cap_per_taxpayer: bool = True
     compute_louisiana_tax_per_statute: bool = True
+    pay_new_jersey_renter_credit_per_statute: bool = True
+    compute_new_jersey_tax_per_statute: bool = True
+    exclude_nonproperty_income_from_new_jersey_income: bool = True
+    exclude_new_jersey_pensions_per_statute: bool = True
+    tax_new_jersey_top_rate_after_1982_per_statute: bool = True
+    tax_full_capital_gains_in_new_jersey_before_1987: bool = True
     tax_nebraska_before_1987_per_statute: bool = True
     limit_nebraska_property_tax_deduction_to_federal_cap: bool = True
     use_nebraska_high_income_tables_per_statute: bool = True
@@ -227,6 +233,7 @@ STATUTORY_BEHAVIOR = BehaviorProfile()
 FIXED_IN_2026_BUILD = frozenset(
     {
         "coordinate_oasdi_on_net_earnings",
+        "disallow_new_jersey_capital_losses",
         "prevent_negative_self_employment_tax",
         "include_business_income_before_1987",
         "add_amt_before_2000",

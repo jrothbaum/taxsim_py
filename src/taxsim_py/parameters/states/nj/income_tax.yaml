@@ -119,6 +119,15 @@ brackets:
       - [500000, 0.0897]
       - [1000000, 0.1075]
 
+# The TAXSIM build keeps the 1977 top rate of 2.5% through 1990.
+taxsim_brackets:
+  1977: [[0, 0.02], [20000, 0.025], [50000, 0.025]]
+  1991: null
+  2018:
+    single: [[0, 0.014], [20000, 0.0175], [35000, 0.035], [40000, 0.05525], [75000, 0.0637], [500000, 0.0897]]
+    married: [[0, 0.014], [20000, 0.0175], [50000, 0.0245], [70000, 0.035], [80000, 0.05525], [150000, 0.0637], [500000, 0.0897]]
+  2019: null
+
 # --- Income ---
 # Pension exclusion for taxpayers 65 or older, by filing status; 2005-2021 only
 # for household income up to the limit; from 2022 times a share by household
@@ -250,3 +259,30 @@ eitc_childless_maximum_age_applies: {1977: true, 2021: false}
 child_tax_credit:
   2022: [[0, 500], [30000, 400], [40000, 300], [50000, 200], [60000, 100], [80000, 0]]
   2023: [[0, 1000], [30000, 800], [40000, 600], [50000, 400], [60000, 200], [80000, 0]]
+
+# --- The TAXSIM build's tables (njtax77 / njtax21) ---
+# No tax at or below one threshold, [first year, amount per return]; 2000 takes
+# 75% of it per return, from 2001 per taxpayer unit (heads of household count two).
+taxsim_no_tax_threshold: {1993: 3000, 1994: 7500, 1999: 10000}
+# Homestead credit for returns with a taxpayer 65 or older, by year (1998 on).
+taxsim_homestead_credit_top_tier: {1998: 35, 1999: 40, 2000: 60, 2001: 100, 2004: 150}
+# Share of the property tax floor (owners) and rent floor (renters) deducted, 1985-1989:
+# [taxable income, floor] interpolated.
+taxsim_property_floor_owner: [[20000, 3250], [50000, 2600], [1.0e+20, 1857]]
+taxsim_property_floor_renter: [[20000, 1750], [50000, 1400], [1.0e+20, 1000]]
+# Share of pensions excluded for taxpayers 62 or older, by gross income: [income, share]
+# interpolated, for single filers and for joint filers.
+taxsim_pension_share_single: [[100000, 1.0], [125000, 0.375], [150000, 0.1875], [1.0e+20, 0.0]]
+taxsim_pension_share_joint: [[100000, 1.0], [125000, 0.5], [150000, 0.25], [1.0e+20, 0.0]]
+taxsim_pension_exclusion_cap: {single: 75000, joint: 100000}
+# Child and dependent care credit shares by NJ taxable income, [income, share]
+# interpolated: nonrefundable 2018-2020, refundable from 2021.
+taxsim_child_care_nonrefundable: [[20000, 0.5], [30000, 0.4], [40000, 0.3], [50000, 0.2], [60000, 0.1], [1.0e+20, 0.0]]
+taxsim_child_care_refundable: [[30000, 0.5], [60000, 0.4], [90000, 0.3], [120000, 0.2], [150000, 0.1], [1.0e+20, 0.0]]
+# Child tax credit per child under six (interpolated), 2022 on.
+taxsim_child_tax_credit:
+  2022: [[30000, 500], [40000, 400], [50000, 300], [60000, 200], [80000, 100], [1.0e+20, 0]]
+  2023: [[30000, 1000], [40000, 800], [50000, 600], [60000, 400], [80000, 200], [1.0e+20, 0]]
+# Flat minimum earned income credit for childless filers outside the federal age
+# range, by year (zero before 2020).
+taxsim_eitc_minimum: {1977: 0, 2020: 215, 2021: 601, 2022: 224, 2023: 240, 2024: 253, 2025: 260}

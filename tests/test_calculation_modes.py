@@ -431,8 +431,8 @@ def test_louisiana_2025_flat_tax_with_standard_deduction() -> None:
 
 def test_state_childless_eitc_minimum_age_is_18_in_california_and_new_jersey() -> None:
     # CalEITC (R&TC 17052, 2018+) and the NJEITC (2021+) start at 18 with no
-    # maximum age; the NJEITC was 21 and under 65 in 2020. TAXSIM keeps the
-    # federal age test (and pays California at any age).
+    # maximum age; the NJEITC was 21 and under 65 in 2020. TAXSIM pays California at
+    # any age and New Jersey a flat amount to filers 18 or older who miss the federal age test.
     cases = pl.DataFrame(
         [
             {"case": f"{state}_{year}_{age}", "state": state, "year": year, "mstat": 1, "pwages": 5_000.0, "page": age}
@@ -461,7 +461,8 @@ def test_state_childless_eitc_minimum_age_is_18_in_california_and_new_jersey() -
     taxsim = calculate_taxes(cases, calculation_mode="taxsim").with_columns(cases.get_column("case"))
     taxsim_paid = {row["case"]: row["siitax"] < 0 for row in taxsim.iter_rows(named=True)}
     assert taxsim_paid["5_2022_15"]
-    assert not taxsim_paid["31_2022_18"]
+    assert taxsim_paid["31_2022_18"]
+    assert not taxsim_paid["31_2022_17"]
 
 
 def test_massachusetts_statutory_payroll_deduction_is_per_spouse() -> None:

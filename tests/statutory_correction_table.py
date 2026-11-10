@@ -332,7 +332,7 @@ CASES = [
     # New Jersey allows no capital-loss deduction.
     _case(
         "NJ-002", "New Jersey 2015 single with a $12,000 loss", "nj_agi",
-        31_000.0, 40_000.0, year=2015, state=31, pwages=40_000, ltcg=-12_000,
+        40_000.0, 40_000.0, year=2015, state=31, pwages=40_000, ltcg=-12_000,
     ),
     # New Mexico: 1984-1989 benefits are subtracted, not added again; the
     # low-income rebate counts a taxpayer 65 or older once.
