@@ -19,6 +19,7 @@ from taxsim_py.engine.state import (
     checkpoint,
     household_income,
     interpolate_table,
+    net_earnings_by_spouse,
     tier_values,
     unemployment_total,
     with_state_detail,
@@ -580,10 +581,17 @@ def compute_ny_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             for upper, amount in reversed(steps):
                 extra_credit = pl.when(fed_agi <= upper).then(float(amount)).otherwise(extra_credit)
             # No credit at all above the last step.
-            married_credit = pl.when(fed_agi > float(steps[-1][0])).then(0.0).otherwise(married_credit)
+            if y >= 2022:
+                married_credit = pl.when(fed_agi > float(steps[-1][0])).then(0.0).otherwise(married_credit)
         hcred = pl.when(is_single).then(interpolate_table(fed_agi, household["single"])).otherwise(
             (married_credit + extra_people * extra_credit) / sep
         )
+    if 1990 <= y <= 2016 and not behavior.use_new_york_household_credit_table_1990_2016:
+        # TAXSIM's closed form: $15 for a single filer, $30 per exemption otherwise, less
+        # a dollar for each $500 of federal AGI over $10,000 (single) or $15,000.
+        single_credit = (15.0 - (fed_agi - 10_000.0).clip(0, None) / 500.0).clip(0, None)
+        other_credit = (30.0 - (fed_agi - 15_000.0).clip(0, None) / 500.0).clip(0, None) * exemps / flate / sep
+        hcred = pl.when(is_single).then(single_credit).otherwise(other_credit)
     hcred = pl.when(dependent_filer).then(0.0).otherwise(hcred)
     df = df.with_columns(ny_hcred=hcred)
     hcred = pl.col("ny_hcred")
@@ -598,7 +606,35 @@ def compute_ny_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         # TAXSIM reads a federal figure its early routine never fills.
         chcrbc = pl.lit(0.0)
     c = p.value("child_care_share")
-    if p.in_effect("taxsim_child_care_credit") and not behavior.use_new_york_statutory_child_care_credit:
+    if 2000 <= y <= 2021 and not behavior.use_new_york_statutory_child_care_credit:
+        federal_rate = pl.when(pl.col("ccc_expense") > 0).then(pl.col("ccc_uncapped") / pl.col("ccc_expense")).otherwise(0.0)
+        if y <= 2005:
+            # TAXSIM multiplies the federal credit by the federal rate a second time.
+            if "pieces" in c:
+                share = pl.lit(0.0)
+                for start, value, slope in c["pieces"]:
+                    share = pl.when(agi >= start).then(value - slope * (agi - start)).otherwise(share)
+                chcr = chcrbc * share * federal_rate
+            else:
+                chcr = pl.lit(0.0)
+        else:
+            earn_primary, earn_spouse = net_earnings_by_spouse(behavior)
+            excess = (agi - 25_000.0).clip(0, 40_000.0)
+            frac = (1.1 - (2.25e-5 if y <= 2017 else 5e-6) * excess).clip(0, 0.9)
+            if y >= 2018:
+                frac = pl.when(agi > 150_000).then(0.2).when(agi >= 65_000).then(0.6).otherwise(frac)
+            rate_used = federal_rate
+            if y == 2021:
+                rate_used = 0.01 * pl.max_horizontal(pl.lit(20.0), 35.0 - ((agi - 15_000.0) / 2000.0).clip(0, None))
+            dependents = pl.col("dep13").clip(None, 2 if y <= 2017 else 6)
+            maximum = pl.lit(0.0)
+            for count, amount in enumerate((0, 3000, 6000, 75000, 8500, 9000, 9500)):
+                maximum = pl.when(dependents == count).then(float(amount)).otherwise(maximum)
+            expenses = pl.min_horizontal(earn_primary, pl.col("childcare"))
+            expenses = pl.when(txp > 1).then(pl.min_horizontal(expenses, earn_spouse)).otherwise(expenses)
+            chcr = pl.min_horizontal(maximum, expenses) * frac * rate_used
+        statax = statax - chcr
+    elif p.in_effect("taxsim_child_care_credit") and not behavior.use_new_york_statutory_child_care_credit:
         t = p.value("taxsim_child_care_credit")
         rows = t["table"]
         percentage = pl.lit(float(t["top_percentage"]))
@@ -734,14 +770,28 @@ def compute_ny_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         reduction = float(e["phaseout_per_1000"]) * ((pl.col("agi") - thr).clip(0, None) / 1000.0).floor()
         eschcr = (base - reduction).clip(0, None)
     elif "income_limit" in e and "per_child" not in e:
+        credit_children = pl.col("dep17")
+        if not behavior.pay_new_york_empire_child_credit_per_statute:
+            # TAXSIM counts dependents under 18 less those under 6 (`numlt(17) - numlt(5)`).
+            credit_children = (pl.col("dep18") - pl.col("dep6")).clip(0, None)
+        federal_credit = pl.col("actc") + pl.col("odc")
+        if not behavior.pay_new_york_empire_child_credit_per_statute:
+            # TAXSIM adds the refundable child credit (`comnew(93)`) and the child care credit
+            # before its liability limit (`comnew(176)`), not the child tax credit.
+            federal_credit = pl.col("actc") + pl.col("ccc_uncapped")
         eschcr = pl.when(fed_agi <= cphase).then(
-            pl.max_horizontal(e["minimum_per_child"] * pl.col("dep17"), e["federal_share"] * (pl.col("actc") + pl.col("odc")))
+            pl.max_horizontal(e["minimum_per_child"] * credit_children, e["federal_share"] * federal_credit)
         ).otherwise(0.0)
     elif "per_child" in e:
         fagi = pl.col("agi")
         dep17 = pl.col("dep17")
         dep18 = pl.col("dep18")
         kids = depx
+        if not behavior.pay_new_york_empire_child_credit_per_statute and y <= 2021:
+            # TAXSIM counts dependents under 18 less those under 6.
+            numctc = (pl.col("dep18") - pl.col("dep6")).clip(0, None)
+            dep17 = numctc
+            dep18 = numctc
         if behavior.exclude_children_under_4_from_ny_empire_credit and p.value("empire_child_credit_excludes_under_4"):
             young = pl.col("children_under_4")
             dep17 = dep17 - young
@@ -768,6 +818,9 @@ def compute_ny_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         # The $100-per-child minimum applies at every income in the dated
         # statutory years; TAXSIM applies it only above the phase-out start.
         floor_applies = (fed_agi > cphase) | (y >= 2022)
+        if not behavior.pay_new_york_empire_child_credit_per_statute and y <= 2021:
+            # The 2026 build pays the minimum only up to the phase-out start.
+            floor_applies = fagi <= cphase
         credit = pl.when(floor_applies).then(
             dep17 * pl.max_horizontal(pl.lit(float(e["minimum_per_child"])), per_child)
         ).otherwise(dep17 * per_child)

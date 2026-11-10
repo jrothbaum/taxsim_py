@@ -362,7 +362,7 @@ CASES = [
     ),
     _case(
         "NY-005", "New York 2021 low-income head of household", "siitax",
-        -5_836.51, -5_889.90, year=2021, state=33, depx=3, dep13=3, dep17=3, dep18=3,
+        -4_452.90, -5_889.90, year=2021, state=33, depx=3, dep13=3, dep17=3, dep18=3,
         pwages=16_000, childcare=6_000,
     ),
     _case(

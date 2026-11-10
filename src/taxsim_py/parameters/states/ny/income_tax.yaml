@@ -821,6 +821,7 @@ household_credit_addition: {1982: 5, 1986: null}
 # adds a flat amount per additional exemption by income ([AGI up to, amount]) in place
 # of the interpolated `per_additional_person` table, with no credit above the last bound.
 taxsim_household_credit_per_additional_person:
+  2017: [[20000, 15], [25000, 10]]
   2022: [[20000, 15], [25000, 10], [32000, 5]]
 # Child and dependent care credit as a share of the federal credit: through
 # 1995 one share; 1996 by AGI ([AGI, share] interpolated); 1997-1999 a full

@@ -243,6 +243,18 @@ def allocate_pension(total: pl.Expr, minimum_age: float) -> tuple[pl.Expr, pl.Ex
     return primary, total - primary
 
 
+def net_earnings_by_spouse(behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> tuple[pl.Expr, pl.Expr]:
+    """TAXSIM `comnew(205)` and `comnew(206)`: each spouse's wages plus 92.35% of self-employment income."""
+    from taxsim_py.engine.payroll_tax import payroll_items
+
+    earnings = []
+    for names in payroll_items(behavior):
+        wage = pl.col(names[0]).clip(0, None)
+        self_employed = pl.sum_horizontal(pl.col(name).clip(0, None) for name in names[1:])
+        earnings.append(wage + 0.9235 * self_employed)
+    return earnings[0], earnings[1]
+
+
 def earned_minimum(year: int) -> pl.Expr:
     """TAXSIM `earnmin`: the lower earner's wages plus net business income on a joint return, else the taxpayer's.
 
