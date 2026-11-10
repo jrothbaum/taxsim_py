@@ -364,7 +364,7 @@ Taxsim mode now follows the statutory rule for these (they remain in
 | NY | all years | The pension exclusion applies at 59½ (age 60 in whole years), not 65 (the 2024 build used 65) | Both modes: 60 |
 | NY | 2022 on | The itemized deduction phase-out thresholds for 2022-25 come from the build's table | Both modes (published amounts) |
 | Federal | 2018 on | Other itemized deductions sit outside the SALT cap (the 2024 build counted them with state and local taxes) | Both modes |
-| All | 2022 on | The count of children under 6 (`numlt(6)`) is read from `dep13`, and `dep6` is ignored | Statutory: `dep6`. `read_children_under_6_from_dep6` |
+| All | all years | `numlt(6)` returns the count of children under 13 (`dep13`): the age bands in the function are off by one. Federal credits and state code that read `dep6` directly are not affected | Statutory: `dep6`. `count_children_under_6_by_dep6`, used state by state |
 | OH | 2021 on | The personal exemption interpolates between $2,400 (to $40,000), $2,150 (to $80,000) and $1,900 | Statutory: steps. `step_ohio_exemption_by_income` |
 | OH | 2022-25 | The tax comes from the build's own rounded tables (`tplus`, `tminus`) | Statutory: the published brackets. `use_ohio_published_tax_brackets` |
 | OH | 2021 on | The retirement income credit ($200 at most) is paid at any age, from pensions less a cent | Statutory: aged 65 or over. `require_age_65_for_ohio_retirement_credit` |
@@ -375,3 +375,9 @@ Taxsim mode now follows the statutory rule for these (they remain in
 | ID | 2022 on | The building fund tax limit is the federal filing requirement by status and age | Both modes |
 | AZ | 2021-23 | A short-term loss variable is never set (-9), so every return deducts 25% of its long-term gains plus $9 | Statutory: 25% of gains. `initialize_arizona_short_term_loss` |
 | CT | 2022 on | The exemption falls dollar for dollar above the AGI start because the rounding helper `rup` does not round | Statutory: $1,000 steps. `round_connecticut_exemption_phaseout_to_whole_steps` |
+| DE | 2014-23 | The tax is rate times income less a rounded amount (the 5.55% row subtracts $386, the statute $385.50) | Statutory: published. `use_delaware_published_tax_brackets` |
+| DE | 2018 on | On a standard-deduction pass the build zeroes the federal itemized totals, so Delaware does not itemize | Statutory: Delaware itemizes on its own. `let_delaware_itemize_when_federal_return_takes_standard_deduction` |
+| DE | 2000 on | A spouse aged 60 or over with low earnings gets the extra $2,000 pension exclusion added to the taxpayer's line, replacing it | Statutory: added to the spouse's. `credit_delaware_spouse_low_income_exclusion_to_spouse` |
+| DE | 1996 on | Pension exclusions go by age 60, the personal credit adds $110 at 60 or over, and joint returns take the lower of the joint tax and each spouse's tax with income, deductions and dependents allocated as TAXSIM's `splitagi` does | Both modes |
+| DE | 2019 on | Itemized deductions are property tax (up to $10,000), mortgage interest and charity: no state income tax and no other itemized deductions | Both modes |
+| Federal | 2021 | A separate return claims the earned income credit (with the single-filer parameters) | Both modes |

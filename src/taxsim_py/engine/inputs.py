@@ -59,9 +59,7 @@ def child_counts_from_ages(year: pl.Expr) -> dict[str, pl.Expr]:
     }
 
 
-def with_input_defaults(
-    frame: pl.DataFrame | pl.LazyFrame, year: pl.Expr, dep6_from_dep13: bool = False
-) -> pl.DataFrame | pl.LazyFrame:
+def with_input_defaults(frame: pl.DataFrame | pl.LazyFrame, year: pl.Expr) -> pl.DataFrame | pl.LazyFrame:
     """Fill absent or null inputs, cast counts to integers and dollar amounts to floats.
 
     A row with any child age (`age1`-`age3`) takes its age-group dependent
@@ -85,8 +83,7 @@ def with_input_defaults(
         c: (pl.col(c).cast(pl.Int64).fill_null(pl.col("depx")) if c in present else pl.col("depx"))
         for c in DEPENDENT_DEFAULT_INPUTS
     }
-    # The 2026 TAXSIM build reads its count of children under 6 from `dep13`, not `dep6`.
-    counts["dep6"] = counts["dep13"] if dep6_from_dep13 else pl.col("dep6")
+    counts["dep6"] = pl.col("dep6")
     child_counts = {c: pl.col(c) for c in OPTIONAL_CHILD_COUNT_INPUTS}
     if row_uses_ages is None:
         return frame.with_columns(**counts, **child_counts)

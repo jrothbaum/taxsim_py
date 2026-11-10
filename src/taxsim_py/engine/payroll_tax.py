@@ -296,6 +296,8 @@ def taxsim_payroll(
             share * tax for share, tax in zip((1.0, *[own_share_self_employment] * 3), primary[0])
         ),
         "own_wage_fica_primary": primary[0][0],
+        "setax_primary": primary[0][1] + primary[0][2] + primary[0][3],
+        "setax_secondary": streams[1][0][1] + streams[1][0][2] + streams[1][0][3],
         "own_fica_secondary": pl.sum_horizontal(
             share * tax for share, tax in zip((1.0, *[own_share_self_employment] * 3), streams[1][0])
         ),

@@ -219,7 +219,7 @@ def test_california_yctc_needs_a_young_child() -> None:
     """R&TC 17052.1: the Young Child Tax Credit needs a child under six.
     The 2024 TAXSIM build paid it above the earnings threshold without that
     test; the 2026 build applies it (FED/CA-004 in docs/statutory_corrections.md)."""
-    base = {**_wage_case(2019, 1, 26_000), "state": 5, "depx": 1, "dep17": 1, "dep18": 1, "dep13": 0}
+    base = {**_wage_case(2019, 1, 26_000), "state": 5, "depx": 1, "dep17": 1, "dep18": 1, "dep13": 1}
     older_child = pl.DataFrame([base])
     statutory = calculate_taxes(older_child, calculation_mode="statutory").get_column("siitax").item()
     compat = calculate_taxes(older_child, calculation_mode="taxsim").get_column("siitax").item()

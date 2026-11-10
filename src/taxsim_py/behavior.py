@@ -68,10 +68,11 @@ class BehaviorProfile:
     exclude_children_under_4_from_ny_empire_credit: bool = True
     pay_new_york_empire_child_credit_per_statute: bool = True
     step_ohio_exemption_by_income: bool = True
-    read_children_under_6_from_dep6: bool = True
+    count_children_under_6_by_dep6: bool = True
     use_idaho_published_brackets: bool = True
     initialize_arizona_short_term_loss: bool = True
     use_delaware_published_tax_brackets: bool = True
+    credit_delaware_spouse_low_income_exclusion_to_spouse: bool = True
     let_delaware_itemize_when_federal_return_takes_standard_deduction: bool = True
     round_connecticut_exemption_phaseout_to_whole_steps: bool = True
     give_south_carolina_pension_deduction_to_each_taxpayer: bool = True

@@ -1047,7 +1047,16 @@ def _credits(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorProfi
     )
     if isinstance(df, pl.LazyFrame):
         eitc_params_year = eitc_params_year.lazy()
-    df = df.join(eitc_params_year, on=["filing_status", "num_children"], how="left")
+    if year == 2021:
+        # 2021 only: a separate return claims the credit with the single-filer parameters.
+        df = df.with_columns(
+            __eitc_status=pl.when(pl.col("filing_status") == "married_separate").then(pl.lit("single")).otherwise(pl.col("filing_status"))
+        )
+        df = df.join(
+            eitc_params_year.rename({"filing_status": "__eitc_status"}), on=["__eitc_status", "num_children"], how="left"
+        ).drop("__eitc_status")
+    else:
+        df = df.join(eitc_params_year, on=["filing_status", "num_children"], how="left")
 
     # Through 2002 the phaseout income excludes capital and Schedule E losses,
     # and from 1997 part of any business loss.

@@ -215,7 +215,9 @@ def compute_sc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         add = add + pl.when(fed_itemizes).then(0.0).otherwise(increase) + pl.col("senior_deduction")
     exemp = pl.lit(0.0)
     if p.in_effect("dependent_exemption"):
-        exemp = p.num("dependent_exemption") * (depx + pl.col("dep6"))
+        # TAXSIM's `numlt(6)` counts children under 13 (its age bands are off by one).
+        young = pl.col("dep6") if behavior.count_children_under_6_by_dep6 else pl.col("dep13")
+        exemp = p.num("dependent_exemption") * (depx + young)
     taxinc = (agi + tx - dedgan + add - exemp - adjust).clip(0, None)
     df, (taxinc,) = checkpoint(df, sc_taxinc=taxinc)
 

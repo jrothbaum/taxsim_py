@@ -42,15 +42,47 @@ def compute_de_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     # Pension exclusion.
     aged = aged_count()
     pensions = pl.col("pensions")
-    investment = pl.col("intrec") + pl.col("dividends") + dividend_input_adjustment() + (pl.col("stcg") + pl.col("ltcg")).clip(0, None)
-    aged_cap = p.num("pension_exclusion_aged")
-    penexc = (
-        pl.when(aged < 1).then(pl.min_horizontal(p["pension_exclusion_young_per_taxpayer"] * pl.col("de_taxpayers"), pensions))
-        .when(aged == 1).then(pl.min_horizontal(pl.lit(aged_cap), pensions + 0.5 * investment))
-        .otherwise(pl.min_horizontal(pl.lit(2 * aged_cap), pensions + investment))
-    ).clip(0, None)
-    df = df.with_columns(de_agi=pl.col("de_agi") - penexc)
-    if p.in_effect("aged_low_income_exclusion"):
+    is_joint_return = files_joint()
+    page = pl.col("page")
+    # TAXSIM assumes a joint spouse with no age is 40.
+    sage = pl.when(is_joint_return & (pl.col("sage") == 0)).then(40.0).otherwise(pl.col("sage").cast(pl.Float64))
+    if effective_year >= 1996:
+        # Taxpayers 60 or older exclude up to $12,500 of pensions, others $2,000; pensions go to
+        # the spouse aged 60 or over (half each when both or neither are).
+        h_old, w_old = page >= 60, sage >= 60
+        pent = pl.when(~is_joint_return).then(pensions).when(h_old & ~w_old).then(pensions).when(~h_old & w_old).then(0.0).otherwise(pensions / 2)
+        pens = pl.when(is_joint_return).then(pensions - pent).otherwise(0.0)
+        earned = lambda wages, a, b, c_: wages + 0.9235 * (a.clip(0, None) + b.clip(0, None) + c_.clip(0, None))  # noqa: E731
+        totn_h = earned(pl.col("pwages").clip(0, None), pl.col("psemp"), pl.col("pbusinc"), pl.col("pprofinc"))
+        totn_w = earned(pl.col("swages").clip(0, None), pl.col("ssemp"), pl.col("sbusinc"), pl.col("sprofinc"))
+        agi_pre = pl.col("de_agi")
+        agilow = agi_pre < 10000.0 * pl.col("de_taxpayers")
+        retdedt = pl.when(h_old).then(
+            pl.min_horizontal(pent, pl.lit(12500.0)) + pl.when((totn_h < 2500) & agilow).then(2000.0).otherwise(0.0)
+        ).otherwise(pl.min_horizontal(pent, pl.lit(2000.0)))
+        retdeds_old = pl.min_horizontal(pens, pl.lit(12500.0))
+        retdeds = pl.when(is_joint_return).then(
+            pl.when(w_old).then(retdeds_old).otherwise(pl.min_horizontal(pens, pl.lit(2000.0)))
+        ).otherwise(0.0)
+        if not behavior.credit_delaware_spouse_low_income_exclusion_to_spouse:
+            # TAXSIM assigns the spouse's low-income addition to the taxpayer's line, replacing it.
+            retdedt = pl.when(is_joint_return & w_old & (totn_w < 2500) & agilow).then(
+                retdeds_old + pl.min_horizontal(pens, pl.lit(2000.0))
+            ).otherwise(retdedt)
+        else:
+            retdeds = retdeds + pl.when(is_joint_return & w_old & (totn_w < 2500) & agilow).then(2000.0).otherwise(0.0)
+        df = df.with_columns(de_retdedt=retdedt, de_retdeds=retdeds, de_agi_pre=agi_pre)
+        df = df.with_columns(de_agi=(pl.col("de_agi_pre") - pl.col("de_retdedt") - pl.col("de_retdeds")).clip(0, None))
+    else:
+        investment = pl.col("intrec") + pl.col("dividends") + dividend_input_adjustment() + (pl.col("stcg") + pl.col("ltcg")).clip(0, None)
+        aged_cap = p.num("pension_exclusion_aged")
+        penexc = (
+            pl.when(aged < 1).then(pl.min_horizontal(p["pension_exclusion_young_per_taxpayer"] * pl.col("de_taxpayers"), pensions))
+            .when(aged == 1).then(pl.min_horizontal(pl.lit(aged_cap), pensions + 0.5 * investment))
+            .otherwise(pl.min_horizontal(pl.lit(2 * aged_cap), pensions + investment))
+        ).clip(0, None)
+        df = df.with_columns(de_agi=pl.col("de_agi") - penexc)
+    if p.in_effect("aged_low_income_exclusion") and effective_year < 2000:
         ex = p.value("aged_low_income_exclusion")
         low_income = (
             (aged > 0)
@@ -95,18 +127,24 @@ def compute_de_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         )
         if p.in_effect("itemized_deduction_multiplier"):
             df = df.with_columns(de_xitded_base=pl.col("de_xitded_base") * p.num("itemized_deduction_multiplier"))
-    elif p.in_effect("state_tax_deduction_cap"):
-        # Only the state tax deduction's share of the cap is removed.
-        sttax_cap = p.num("state_tax_deduction_cap") / pl.col("de_sep")
-        sttax = pl.min_horizontal(
-            sttax_cap, pl.col("proptax") + pl.col("state_sales_or_income_tax_ded") + pl.col("otheritem")
+    elif effective_year >= 2019:
+        # Property tax up to $10,000, mortgage interest and charity; no state income tax
+        # and no other itemized deductions.
+        df = df.with_columns(
+            de_xitded_base=pl.min_horizontal(pl.col("proptax"), pl.lit(10000.0))
+            + pl.col("mortgage")
+            + pl.col("charity_cash")
         )
-        room_after_proptax_otheritem = sttax - (pl.col("proptax") + pl.col("otheritem"))
+    elif p.in_effect("state_tax_deduction_cap"):
+        # The federal itemized total less the state income tax inside its capped state and local part.
+        sttax_cap = p.num("state_tax_deduction_cap") / pl.col("de_sep")
+        sttax = pl.min_horizontal(sttax_cap, pl.col("proptax") + pl.col("state_sales_or_income_tax_ded"))
+        room_after_proptax = sttax - pl.col("proptax")
         df = df.with_columns(
             de_xitded_base=(
-                pl.col("de_raw_itemized")
-                - pl.min_horizontal(pl.col("state_sales_or_income_tax_ded"), room_after_proptax_otheritem)
-            ).clip(0, None)
+                pl.col("itemized_before_limit")
+                - pl.min_horizontal(pl.col("state_sales_or_income_tax_ded"), room_after_proptax)
+            )
         )
     else:
         df = df.with_columns(de_xitded_base=pl.col("de_raw_itemized"))
@@ -150,21 +188,55 @@ def compute_de_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
 
     df = df.with_columns(de_taxinc=(pl.col("de_agi") - pl.col("de_deduc") - pl.col("de_exemp")).clip(0, None))
 
-    # --- Joint returns: the lower of the joint tax and the tax on each
-    # earner's share ---
+    # --- Joint returns: the lower of the joint tax and the tax on each earner's share ---
     is_joint_relief = (files_joint()) & (pl.col("de_agi") > 0)
-    df = df.with_columns(
-        de_agi_higher_earner=higher_earner_share(pl.col("de_agi")),
-    )
-    df = df.with_columns(
-        de_agi_lower_earner=pl.col("de_agi") - pl.col("de_agi_higher_earner"),
-        de_dedh=pl.when(pl.col("de_agi") != 0).then(pl.col("de_deduc") * pl.col("de_agi_higher_earner") / pl.col("de_agi")).otherwise(0.0),
-    )
-    df = df.with_columns(de_dedw=pl.col("de_deduc") - pl.col("de_dedh"))
-    df = df.with_columns(
-        de_taxinh=(pl.col("de_agi_higher_earner") - pl.col("de_dedh") - 0.5 * pl.col("de_exemp")).clip(0, None),
-        de_taxinw=(pl.col("de_agi_lower_earner") - pl.col("de_dedw") - 0.5 * pl.col("de_exemp")).clip(0, None),
-    )
+    if effective_year >= 1996:
+        # TAXSIM's `splitagi`: each spouse's own income, with the rest shared equally.
+        ui_total = pl.max_horizontal(pl.col("ui"), pl.col("pui") + pl.col("sui"))
+        sui_part = pl.col("sui")
+        pui_part = ui_total - sui_part
+        both_55 = (pl.col("page") >= 55)
+        wife_55 = (sage >= 55)
+        pension_ss = pensions + pl.col("taxable_social_security")
+        pent_s = pl.when(both_55 & ~wife_55).then(pension_ss).when(~both_55 & wife_55).then(0.0).otherwise(pension_ss / 2)
+        pens_s = pension_ss - pent_s
+        seih = pl.col("psemp") + pl.col("pbusinc") + pl.col("pprofinc")
+        seis = pl.col("ssemp") + pl.col("sbusinc") + pl.col("sprofinc")
+        secah = pl.col("payroll_setax_primary") / 2
+        secas = pl.col("payroll_setax_secondary") / 2
+        tinc = pl.col("pwages") + seih + pui_part - pl.col("de_retdedt") + pent_s
+        sinc = pl.col("swages") + seis + sui_part - pl.col("de_retdeds") + pens_s
+        cinc = 0.5 * (pl.col("de_agi_pre") - tinc - sinc + secah + secas)
+        agit = tinc + cinc - secah
+        agis = sinc + cinc - secas
+        std_each = float(p.num("standard_deduction_per_taxpayer")) if p.in_effect("standard_deduction_per_taxpayer") else 0.0
+        aged_h = pl.when(pl.col("page") > 0).then(pl.col("page") >= 65).otherwise(aged >= 1)
+        aged_w = pl.when(pl.col("page") > 0).then(sage >= 65).otherwise(aged >= 2)
+        aged_std = p.num("aged_standard_deduction")
+        std_h = pl.min_horizontal(agit, std_each + aged_std * aged_h.cast(pl.Float64))
+        std_w = pl.min_horizontal(agis, std_each + aged_std * aged_w.cast(pl.Float64))
+        itemizing_split = pl.col("de_xitded") > pl.col("de_stded") - aged_std * aged
+        safe_agi = pl.when(pl.col("de_agi") != 0).then(pl.col("de_agi")).otherwise(1.0)
+        deduch = pl.when(itemizing_split).then(pl.col("de_xitded") * agit / safe_agi).otherwise(std_h)
+        deducw = pl.when(itemizing_split).then(pl.col("de_xitded") * agis / safe_agi).otherwise(std_w)
+        df = df.with_columns(
+            de_dedh=deduch, de_dedw=deducw,
+            de_taxinh=(agit - deduch - 0.5 * pl.col("de_exemp")).clip(0, None),
+            de_taxinw=(agis - deducw - 0.5 * pl.col("de_exemp")).clip(0, None),
+        )
+    else:
+        df = df.with_columns(
+            de_agi_higher_earner=higher_earner_share(pl.col("de_agi")),
+        )
+        df = df.with_columns(
+            de_agi_lower_earner=pl.col("de_agi") - pl.col("de_agi_higher_earner"),
+            de_dedh=pl.when(pl.col("de_agi") != 0).then(pl.col("de_deduc") * pl.col("de_agi_higher_earner") / pl.col("de_agi")).otherwise(0.0),
+        )
+        df = df.with_columns(de_dedw=pl.col("de_deduc") - pl.col("de_dedh"))
+        df = df.with_columns(
+            de_taxinh=(pl.col("de_agi_higher_earner") - pl.col("de_dedh") - 0.5 * pl.col("de_exemp")).clip(0, None),
+            de_taxinw=(pl.col("de_agi_lower_earner") - pl.col("de_dedw") - 0.5 * pl.col("de_exemp")).clip(0, None),
+        )
 
     # --- Tax ---
     brackets = p.value("brackets")
@@ -197,7 +269,29 @@ def compute_de_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         df = df.with_columns(de_pecred=pl.lit(0.0))
 
     df = df.with_columns(de_credit=pl.col("de_chcr") + pl.col("de_pecred"))
-    df = df.with_columns(de_statax=(pl.col("de_statax") - pl.col("de_credit")).clip(0, None))
+    if effective_year >= 1996 and p.in_effect("personal_exemption_credit"):
+        # Combined separate returns: each spouse's tax is cut by that spouse's personal credits,
+        # dependents going first to the husband until his tax is used up.
+        unit = p.num("personal_exemption_credit")
+        h_aged60 = (pl.col("page") >= 60) | (aged >= 1)
+        w_aged60 = (pl.col("sage") >= 60) | (aged >= 2)
+        credit_total = unit * (pl.col("de_taxpayers") + pl.col("depx")) + unit * h_aged60.cast(pl.Float64) + unit * w_aged60.cast(pl.Float64)
+        sepcmb = is_joint_relief & (stat >= stat_h + stat_w)
+        cred_h = unit + unit * h_aged60.cast(pl.Float64)
+        cred_w = unit + unit * w_aged60.cast(pl.Float64)
+        dep_max_h = ((stat_h - cred_h) / unit).cast(pl.Int64).cast(pl.Float64)
+        dep_h = pl.min_horizontal(pl.col("depx").cast(pl.Float64), dep_max_h)
+        dep_w = pl.col("depx").cast(pl.Float64) - dep_h
+        tax_h = (stat_h - cred_h - dep_h * unit).clip(0, None)
+        tax_w = (stat_w - cred_w - dep_w * unit).clip(0, None)
+        joint_after = (stat - credit_total).clip(0, None)
+        statax = pl.when(sepcmb).then(pl.min_horizontal(joint_after, tax_h + tax_w)).otherwise(joint_after)
+        df = df.with_columns(de_statax=pl.when(is_joint_relief).then(statax).otherwise(joint_after))
+        chcr_limit = pl.when(sepcmb).then(pl.min_horizontal(pl.col("de_chcr"), tax_h, tax_w)).otherwise(pl.col("de_chcr"))
+        df = df.with_columns(de_chcr=chcr_limit)
+        df = df.with_columns(de_statax=(pl.col("de_statax") - pl.col("de_chcr")).clip(0, None))
+    else:
+        df = df.with_columns(de_statax=(pl.col("de_statax") - pl.col("de_credit")).clip(0, None))
 
     # --- EITC (2006+) ---
     if p.in_effect("eitc_refundable_share"):
