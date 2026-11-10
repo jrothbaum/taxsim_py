@@ -90,6 +90,9 @@ class BehaviorProfile:
     use_vermont_published_brackets: bool = True
     pay_minnesota_property_tax_refund_through_2023: bool = True
     deduct_iowa_federal_tax_after_refundable_credits: bool = True
+    floor_maryland_itemized_deduction_at_zero: bool = True
+    use_maryland_itemized_deduction_without_federal_itemizing: bool = True
+    pay_maryland_refundable_eitc_only_above_tax: bool = True
     split_iowa_joint_income_by_wages_only: bool = True
     double_minnesota_separate_returns: bool = True
     allow_minnesota_personal_exemption_2013_to_2018: bool = True

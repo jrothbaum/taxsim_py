@@ -8,6 +8,7 @@ from taxsim_py.engine.brackets import bracket_rate, bracket_tax
 from taxsim_py.engine.inputs import aged_count, federal_exemption_count, files_head_of_household, files_joint, files_separate, files_single, is_dependent_filer, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml
 from taxsim_py.engine.state import (
+    federal_zero_bracket,
     phaseout_steps,
     federal_dividend_exclusion_limit,
     by_filing_status,
@@ -141,12 +142,19 @@ def compute_md_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
 
     # --- Itemized deduction ---
     if effective_year <= 1986:
-        gross, _, zbr = pre1987_federal_itemizing(effective_year)
+        gross, fed_itemizes_pre87, zbr = pre1987_federal_itemizing(effective_year)
         xitded = pl.max_horizontal(gross - pl.col("state_sales_or_income_tax_ded"), zbr)
+        if not behavior.use_maryland_itemized_deduction_without_federal_itemizing:
+            # The deduction counts only when the federal return itemizes.
+            xitded = pl.when(fed_itemizes_pre87).then(xitded).otherwise(0.0)
     else:
         salt_plus_mortgage = pl.col("salt_capped") + pl.col("mortgage")
         itemizing_gate = pl.col("itemizes") & (salt_plus_mortgage > 0)
         xitded_base = (salt_plus_mortgage - pl.col("state_sales_or_income_tax_ded")).clip(0, None)
+        if effective_year <= 2017 and not behavior.floor_maryland_itemized_deduction_at_zero:
+            # TAXSIM floors it at the federal zero bracket amount (the standard deduction on the pass that
+            # does not force itemizing).
+            xitded_base = pl.max_horizontal(xitded_base, federal_zero_bracket())
         if 1991 <= effective_year <= 2017:
             threshold = p.value("itemized_limitation_threshold")
             index = p.num("itemized_limitation_index")
@@ -234,6 +242,9 @@ def compute_md_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     if p.in_effect("refundable_eitc_rate"):
         eicr = p.num("refundable_eitc_rate")
         base_refcr = (eicr * pl.col("eitc") - pl.col("md_taxbc")).clip(0, None)
+        if effective_year <= 2019 and not behavior.pay_maryland_refundable_eitc_only_above_tax:
+            # Through 2019 TAXSIM pays the refundable share in full, on top of the nonrefundable credit.
+            base_refcr = eicr * pl.col("eitc")
         if effective_year <= 2008:
             refcr = pl.when(pl.col("depx") > 0).then(base_refcr).otherwise(0.0)
         elif effective_year <= 2019:
