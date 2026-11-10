@@ -329,7 +329,10 @@ capital_gains_cap: {2014: 10000000}
 # an amount per taxpayer; from 1990 per taxpayer 65 or older (as TAXSIM
 # models it).
 pension_exclusion_amount: {1983: 1000, 1984: 2000, 1985: 6000}
-pension_exclusion_basis: {1983: return, 1984: taxpayer, 1990: aged}
+pension_exclusion_basis: {1983: return, 1984: taxpayer, 1990: aged, 2021: allocated}
+# From 2021 pensions are allocated to the spouse aged `pension_allocation_age` or
+# over (equally if both or neither are), and each taxpayer excludes up to the amount.
+pension_allocation_age: {2021: 55}
 
 # --- Deductions ---
 # Through 1997: a percentage of AGI, capped per taxpayer (halved on
@@ -399,6 +402,14 @@ qualified_individual_credit:
   2024: {amount: 60, reduction: 5, start: 25800, increment: 100}
   2025: {amount: 60, reduction: 5, start: 26500, increment: 100}
 
+# TAXSIM mode: the qualified individual credit per filer falls by `rate` of taxable
+# income over `start` (the 2026 TAXSIM build; 2025 start differs from the form's).
+taxsim_qualified_individual_credit:
+  2022: {amount: 60, rate: 0.05, start: 24300}
+  2023: {amount: 60, rate: 0.05, start: 25000}
+  2024: {amount: 60, rate: 0.05, start: 25800}
+  2025: {amount: 60, rate: 0.05, start: 26900}
+
 # Before 1991, low-income tax schedules: from `start` to `end` the tax is
 # `multiplier` times whole `step`s above `offset`, and 0 below `start`.
 low_income_schedule:
@@ -409,3 +420,21 @@ low_income_schedule:
     married_or_hoh_up_to_one_dependent: {start: 4505, end: 4600, offset: 4490, multiplier: 1.7}
     married_or_hoh_two_dependents: {start: 5004, end: 5100, offset: 4990, multiplier: 1.1}
   1991: null
+
+# TAXSIM mode only. The 2026 TAXSIM build caps the tax before credits at AGI times
+# `ftax / finish` of its low-income table row (by filing group and 0, 1, 2+
+# dependents), for every AGI rather than only inside the table's range:
+# [finish, ftax] per dependent tier.
+taxsim_proportional_low_income_tax:
+  2022:
+    unmarried: [[16000, 201], [23200, 448], [26600, 557]]
+    married_joint: [[26700, 487], [26700, 487], [33100, 769]]
+  2023:
+    unmarried: [[16500, 209], [23900, 458], [27400, 574]]
+    married_joint: [[27500, 499], [27500, 499], [24100, 775]]
+  2024:
+    unmarried: [[17000, 216], [24600, 469], [28200, 588]]
+    married_joint: [[28201, 511], [28201, 511], [35100, 765]]
+  2025:
+    unmarried: [[17500, 222], [25300, 481], [29000, 603]]
+    married_joint: [[29000, 524], [29000, 524], [36100, 790]]

@@ -214,6 +214,9 @@ def compute_vt_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         reduction = float(credit["reduction_amount"]) * (excess / float(credit["reduction_increment"])).ceil()
         # Counts without ages fall back to the under-6 count.
         young = pl.max_horizontal(pl.col("children_under_7"), pl.col("dep6")) if credit["age_limit"] >= 7 else pl.col("dep6")
+        if not behavior.count_vermont_child_credit_by_statutory_age:
+            # TAXSIM's age bands for 6 and 7 are the under-13 count.
+            young = pl.col("dep13")
         ctc = (float(credit["amount"]) * young - reduction).clip(0, None)
     statax = statax - pcred - earncr - telcr - chcref - ctc
 

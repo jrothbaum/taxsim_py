@@ -80,9 +80,21 @@ def _low_income_override(df: pl.DataFrame, effective_year: int) -> pl.Expr | Non
     return pl.when(applies).then(value).otherwise(None)
 
 
-def compute_ar_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
+def compute_ar_tax(
+    df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR, credit_route: bool | None = False
+) -> pl.DataFrame:
     effective_year, flate = resolve_state_year(year, behavior, AR_PARAMS)
     p = YearParams(AR_PARAMS, effective_year)
+    if not behavior.use_arkansas_statutory_step_credits and effective_year >= 2021 and credit_route is False:
+        # TAXSIM takes the lesser of the pension-exclusion return and a return with
+        # no exclusion but an extra credit per taxpayer aged 65 or over.
+        exclusion_route = compute_ar_tax(df, year, behavior, credit_route=None)
+        credit_return = compute_ar_tax(df, year, behavior, credit_route=True)
+        credit_siitax = credit_return.select(ar_credit_route_siitax=pl.col("siitax"))
+        combined = pl.concat([exclusion_route, credit_siitax], how="horizontal")
+        return combined.with_columns(siitax=pl.min_horizontal("siitax", "ar_credit_route_siitax")).drop(
+            "ar_credit_route_siitax"
+        )
 
     # Business income is not deflated in projected years; Schedule E income is.
     df = df.with_columns(
@@ -131,11 +143,27 @@ def compute_ar_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         + pl.col("psemp") + pl.col("ssemp") + pl.col("pensions") + schedule_e + business
     )
     # Pension exclusion.
-    if effective_year >= 1983:
+    if effective_year >= 1983 and not credit_route:
         amount = p.num("pension_exclusion_amount")
         basis = p.value("pension_exclusion_basis")
-        count = {"return": pl.lit(1.0), "taxpayer": pl.col("ar_taxpayers"), "aged": aged_count()}[basis]
-        df = df.with_columns(ar_agi=pl.col("ar_agi") - pl.min_horizontal(pl.col("pensions"), amount * count))
+        if basis == "allocated":
+            age = p.num("pension_allocation_age")
+            primary_old = pl.col("page") >= age
+            spouse_old = pl.col("sage") >= age
+            joint = files_joint()
+            primary_share = (
+                pl.when(~joint).then(1.0)
+                .when(primary_old & ~spouse_old).then(1.0)
+                .when(~primary_old & spouse_old).then(0.0)
+                .otherwise(0.5)
+            )
+            excluded = pl.min_horizontal(pl.col("pensions") * primary_share, amount) + pl.when(joint).then(
+                pl.min_horizontal(pl.col("pensions") * (1 - primary_share), amount)
+            ).otherwise(0.0)
+            df = df.with_columns(ar_agi=pl.col("ar_agi") - excluded.clip(0, None))
+        else:
+            count = {"return": pl.lit(1.0), "taxpayer": pl.col("ar_taxpayers"), "aged": aged_count()}[basis]
+            df = df.with_columns(ar_agi=pl.col("ar_agi") - pl.min_horizontal(pl.col("pensions"), amount * count))
     if 2018 <= effective_year <= 2019:
         df = df.with_columns(ar_agi=pl.col("ar_agi") + pl.col("ui"))
     df = df.with_columns(ar_ag=pl.col("ar_agi").clip(0, None))
@@ -251,7 +279,11 @@ def compute_ar_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         stat = lookup(pl.col("ar_taxinc"))
         stat_h = lookup(pl.col("ar_taxinh"))
         stat_w = lookup(pl.col("ar_taxinw"))
-        df = df.with_columns(ar_statax=pl.when(is_joint_split).then(pl.min_horizontal(stat, stat_h + stat_w)).otherwise(stat))
+        if behavior.use_arkansas_statutory_step_credits or effective_year < 2022:
+            df = df.with_columns(ar_statax=pl.when(is_joint_split).then(pl.min_horizontal(stat, stat_h + stat_w)).otherwise(stat))
+        else:
+            # TAXSIM compares the joint and split returns after each one's credits.
+            df = df.with_columns(ar_statax=stat, ar_split_tax=pl.when(files_joint()).then(stat_h + stat_w).otherwise(None))
         rate_expr = pl.lit(0.0)
 
     if p.in_effect("surcharge"):
@@ -300,7 +332,7 @@ def compute_ar_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         ov = ov.when(richer & (depx <= 1) & richer_dep01_ov.is_not_null()).then(richer_dep01_ov)
         ov = ov.when(richer & (depx >= 2) & richer_dep2_ov.is_not_null()).then(richer_dep2_ov)
         df = df.with_columns(ar_statax=pl.when(ov.is_not_null()).then(ov).otherwise(pl.col("ar_statax")))
-    elif effective_year >= 2022:
+    elif effective_year >= 2022 and behavior.limit_arkansas_low_income_table_to_its_range:
         # Dated statutory tables: step lookups on net taxable income; the tax
         # is the lesser of the table and the main schedule.
         table = AR_LOW_INCOME_STEPS.filter(pl.col("year") == effective_year)
@@ -327,6 +359,15 @@ def compute_ar_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
                 ar_statax=pl.when(pl.col("ar_override").is_not_null()).then(pl.col("ar_override")).otherwise(pl.col("ar_statax"))
             )
 
+    if not behavior.limit_arkansas_low_income_table_to_its_range and p.in_effect("taxsim_proportional_low_income_tax"):
+        proportional = p.value("taxsim_proportional_low_income_tax")
+        rate = pl.lit(None, dtype=pl.Float64)
+        for group, condition in (("unmarried", ~files_joint()), ("married_joint", files_joint())):
+            for tier, (finish, ftax) in enumerate(proportional[group]):
+                tier_condition = pl.col("depx") == tier if tier < 2 else pl.col("depx") >= 2
+                rate = pl.when(condition & tier_condition).then(ftax / finish).otherwise(rate)
+        df = df.with_columns(ar_statax=pl.min_horizontal(pl.col("ar_statax"), pl.col("ar_agi") * rate))
+
     if p.in_effect("capital_gains_credit"):
         cg = p.value("capital_gains_credit")
         df = df.with_columns(
@@ -345,24 +386,54 @@ def compute_ar_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         gcred = pcr * (pl.col("ar_taxpayers") + aged_count() + pl.col("depx"))
         gcred = gcred + pl.when(files_head_of_household()).then(pcr).otherwise(0.0)
         # Taxpayers 65 or older without pension income get one more credit.
-        gcred = gcred + pl.when((pl.col("pensions") == 0) & (aged_count() > 0)).then(pcr).otherwise(0.0)
+        if credit_route:
+            gcred = gcred + pcr * aged_count()
+        elif behavior.use_arkansas_statutory_step_credits:
+            gcred = gcred + pl.when((pl.col("pensions") == 0) & (aged_count() > 0)).then(pcr).otherwise(0.0)
     df = df.with_columns(ar_gcred=gcred)
 
     extra = []
-    if p.in_effect("inflationary_relief_credit"):
-        relief = p.value("inflationary_relief_credit")
-        def field(name: str) -> pl.Expr:
-            return by_filing_status({status: terms[name] for status, terms in relief.items()})
-        extra.append((field("maximum") - field("reduction") * ((pl.col("ar_agi") - field("start")).clip(0, None) / field("increment")).floor()).clip(0, None))
-    if p.in_effect("qualified_individual_credit"):
-        qic = p.value("qualified_individual_credit")
-        people = pl.col("ar_taxpayers")
-        extra.append((
-            float(qic["amount"]) * people
-            - float(qic["reduction"])
-            * people
-            * ((pl.col("ar_taxinc") - float(qic["start"])).clip(0, None) / float(qic["increment"])).ceil()
-        ).clip(0, None))
+    if behavior.use_arkansas_statutory_step_credits:
+        if p.in_effect("inflationary_relief_credit"):
+            relief = p.value("inflationary_relief_credit")
+            def field(name: str) -> pl.Expr:
+                return by_filing_status({status: terms[name] for status, terms in relief.items()})
+            extra.append((field("maximum") - field("reduction") * ((pl.col("ar_agi") - field("start")).clip(0, None) / field("increment")).floor()).clip(0, None))
+        if p.in_effect("qualified_individual_credit"):
+            qic = p.value("qualified_individual_credit")
+            people = pl.col("ar_taxpayers")
+            extra.append((
+                float(qic["amount"]) * people
+                - float(qic["reduction"])
+                * people
+                * ((pl.col("ar_taxinc") - float(qic["start"])).clip(0, None) / float(qic["increment"])).ceil()
+            ).clip(0, None))
+    else:
+        # The 2026 TAXSIM build reduces both credits continuously on taxable income.
+        filers = pl.when(files_joint()).then(2.0).otherwise(1.0)
+        relief = p.value("inflationary_relief_credit") if p.in_effect("inflationary_relief_credit") else None
+        qic = p.value("taxsim_qualified_individual_credit") if p.in_effect("taxsim_qualified_individual_credit") else None
+
+        def relief_credit(income: pl.Expr, joint: bool) -> pl.Expr:
+            terms = relief["married_joint" if joint else "single"]
+            amount = terms["maximum"] - terms["reduction"] * (income - terms["start"]).clip(0, None) / terms["increment"]
+            return amount.clip(0, None)
+
+        def individual_credit(income: pl.Expr, count: pl.Expr | float) -> pl.Expr:
+            return (count * (qic["amount"] - qic["rate"] * (income - qic["start"]).clip(0, None))).clip(0, None)
+
+        joint_extra = pl.lit(0.0)
+        split_extra = pl.lit(0.0)
+        if relief is not None:
+            joint_extra = joint_extra + pl.when(files_joint()).then(relief_credit(pl.col("ar_taxinc"), True)).otherwise(
+                relief_credit(pl.col("ar_taxinc"), False)
+            )
+            split_extra = split_extra + relief_credit(pl.col("ar_taxinh"), False) + relief_credit(pl.col("ar_taxinw"), False)
+        if qic is not None:
+            joint_extra = joint_extra + individual_credit(pl.col("ar_taxinc"), filers)
+            split_extra = split_extra + individual_credit(pl.col("ar_taxinh"), 1.0) + individual_credit(pl.col("ar_taxinw"), 1.0)
+        extra.append(joint_extra)
+        df = df.with_columns(ar_split_extra_credit=split_extra)
     df = df.with_columns(ar_statutory_extra_credit=sum(extra) if extra else pl.lit(0.0))
 
     child_rate = p.num("child_care_credit_federal_share")
@@ -372,7 +443,14 @@ def compute_ar_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         df = df.with_columns(ar_chcr=pl.min_horizontal(pl.col("ar_chcr"), p.num("child_care_credit_cap_per_dependent") * pl.col("depx").clip(0, 2)))
 
     df = df.with_columns(ar_credit=pl.col("ar_chcr") + pl.col("ar_gcred") + pl.col("ar_statutory_extra_credit"))
-    df = df.with_columns(siitax=(pl.col("ar_statax") - pl.col("ar_credit")).clip(0, None) * flate)
+    siitax = (pl.col("ar_statax") - pl.col("ar_credit")).clip(0, None)
+    if "ar_split_tax" in df.collect_schema().names():
+        split_credit = pl.col("ar_credit") - pl.col("ar_statutory_extra_credit") + pl.col("ar_split_extra_credit")
+        siitax = pl.min_horizontal(
+            pl.col("ar_statax") - pl.col("ar_credit"),
+            pl.col("ar_split_tax").fill_null(1.0e20) - split_credit,
+        ).clip(0, None)
+    df = df.with_columns(siitax=siitax * flate)
     return with_state_detail(
         df,
         agi=pl.col("ar_agi"),

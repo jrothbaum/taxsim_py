@@ -12,7 +12,8 @@ AK_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "ak" / "income_tax.yaml")
 
 
 def compute_ak_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
-    if year > 1979:
+    if year > 1979 or (year < 1979 and not behavior.tax_alaska_before_1979):
+        # The 2026 TAXSIM build has no Alaska tax before 1979.
         return df.with_columns(siitax=pl.lit(0.0))
 
     p = YearParams(AK_PARAMS, year)

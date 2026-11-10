@@ -17,11 +17,11 @@ _XNDXA = {int(y): float(v) for y, v in _PARAMS["xndxa"].items()}
 
 
 def _index(year: int) -> float:
-    """The CPI proxy, continued past its last year at the source's assumed 2.5% a year."""
+    """The CPI proxy, continued past its last year at the source's assumed 3% a year."""
     last = max(_XNDXA)
     if year <= last:
         return _XNDXA[year]
-    return _XNDXA[last] * 1.025 ** (year - last)
+    return _XNDXA[last] * 1.03 ** (year - last)
 
 
 def resolve_state_year(year: int, behavior: BehaviorProfile, params: Mapping[str, Any] | None = None) -> tuple[int, float]:
@@ -46,7 +46,7 @@ def resolve_state_year(year: int, behavior: BehaviorProfile, params: Mapping[str
 # uncapped child care credit (`comnew(176)`), self-employment tax
 # (`comnew(175)`) and tax before credits (`comnew(154)`) are not deflated.
 PROJECTED_YEAR_DEFLATED_COLUMNS = (
-    "actc", "agi", "amt", "amt_income", "cares", "ccc", "charity_cash", "childcare", "dividends",
+    "actc", "agi", "amt", "amt_income", "cares", "economic_stimulus_rebate", "ccc", "charity_cash", "childcare", "dividends",
     "earned_income", "eitc", "federal_chcr", "federal_elder", "fica", "fiitax", "gssi", "intrec",
     "itemized_before_limit", "itemized_deduction", "ltcg", "ltg", "making_work_pay", "mortgage", "nonprop",
     "nonrefundable_credits",

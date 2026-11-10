@@ -1,0 +1,53 @@
+# One-time state tax rebates that the 2026 TAXSIM build subtracts from state tax
+# in the year they were paid (the year after the tax year that earned them).
+# TAXSIM mode only. Keyed by state postal abbreviation, then payment year.
+#
+# Sources: NBER TAXSIM (`rebatef` calls in each state routine) and each state's
+# rebate announcement.
+#
+# Fields: `per_filer` (a dollar amount per filer), `per_person` (per filer and
+# dependent), `per_child` (per CTC-qualifying child, up to `maximum_children`),
+# `per_other_dependent`, `tax_share` (a share of state tax), `minimum_primary_age`,
+# `agi_limit_per_filer` (no rebate at or above it), `requires_tax` (only with
+# state tax), `limit_to_tax` (at most the state tax), `components` (rebates
+# added together, each the greater of its `per_person` and `tax_share` of tax).
+
+az:
+  # Arizona Family Tax Rebate.
+  2023: {per_child: 250, maximum_children: 99, per_other_dependent: 100, requires_tax: true}
+co:
+  2022: {per_filer: 750, minimum_primary_age: 18}
+ct:
+  # Connecticut child tax rebate, reduced by 10% of AGI over the limit per $1,000.
+  2022:
+    per_child: 250
+    maximum_children: 3
+    agi_limit: {single: 100000, married_joint: 200000, head_of_household: 160000, married_separate: 100000}
+    phaseout_per_1000: 0.1
+de:
+  2022: {per_filer: 300}
+ga:
+  2022: {per_filer: 250, head_of_household: 375, limit_to_tax_before_credits: true}
+  2023: {per_filer: 250, head_of_household: 375, limit_to_tax_before_credits: true}
+  2024: {per_filer: 250, head_of_household: 375, limit_to_tax_before_credits: true}
+hi:
+  # Hawaii: per person, larger below the AGI limit.
+  2022: {per_person: 300, per_person_high_income: 100, agi_limit_per_filer: 100000}
+id:
+  2021: {components: [{per_person: 50, tax_share: 0.09}]}
+  2022: {components: [{per_person: 75, tax_share: 0.12}, {per_person: 300, tax_share: 0.10}]}
+il:
+  # Illinois: per filer and per dependent (at most `dependent_maximum` in all).
+  2022: {per_filer: 50, per_dependent: 100, dependent_maximum: 300, agi_limit_per_filer: 200000}
+in:
+  2022: {per_filer: 325}
+me:
+  2022: {per_filer: 850, agi_limit_per_filer: 100000, head_of_household_agi_limit: 150000}
+ma:
+  2022: {tax_share: 0.14031}
+ri:
+  # Rhode Island child tax rebate.
+  2022: {per_child: 250, maximum_children: 3, agi_limit_per_filer: 100000}
+va:
+  2022: {per_filer: 250, limit_to_tax: true}
+  2025: {per_filer: 200, limit_to_tax: true}

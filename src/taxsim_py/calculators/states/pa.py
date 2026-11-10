@@ -82,6 +82,19 @@ def compute_pa_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         forgiven_share = (1.0 - 0.1 * (remain / tenth).ceil()).clip(0, None)
     credit = statax * forgiven_share
     statax = statax - credit
+    care_share = p.num("child_care_credit_share") if p.in_effect("child_care_credit_share") else 0.0
+    if not behavior.pay_pennsylvania_child_care_credit_only_from_2023 and p.in_effect("taxsim_child_care_credit_share"):
+        care_share = p.num("taxsim_child_care_credit_share")
+    if care_share > 0:
+        care_credit = care_share * pl.col("ccc_uncapped").clip(0, None)
+        if p.in_effect("child_care_credit_per_child_cap"):
+            cap = p.value("child_care_credit_per_child_cap")
+            per_child = pl.when(pl.col("agi") <= cap["income_limit"]).then(float(cap["low_income"])).otherwise(
+                float(cap["high_income"])
+            )
+            care_credit = pl.min_horizontal(care_credit, per_child * pl.col("depx").clip(0, 2))
+        statax = statax - care_credit
+        credit = credit + care_credit
     if p.in_effect("eitc_federal_share"):
         eitc_credit = p.num("eitc_federal_share") * pl.col("eitc")
         statax = statax - eitc_credit

@@ -237,7 +237,7 @@ def compute_va_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             crlow = pl.when(elect).then(0.0).otherwise(crlow)
         statax = statax - crlow
         credits = credits + crlow
-        if p.in_effect("rebate"):
+        if p.in_effect("rebate") and behavior.leave_out_one_time_state_rebates:
             rebate_amounts = p.value("rebate")
             rebate = pl.min_horizontal(
                 statax.clip(0, None),

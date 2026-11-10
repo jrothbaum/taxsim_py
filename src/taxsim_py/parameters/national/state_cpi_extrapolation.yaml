@@ -6,9 +6,9 @@
 # year's state law on incomes deflated by `xndxa(year) / xndxa(lastat)`, with
 # the state tax reinflated by the same ratio; statutory mode does the same only
 # after a state's `law_coded_through`.
-lastat: 2021
-# TAXSIM's price index by year (2022-2023 from the 2024 TAXSIM release; from
-# 2024 an assumed 2.5% a year).
+lastat: 2025
+# TAXSIM's price index by year (2022-2026 from the 2026 TAXSIM release, which
+# continues at an assumed 3% a year).
 xndxa:
   1981: 0.768
   1982: 0.815
@@ -53,3 +53,6 @@ xndxa:
   2021: 2.512278
   2022: 2.59048
   2023: 2.77388
+  2024: 2.92366952
+  2025: 3.01137
+  2026: 3.10173

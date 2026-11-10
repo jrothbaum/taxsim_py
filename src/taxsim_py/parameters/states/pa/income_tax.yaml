@@ -38,3 +38,11 @@ forgiveness_step:
 # share of the federal earned income credit. Source: PolicyEngine-US
 # gov.states.pa.tax.income.credits.eitc.match.
 eitc_federal_share: {2025: 0.10}
+
+# Child and Dependent Care Enhancement Tax Credit from 2023 (Act 56 of 2023): a
+# share of the federal credit, up to an amount per child (at most two).
+child_care_credit_share: {2023: 1.0}
+child_care_credit_per_child_cap:
+  2023: {income_limit: 43000, low_income: 1050, high_income: 600}
+# TAXSIM mode: the 2026 TAXSIM build also pays 30% of the federal credit for 2022.
+taxsim_child_care_credit_share: {2022: 0.3, 2023: null}

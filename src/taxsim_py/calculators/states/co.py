@@ -310,9 +310,12 @@ def compute_co_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     # --- Sales tax refund, on modified AGI including all Social Security ---
     coagi = pl.col("agi") - pl.col("taxable_social_security") + pl.col("gssi")
     refund = p.value("sales_tax_refund")
+    if effective_year >= 2022 and not behavior.use_colorado_statutory_sales_tax_refund:
+        # TAXSIM interpolates its refund table between thresholds.
+        refund = p.value("taxsim_sales_tax_refund")
     if not isinstance(refund, list):
         df = df.with_columns(co_salesrefund=float(refund) * pl.col("co_taxpayers"))
-    elif effective_year >= 2022:
+    elif effective_year >= 2022 and behavior.use_colorado_statutory_sales_tax_refund:
         df = df.with_columns(co_salesrefund=bracket_rate(coagi, refund) * pl.col("co_taxpayers"))
     else:
         df = df.with_columns(co_salesrefund=interpolate_table(coagi, refund) * pl.col("co_taxpayers"))

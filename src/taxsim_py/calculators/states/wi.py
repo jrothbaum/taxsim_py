@@ -142,6 +142,14 @@ def compute_wi_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
                 tables["head_of_household"][2][3] = tables["head_of_household"][1][0]
             if 1988 <= y <= 1998:
                 tables["married_separate"][1][3] = tables["married_separate"][0][0]
+        if not behavior.use_wisconsin_form_standard_deduction and p.in_effect("taxsim_standard_deduction"):
+            tables = dict(p.value("taxsim_standard_deduction"))
+            index = p.num("taxsim_standard_deduction_index")
+            separate = p.value("taxsim_separate_standard_deduction")
+            tables["married_separate"] = [
+                [separate["upper"], separate["amount"], 0, 0],
+                [1.0e20, separate["amount"], separate["separate_rate"] * index, separate["upper"]],
+            ]
         stded = (
             pl.when(files_single()).then(_standard_deduction(tables["single"], agi, index))
             .when(files_head_of_household()).then(_standard_deduction(tables["head_of_household"], agi, index))
@@ -275,7 +283,18 @@ def compute_wi_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         renter_base = renter.cast(pl.Float64)
         if behavior.base_wisconsin_renter_credit_on_rent:
             renter_base = pl.when(renter).then(pl.col("rentpaid")).otherwise(0.0)
-        spcred = pl.when(pl.col("rentpaid") > 0).then(
+        if not behavior.use_wisconsin_statutory_school_credit:
+            # The 2026 TAXSIM build adds the renter and owner credits, caps the sum at the
+            # unhalved maximum, and pays owners nothing from 2018.
+            rent_part = p.num("school_property_credit_renter_rate") * pl.col("rentpaid") / p["school_property_credit_renter_divisor"]
+            owner_part = (
+                pl.lit(0.0)
+                if y >= 2018
+                else p.num("school_property_credit_owner_rate") * pl.col("proptax") / p["school_property_credit_owner_divisor"]
+            )
+            spcred = pl.min_horizontal(rent_part + owner_part, p.num("school_property_credit_max"))
+        else:
+          spcred = pl.when(pl.col("rentpaid") > 0).then(
             pl.min_horizontal(
                 p.num("school_property_credit_renter_rate") * renter_base
                 / p["school_property_credit_renter_divisor"],

@@ -5,6 +5,8 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping
 from typing import Any
 
+from contextvars import ContextVar
+
 import polars as pl
 
 from taxsim_py.behavior import BehaviorProfile, TAXSIM_BEHAVIOR
@@ -48,6 +50,18 @@ def by_filing_status(values: Mapping[str, float]) -> pl.Expr:
     return expression
 
 
+# Set while a state calculator builds its expressions: TAXSIM mode reproduces the
+# 2026 build, which weights a table that falls as income rises the wrong way round.
+REVERSE_FALLING_TABLE_WEIGHTS: ContextVar[bool] = ContextVar("reverse_falling_table_weights", default=False)
+
+
+def _blend(weight: pl.Expr, lower_value: pl.Expr | float, upper_value: pl.Expr | float, rising: pl.Expr) -> pl.Expr:
+    proper = (1 - weight) * lower_value + weight * upper_value
+    if not REVERSE_FALLING_TABLE_WEIGHTS.get():
+        return proper
+    return pl.when(rising).then(proper).otherwise(weight * lower_value + (1 - weight) * upper_value)
+
+
 def interpolate_table(income: pl.Expr, rows: list[list[float]]) -> pl.Expr:
     """Interpolate a TAXSIM ``tablki`` table of ``[threshold, value]`` rows.
 
@@ -70,11 +84,7 @@ def interpolate_table(income: pl.Expr, rows: list[list[float]]) -> pl.Expr:
     lower_value = value_series.gather((count - 1).clip(0, last))
     upper_value = value_series.gather(count.clip(0, last))
     weight = (income - lower_threshold) / (upper_threshold - lower_threshold)
-    between = (
-        pl.when(upper_value > lower_value)
-        .then(weight * lower_value + (1 - weight) * upper_value)
-        .otherwise(weight * upper_value + (1 - weight) * lower_value)
-    )
+    between = _blend(weight, lower_value, upper_value, upper_value > lower_value)
     return (
         pl.when(count == 0)
         .then(pl.lit(values[0]))
@@ -98,10 +108,11 @@ def _interpolate_table_by_row(income: pl.Expr, rows: list[list]) -> pl.Expr:
             lower_threshold = thresholds[index - 1]
             lower_value = values[index - 1]
             weight = (income - lower_threshold) / (upper_threshold - lower_threshold)
-            below = (
-                pl.when(pl.lit(upper_value) > lower_value if not isinstance(upper_value, pl.Expr) else upper_value > lower_value)
-                .then(weight * lower_value + (1 - weight) * upper_value)
-                .otherwise(weight * upper_value + (1 - weight) * lower_value)
+            below = _blend(
+                weight,
+                lower_value,
+                upper_value,
+                pl.lit(upper_value) > lower_value if not isinstance(upper_value, pl.Expr) else upper_value > lower_value,
             )
         expression = pl.when(income < upper_threshold).then(below).otherwise(expression)
     return expression

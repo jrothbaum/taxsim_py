@@ -93,7 +93,42 @@ def get_state_calculator(taxsim_state: int) -> StateCalculator:
             f"No state tax calculator is implemented for TAXSIM state {taxsim_state}"
         ) from exc
     module = import_module(f"taxsim_py.calculators.states.{module_name}")
-    return getattr(module, function_name)
+    return _with_table_weights(_with_rebates(taxsim_state, getattr(module, function_name)))
+
+
+def _with_table_weights(calculator: StateCalculator) -> StateCalculator:
+    """Run a calculator with TAXSIM's table-interpolation weights when in TAXSIM mode."""
+    from taxsim_py.engine.state import REVERSE_FALLING_TABLE_WEIGHTS
+
+    def run(df: pl.LazyFrame, year: int, behavior: BehaviorProfile) -> pl.LazyFrame:
+        token = REVERSE_FALLING_TABLE_WEIGHTS.set(not behavior.weight_falling_tables_correctly)
+        try:
+            return calculator(df, year, behavior)
+        finally:
+            REVERSE_FALLING_TABLE_WEIGHTS.reset(token)
+
+    return run
+
+
+def _with_rebates(taxsim_state: int, calculator: StateCalculator) -> StateCalculator:
+    """Subtract the one-time rebates the 2026 TAXSIM build pays, in TAXSIM mode."""
+    from taxsim_py.engine.state_rebates import STATE_REBATE_PARAMS, state_rebate
+
+    if taxsim_state not in STATE_REBATE_PARAMS:
+        return calculator
+
+    def with_rebate(df: pl.LazyFrame, year: int, behavior: BehaviorProfile) -> pl.LazyFrame:
+        result = calculator(df, year, behavior)
+        if behavior.leave_out_one_time_state_rebates:
+            return result
+        names = result.collect_schema().names()
+        before_credits = pl.col("state_tax_before_credits") if "state_tax_before_credits" in names else pl.col("siitax")
+        rebate = state_rebate(taxsim_state, year, pl.col("siitax"), before_credits)
+        if rebate is None:
+            return result
+        return result.with_columns(siitax=pl.col("siitax") - rebate)
+
+    return with_rebate
 
 
 def get_state_calculators(taxsim_states: Iterable[int]) -> dict[int, StateCalculator]:

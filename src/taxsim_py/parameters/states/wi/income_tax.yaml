@@ -417,6 +417,18 @@ standard_deduction:
     married_joint: [[28210, 25110.0, 0, 0], [155170, 25110.0, 0.19778, 28210], [1.0e+20, 0, 0, 0]]
     married_separate: [[13390, 11930.0, 0, 0], [73710, 11930.0, 0.19778, 13390], [1.0e+20, 0, 0, 0]]
     head_of_household: [[19550, 17520.0, 0, 0], [57210, 17520.0, 0.22515, 19550], [132552, 9041.4, 0.12, 57210], [1.0e+20, 0, 0, 0]]
+# TAXSIM mode, 2021-2022: the 2026 TAXSIM build computes the standard deduction
+# from these constants (rows as `standard_deduction`), indexed by
+# `taxsim_standard_deduction_index`.
+taxsim_standard_deduction:
+  2021:
+    single: [[16150, 11200, 0, 0], [1.0e+20, 11200, 0.12, 16150]]
+    married_joint: [[23300, 20730, 0, 0], [1.0e+20, 20730, 0.19778, 23300]]
+    head_of_household: [[16150, 14470, 0, 0], [47248, 14470, 0.22, 16150], [1.0e+20, 7628.44, 0.12, 47248]]
+  2023: null
+taxsim_standard_deduction_index: {2021: 1.0, 2022: 1.0527281065}
+# The separate-return rate is `separate_rate` times the index.
+taxsim_separate_standard_deduction: {2021: {upper: 11060, amount: 9850, separate_rate: 0.19778}}
 standard_deduction_index:
   1986: 1
   2001: 1.03

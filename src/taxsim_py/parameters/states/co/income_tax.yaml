@@ -161,6 +161,14 @@ sales_tax_refund:
   2024: [[-1.0e+99, 177], [53001, 240], [105001, 277], [166001, 323], [233001, 350], [302001, 565]]
   2025: [[-1.0e+99, 19], [52001, 25], [105001, 29], [168001, 35], [233001, 37], [299001, 59]]
 
+# TAXSIM mode: the refund table TAXSIM interpolates between thresholds
+# ([modified AGI, amount]; a single amount is flat).
+taxsim_sales_tax_refund:
+  2022: [[48000, 153], [95000, 208], [151000, 234], [209000, 285], [268000, 300], [1.0e+20, 486]]
+  2023: 800
+  2024: [[53000, 177], [105000, 240], [166000, 277], [233000, 323], [302000, 350], [1.0e+20, 565]]
+  2025: [[54000, 20], [110000, 26], [176000, 30], [250000, 36], [329000, 38], [1.0e+20, 62]]
+
 # Child care credit: a share of the federal credit (up to regular tax) by
 # federal AGI, a single share or [AGI, share] rows interpolated; 2000-2001
 # less `child_care_credit_dependent_offset` per dependent.
