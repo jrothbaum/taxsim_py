@@ -276,3 +276,11 @@ maximum-tax and earned-income rules) is not yet reproduced. Federal 1977-81 is p
 | State | Years | Cause | Handling |
 | --- | --- | --- | --- |
 | IA | 1977-1997 | `iatax77` adds `xm` to the head-of-household credit, but `xm` is set only for 1998 on, so the credit depends on stack garbage (0 and +$10 in two compiles) | The oracle build sets it to the year's credit (`scripts/build_oracle.sh`); taxsim mode credits the head of household that amount twice |
+
+## Federal AGI carries 1 cent more in the oracle
+
+The 2026 build's federal AGI is the inputs plus $0.011, not plus $0.001: it adds $0.01 to wages (even with no wages). The Python federal AGI has only the $0.001 dividend adjustment. Federal validation tolerates the cent, but state tables read by interpolation (Connecticut's personal credit) amplify it into differences of up to 4 cents; those cases are among the Connecticut results that still differ.
+
+## Federal AMT, 2003-2010, large married separate returns
+
+Python's federal AMT for a 2005 married separate return with $350,000 of wages, $15,000 of property tax and $20,000 of mortgage interest is $5,816 against the build's $5,676; Connecticut's minimum tax reads it (the case differs by $400).

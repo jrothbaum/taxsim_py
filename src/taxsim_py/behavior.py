@@ -128,6 +128,11 @@ class BehaviorProfile:
     split_iowa_joint_income_by_wages_only: bool = True
     deduct_colorado_federal_tax_after_1977: bool = True
     use_colorado_itemized_deductions_before_1987: bool = True
+    phase_out_connecticut_exemption_per_statute: bool = True
+    use_connecticut_personal_credit_table_per_statute: bool = True
+    add_connecticut_recapture_per_statute: bool = True
+    phase_out_connecticut_pension_deduction_per_statute: bool = True
+    allow_connecticut_property_credit_to_all_from_2022: bool = True
     subtract_colorado_pensions_for_nonitemizers_before_2021: bool = True
     use_colorado_statutory_high_income_addback: bool = True
     credit_iowa_dependents_before_1998: bool = True

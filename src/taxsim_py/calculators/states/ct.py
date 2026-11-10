@@ -124,7 +124,13 @@ def compute_ct_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             limit_p = p["pension_deduction_agi_limit"]
             limit = pl.when(joint).then(float(limit_p["joint"])).otherwise(float(limit_p["single"]))
             share = p.num("pension_deduction_share")
-            agi = agi - (1 - (agi - limit) / limit).clip(0, 1) * share * pl.col("pensions")
+            if not behavior.phase_out_connecticut_pension_deduction_per_statute:
+                # TAXSIM deducts all pensions below the limit and the share (none in 2021) above it.
+                above_share = 0.0 if effective_year == 2021 else share
+                below_share = share if effective_year == 2021 else 1.0
+                agi = agi - pl.when(agi < limit).then(below_share).otherwise(above_share) * pl.col("pensions")
+            else:
+                agi = agi - (1 - (agi - limit) / limit).clip(0, 1) * share * pl.col("pensions")
     if effective_year >= 1985:
         couple = pl.col("filing_status").is_in(["married_joint", "head_of_household"])
         ssbmax = pl.when(couple).then(p.num("social_security_agi_limit", "joint")).otherwise(
@@ -164,6 +170,8 @@ def compute_ct_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         df = df.with_columns(ct_exemp=p.num("exemption_per_person") * (taxpayer_count() + aged_count()))
     else:
         def exemption(status: str) -> pl.Expr:
+            if status == "married_separate" and effective_year >= 2021 and not behavior.phase_out_connecticut_exemption_per_statute:
+                status = "head_of_household"  # TAXSIM's 2021 on formula gives separate returns the head of household terms.
             terms = p.value("exemption", status)
             amount, start = float(terms["amount"]), float(terms["phaseout_start"])
             if effective_year >= 2022:
@@ -174,6 +182,9 @@ def compute_ct_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
                     return (amount - excess).clip(0, amount)
                 steps = (excess / 1000.0).ceil()
                 return (amount - 1000.0 * steps).clip(0, amount)
+            if status != "single" and effective_year <= 2020 and not behavior.phase_out_connecticut_exemption_per_statute:
+                # TAXSIM starts the phaseout $1,000 below the published start for joint, head of household and separate returns.
+                start = float(p.value("taxsim_exemption_phaseout_start", status))
             return (amount - (pl.col("ct_agi") - start)).clip(0, amount)
 
         exemp = pl.when(files_joint()).then(exemption("married_joint")).when(files_head_of_household()).then(exemption("head_of_household"))
@@ -245,6 +256,17 @@ def compute_ct_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
 
             if p.in_effect("add_back_steps"):
                 stax = stepped(p.value("add_back_steps"))
+                if not behavior.add_connecticut_recapture_per_statute:
+                    # TAXSIM carries its 2021 add-back formulas (continuous in AGI) into 2022 and 2023.
+                    tab = p.value("taxsim_add_back")
+                    stax = pl.lit(0.0)
+                    for status, key in (("single", "single"), ("married_joint", "married_joint"), ("married_separate", "married_separate"), ("head_of_household", "head_of_household")):
+                        ph = tab[key]
+                        base = pl.col("ct_taxinc") if status == "single" and float(ph["threshold"]) == 56500.1 else pl.col("ct_agi")
+                        amount = pl.min_horizontal(
+                            float(ph["cap"]), float(ph["per_1000"]) * (base - float(ph["threshold"])).clip(0, None) / float(ph["denom"])
+                        )
+                        stax = pl.when(pl.col("filing_status") == status).then(amount).otherwise(stax)
                 recapture = pl.lit(0.0)
                 for name, tier in p.value("recapture_steps").items():
                     if tier.get("in_effect", True):
@@ -252,18 +274,23 @@ def compute_ct_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
                 xtax = xtax + stax + recapture
             elif p.in_effect("add_back"):
                 ab = p.value("add_back")
+                taxsim_add_back = not behavior.add_connecticut_recapture_per_statute and effective_year <= 2021
+                if taxsim_add_back:
+                    # TAXSIM's own phase-out starts and rates for the 3% bracket add-back.
+                    ab = p.value("taxsim_add_back")
 
-                def stax_for(ph):
+                def stax_for(ph, income=None):
+                    base = pl.col("ct_agi") if income is None else income
                     return pl.min_horizontal(
                         float(ph["cap"]),
-                        float(ph["per_1000"]) * (pl.col("ct_agi") - float(ph["threshold"])).clip(0, None) / float(ph["denom"]),
+                        float(ph["per_1000"]) * (base - float(ph["threshold"])).clip(0, None) / float(ph["denom"]),
                     )
 
                 stax = (
                     pl.when(files_head_of_household()).then(stax_for(ab["head_of_household"]))
                     .when(files_joint()).then(stax_for(ab["married_joint"]))
                     .when(files_separate()).then(stax_for(ab["married_separate"]))
-                    .otherwise(stax_for(ab["single"]))
+                    .otherwise(stax_for(ab["single"], pl.col("ct_taxinc") if taxsim_add_back and effective_year == 2021 else None))
                 )
                 rc = p.value("recapture")
                 single, hoh = rc["single"], rc["head_of_household"]
@@ -273,6 +300,11 @@ def compute_ct_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
                 rtax_hoh = pl.min_horizontal(rate_h * (pl.col("ct_agi") - ragi_h).clip(0, None), rmax_h)
                 rtax_joint = pl.min_horizontal(rate_s * (pl.col("ct_agi") - 2 * ragi_s).clip(0, None), 2 * rmax_s)
                 rtax = pl.when(files_head_of_household()).then(rtax_hoh).when(files_joint()).then(rtax_joint).otherwise(rtax_single)
+                if not behavior.add_connecticut_recapture_per_statute:
+                    # TAXSIM computes this recapture and never adds it; it adds the bracket recapture instead.
+                    rtax = pl.lit(0.0)
+                    for tier in p.value("taxsim_recapture_steps").values():
+                        rtax = rtax + stepped(tier)
                 xtax = xtax + stax + rtax
 
             df = df.with_columns(ct_xtax=xtax, ct_divtax=pl.lit(0.0), ct_cgtax=pl.lit(0.0))
@@ -301,6 +333,26 @@ def compute_ct_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             credp = pl.when(files_head_of_household()).then(credp_hoh).when(
                 pl.col("filing_status").is_in(["married_joint", "married_separate"])
             ).then(credp_joint).otherwise(credp_single)
+
+        if effective_year <= 1994 and not behavior.use_connecticut_personal_credit_table_per_statute:
+            # TAXSIM reads the single table at income per taxpayer (head of household has its own).
+            per_taxpayer = pl.col("ct_agi") / taxpayer_count().clip(1, None)
+            credp = pl.when(files_head_of_household()).then(
+                interpolate_table(pl.col("ct_agi"), list(zip(hoh_thresholds, rates)))
+            ).otherwise(interpolate_table(per_taxpayer, list(zip(single_thresholds, rates))))
+        if effective_year >= 1995 and not behavior.use_connecticut_personal_credit_table_per_statute:
+            # TAXSIM reads one table of percentages by income (read just under the AGI), scaling the single one by year-specific factors.
+            base = p.value("taxsim_personal_credit_single")
+            if effective_year >= 2000:
+                scale, shift = p.value("taxsim_personal_credit_scaling")
+                base = [scale * value + shift if value < 1.0e19 else value for value in base]
+            agi_read = pl.col("ct_agi") - 0.002
+            joint_base = [value / 1.0 for value in p.value("taxsim_personal_credit_joint")]
+            credp = pl.when(files_head_of_household()).then(
+                interpolate_table(agi_read, list(zip(p.value("taxsim_personal_credit_head_of_household"), rates)))
+            ).when(pl.col("filing_status").is_in(["married_joint", "married_separate"])).then(
+                interpolate_table(agi_read * pl.col("ct_sep"), list(zip(joint_base, rates)))
+            ).otherwise(interpolate_table(agi_read, list(zip(base, rates))))
 
         df = df.with_columns(ct_credp=credp)
         df = df.with_columns(ct_inctax=pl.col("ct_xtax") * (1.0 - pl.col("ct_credp")))
@@ -395,7 +447,9 @@ def compute_ct_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
                 rows.append(tuple(p["property_credit_phaseout_final"]))
                 pct = interpolate_table(agix - phse, rows)
                 pcred = pcred - pct * pcred
-        if p.value("property_credit_requires_dependent_or_elderly"):
+        if p.value("property_credit_requires_dependent_or_elderly") or (
+            effective_year >= 2017 and not behavior.allow_connecticut_property_credit_to_all_from_2022
+        ):
             no_dep_or_elderly = (pl.col("depx") < 1) & (aged_count() < 1)
             pcred = pl.when(no_dep_or_elderly).then(0.0).otherwise(pcred)
         df = df.with_columns(ct_pcred=pcred.clip(0, None))

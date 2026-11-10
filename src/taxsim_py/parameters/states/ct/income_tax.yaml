@@ -93,6 +93,12 @@ exemption:
   married_joint: {1991: {amount: 24000, phaseout_start: 48000}}
   married_separate: {2000: {amount: 12000, phaseout_start: 24000}}
 
+# TAXSIM's phaseout starts for the statuses other than single, through 2020.
+taxsim_exemption_phaseout_start:
+  head_of_household: {1991: 37000}
+  married_joint: {1991: 47000}
+  married_separate: {2000: 23000}
+
 # 2011-2021: the 3% bracket phase-out add-back, `per_1000` times AGI above
 # `threshold` divided by `denom`, up to `cap`.
 add_back:
@@ -141,6 +147,43 @@ recapture:
 # From 2022: tiers of [AGI start, amount per increment, increment, maximum]
 # per filing status; the low tier applies only when `in_effect`. Source:
 # PolicyEngine-US gov.states.ct.tax.income.recapture.
+# TAXSIM's own add-back (2011-2020), in the form of `add_back`.
+taxsim_add_back:
+  2011:
+    single: {threshold: 51250, denom: 5000, per_1000: 20, cap: 200}
+    married_separate: {threshold: 56200, denom: 2500, per_1000: 30, cap: 200}
+    head_of_household: {threshold: 78500, denom: 4000, per_1000: 32, cap: 320}
+    married_joint: {threshold: 100500, denom: 5000, per_1000: 60, cap: 400}
+  2021:
+    single: {threshold: 56500.1, denom: 5000, per_1000: 20, cap: 200}
+    married_separate: {threshold: 56200, denom: 2500, per_1000: 30, cap: 200}
+    head_of_household: {threshold: 78500, denom: 4000, per_1000: 32, cap: 320}
+    married_joint: {threshold: 100500, denom: 5000, per_1000: 40, cap: 400}
+  2022:
+    single: {threshold: 51250, denom: 5000, per_1000: 20, cap: 200}
+    married_separate: {threshold: 56200, denom: 2500, per_1000: 30, cap: 200}
+    head_of_household: {threshold: 78500, denom: 4000, per_1000: 32, cap: 320}
+    married_joint: {threshold: 100500, denom: 5000, per_1000: 40, cap: 400}
+# TAXSIM's own bracket recapture, 2011-2021, in the same form as `recapture_steps` (one tier through 2014, two from 2015).
+taxsim_recapture_steps:
+  2011:
+    only:
+      single: [200000, 75, 5000, 2250]
+      married_joint: [400000, 150, 10000, 4500]
+      married_separate: [200000, 75, 5000, 2250]
+      head_of_household: [320000, 120, 8000, 3600]
+  2015:
+    middle:
+      single: [200000, 90, 5000, 2700]
+      married_joint: [400000, 180, 10000, 5400]
+      married_separate: [200000, 90, 5000, 2700]
+      head_of_household: [320000, 140, 8000, 4200]
+    high:
+      single: [500000, 50, 5000, 450]
+      married_joint: [1000000, 100, 10000, 900]
+      married_separate: [500000, 50, 5000, 450]
+      head_of_household: [800000, 80, 8000, 720]
+  2022: null
 recapture_steps:
   2022:
     low:
@@ -218,6 +261,22 @@ recapture_steps:
 personal_credit_rates:
   1991: [1.0, 0.75, 0.35, 0.15, 0.1, 0.0]
   1995: [1.0, 0.75, 0.7, 0.65, 0.6, 0.55, 0.5, 0.45, 0.4, 0.35, 0.3, 0.25, 0.2, 0.15, 0.14, 0.13, 0.12, 0.11, 0.1, 0.09, 0.08, 0.07, 0.06, 0.05, 0.04, 0.03, 0.02, 0.01, 0.0]
+# TAXSIM's single table of personal credit thresholds (1995 on), and for 2000 on the factor and shift it applies to the
+# single thresholds ([factor, shift], by year). Head of household and joint returns keep the 1995 thresholds.
+taxsim_personal_credit_single:
+  1995: [12000, 15000, 15500, 16000, 16500, 17000, 17500, 18000, 18500, 20000, 20500, 21000, 21500, 25000, 25500, 26000, 26500, 27000, 48000, 48500, 49000, 49500, 50000, 50500, 51000, 51500, 52000, 52500, 1.0e+20]
+taxsim_personal_credit_head_of_household:
+  1995: [19000, 24000, 24500, 25000, 25500, 26000, 26500, 27000, 27500, 34000, 34500, 35000, 35500, 44000, 44500, 45000, 45500, 46000, 74000, 74500, 75000, 75500, 76000, 76500, 77000, 77500, 78000, 78500, 1.0e+20]
+taxsim_personal_credit_joint:
+  1995: [24000, 30000, 30500, 31000, 31500, 32000, 32500, 33000, 33500, 40000, 40500, 41000, 41500, 50000, 50500, 51000, 51500, 52000, 96000, 96500, 97000, 97500, 98000, 98500, 99000, 99500, 100000, 100500, 1.0e+20]
+taxsim_personal_credit_scaling:
+  2000: [1.0507408, -49.542833]
+  2004: [1.0604848, -34.202327]
+  2007: [1.0791976, 16.83212]
+  2012: [1.1202003, -48.306848]
+  2013: [1.1608229, -83.889885]
+  2014: [1.2011865, -114.86385]
+  2016: [1.2400204, -66.057765]
 personal_credit_thresholds_single:
   1991: [12001, 15001, 20001, 25001, 48001, 1.0e+20]
   1995: [12001, 15001, 15501, 16001, 16501, 17001, 17501, 18001, 18501, 20001, 20501, 21001, 21501, 25001, 25501, 26001, 26501, 27001, 48001, 48501, 49001, 49501, 50001, 50501, 51001, 51501, 52001, 52501, 1.0e+20]
