@@ -233,6 +233,9 @@ class BehaviorProfile:
     count_all_children_for_north_carolina_joint_child_care: bool = True
     take_north_carolina_child_care_credit_once: bool = True
     use_north_carolina_married_table_without_splitting: bool = True
+    use_north_carolina_head_of_household_deduction_per_statute: bool = True
+    read_north_carolina_child_deduction_per_statute: bool = True
+    cap_north_carolina_property_tax_per_statute: bool = True
     add_back_north_dakota_state_tax_for_itemizers_only: bool = True
     add_nebraska_single_additional_tax_once: bool = True
     disallow_new_jersey_capital_losses: bool = True

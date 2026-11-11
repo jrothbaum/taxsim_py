@@ -12,6 +12,9 @@
 #  3. Iowa (iatax77) adds the uninitialised `xm` to the head-of-household personal credit for
 #     1977-1997, so the tax depends on stack garbage (0 or +$10 in two builds). Use xmp(law),
 #     the credit the line above it adds for the same purpose.
+#  4. North Carolina (nctax77) 1995-2017 writes `child=min(statax,child)`, a typo for `chld`,
+#     which caps the whole per-child care-expense table by the tax and keeps it for every later
+#     record in the run, so the child care credit depends on the records before it. Cap `chld`.
 set -e
 cd "$(dirname "$0")/.."
 SRC=${1:-taxsim_2026_11_09.f}
@@ -38,7 +41,16 @@ old = "      if(nfile.eq.3)gcred = gcred+xm\n"
 assert text.count(old) == 1, "iowa xm patch did not apply"
 open(path, "w").write(text.replace(old, "      if(nfile.eq.3)gcred = gcred+xmp(law)\n"))
 PY
-for pattern in 'isgn=1,int(extnd(54))' 'povert(1,2016)+isize' 'gcred+xmp(law)'; do
+# North Carolina child credit cap: `child` (the care-expense table) -> `chld`.
+python3 - "$PATCHED" <<'PY'
+import sys
+path = sys.argv[1]
+text = open(path).read()
+old = "        child=min(statax,child)"
+assert text.count(old) == 1, "north carolina child patch did not apply"
+open(path, "w").write(text.replace(old, "        chld=min(statax,chld)"))
+PY
+for pattern in 'isgn=1,int(extnd(54))' 'povert(1,2016)+isize' 'gcred+xmp(law)' 'chld=min(statax,chld)'; do
   grep -q "$pattern" "$PATCHED" || { echo "patch did not apply: $pattern" >&2; exit 1; }
 done
 gfortran -O2 -std=legacy -o taxsim2026_mtr.exe "$PATCHED"

@@ -288,3 +288,7 @@ Python's federal AMT for a 2005 married separate return with $350,000 of wages, 
 ## Virginia, remaining differences
 
 Virginia 2022-2023 low-income returns (the Form 760ADJ choice between the low-income credit and the earned income credit, the $250 rebate), the aged couple case of 1989-1999 and married separate itemizers in 2019-2022 still differ by small amounts. Virginia's `x14` (age deduction for 2021) is never set in other years; the oracle build should set it to 0.
+
+## North Carolina child care expense table overwritten (fixed in the oracle build)
+
+`nctax77` (1995-2017) writes `child=min(statax,child)`, a typo for `chld`, which assigns to the whole per-child care-expense table and keeps the capped values for every later record in the run, so the child care credit depended on earlier records. `scripts/build_oracle.sh` patch 4 caps `chld` instead. TAXSIM itself still has the bug.

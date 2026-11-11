@@ -187,9 +187,14 @@ def compute_nc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     else:
         # --- Standard deduction ---
         std = p["standard_deduction"]
+        hoh_deduction = (
+            float(resolve_year(std["head_of_household"], y))
+            if behavior.use_north_carolina_head_of_household_deduction_per_statute
+            else p.num("taxsim_head_of_household_standard_deduction")
+        )
         stded = (
             pl.when(is_single).then(float(resolve_year(std["single"], y)))
-            .when(is_hoh).then(float(resolve_year(std["head_of_household"], y)))
+            .when(is_hoh).then(hoh_deduction)
             .otherwise(float(resolve_year(std["married"], y)) / sep)
         )
         if p.in_effect("standard_deduction_aged_addition"):
@@ -215,8 +220,11 @@ def compute_nc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
                 fed_deduc - pl.min_horizontal(salt, (fed_deduc - stded).clip(0, None))
             ).otherwise(stded)
         else:
+            proptax = pl.col("proptax")
+            if p.in_effect("taxsim_property_tax_cap") and not behavior.cap_north_carolina_property_tax_per_statute:
+                proptax = pl.min_horizontal(proptax, p.num("taxsim_property_tax_cap") / sep)
             xitded = (
-                pl.min_horizontal(pl.lit(p.num("itemized_mortgage_property_tax_cap")), pl.col("mortgage") + pl.col("proptax"))
+                pl.min_horizontal(pl.lit(p.num("itemized_mortgage_property_tax_cap")), pl.col("mortgage") + proptax)
                 + pl.col("charity_cash")
             )
             deduc = pl.max_horizontal(stded, xitded)
@@ -272,15 +280,19 @@ def compute_nc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
                     (pl.col("psemp") + pl.col("ssemp")).clip(0, None),
                 )
             nc_agi = fed_agi - ss_taxable - pension_deduction
+            if y <= 2013 and not behavior.count_nonproperty_income_once:
+                # TAXSIM's federal AGI counts `nonprop` twice; North Carolina takes it out once.
+                nc_agi = nc_agi - pl.col("nonprop")
             if p.in_effect("charity_nonitemizer_addback"):
                 nc_agi = nc_agi + pl.col("nc_ui") - pl.col("taxable_unemployment") + pl.when(fed_itemizes).then(0.0).otherwise(
                     pl.col("charity_cash").clip(None, p.num("charity_nonitemizer_addback"))
                 )
             taxinc = (nc_agi - adjbus - deduc).clip(0, None)
+        taxsim_steps = p.in_effect("taxsim_child_deduction") and not behavior.read_north_carolina_child_deduction_per_statute
         if p.in_effect("child_deduction") or p.in_effect("child_deduction_steps"):
             fed_agix = fed_agi.clip(0, None)
-            if p.in_effect("child_deduction"):
-                table = p.value("child_deduction")
+            if p.in_effect("child_deduction") or taxsim_steps:
+                table = p.value("taxsim_child_deduction" if taxsim_steps else "child_deduction")
                 per_child = (
                     pl.when(is_joint).then(interpolate_table(fed_agix, table["married_joint"]))
                     .when(is_hoh).then(interpolate_table(fed_agix, table["head_of_household"]))
@@ -293,7 +305,8 @@ def compute_nc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
                     .when(is_hoh).then(bracket_rate(fed_agix, steps["head_of_household"]))
                     .otherwise(bracket_rate(fed_agix, steps["single"]))
                 )
-            taxinc = (taxinc - per_child * pl.col("dep17")).clip(0, None)
+            children = pl.col("dep18") if taxsim_steps else pl.col("dep17")
+            taxinc = (taxinc - per_child * children).clip(0, None)
         df, (taxinc,) = checkpoint(df, nc_taxinc=taxinc)
 
         # --- Tax ---

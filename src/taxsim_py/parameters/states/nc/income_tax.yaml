@@ -107,6 +107,15 @@ standard_deduction:
     2019: 20000.0
     2020: 21500.0
     2022: 25500.0
+# TAXSIM's head of household standard deduction lags the statute by a year from 2016.
+taxsim_head_of_household_standard_deduction:
+  1989: 4400.0
+  2014: 12000.0
+  2017: 13200.0
+  2018: 14000.0
+  2020: 15000.0
+  2021: 16125.0
+  2022: 19125.0
 # 1989-2013: additional standard deduction per taxpayer 65 or older.
 standard_deduction_aged_addition:
   1989: {single: 750, married: 600}
@@ -117,6 +126,9 @@ dependent_standard_deduction_floor: {1994: 500, 2014: null}
 dependent_standard_deduction_earned_addition: {1994: 0, 1998: 250, 2012: 300}
 # From 2014 itemized deductions are mortgage interest plus property tax up to the
 # cap, plus charitable contributions.
+# TAXSIM also applies the federal limit on state and local taxes to the property tax (halved on
+# separate returns) from 2018.
+taxsim_property_tax_cap: {2014: null, 2018: 10000.0}
 itemized_mortgage_property_tax_cap: {2014: 20000.0}
 # Retirement income deduction through 2013, per taxpayer (per taxpayer 65 or older
 # when there is one).
@@ -218,6 +230,13 @@ child_deduction_steps:
     single: [[-1.0e+18, 3000], [20000, 2500], [30000, 2000], [40000, 1500], [50000, 1000], [60000, 500], [70000, 0]]
     married_joint: [[-1.0e+18, 3000], [40000, 2500], [60000, 2000], [80000, 1500], [100000, 1000], [120000, 500], [140000, 0]]
     head_of_household: [[-1.0e+18, 3000], [30000, 2500], [45000, 2000], [60000, 1500], [75000, 1000], [90000, 500], [105000, 0]]
+# TAXSIM reads the 2022 on schedule as a table to interpolate, [AGI below, amount per child],
+# with the amount rising through each band.
+taxsim_child_deduction:
+  2022:
+    single: [[20000, 3000.0], [30000, 2500.0], [40000, 2000.0], [50000, 1500.0], [60000, 1000.0], [70000, 500.0], [1.0e+20, 0.0]]
+    married_joint: [[40000, 3000.0], [60000, 2500.0], [80000, 2000.0], [100000, 1500.0], [120000, 1000.0], [140000, 500.0], [1.0e+20, 0.0]]
+    head_of_household: [[30000, 3000.0], [45000, 2500.0], [60000, 2000.0], [75000, 1500.0], [90000, 1000.0], [105000, 500.0], [1.0e+20, 0.0]]
 # 2020: the federal nonitemizer charitable deduction is added back.
 charity_nonitemizer_addback: {2020: 300.0, 2021: null}
 
