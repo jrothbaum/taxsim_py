@@ -334,6 +334,7 @@ class BehaviorProfile:
     use_north_dakota_married_separate_brackets_from_2023: bool = True
     use_published_north_dakota_brackets_from_2024: bool = True
     use_published_kansas_exemption_from_2024: bool = True
+    allow_unreported_ages_in_dc_childless_credit_from_2024: bool = True
     deduct_idaho_itemized_from_2018_per_statute: bool = True
     limit_idaho_dependent_standard_deduction_per_statute: bool = True
     add_back_michigan_self_employment_tax_from_2021_per_statute: bool = True

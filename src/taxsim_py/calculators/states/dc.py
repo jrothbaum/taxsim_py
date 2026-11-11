@@ -421,6 +421,14 @@ def compute_dc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             too_young = ((older > 0) & (older < 19)) | ((younger > 0) & (younger < 19))
         else:
             too_young = ((older > 0) & (older < min_age)) | ((older > max_age) & (younger > 0) & (younger < min_age))
+        if effective_year >= 2024 and not behavior.allow_unreported_ages_in_dc_childless_credit_from_2024:
+            # TAXSIM's 2024 on routine needs a reported age of 25 or older (and under 65) for a lone filer; for
+            # a couple, not both under 25 and not both 65 or over (a missing spouse age counts as 40).
+            page = pl.col("page")
+            spouse = pl.when((pl.col("sage") == 0) & files_joint()).then(40).otherwise(pl.col("sage"))
+            too_young = pl.when(taxpayer_count() == 1).then((page >= 65) | (page < min_age)).otherwise(
+                ((spouse >= 65) & (page >= 65)) | ((spouse < min_age) & (page < min_age))
+            )
         no_childless_credit = no_childless_credit | too_young
         earncr_childless = pl.when(no_childless_credit).then(0.0).otherwise(earncr_childless_raw)
         # DC-002: TAXSIM treats any dependent as a qualifying child.
