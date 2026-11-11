@@ -135,6 +135,8 @@ class BehaviorProfile:
     pay_kansas_credits_per_statute: bool = True
     use_idaho_standard_deduction_2008_2009_per_statute: bool = True
     use_idaho_building_fund_limits_per_statute: bool = True
+    exclude_unemployment_in_district_of_columbia_every_year: bool = True
+    split_district_of_columbia_joint_returns_per_statute: bool = True
     split_mississippi_joint_returns_per_statute: bool = True
     use_mississippi_federal_itemized_deductions_from_2021: bool = True
     count_idaho_child_credit_children_under_17: bool = True

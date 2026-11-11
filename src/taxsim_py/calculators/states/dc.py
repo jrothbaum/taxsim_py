@@ -7,7 +7,7 @@ import polars as pl
 from taxsim_py.engine.brackets import bracket_rate, bracket_tax
 from taxsim_py.engine.inputs import aged_count, files_head_of_household, files_joint, files_single, is_dependent_filer, separate_divisor, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml, resolve_year
-from taxsim_py.engine.state import by_filing_status, dividend_exclusion_addback, forced_standard, higher_earner_share, household_income, tier_values, unemployment_total, with_state_detail
+from taxsim_py.engine.state import split_agi, by_filing_status, dividend_exclusion_addback, forced_standard, higher_earner_share, household_income, tier_values, unemployment_total, with_state_detail
 from taxsim_py.behavior import BehaviorProfile, TAXSIM_BEHAVIOR
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
@@ -54,7 +54,11 @@ def compute_dc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
 
     # Unemployment compensation is excluded in every year.
     ui_total = unemployment_total()
-    df = df.with_columns(dc_agi=pl.col("dc_agi") - ui_total)
+    if behavior.exclude_unemployment_in_district_of_columbia_every_year:
+        df = df.with_columns(dc_agi=pl.col("dc_agi") - ui_total)
+    elif effective_year >= 2021:
+        # TAXSIM removes the federally taxable part, and only from 2021 (1981 and earlier years do it above).
+        df = df.with_columns(dc_agi=pl.col("dc_agi") - pl.col("taxable_unemployment"))
 
     # --- Standard deduction ---
     if p.in_effect("standard_deduction_percent"):
@@ -220,6 +224,23 @@ def compute_dc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     # TAXSIM's 2007 split repeats the 2006 rates.
     own_split = p.in_effect("earner_split_brackets") and not behavior.use_current_rates_in_dc_earner_split
     split_brackets = p.value("earner_split_brackets") if own_split else brackets
+    if not behavior.split_district_of_columbia_joint_returns_per_statute:
+        # TAXSIM splits AGI (all unemployment compensation included) as `splitagi` does, then gives the exemptions and
+        # deduction to the higher-income spouse first (`dedalloc`).
+        ui_all = unemployment_total()
+        spouse_ui = pl.col("sui")
+        excl_h, excl_s = ((ui_all - spouse_ui), spouse_ui) if effective_year >= 2021 else (0.0, 0.0)
+        agit, agis = split_agi(pl.col("dc_agi") + ui_all - pl.col("taxable_unemployment"), excl_h, excl_s)
+        amount = pl.col("dc_deduc") + pl.col("dc_exemp")
+        gap = (agit - agis).abs()
+        to_larger = pl.max_horizontal(0.0, pl.min_horizontal(amount, gap))
+        shared = (amount - to_larger) / 2
+        primary_larger = agit >= agis
+        ded_h = pl.when(primary_larger).then(to_larger + shared).otherwise(shared)
+        ded_w = amount - ded_h
+        df = df.with_columns(
+            dc_taxyh=(agit - ded_h).clip(0, None), dc_taxyw=(agis - ded_w).clip(0, None),
+        )
     dc_taxbc = bracket_tax(pl.col("dc_taxyh"), split_brackets) + bracket_tax(pl.col("dc_taxyw"), split_brackets)
     df = df.with_columns(
         dc_statax=pl.when(is_joint_relief).then(pl.min_horizontal(pl.col("dc_statax"), dc_taxbc)).otherwise(pl.col("dc_statax"))
