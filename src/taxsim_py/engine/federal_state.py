@@ -167,7 +167,7 @@ def _resolve_federal_and_state(
     # forces itemizing.
     stacked = pl.concat(
         [
-            base.with_columns(pl.lit(True).alias(FORCE_ITEMIZE), pl.lit(True).alias(_PASS), pl.lit(year < 2024).alias(ZERO_BRACKET_ZEROED)),
+            base.with_columns(pl.lit(True).alias(FORCE_ITEMIZE), pl.lit(True).alias(_PASS), pl.lit(True).alias(ZERO_BRACKET_ZEROED)),
             standard.with_columns(pl.lit(False).alias(_PASS), pl.lit(False).alias(ZERO_BRACKET_ZEROED)),
         ],
         how="diagonal_relaxed",

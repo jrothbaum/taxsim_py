@@ -239,9 +239,20 @@ def compute_ne_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
                 x6 = pl.min_horizontal(pl.col("childcare"), earnmin, 8000.0 * pl.col("dep13").clip(None, 2))
                 x9 = (1 - 0.1 * (fagi - 22_000) / 1000).clip(0, 1)
                 chcref = pl.when(fagi <= 29_000).then(x6 * 0.5 * x9).otherwise(0.0)
-            else:
+            elif y == 2022 or y == 2023:
                 share = (1 - 0.1 * (fagi - 22_000) / 1000).clip(0, 1)
                 chcref = pl.when(fagi < 29_000).then(share * credit_before_limit).otherwise(0.0)
+    if p.in_effect("child_care_refundable") and not behavior.pay_nebraska_refundable_child_care_per_statute and y >= 2024:
+        fagi = fed_agi - 0.002
+        # 2024 on: the share of expenses (up to $6,000, $3,000 a child, earnings) falls from 35% and from 100%
+        # with income, continuously.
+        earned_primary = pl.col("pwages") + pl.col("psemp") + pl.col("pbusinc") + pl.col("pprofinc")
+        earned_spouse = pl.col("swages") + pl.col("ssemp") + pl.col("sbusinc") + pl.col("sprofinc")
+        earnmin = pl.when(is_joint).then(pl.min_horizontal(earned_primary, earned_spouse)).otherwise(earned_primary)
+        care = pl.min_horizontal(pl.lit(6000.0), pl.col("childcare"), 3000.0 * pl.col("dep13").clip(None, 2), earnmin)
+        frac1 = pl.max_horizontal(pl.lit(28.0), 35.0 - (fagi - 15_000).clip(0, None) / 2000.0) / 100.0
+        frac2 = pl.max_horizontal(pl.lit(30.0), 100.0 - 10.0 * (fagi - 22_000).clip(0, None) / 1000.0) / 100.0
+        chcref = pl.when(fagi <= 29_000).then(frac1 * frac2 * care).otherwise(0.0)
     credit = credit + pl.when(refundable_zone).then(0.0).otherwise(chcr)
     df, (statax,) = checkpoint(df, ne_tax_before_credits=statax)
     statax = statax + p.num("minimum_tax_share") * almtax

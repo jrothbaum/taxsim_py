@@ -65,7 +65,7 @@ def federal_detail(
         col("taxable_unemployment").alias("federal_taxable_unemployment_compensation"),
         col("taxable_social_security").alias("federal_taxable_social_security_benefits"),
         pl.when(pre).then(col("pre1987_zbr"))
-        .when(pl.col("zero_bracket_zeroed").fill_null(False) if "zero_bracket_zeroed" in present else itemizes & (col("year") < 2024)).then(0.0)
+        .when((pl.col("zero_bracket_zeroed").fill_null(False) if "zero_bracket_zeroed" in present else itemizes) & (col("year") < 2024)).then(0.0)
         .otherwise(col("standard_deduction")).alias("federal_standard_deduction"),
         pl.when(pre)
         .then(col("pre1987_amex"))
