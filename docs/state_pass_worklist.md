@@ -32,7 +32,7 @@ Not zero means unfinished: each state below needs another pass.
 | GA | 84 | aged cases 1989-2020 depend on uninitialised ceilings (record order), 1982-85 five a year, 2022-23 |
 | DC | 6 | 2018-23 dependent filer with interest |
 | MN | 39 | 1977-84 (federal pre-1982 gaps) 2-4 a year, 2022-23 eight |
-| VA | 51 | 1989:1, 1990:1, 1991:1, 1992:1, 1993:1, 1994:1, 1995:1, 1996:1, 1997:1, 1998:1, 1999:1, 2019:3, 2020:3, 2021:6, 2022:11, 2023:17 |
+| VA | 31 | itemizer pennies 2019-23, 1989-99 one a year, 2021 childcare HoH and aged couple |
 | PA | 0 | done |
 | ND | 20 | 2018-22 joint self-employment ($2.20), 2023 married separate |
 | SC | 1 | 2021 itemized joint |

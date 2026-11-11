@@ -8,6 +8,7 @@ from taxsim_py.engine.brackets import bracket_rate, bracket_tax
 from taxsim_py.engine.inputs import aged_count, files_head_of_household, files_joint, files_separate, files_single, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml
 from taxsim_py.engine.state import (
+    allocate_pensions,
     dividend_input_adjustment,
     by_filing_status,
     checkpoint,
@@ -76,6 +77,20 @@ def compute_va_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             .otherwise(0.0)
         )
         agi = agi - pl.when(aged >= 1).then(subtraction).otherwise(0.0)
+    elif p.in_effect("age_deduction") and not behavior.deduct_virginia_age_deduction_per_statute and y >= 2022:
+        # TAXSIM's 2022 routine: $12,000 per aged taxpayer, cut by income over the limit (each spouse's income less
+        # their own benefit on a joint return), whatever the ages.
+        amount = p.num("age_deduction")
+        limits = p.value("taxsim_age_deduction_income_limit")
+        benefit_primary, benefit_spouse = allocate_pensions(pl.col("taxable_social_security"), 55)
+        income_primary, income_spouse = split_agi(fed_agi, 0.0, 0.0)
+        joint_income = income_primary - benefit_primary + income_spouse - benefit_spouse
+        income = pl.when(txp > 1).then(joint_income).otherwise(fed_agi - pl.col("taxable_social_security"))
+        ylimit = pl.when(txp > 1).then(float(limits["married_joint"])).otherwise(float(limits["single"]))
+        over = pl.when(income < ylimit).then(0.0).otherwise(income - ylimit)
+        per_return = pl.when(txp > 1).then(aged * amount).otherwise(float(amount))
+        elder = pl.when(aged > 0).then((per_return - over).clip(0, None)).otherwise(0.0)
+        agi = agi - elder
     elif p.in_effect("age_deduction") and not behavior.deduct_virginia_age_deduction_per_statute and y != 2021:
         # TAXSIM sets the deduction from a variable it never fills for a lone aged taxpayer (so nothing), keeps the income
         # limited amount only for two aged taxpayers, and gives $12,000 to each taxpayer 82 or older.
@@ -213,6 +228,9 @@ def compute_va_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         zero = pl.when(single_type).then(agi <= z["single"]).otherwise(agi <= z["married_per_taxpayer"] * txp)
     if behavior.zero_virginia_tax_below_filing_threshold:
         statax = pl.when(zero).then(0.0).otherwise(statax)
+    elif p.in_effect("taxsim_zero_tax_agi_per_taxpayer"):
+        # TAXSIM's 2022 routine still applies one filing threshold per taxpayer.
+        statax = pl.when(agi < p.num("taxsim_zero_tax_agi_per_taxpayer") * txp).then(0.0).otherwise(statax)
     df, (statax,) = checkpoint(df, va_statax=statax)
 
     # --- Spouse tax adjustment (2000 on) ---
@@ -257,7 +275,10 @@ def compute_va_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
 
         # --- Credit for low-income individuals ---
         people = depx + txp
-        limit = p.num("low_income_limit") + (people - 1) * p.num("low_income_limit_per_person")
+        base_limit, per_person_limit = p.num("low_income_limit"), p.num("low_income_limit_per_person")
+        if p.in_effect("taxsim_low_income_limit") and not behavior.read_virginia_low_income_limits_per_statute:
+            base_limit, per_person_limit = p.num("taxsim_low_income_limit"), p.num("taxsim_low_income_limit_per_person")
+        limit = base_limit + (people - 1) * per_person_limit
         crlow = pl.when(agi <= limit).then(p.num("low_income_credit_per_person") * people).otherwise(0.0)
         if p.in_effect("eitc_rate"):
             earncr = p.num("eitc_rate") * pl.col("eitc")

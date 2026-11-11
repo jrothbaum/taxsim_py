@@ -161,6 +161,10 @@ low_income_limit:
   2019: 12490.0
   2020: 12760.0
   2021: 12880.0
+  2022: 13590.0
+  2023: 14580.0
+  2024: 15060.0
+  2025: 15650.0
 low_income_limit_per_person:
   2000: 2900.0
   2001: 3020.0
@@ -182,6 +186,10 @@ low_income_limit_per_person:
   2019: 4420.0
   2020: 4480.0
   2021: 4540.0
+  2022: 4720.0
+  2023: 5140.0
+  2024: 5380.0
+  2025: 5500.0
 eitc_rate: {2006: 0.2}
 # From 2022 the EITC may instead be claimed as this refundable share; the
 # larger benefit applies. Source: PolicyEngine-US
@@ -213,3 +221,8 @@ old_age_credit_base:
 old_age_credit_rate: 0.05
 old_age_credit_income_start: 12000
 old_age_credit_retirement_limit: {1989: 2000}
+# What the TAXSIM build reads for 2022 on: a transposed 2022 limit and a 2024 per-person amount that is not the
+# federal poverty guideline, and one filing threshold per taxpayer.
+taxsim_low_income_limit: {2022: 13950.0, 2023: 14580.0, 2024: 15060.0, 2025: 15650.0}
+taxsim_low_income_limit_per_person: {2022: 4720.0, 2023: 5140.0, 2024: 5418.0, 2025: 5500.0}
+taxsim_zero_tax_agi_per_taxpayer: {2022: 11950.0}
