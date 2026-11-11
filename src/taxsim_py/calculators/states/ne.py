@@ -214,6 +214,9 @@ def compute_ne_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         # The federal exemption count is deflated with the other federal
         # values when a later year is projected.
         stxcr = xcred * federal_exemption_count(y) / flate
+        if y >= 2024 and behavior.mode.value != "statutory":
+            # TAXSIM's 2024 on routine counts taxpayers and dependents directly, not the deflated federal count.
+            stxcr = xcred * (taxpayer_count() + pl.col("depx"))
     credit = stxcr
     if y >= 1987:
         credit = credit + p.num("elderly_credit_share") * pl.col("federal_elder")
