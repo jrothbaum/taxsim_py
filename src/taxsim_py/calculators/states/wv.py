@@ -107,8 +107,13 @@ def compute_wv_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             statax = split
     else:
         table = tables
-        statax = bracket_tax(taxinc * sep, table) / sep
-        rate = bracket_rate(taxinc * sep, table)
+        bracket_sep = sep
+        if y >= 2022 and not behavior.halve_west_virginia_separate_brackets_per_statute:
+            # TAXSIM's 2022 on routine halves income and doubles the tax for every filer but "status 3"
+            # (never used), so a separate return gets the joint brackets undivided.
+            bracket_sep = pl.lit(1.0)
+        statax = bracket_tax(taxinc * bracket_sep, table) / bracket_sep
+        rate = bracket_rate(taxinc * bracket_sep, table)
     if p.in_effect("surtax"):
         statax = pl.when(taxinc > p["surtax_income_per_taxpayer"] * txp).then(p.num("surtax") * statax).otherwise(statax)
     df, (statax,) = checkpoint(df, wv_tax_before_credits=statax)

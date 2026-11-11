@@ -515,7 +515,7 @@ CASES = [
     # income tax in 1977-1986 itemized deductions.
     _case(
         "WV-001", "West Virginia 1985 head of household at $90,000", "siitax",
-        7_878.84, 8_957.0, year=1985, state=49, depx=1, dep13=1, dep17=1, dep18=1, pwages=90_000,
+        8_011.62, 8_957.0, year=1985, state=49, depx=1, dep13=1, dep17=1, dep18=1, pwages=90_000,
     ),
     _case(
         "WV-002", "West Virginia 1990 disabled filer under 65", "siitax",

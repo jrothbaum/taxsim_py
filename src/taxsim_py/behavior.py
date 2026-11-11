@@ -277,6 +277,7 @@ class BehaviorProfile:
     use_kansas_2021_standard_deduction_per_statute: bool = True
     credit_maine_1988_standard_deduction_and_exemptions: bool = True
     make_maine_elderly_credit_refundable: bool = True
+    halve_west_virginia_separate_brackets_per_statute: bool = True
     start_wisconsin_head_of_household_third_tier_per_statute: bool = True
     use_own_bounds_in_new_york_worksheets: bool = True
     use_single_standard_deduction_for_new_york_head_of_household_before_1987: bool = True
@@ -351,6 +352,7 @@ FIXED_IN_2026_BUILD = frozenset(
         "count_capital_gains_in_dc_childless_eitc_investment_income",
         "include_self_employment_in_household_income",
         "tax_wisconsin_1986_separate_returns",
+        "complete_west_virginia_1984_head_of_household_table",
     }
 )
 TAXSIM_BEHAVIOR = BehaviorProfile(
