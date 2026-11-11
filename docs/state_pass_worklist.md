@@ -26,7 +26,7 @@ Not zero means unfinished: each state below needs another pass.
 | KS | 54 | 2018-23 itemizers and very high income (SALT limit rules), 2007-12 homestead/renter, 1977-81 two a year |
 | ME | 39 | 2014-21 property tax fairness credit / renter cases, 2020 childless EITC 18-24 |
 | ID | 46 | dependent filers 2010-23, 2018-23 high-income itemizers (own deduction rules) |
-| WV | 91 | 2022-23 family tax credit phase-out (smooth), 2007-2021 one to five cases a year, 2020-21 ten |
+| WV | 0 | done |
 | OH | 64 | 2017+ business income and non-property cases (own routines), 2021 pennies (rate rounding), 1977-78 two a year |
 | MI | 41 | 1977:1, 1978:2, 1979:2, 1980:2, 1981:2, 1982:2, 1983:2, 1984:2, 1985:2, 1986:2, 1987:2, 1988:2, 1989:2, 1990:2, 1991:2, 1992:2, 1993:2, 1994:2, 1995:2, 1996:... |
 | GA | 84 | aged cases 1989-2020 depend on uninitialised ceilings (record order), 1982-85 five a year, 2022-23 |

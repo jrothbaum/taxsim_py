@@ -283,6 +283,9 @@ class BehaviorProfile:
     credit_maine_1988_standard_deduction_and_exemptions: bool = True
     make_maine_elderly_credit_refundable: bool = True
     halve_west_virginia_separate_brackets_per_statute: bool = True
+    read_west_virginia_family_credit_limits_per_statute: bool = True
+    step_west_virginia_family_credit_phaseout_per_statute: bool = True
+    subtract_west_virginia_social_security_per_statute: bool = True
     require_earned_income_for_ohio_joint_credit: bool = True
     start_ohio_business_deduction_per_statute: bool = True
     compute_north_dakota_marriage_credit_earnings_per_statute: bool = True
