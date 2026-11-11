@@ -28,7 +28,7 @@ Not zero means unfinished: each state below needs another pass.
 | ID | 5 | 1977 aged renter, 2021-22 dependent filer rate |
 | WV | 0 | done |
 | OH | 0 | done |
-| MI | 41 | 1977:1, 1978:2, 1979:2, 1980:2, 1981:2, 1982:2, 1983:2, 1984:2, 1985:2, 1986:2, 1987:2, 1988:2, 1989:2, 1990:2, 1991:2, 1992:2, 1993:2, 1994:2, 1995:2, 1996:... |
+| MI | 23 | 2017-23 aged low-income refundable credits, 2021-23 dependent filer and self-employed property credit |
 | GA | 84 | aged cases 1989-2020 depend on uninitialised ceilings (record order), 1982-85 five a year, 2022-23 |
 | DC | 6 | 2018-23 dependent filer with interest |
 | MN | 39 | 1977-84 (federal pre-1982 gaps) 2-4 a year, 2022-23 eight |

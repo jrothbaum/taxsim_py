@@ -334,6 +334,8 @@ senior_standard_deduction:
 senior_tier_two_first_birth_year: 1946
 senior_tier_two_last_birth_year: 1952
 senior_standard_deduction_age: 67
+# The last birth year TAXSIM's third tier covers.
+taxsim_last_tier_three_birth_year: {2020: 1953, 2021: 1954, 2022: 1956, 2023: 1957, 2024: 1958, 2025: 1959}
 
 # From 2023 (statutory mode): the senior standard deduction is reduced by the
 # exemptions claimed, and the retirement subtraction is phased in for

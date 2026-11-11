@@ -48,7 +48,7 @@ def compute_mi_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         agi = agi + pl.when(pl.col("mi_setax") <= holiday["threshold"]).then(
             holiday["lower_rate"] * pl.col("mi_setax")
         ).otherwise(holiday["upper_rate"] * pl.col("mi_setax") + float(holiday["amount"]))
-    elif p.in_effect("self_employment_tax_agi_addback_rate"):
+    elif p.in_effect("self_employment_tax_agi_addback_rate") and (y < 2021 or behavior.add_back_michigan_self_employment_tax_from_2021_per_statute):
         agi = agi + p.num("self_employment_tax_agi_addback_rate") * pl.col("mi_setax")
 
     # --- Retirement subtraction for taxpayers 65 or older ---
@@ -74,6 +74,8 @@ def compute_mi_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         ).otherwise(0.0)
     pens = pl.max_horizontal(penexc, divded)
     tiered = p.in_effect("senior_standard_deduction") and y <= 2022 and behavior.apply_michigan_retirement_tiers
+    taxsim_tiers = False
+    taxsim_tiers_2021 = False
     if tiered:
         older = pl.max_horizontal(pl.col("page"), pl.col("sage"))
         born = year - older
@@ -83,6 +85,10 @@ def compute_mi_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         tier_amount = p.num("senior_standard_deduction") * pl.when(is_joint).then(2.0).otherwise(1.0)
         tier_two_deduction = pl.when(reached).then(tier_amount).otherwise(pl.min_horizontal(pensions, tier_amount))
         pens = pl.when(tier_two).then(tier_two_deduction).when(tier_three).then(0.0).otherwise(pens)
+    elif p.in_effect("senior_standard_deduction") and not behavior.apply_michigan_retirement_tiers:
+        # TAXSIM has no senior deduction before 2020; its 2020 and 2021-on routines differ.
+        taxsim_tiers = y == 2020
+        taxsim_tiers_2021 = y >= 2021
     elif p.in_effect("senior_standard_deduction"):
         # A flat deduction per taxpayer 65 or older replaces it.
         pens = pl.when(aged > 0).then(p.num("senior_standard_deduction") * aged).otherwise(pens)
@@ -101,6 +107,50 @@ def compute_mi_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     dependent_exemption = p.num("dependent_filer_exemption")
     exemp = pl.when(is_dependent_filer()).then(dependent_exemption).otherwise(exemp)
 
+    if taxsim_tiers_2021:
+        # TAXSIM's 2021 on routine: by birth year, the first tier keeps the pension subtraction (and a capped
+        # investment one), the second takes 20,000 per taxpayer limited to income, the third that less the
+        # exemptions (not below the benefit), then 75% of the pension cap for those born 1959-1966.
+        older = pl.max_horizontal(pl.col("page"), pl.col("sage"))
+        older = pl.when((older == 0) & (aged > 0)).then(74).otherwise(older)
+        born = year - older
+        pend = p.num("pension_exclusion_per_taxpayer")
+        ssben = pl.col("taxable_social_security")
+        tier2 = pl.min_horizontal(pl.col("agi"), p.num("senior_standard_deduction") * n_tp)
+        tier3 = pl.max_horizontal(tier2 - exemp, ssben)
+        known = older >= 59
+        first, last = p.num("senior_tier_two_first_birth_year"), p.num("senior_tier_two_last_birth_year")
+        stded_t = (
+            pl.when(known & (born >= first) & (born <= last)).then(tier2)
+            .when(known & (born > last) & (born <= pl.min_horizontal(pl.lit(1958), year - 66))).then(tier3)
+            .otherwise(0.0)
+        )
+        penex_t = (
+            pl.when(known & (born < first)).then(pl.min_horizontal(pl.lit(pend), pensions))
+            .when(known & (born >= 1959) & (born <= 1966)).then(pl.min_horizontal(pl.lit(0.75 * pend), pensions))
+            .otherwise(0.0)
+        )
+        subtr = pl.max_horizontal(stded_t, penex_t)
+        capinc = pl.col("dividends") + pl.col("intrec") + (pl.col("stcg") + pl.col("ltcg")).clip(0, None)
+        old_deduction = p.num("senior_investment_deduction_per_taxpayer")
+        subtr = pl.when((born < first) & (old_deduction > subtr)).then(pl.min_horizontal(capinc, pl.lit(old_deduction))).otherwise(subtr)
+        pens = subtr
+    if taxsim_tiers:
+        older = pl.max_horizontal(pl.col("page"), pl.col("sage"))
+        older = pl.when((older == 0) & (aged > 0)).then(74).otherwise(older)
+        born = year - older
+        amount = p.num("senior_standard_deduction") * pl.when(is_joint).then(2.0).otherwise(1.0)
+        reached = older >= p.num("senior_standard_deduction_age")
+        first, last = p.num("senior_tier_two_first_birth_year"), p.num("senior_tier_two_last_birth_year")
+        ssben = pl.col("taxable_social_security")
+        tier_two = reached & (born >= first) & (born <= last)
+        tier_three = reached & (born > last) & (born <= p.num("taxsim_last_tier_three_birth_year"))
+        tier_deduction = (
+            pl.when(tier_two).then(((amount - exemp).clip(0, None) - ssben).clip(0, None))
+            .when(tier_three).then((amount - ssben - exemp).clip(0, None))
+            .otherwise(0.0)
+        )
+        pens = pl.max_horizontal(pens, tier_deduction, divded - ssben)
     if tiered:
         # Born after the second tier: the deduction less exemptions from the age.
         pens = pl.when(tier_three & reached).then((tier_amount - exemp).clip(0, None)).otherwise(pens)
