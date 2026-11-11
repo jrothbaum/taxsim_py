@@ -670,6 +670,8 @@ recapture_additions:
   2019: [577, 1030, 2193, 513, 1288, 733, 1703]
   2020: [526, 1043, 2465, 519, 1467, 738, 1923]
   2021: null
+# 2021 only: TAXSIM applies the worksheets of the wrong filing status.
+taxsim_swap_worksheet_classes: {2021: true, 2022: null}
 recapture_bounds:
   2012:
     base_agi: 100000

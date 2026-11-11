@@ -119,7 +119,7 @@ def _recapture(
     if p.in_effect("supplemental_tax"):
         return _supplemental(statax, taxinc, agi, status, p)
     if p.in_effect("recapture_tiers"):
-        return _recapture_tiers(statax, taxinc, agi, status, p)
+        return _recapture_tiers(statax, taxinc, agi, status, p, behavior)
     if p.in_effect("recapture_bounds"):
         return _recapture_worksheets(statax, taxinc, agi, status, p, behavior)
     if not p.in_effect("recapture_start"):
@@ -285,7 +285,9 @@ def _recapture_worksheets(
     return pl.when(is_joint).then(joint).when(is_single_class).then(single).otherwise(hoh)
 
 
-def _recapture_tiers(statax: pl.Expr, taxinc: pl.Expr, agi: pl.Expr, status: pl.Expr, p: YearParams) -> pl.Expr:
+def _recapture_tiers(
+    statax: pl.Expr, taxinc: pl.Expr, agi: pl.Expr, status: pl.Expr, p: YearParams, behavior: BehaviorProfile = TAXSIM_BEHAVIOR
+) -> pl.Expr:
     """Tax computation worksheets with a flat rate by taxable-income tier."""
     c = p.value("recapture_tiers")
     phase = float(c["phase"])
@@ -299,10 +301,18 @@ def _recapture_tiers(statax: pl.Expr, taxinc: pl.Expr, agi: pl.Expr, status: pl.
         partial = statax + addition + ratio(start) * (flat - statax - addition)
         return pl.when(agi >= start + phase).then(flat).otherwise(partial)
 
+    classes = dict(_CLASS)
+    if p.in_effect("taxsim_swap_worksheet_classes") and not behavior.pick_new_york_worksheet_by_filing_status:
+        # TAXSIM's 2021 code tests its own filing index (single 1, head of household 2, joint 3) against
+        # the codes 2 (joint) and 4 (head of household): joint returns use the single worksheets and
+        # head of household returns the joint ones.
+        classes["married_joint"] = "single"
+        classes["head_of_household"] = "married"
+
     def pick(values: dict[str, pl.Expr]) -> pl.Expr:
         expr = values["married"]
         for cls in ("single", "head_of_household"):
-            statuses = [s for s, k in _CLASS.items() if k == cls]
+            statuses = [s for s, k in classes.items() if k == cls]
             expr = pl.when(status.is_in(statuses)).then(values[cls]).otherwise(expr)
         return expr
 
@@ -721,7 +731,11 @@ def compute_ny_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         def eitc_for(law: int, agi_value: pl.Expr, eligibility_year: int | None = None) -> pl.Expr:
             params = FEDERAL_EITC_PARAMS.filter(pl.col("year") == law)
             dylim = float(resolve_year(FEDERAL_EITC_MISC["dylim"], law))
-            credit = federal_eitc(pl.col("earned_income"), agi_value, disqy, status, nkids, params, dylim)
+            credit_status = status
+            if y == 2021 and not behavior.deny_new_york_2021_earned_income_credit_to_separate_returns:
+                # TAXSIM's federal credit routine pays separate returns in 2021, on the single schedule.
+                credit_status = pl.when(status == "married_separate").then(pl.lit("single")).otherwise(status)
+            credit = federal_eitc(pl.col("earned_income"), agi_value, disqy, credit_status, nkids, params, dylim)
             childless = nkids == 0
             age_law = law if eligibility_year is None else eligibility_year
             eligible = eitc_filer_eligible(childless, age_law) & eitc_age_eligible(childless, age_law)

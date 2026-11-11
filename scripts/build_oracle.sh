@@ -50,7 +50,22 @@ old = "        child=min(statax,child)"
 assert text.count(old) == 1, "north carolina child patch did not apply"
 open(path, "w").write(text.replace(old, "        chld=min(statax,chld)"))
 PY
-for pattern in 'isgn=1,int(extnd(54))' 'povert(1,2016)+isize' 'gcred+xmp(law)' 'chld=min(statax,chld)'; do
+# New York 2022+: a married-separate return indexes the three-filing-status tables with 4 (out of bounds, so the
+# tax is 1e20 or garbage). Use the single table, as the 1977-2021 code does.
+python3 - "$PATCHED" <<'PY'
+import sys
+path = sys.argv[1]
+text = open(path).read()
+old = "      m=int(filing(mst,1.,2.,3.,4.))\n      mdedsopa=m\n"
+assert text.count(old) == 1, "new york married separate patch did not apply"
+text = text.replace(old, old + "      mq=m\n      if(m.eq.4) mq=1\n")
+for name in ("tab22", "wkst22", "tab24", "wkst24"):
+    call = name + "(1,1,m)"
+    assert call in text
+    text = text.replace(call, name + "(1,1,mq)")
+open(path, "w").write(text)
+PY
+for pattern in 'isgn=1,int(extnd(54))' 'povert(1,2016)+isize' 'gcred+xmp(law)' 'chld=min(statax,chld)' 'tab22(1,1,mq)'; do
   grep -q "$pattern" "$PATCHED" || { echo "patch did not apply: $pattern" >&2; exit 1; }
 done
 gfortran -O2 -std=legacy -o taxsim2026_mtr.exe "$PATCHED"

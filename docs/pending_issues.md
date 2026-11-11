@@ -296,3 +296,11 @@ Virginia 2022-2023 low-income returns (the Form 760ADJ choice between the low-in
 ## Delaware uninitialised variables
 
 `detax77` reads `stdedh`, `stdedw` (before 2000) and `stdx` (before 1987) without setting them. With the compiler used for the oracle they behave as $3,250, $3,250 and twice the personal exemption; another compiler or optimisation level may differ. Python reproduces those values in TAXSIM mode.
+
+## New York 2022 on: married separate returns index outside the tax tables
+
+`nytax22` sets `m=filing(mst,1,2,3,4)`, which is 4 for married filing separately, but `tab22`, `wkst22` and the 2024 tables have three filing-status slices, so the tax comes out as 1e20 or garbage. `scripts/build_oracle.sh` (patch 5) uses the single table for them. TAXSIM itself still has the bug.
+
+## New York 2021: worksheets chosen by the wrong filing code
+
+`nytax21` tests the filing index `mri` (single 1, head of household 2, joint 3) against 2 (joint) and 4 (head of household), so joint returns use the single worksheets and head of household returns the joint ones. Python reproduces this in TAXSIM mode (`pick_new_york_worksheet_by_filing_status`).
