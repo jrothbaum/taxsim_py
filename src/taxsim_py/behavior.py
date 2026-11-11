@@ -273,6 +273,8 @@ class BehaviorProfile:
     pick_new_york_worksheet_by_filing_status: bool = True
     exclude_arkansas_pensions_per_taxpayer: bool = True
     split_arkansas_joint_income_by_higher_earner: bool = True
+    add_kansas_aged_and_dependent_standard_deduction_per_statute: bool = True
+    use_kansas_2021_standard_deduction_per_statute: bool = True
     start_wisconsin_head_of_household_third_tier_per_statute: bool = True
     use_own_bounds_in_new_york_worksheets: bool = True
     use_single_standard_deduction_for_new_york_head_of_household_before_1987: bool = True

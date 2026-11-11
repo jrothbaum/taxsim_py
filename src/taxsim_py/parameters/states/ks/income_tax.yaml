@@ -70,6 +70,8 @@ standard_deduction:
   2021: {single: 3500, married_joint: 7800, head_of_household: 6000, married_separate: 4000}
   2022: {single: 3500, married_joint: 8000, married_separate: 4000, head_of_household: 6000}
   2024: {single: 3605, married_joint: 8240, married_separate: 4120, head_of_household: 6180}
+# TAXSIM's 2021 joint amount is the 2022 one.
+taxsim_standard_deduction: {2021: {single: 3500, married_joint: 8000, head_of_household: 6000, married_separate: 4000}, 2022: null}
 # Additional standard deduction per taxpayer 65 or older (single-type,
 # married-type).
 aged_standard_deduction: {1988: [750, 600], 1998: [850, 700]}

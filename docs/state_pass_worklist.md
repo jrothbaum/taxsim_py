@@ -23,7 +23,7 @@ Not zero means unfinished: each state below needs another pass.
 | UT | 121 | 2018-2023 itemizers and SS/aged cases (credit phaseout xl14 via nlaw, retirement credit 2022+), 1988 and 1993-2007 three cases a year, HoH itemizer state-tax iteration |
 | NY | 102 | 2021 marginal rate in the recapture range (srate only), 2018-21 HoH itemized and childcare ($8.26), 2022-23 married separate ($30), 2020 unemployment single |
 | AR | 18 | 2018-23 itemized (own rules), 2021 five cases, 1984 three cases |
-| KS | 188 | 1977:2, 1978:2, 1979:2, 1980:2, 1981:2, 1986:1, 1987:1, 1988:1, 1989:1, 1990:1, 1991:1, 1992:1, 1993:1, 1994:1, 1995:1, 1996:1, 1997:1, 1998:6, 1999:6, 2000:... |
+| KS | 54 | 2018-23 itemizers and very high income (SALT limit rules), 2007-12 homestead/renter, 1977-81 two a year |
 | ME | 178 | 1987:1, 1988:82, 1989:2, 1990:2, 1991:2, 1992:2, 1993:2, 1994:2, 1995:2, 1996:2, 1997:2, 1998:2, 1999:2, 2000:2, 2001:2, 2002:2, 2003:2, 2004:2, 2005:2, 2006... |
 | ID | 176 | 1978:2, 1979:2, 1980:2, 1981:2, 1982:2, 1983:2, 1984:2, 1985:2, 1986:2, 1987:2, 1988:2, 1989:2, 1990:2, 1991:2, 1992:2, 1993:2, 1994:2, 1995:2, 1996:2, 1997:... |
 | WV | 174 | 1984:15, 1985:15, 1986:15, 2007:2, 2008:3, 2009:3, 2010:3, 2011:5, 2012:2, 2013:2, 2014:2, 2015:2, 2016:2, 2017:1, 2018:1, 2019:3, 2020:10, 2021:9, 2022:40, ... |

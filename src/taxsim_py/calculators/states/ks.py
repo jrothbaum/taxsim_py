@@ -77,12 +77,17 @@ def compute_ks_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         ).otherwise((sd["rate"] * pl.col("ks_agi")).clip(float(sd["married"]["floor"]) / pl.col("ks_sep"), float(sd["married"]["cap"]) / pl.col("ks_sep")))
     else:
         stded = by_filing_status(p.value("standard_deduction"))
-        if p.in_effect("dependent_standard_deduction_minimum"):
+        if p.in_effect("taxsim_standard_deduction") and not behavior.use_kansas_2021_standard_deduction_per_statute:
+            stded = by_filing_status(p.value("taxsim_standard_deduction"))
+        taxsim_flat = 1998 <= effective_year <= 2020 and not behavior.add_kansas_aged_and_dependent_standard_deduction_per_statute
+        if p.in_effect("dependent_standard_deduction_minimum") and not taxsim_flat:
             limit = pl.max_horizontal(pl.lit(p.num("dependent_standard_deduction_minimum")), pl.col("earned_income"))
             stded = pl.when(is_dependent_filer()).then(pl.min_horizontal(stded, limit)).otherwise(stded)
         single_amount, married_amount = p.value("aged_standard_deduction")
         married_type = pl.col("filing_status").is_in(["married_joint", "married_separate"])
-        stded = stded + pl.when(married_type).then(float(married_amount)).otherwise(float(single_amount)) * aged_count()
+        if not taxsim_flat:
+            # (TAXSIM adds the aged amount and limits dependents only in 1988-1997 and from 2021.)
+            stded = stded + pl.when(married_type).then(float(married_amount)).otherwise(float(single_amount)) * aged_count()
     df = df.with_columns(ks_stded=stded)
 
     # --- Itemized deduction ---
