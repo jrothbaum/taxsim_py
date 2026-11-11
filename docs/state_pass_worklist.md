@@ -9,7 +9,7 @@ Not zero means unfinished: each state below needs another pass.
 | RI | 603 | 1977:2, 1978:2, 1979:2, 1980:2, 1981:2, 2011:10, 2012:5, 2013:5, 2014:3, 2015:3, 2016:83, 2017:5, 2018:82, 2019:82, 2020:81, 2021:81, 2022:78, 2023:75 |
 | NC | 0 | done |
 | AZ | 493 | 1977:8, 1978:8, 1979:9, 1980:9, 1981:9, 1982:10, 1983:9, 1984:9, 1985:10, 1986:10, 1987:10, 1988:10, 1989:10, 1990:3, 1991:13, 1992:12, 1993:12, 1994:12, 199... |
-| MO | 146 | 2–5 per year; open: aged property-tax credit / renter cases (1990, 2008), high-income itemizers 2008 |
+| MO | 27 | 2008+ itemizers and dividends, srate-only head of household rows |
 | NM | 0 | done |
 | DE | 0 | done |
 | VT | 0 | done |

@@ -304,6 +304,13 @@ def compute_mo_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     pcred = pl.when((aged > 0) & (hy1 < income_limit) & (ptax > 0)).then(
         pl.when(hy1 <= base).then(full).otherwise(stepped)
     ).otherwise(0.0)
+    if not behavior.step_missouri_property_credit_per_statute:
+        # TAXSIM (2026 build): the smaller of the tax plus a fifth of rent and the maximum, less 0.0625 percent
+        # of household income, with no income limit.
+        ptc_max = pl.min_horizontal(ptax, p.num("property_credit_maximum"))
+        pcred = pl.when((aged > 0) & (ptc_max > 0)).then(
+            (ptc_max - float(MO_PARAMS["taxsim_property_credit_income_rate"]) * hy1).clip(0, None)
+        ).otherwise(0.0)
     if y <= 1978:
         pcred = pl.min_horizontal(pcred, statax)
     statax = statax - pcred

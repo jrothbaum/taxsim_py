@@ -244,3 +244,6 @@ working_family_credit:
 # From 2025: this share of net capital gain is subtracted from taxable income.
 # Source: PolicyEngine-US gov.states.mo.tax.income.subtractions.net_capital_gain.
 capital_gains_subtraction: {2025: 1.0}
+
+# TAXSIM reduces the property tax credit by this share of household income (no steps, no income limit).
+taxsim_property_credit_income_rate: 0.000625

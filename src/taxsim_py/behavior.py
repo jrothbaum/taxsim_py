@@ -284,6 +284,7 @@ class BehaviorProfile:
     tax_south_carolina_capital_gains_1985_1989: bool = True
     pay_district_of_columbia_property_credit_2014_2018: bool = True
     use_wisconsin_separate_standard_deduction_from_2023: bool = True
+    step_missouri_property_credit_per_statute: bool = True
     pay_wisconsin_homestead_credit_from_2023: bool = True
     deduct_district_of_columbia_other_itemized_with_state_taxes: bool = True
     start_wisconsin_head_of_household_third_tier_per_statute: bool = True
