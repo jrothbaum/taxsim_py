@@ -521,6 +521,8 @@ pension_exclusion_per_aged_taxpayer: 20000
 # 2018-2024 the federal SALT cap; from 2025 the state and local taxes the
 # federal return actually deducted are backed out instead.
 salt_cap: {2018: 10000, 2025: null}
+# TAXSIM keeps the earlier cap from 2025.
+taxsim_salt_cap: {2025: 10000}
 # From 2018: limitation above these federal AGI thresholds (married separate
 # gets half the married amount).
 itemized_limit_threshold:

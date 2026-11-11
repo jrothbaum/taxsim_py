@@ -133,6 +133,7 @@ class BehaviorProfile:
     use_south_carolina_published_tax_table: bool = True
     allow_qbi_deduction_in_south_carolina: bool = True
     count_colorado_credit_children_per_statute: bool = True
+    cap_new_york_state_tax_deduction_per_statute: bool = True
     compute_montana_tax_from_2024_per_statute: bool = True
     deflate_oklahoma_earned_income_credit_income_per_statute: bool = True
     reinflate_colorado_earned_income_credit_per_statute: bool = True

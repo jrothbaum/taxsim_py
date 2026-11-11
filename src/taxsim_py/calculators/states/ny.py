@@ -446,8 +446,10 @@ def compute_ny_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             ((deducp - salt_ded) * fed_deduc / deducp).clip(0, None)
         ).otherwise(0.0)
     else:
-        if p.in_effect("salt_cap"):
-            sttax = pl.min_horizontal(p.num("salt_cap") / sep, pl.col("proptax") + salt_ded)
+        if p.in_effect("salt_cap") or (p.in_effect("taxsim_salt_cap") and not behavior.cap_new_york_state_tax_deduction_per_statute):
+            # TAXSIM keeps the ten-thousand-dollar cap after the federal cap rises.
+            cap_key = "salt_cap" if p.in_effect("salt_cap") else "taxsim_salt_cap"
+            sttax = pl.min_horizontal(p.num(cap_key) / sep, pl.col("proptax") + salt_ded)
         else:
             sttax = pl.col("salt_capped") - pl.col("otheritem")
         xitded = deducp + pl.col("proptax") - sttax
