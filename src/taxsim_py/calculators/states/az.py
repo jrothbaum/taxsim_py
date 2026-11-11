@@ -170,10 +170,7 @@ def compute_az_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             .then(pl.col("childcare").clip(0, ccd["cap"]))
             .otherwise(0.0)
         )
-        # TAXSIM counts other taxes twice.
-        df = df.with_columns(
-            az_xitded=(pl.col("az_raw_itemized") + pl.col("otheritem") + pl.col("az_childcare_ded")).clip(0, None)
-        )
+        df = df.with_columns(az_xitded=(pl.col("az_raw_itemized") + pl.col("az_childcare_ded")).clip(0, None))
     else:
         # The federal gross itemized total, including the state tax deduction.
         df = df.with_columns(az_xitded_base=pl.col("salt_capped") + pl.col("mortgage"))
@@ -273,8 +270,10 @@ def compute_az_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
 
     if p.in_effect("dependent_tax_credit"):
         dtc = p.value("dependent_tax_credit")
+        # TAXSIM's `numlt(17)` counts dependents under 19.
+        young = pl.col("dep17") if behavior.count_arizona_dependent_credit_children_under_17_per_statute else pl.col("dep18")
         df = df.with_columns(
-            az_ctc_raw=float(dtc["per_child"]) * pl.col("dep17") + float(dtc["per_other_dependent"]) * (pl.col("depx") - pl.col("dep17")).clip(0, None),
+            az_ctc_raw=float(dtc["per_child"]) * young + float(dtc["per_other_dependent"]) * (pl.col("depx") - young).clip(0, None),
             az_cphase=float(dtc["phaseout_start"]) * pl.col("az_txp_raw"),
         )
         df = df.with_columns(
@@ -329,7 +328,12 @@ def compute_az_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             ).otherwise(0.0)
     else:
         renter_credit = pl.lit(0.0)
-    df = df.with_columns(az_credit=pl.max_horizontal(property_credit, renter_credit))
+    if behavior.take_arizona_larger_of_property_and_renter_credit:
+        credit = pl.max_horizontal(property_credit, renter_credit)
+    else:
+        # TAXSIM computes the larger of the two but subtracts both.
+        credit = property_credit + renter_credit
+    df = df.with_columns(az_credit=credit)
 
     df = df.with_columns(siitax=(pl.col("az_after_famcr") - pl.col("az_excise") - pl.col("az_credit")) * flate)
     return with_state_detail(

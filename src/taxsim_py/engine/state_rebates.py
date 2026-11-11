@@ -61,7 +61,7 @@ def state_rebate(state: int, year: int, siitax: pl.Expr, tax_before_credits: pl.
     if "per_dependent" in spec:
         amount = amount + pl.min_horizontal(spec["per_dependent"] * pl.col("depx"), float(spec["dependent_maximum"]))
     if "per_child" in spec:
-        children = pl.min_horizontal(pl.col("dep17") if state != 40 else pl.col("dep18"), float(spec["maximum_children"]))
+        children = pl.min_horizontal(pl.col("dep17") if state not in (3, 40) else pl.col("dep18"), float(spec["maximum_children"]))
         child_amount = spec["per_child"] * children
         if "agi_limit" in spec:
             limits = spec["agi_limit"]
@@ -75,7 +75,7 @@ def state_rebate(state: int, year: int, siitax: pl.Expr, tax_before_credits: pl.
             child_amount = child_amount * share
         amount = amount + child_amount
     if "per_other_dependent" in spec:
-        amount = amount + spec["per_other_dependent"] * (pl.col("depx") - pl.col("dep17")).clip(0, None)
+        amount = amount + spec["per_other_dependent"] * (pl.col("depx") - (pl.col("dep18") if state in (3, 40) else pl.col("dep17"))).clip(0, None)
     if "tax_share" in spec and "components" not in spec:
         amount = amount + spec["tax_share"] * siitax.clip(0, None)
     if "minimum_primary_age" in spec:

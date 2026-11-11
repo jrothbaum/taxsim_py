@@ -284,6 +284,8 @@ class BehaviorProfile:
     make_maine_elderly_credit_refundable: bool = True
     halve_west_virginia_separate_brackets_per_statute: bool = True
     limit_rhode_island_retirement_exclusion_to_aged_per_statute: bool = True
+    count_arizona_dependent_credit_children_under_17_per_statute: bool = True
+    take_arizona_larger_of_property_and_renter_credit: bool = True
     read_west_virginia_family_credit_limits_per_statute: bool = True
     step_west_virginia_family_credit_phaseout_per_statute: bool = True
     subtract_west_virginia_social_security_per_statute: bool = True
