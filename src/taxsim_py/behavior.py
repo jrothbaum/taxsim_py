@@ -294,6 +294,7 @@ class BehaviorProfile:
     read_west_virginia_family_credit_limits_per_statute: bool = True
     step_west_virginia_family_credit_phaseout_per_statute: bool = True
     subtract_west_virginia_social_security_per_statute: bool = True
+    leave_out_west_virginia_child_care_credit_from_2024: bool = True
     require_earned_income_for_ohio_joint_credit: bool = True
     start_ohio_business_deduction_per_statute: bool = True
     test_ohio_credits_before_business_deduction_per_statute: bool = True

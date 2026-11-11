@@ -182,6 +182,11 @@ def compute_wv_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         famcrd = pl.when((statax > 0) & (nexemp > 0)).then(famcrd).otherwise(0.0)
         statax = (statax - famcrd).clip(0, None)
         credits = credits + famcrd
+        if y >= 2024 and not behavior.leave_out_west_virginia_child_care_credit_from_2024:
+            # TAXSIM's 2024 on routine takes half the federal child care credit along with the family credit.
+            care = 0.5 * pl.col("federal_chcr")
+            statax = pl.when((statax > 0) & (nexemp > 0)).then((statax - care).clip(0, None)).otherwise(statax)
+            credits = credits + care
 
     # --- Homestead excess property tax credit (refundable) ---
     if p.in_effect("property_credit_base"):
