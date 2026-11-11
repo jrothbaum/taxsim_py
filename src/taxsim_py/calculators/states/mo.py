@@ -95,10 +95,16 @@ def compute_mo_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     phases = MO_PARAMS["social_security_exemption_phaseout_start"]
     phase = pl.when(is_joint).then(float(phases["married_joint"])).otherwise(float(phases["single"]))
     ssaxmp = pl.lit(0.0)
+    extra_taxsim_subtraction = pl.lit(0.0)
     if y >= 2007:
         ssaxmp = (
             p.num("social_security_exemption_share") * pl.col("taxable_social_security") - (agi - phase).clip(0, None)
         ).clip(0, None)
+        if not behavior.compute_missouri_pension_exemption_per_statute:
+            # TAXSIM: half for each spouse 62 or older (a lone filer gets half), and the amount comes off twice.
+            share_62 = 0.5 * (pl.col("page") >= 62).cast(pl.Float64) + 0.5 * (pl.col("sage") >= 62).cast(pl.Float64)
+            ssaxmp = share_62 * ssaxmp
+            extra_taxsim_subtraction = ssaxmp
         exemp = exemp + ssaxmp
 
     # Public pension exemption for taxpayers 65 or older (1990+).
@@ -128,7 +134,8 @@ def compute_mo_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             else:
                 allowed = (pl.min_horizontal(pl.lit(ssmax), pension) - ssaxmp).clip(0, None)
             scred = (allowed - exc).clip(0, None)
-        exemp = exemp + pl.when(aged > 0).then(scred).otherwise(0.0)
+        if behavior.compute_missouri_pension_exemption_per_statute:
+            exemp = exemp + pl.when(aged > 0).then(scred).otherwise(0.0)
     exemp = pl.when(dependent_filer).then(0.0).otherwise(exemp)
 
     # --- Itemized deductions (only when itemizing federally) ---
@@ -165,7 +172,7 @@ def compute_mo_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         over = agi - threshold
         xconst = pl.min_horizontal(p.num("itemized_limit_max_share") * xtot, p.num("itemized_limit_rate") * over)
         stax = pl.when((xtot > 0) & (over > 0)).then((xtot - xconst) / xtot * salt_ded).otherwise(salt_ded)
-    if y <= 2017 and y >= 1987 and not behavior.compute_missouri_itemized_deduction_before_2018:
+    if y <= 2017 and not behavior.compute_missouri_itemized_deduction_before_2018:
         # The 2026 build sets the itemized total only from 2018, so earlier years start from zero.
         xitded = pl.lit(0.0)
     xitded = (xitded - dedphs + (salt_ded - stax)).clip(0, None)
@@ -179,6 +186,8 @@ def compute_mo_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     # --- Deduction for federal income tax ---
     if y <= 1986:
         fedtax = pl.col("pre1987_taxbc") - pl.col("federal_chcr") - pl.col("pre1987_earncr")
+        if not behavior.deduct_missouri_federal_tax_after_refundable_credits:
+            fedtax = pl.col("pre1987_taxbc") + pl.col("pre1987_almtax")
     else:
         if y == 2021:
             ccc_used = pl.lit(0.0)
@@ -225,7 +234,16 @@ def compute_mo_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         cg_subtraction = p.num("capital_gains_subtraction") * (
             pl.col("stcg") + pl.col("ltcg")
         ).clip(0, None)
-    df, (taxinc,) = checkpoint(df, mo_taxinc=(agi - deduc - fedtax - exemp - cg_subtraction).clip(0, None))
+    pended = pl.lit(0.0)
+    if not behavior.compute_missouri_pension_exemption_per_statute and y >= 1999:
+        # TAXSIM: up to $6,000 per taxpayer of pensions, less income over a floor, for everyone.
+        floor = by_filing_status({"single": 25000.0, "married_joint": 32000.0, "head_of_household": 25000.0, "married_separate": 15000.0})
+        pended = (
+            pl.min_horizontal(6000.0 * txp, pl.col("pensions")) - (agi - pl.col("taxable_social_security") - floor).clip(0, None)
+        ).clip(0, None)
+    df, (taxinc,) = checkpoint(
+        df, mo_taxinc=(agi - deduc - fedtax - exemp - cg_subtraction - pended - extra_taxsim_subtraction).clip(0, None)
+    )
     aif = p.num("bracket_inflation")
     brackets = scale_brackets(p.value("brackets"), aif)
     if p.in_effect("taxsim_brackets") and not behavior.deduct_missouri_federal_tax_from_2022:

@@ -505,4 +505,4 @@ Taxsim mode now follows the statutory rule for these (they remain in
 | DE | 2019 on | Itemized deductions are property tax (up to $10,000), mortgage interest and charity: no state income tax and no other itemized deductions | Both modes |
 | Federal | 2021 | A separate return claims the earned income credit (with the single-filer parameters) | Both modes |
 
-| GA | 1987 on | | The itemized deduction is the federal one with the state income tax left in | Statutory: less the state tax. `subtract_state_tax_in_georgia_itemized_deduction` |
+| GA | 1987 on | | The itemized deduction is the federal one with the state income tax left in | Statutory: less the state tax. `subtract_state_tax_in_georgia_itemized_deduction` || MO | 1977 on | | Federal tax deducted before refundable credits (to 1986); itemized deduction left at zero through 2017; pension exclusion of up to $6,000 per taxpayer for everyone from 1999, and the Social Security exclusion halved by age 62 and subtracted twice | Statutory: `compute_missouri_pension_exemption_per_statute`, `deduct_missouri_federal_tax_after_refundable_credits`, `compute_missouri_itemized_deduction_before_2018` |

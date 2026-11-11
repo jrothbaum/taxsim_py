@@ -137,6 +137,7 @@ class BehaviorProfile:
     use_idaho_building_fund_limits_per_statute: bool = True
     use_rhode_island_published_brackets: bool = True
     test_arizona_family_credit_before_exemptions: bool = True
+    compute_missouri_pension_exemption_per_statute: bool = True
     exclude_unemployment_in_district_of_columbia_every_year: bool = True
     split_district_of_columbia_joint_returns_per_statute: bool = True
     split_mississippi_joint_returns_per_statute: bool = True

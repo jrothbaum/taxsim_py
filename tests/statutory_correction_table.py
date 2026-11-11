@@ -270,7 +270,7 @@ CASES = [
     # Security base (1.45% of $20,400 less in the payroll deduction).
     _case(
         "STATE-SOCSEC-001", "Missouri 1985 itemizing couple", "state_itemized_deductions",
-        11_792.60, 11_496.80, year=1985, state=26, mstat=2, pwages=60_000, swages=10_000, proptax=8_000,
+        0.0, 11_496.80, year=1985, state=26, mstat=2, pwages=60_000, swages=10_000, proptax=8_000,
     ),
     # Missouri property credit: tax paid up to the maximum, less the income
     # percentage (1/16 of 1% in the first step above the base).
