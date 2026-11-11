@@ -118,6 +118,9 @@ def compute_id_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
                 .when(files_joint()).then(j)
                 .otherwise(w / pl.col("id_sep"))
             )
+        if flate != 1.0 and behavior.mode.value != "statutory":
+            # TAXSIM's table stops a year short of the projected year, so it takes the federal standard deduction.
+            df = df.with_columns(id_stded=pl.col("standard_deduction"))
         if 2008 <= effective_year <= 2009 and not behavior.use_idaho_standard_deduction_2008_2009_per_statute:
             # TAXSIM adds the property tax allowance to a standard deduction it never sets.
             df = df.with_columns(id_stded=pl.lit(0.0))
