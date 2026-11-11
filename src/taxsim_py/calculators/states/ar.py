@@ -142,6 +142,9 @@ def compute_ar_tax(
         ar_agi=pl.col("wages") + (pl.col("dividends") + dividend_input_adjustment()) + pl.col("intrec") + pl.col("ar_capgn")
         + pl.col("psemp") + pl.col("ssemp") + pl.col("pensions") + schedule_e + business
     )
+    if not behavior.count_nonproperty_income_once:
+        # TAXSIM adds its variable for other non-property income (`d(23)`) to Arkansas income.
+        df = df.with_columns(ar_agi=pl.col("ar_agi") + pl.col("nonprop"))
     # Pension exclusion.
     if effective_year >= 1983 and not credit_route:
         amount = p.num("pension_exclusion_amount")
@@ -162,6 +165,9 @@ def compute_ar_tax(
             ).otherwise(0.0)
             df = df.with_columns(ar_agi=pl.col("ar_agi") - excluded.clip(0, None))
         else:
+            if 1985 <= effective_year <= 2020 and not behavior.exclude_arkansas_pensions_per_taxpayer:
+                # TAXSIM excludes one amount per return, whatever the ages.
+                basis = "return"
             count = {"return": pl.lit(1.0), "taxpayer": pl.col("ar_taxpayers"), "aged": aged_count()}[basis]
             df = df.with_columns(ar_agi=pl.col("ar_agi") - pl.min_horizontal(pl.col("pensions"), amount * count))
     if 2018 <= effective_year <= 2019:
@@ -209,6 +215,11 @@ def compute_ar_tax(
     df = df.with_columns(
         ar_agi_higher_earner=higher_earner_share(pl.col("ar_agi")),
     )
+    if not behavior.split_arkansas_joint_income_by_higher_earner:
+        # TAXSIM's husband is always the primary taxpayer: wages and business income of each, the rest shared.
+        earnh = pl.col("pwages") + pl.col("pbusinc") + pl.col("pprofinc")
+        earnw = pl.col("swages") + pl.col("sbusinc") + pl.col("sprofinc")
+        df = df.with_columns(ar_agi_higher_earner=earnh + 0.5 * (pl.col("ar_agi") - earnh - earnw))
     df = df.with_columns(
         ar_agi_lower_earner=pl.col("ar_agi") - pl.col("ar_agi_higher_earner"),
         ar_xitdh=pl.when(pl.col("ar_agi") != 0).then(pl.col("ar_xitded") * pl.col("ar_agi_higher_earner") / pl.col("ar_agi")).otherwise(0.0),
