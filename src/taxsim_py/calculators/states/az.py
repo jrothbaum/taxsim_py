@@ -142,8 +142,9 @@ def compute_az_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             fctr = round(aif * 100.0) / 100.0
         else:
             fctr = aif
+        std_base = pl.col("az_agi") if behavior.test_arizona_family_credit_before_exemptions else pl.col("az_agi") - pl.col("az_exemp")
         df = df.with_columns(
-            az_stded=(float(sd["rate"]) * fctr * pl.col("az_agi")).clip(0, float(sd["cap_per_exemption"]) * pl.col("az_txp") * aif)
+            az_stded=(float(sd["rate"]) * fctr * std_base).clip(0, float(sd["cap_per_exemption"]) * pl.col("az_txp") * aif)
         )
     elif p.in_effect("standard_deduction_per_exemption"):
         df = df.with_columns(az_stded=pl.col("az_txp") * p.num("standard_deduction_per_exemption"))
@@ -183,12 +184,13 @@ def compute_az_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
                 df = df.with_columns(az_phas=by_filing_status({s: float(v) * index for s, v in lim["threshold"].items()}))
             else:
                 df = df.with_columns(az_phas=float(lim["threshold"]) * index / pl.col("az_sep"))
+            limit_agi = pl.col("az_agi") if behavior.test_arizona_family_credit_before_exemptions else pl.col("az_agi") - pl.col("az_exemp")
             df = df.with_columns(
-                az_reduce_raw=pl.when(pl.col("az_agi") > pl.col("az_phas"))
+                az_reduce_raw=pl.when(limit_agi > pl.col("az_phas"))
                 .then(
                     pl.min_horizontal(
                         lim["cap_rate"] * pl.col("az_xitded_base"),
-                        lim["rate"] * (pl.col("az_agi") - pl.col("az_phas")),
+                        lim["rate"] * (limit_agi - pl.col("az_phas")),
                     )
                 )
                 .otherwise(0.0)
@@ -259,7 +261,10 @@ def compute_az_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
                 .otherwise(pl.col("az_fagi"))
             )
         df = df.with_columns(
-            az_famcr=pl.when(pl.col("az_agi") <= pl.col("az_fagi"))
+            az_famcr=pl.when(
+                (pl.col("az_agi") if behavior.test_arizona_family_credit_before_exemptions else pl.col("az_agi") - pl.col("az_exemp"))
+                <= pl.col("az_fagi")
+            )
             .then(pl.min_horizontal(pl.col("az_famlim"), (pl.col("depx") + pl.col("az_txp_raw")) * float(fic["per_exemption"])))
             .otherwise(0.0)
         )
