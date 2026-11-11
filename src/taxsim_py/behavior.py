@@ -270,6 +270,7 @@ class BehaviorProfile:
     apply_indiana_federal_credit_floor_from_2011: bool = True
     use_indiana_decoupled_credit_schedule_in_2021: bool = True
     compute_california_2021_earned_income_credit_per_statute: bool = True
+    keep_california_salt_addback_cents_per_statute: bool = True
     exclude_utah_state_income_tax_from_taxpayer_credit_before_2018: bool = True
     pay_utah_retirement_credit_per_statute: bool = True
     use_utah_2022_credit_threshold_per_statute: bool = True

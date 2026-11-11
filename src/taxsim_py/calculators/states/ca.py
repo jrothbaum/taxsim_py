@@ -129,7 +129,11 @@ def compute_ca_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             xitded_base = (pl.col("proptax") + pl.col("otheritem") + pl.col("mortgage")).clip(0, None)
         if 2018 <= effective_year <= 2020 and not behavior.ignore_federal_salt_cap_in_california and p.in_effect("taxsim_salt_addback_limit"):
             # TAXSIM: "California does not limit the deduction" - it puts back the state and local tax over $10,000.
-            excess = (pl.col("state_sales_or_income_tax_ded") + pl.col("proptax") - p.num("taxsim_salt_addback_limit")).clip(0, None)
+            state_tax_deducted = pl.col("state_sales_or_income_tax_ded")
+            if not behavior.keep_california_salt_addback_cents_per_statute:
+                # TAXSIM drops the cents of the state tax estimate here.
+                state_tax_deducted = state_tax_deducted.floor()
+            excess = (state_tax_deducted + pl.col("proptax") - p.num("taxsim_salt_addback_limit")).clip(0, None)
         else:
             excess = pl.lit(0.0)
         df = df.with_columns(ca_xitded_base=xitded_base)
@@ -226,7 +230,7 @@ def compute_ca_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         step = float(p["exemption_credit_phaseout"]["step"])
         if p.in_effect("exemption_credit_phaseout_upper"):
             excess_over = (pl.col("agi") - pl.col("ca_phaded2")).clip(0, None)
-            reduction_full = (dep_reduced + pl.col("ca_txp") + aged_count()) * per_credit * (
+            reduction_full = (dep_reduced + pl.col("ca_txp_raw") + aged_count()) * per_credit * (
                 pl.col("agi") - pl.col("ca_phaded2")
             ) / step / pl.col("ca_sep")
             upper = p.num("exemption_credit_phaseout_upper")
@@ -234,8 +238,15 @@ def compute_ca_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
                 (pl.col("ca_excrd") - reduction_full).clip(0, None)
             )
         else:
-            num = 1.0 + ((pl.col("agi") - pl.col("ca_phaded2")) / (step / pl.col("ca_sep"))).floor()
-            excrd_over_agi = (pl.col("ca_excrd") - (dep_reduced + pl.col("ca_txp") + aged_count()) * per_credit * num).clip(0, None)
+            num = phaseout_steps((pl.col("agi") - pl.col("ca_phaded2")) / (step / pl.col("ca_sep")), behavior)
+            excrd_over_agi = (pl.col("ca_excrd") - (dep_reduced + pl.col("ca_txp_raw") + aged_count()) * per_credit * num).clip(0, None)
+            if p.in_effect("exemption_credit_per_dependent"):
+                # Each credit is cut by the reduction on its own: a personal credit wiped out does not
+                # also take the dependent credits down.
+                dependents = dep_reduced * p.num("exemption_credit_per_dependent")
+                excrd_over_agi = (pl.col("ca_excrd") - dependents - (pl.col("ca_txp_raw") + aged_count()) * per_credit * num).clip(0, None) + (
+                    dependents - dep_reduced * per_credit * num
+                ).clip(0, None)
 
         df = df.with_columns(
             ca_excrd=pl.when(pl.col("agi") > pl.col("ca_phaded2")).then(excrd_over_agi).otherwise(pl.col("ca_excrd"))
@@ -330,7 +341,7 @@ def compute_ca_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         phaout = p["amt_exemption_phaseout_rate"] * (alminy - phase).clip(0, None)
         exclnt = (excl - phaout).clip(0, None)
         alminc = (alminy - exclnt).clip(0, None)
-        df = df.with_columns(ca_amt=(alminc * p.num("amt_rate") - pl.col("ca_statax")).clip(0, None))
+        df = df.with_columns(ca_amt=(alminc * p.num("amt_rate") - pl.col("ca_regtax")).clip(0, None))
     else:
         df = df.with_columns(ca_amt=pl.lit(0.0))
 
