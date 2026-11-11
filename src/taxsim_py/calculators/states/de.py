@@ -46,7 +46,8 @@ def compute_de_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     page = pl.col("page")
     # TAXSIM assumes a joint spouse with no age is 40.
     sage = pl.when(is_joint_return & (pl.col("sage") == 0)).then(40.0).otherwise(pl.col("sage").cast(pl.Float64))
-    if effective_year >= 1996:
+    unified = effective_year >= 1996 or not behavior.compute_delaware_before_1996_per_statute
+    if unified:
         # Taxpayers 60 or older exclude up to $12,500 of pensions, others $2,000; pensions go to
         # the spouse aged 60 or over (half each when both or neither are).
         h_old, w_old = page >= 60, sage >= 60
@@ -113,6 +114,11 @@ def compute_de_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     if effective_year >= 1987:
         aged_std = p.num("aged_standard_deduction")
         df = df.with_columns(de_stded=pl.col("de_stded") + aged_std * aged)
+    elif not behavior.compute_delaware_before_1996_per_statute:
+        # TAXSIM never sets the aged addition before 1987; the compiled code adds twice the personal
+        # exemption to a single return with a taxpayer 65 or older.
+        extra = 2.0 * p.num("personal_exemption") * (aged >= 1).cast(pl.Float64)
+        df = df.with_columns(de_stded=pl.col("de_stded") + pl.when(files_joint()).then(0.0).otherwise(extra))
 
     # --- Itemized deduction --- Through 1986 the itemized inputs.
     if effective_year <= 1986:
@@ -190,7 +196,7 @@ def compute_de_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
 
     # --- Joint returns: the lower of the joint tax and the tax on each earner's share ---
     is_joint_relief = (files_joint()) & (pl.col("de_agi") > 0)
-    if effective_year >= 1996:
+    if unified:
         # TAXSIM's `splitagi`: each spouse's own income, with the rest shared equally.
         ui_total = pl.max_horizontal(pl.col("ui"), pl.col("pui") + pl.col("sui"))
         sui_part = pl.col("sui")
@@ -210,9 +216,11 @@ def compute_de_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         agit = tinc + cinc - secah
         agis = sinc + cinc - secas
         std_each = float(p.num("standard_deduction_per_taxpayer")) if p.in_effect("standard_deduction_per_taxpayer") else 0.0
+        if not p.in_effect("standard_deduction_per_taxpayer") and not behavior.compute_delaware_before_1996_per_statute:
+            std_each = float(p.num("taxsim_split_standard_deduction"))
         aged_h = pl.when(pl.col("page") > 0).then(pl.col("page") >= 65).otherwise(aged >= 1)
         aged_w = pl.when(pl.col("page") > 0).then(sage >= 65).otherwise(aged >= 2)
-        aged_std = p.num("aged_standard_deduction")
+        aged_std = p.num("aged_standard_deduction") if p.in_effect("aged_standard_deduction") else 0.0
         std_h = pl.min_horizontal(agit, std_each + aged_std * aged_h.cast(pl.Float64))
         std_w = pl.min_horizontal(agis, std_each + aged_std * aged_w.cast(pl.Float64))
         itemizing_split = pl.col("de_xitded") > pl.col("de_stded") - aged_std * aged
@@ -269,21 +277,23 @@ def compute_de_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         df = df.with_columns(de_pecred=pl.lit(0.0))
 
     df = df.with_columns(de_credit=pl.col("de_chcr") + pl.col("de_pecred"))
-    if effective_year >= 1996 and p.in_effect("personal_exemption_credit"):
+    if unified and (effective_year >= 1996 or not behavior.compute_delaware_before_1996_per_statute):
         # Combined separate returns: each spouse's tax is cut by that spouse's personal credits,
         # dependents going first to the husband until his tax is used up.
-        unit = p.num("personal_exemption_credit")
+        unit = p.num("personal_exemption_credit") if p.in_effect("personal_exemption_credit") else 0.0
+        # TAXSIM credits each dependent $110 on a combined separate return in every year.
+        dep_unit = unit if behavior.compute_delaware_before_1996_per_statute else p.num("taxsim_dependent_credit")
         h_aged60 = (pl.col("page") >= 60) | (aged >= 1)
         w_aged60 = (pl.col("sage") >= 60) | (aged >= 2)
         credit_total = unit * (pl.col("de_taxpayers") + pl.col("depx")) + unit * h_aged60.cast(pl.Float64) + unit * w_aged60.cast(pl.Float64)
         sepcmb = is_joint_relief & (stat >= stat_h + stat_w)
         cred_h = unit + unit * h_aged60.cast(pl.Float64)
         cred_w = unit + unit * w_aged60.cast(pl.Float64)
-        dep_max_h = ((stat_h - cred_h) / unit).cast(pl.Int64).cast(pl.Float64)
+        dep_max_h = ((stat_h - cred_h) / dep_unit).cast(pl.Int64).cast(pl.Float64)
         dep_h = pl.min_horizontal(pl.col("depx").cast(pl.Float64), dep_max_h)
         dep_w = pl.col("depx").cast(pl.Float64) - dep_h
-        tax_h = (stat_h - cred_h - dep_h * unit).clip(0, None)
-        tax_w = (stat_w - cred_w - dep_w * unit).clip(0, None)
+        tax_h = (stat_h - cred_h - dep_h * dep_unit).clip(0, None)
+        tax_w = (stat_w - cred_w - dep_w * dep_unit).clip(0, None)
         joint_after = (stat - credit_total).clip(0, None)
         statax = pl.when(sepcmb).then(pl.min_horizontal(joint_after, tax_h + tax_w)).otherwise(joint_after)
         df = df.with_columns(de_statax=pl.when(is_joint_relief).then(statax).otherwise(joint_after))

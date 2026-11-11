@@ -244,6 +244,7 @@ class BehaviorProfile:
     set_new_mexico_capital_gains_share_per_statute: bool = True
     test_new_mexico_aged_deduction_on_state_agi: bool = True
     compute_new_mexico_capital_gains_deduction_per_statute: bool = True
+    compute_delaware_before_1996_per_statute: bool = True
     use_own_bounds_in_new_york_worksheets: bool = True
     use_single_standard_deduction_for_new_york_head_of_household_before_1987: bool = True
     complete_new_york_1986_maximum_tax_table: bool = True

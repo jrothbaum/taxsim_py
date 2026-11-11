@@ -56,6 +56,11 @@ standard_deduction:
   2000: null
 # From 2000: per taxpayer.
 standard_deduction_per_taxpayer: {2000: 3250}
+# TAXSIM sets each spouse's standard deduction on a combined separate return only from 2000 but
+# reads the same amount in every earlier year.
+taxsim_split_standard_deduction: {1977: 3250}
+# TAXSIM's credit per dependent on a combined separate return, in every year.
+taxsim_dependent_credit: {1977: 110}
 # Additional standard deduction per taxpayer 65 or older.
 aged_standard_deduction: {1987: 1000, 1999: 2500}
 # 1987 itemized deductions are multiplied by this factor.

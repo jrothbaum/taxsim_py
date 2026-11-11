@@ -292,3 +292,7 @@ Virginia 2022-2023 low-income returns (the Form 760ADJ choice between the low-in
 ## North Carolina child care expense table overwritten (fixed in the oracle build)
 
 `nctax77` (1995-2017) writes `child=min(statax,child)`, a typo for `chld`, which assigns to the whole per-child care-expense table and keeps the capped values for every later record in the run, so the child care credit depended on earlier records. `scripts/build_oracle.sh` patch 4 caps `chld` instead. TAXSIM itself still has the bug.
+
+## Delaware uninitialised variables
+
+`detax77` reads `stdedh`, `stdedw` (before 2000) and `stdx` (before 1987) without setting them. With the compiler used for the oracle they behave as $3,250, $3,250 and twice the personal exemption; another compiler or optimisation level may differ. Python reproduces those values in TAXSIM mode.
