@@ -10,7 +10,7 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 
-YEARS = list(range(1977, 2024))  # real AR law 1977-2021; 2022-2023 CPI-extrapolated (see ar.py)
+YEARS = list(range(1977, 2027))  # real AR law 1977-2021; 2022-2023 CPI-extrapolated (see ar.py)
 STATE_AR = 4
 
 _DEFAULTS: dict[str, Any] = {

@@ -13,7 +13,7 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 
-YEARS = list(range(1977, 2024))  # real ID law 1977-2021; 2022-2023 CPI-extrapolated (see id.py)
+YEARS = list(range(1977, 2027))  # real ID law 1977-2021; 2022-2023 CPI-extrapolated (see id.py)
 STATE_ID = 13
 
 _DEFAULTS: dict[str, Any] = {

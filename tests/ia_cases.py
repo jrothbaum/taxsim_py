@@ -11,7 +11,7 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 
-YEARS = list(range(1977, 2024))  # real IA law 1977-2021; 2022-2023 CPI-extrapolated (see ia.py)
+YEARS = list(range(1977, 2027))  # real IA law 1977-2021; 2022-2023 CPI-extrapolated (see ia.py)
 STATE_IA = 16
 
 _DEFAULTS: dict[str, Any] = {

@@ -10,7 +10,7 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 
-YEARS = list(range(1977, 2024))  # TAXSIM oracle range used by this validator.
+YEARS = list(range(1977, 2027))  # TAXSIM oracle range used by this validator.
 STATE_IL = 14
 
 _DEFAULTS: dict[str, Any] = {

@@ -5,7 +5,7 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 
-YEARS = list(range(1977, 2024))
+YEARS = list(range(1977, 2027))
 STATE_MN = 24
 
 # Minnesota's head-of-household standard deduction for 2019 on uses the

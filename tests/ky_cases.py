@@ -12,7 +12,7 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 
-YEARS = list(range(1977, 2024))  # real KY law 1977-2021; 2022-2023 CPI-extrapolated (see ky.py)
+YEARS = list(range(1977, 2027))  # real KY law 1977-2021; 2022-2023 CPI-extrapolated (see ky.py)
 STATE_KY = 18
 
 _DEFAULTS: dict[str, Any] = {

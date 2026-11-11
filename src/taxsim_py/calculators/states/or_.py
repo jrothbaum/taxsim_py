@@ -345,6 +345,8 @@ def compute_or_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         kicker = p.num("kicker")
     elif y == 2021 and not behavior.omit_oregon_2021_kicker:
         kicker = 0.17341
+    elif p.in_effect("one_time_kicker") and not behavior.leave_out_one_time_state_rebates:
+        kicker = p.num("one_time_kicker")
     if kicker is not None:
         statax = statax - kicker * taxbc_state
         credits = credits + kicker * taxbc_state

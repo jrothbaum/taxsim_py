@@ -13,7 +13,7 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 
-YEARS = list(range(1977, 2024))  # real DC law 1977-2021; 2022-2023 CPI-extrapolated (see dc.py)
+YEARS = list(range(1977, 2027))  # real DC law 1977-2021; 2022-2023 CPI-extrapolated (see dc.py)
 STATE_DC = 9
 
 _DEFAULTS: dict[str, Any] = {

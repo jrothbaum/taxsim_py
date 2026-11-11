@@ -5,7 +5,7 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 
-YEARS = list(range(1977, 2024))
+YEARS = list(range(1977, 2027))
 STATE_MS = 25
 
 _DEFAULTS: dict[str, Any] = {

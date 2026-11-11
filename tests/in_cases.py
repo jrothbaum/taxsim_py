@@ -14,7 +14,7 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 
-YEARS = list(range(1977, 2024))  # real IN law 1977-2021; 2022-2023 CPI-extrapolated (see in.py)
+YEARS = list(range(1977, 2027))  # real IN law 1977-2021; 2022-2023 CPI-extrapolated (see in.py)
 STATE_IN = 15
 
 _DEFAULTS: dict[str, Any] = {

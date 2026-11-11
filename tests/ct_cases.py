@@ -11,7 +11,7 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 
-YEARS = list(range(1977, 2024))  # real CT law 1977-2021; 2022-2023 CPI-extrapolated (see ct.py)
+YEARS = list(range(1977, 2027))  # real CT law 1977-2021; 2022-2023 CPI-extrapolated (see ct.py)
 STATE_CT = 7
 
 _DEFAULTS: dict[str, Any] = {
