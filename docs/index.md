@@ -81,7 +81,7 @@ locally in the page through Pyodide; see [Browser](browser.md).
 
 ## What is supported
 
-- **Years:** federal tax 1960-2025, state tax 1977-2025. Other years raise an error.
+- **Years:** federal tax 1960-2026, state tax 1977-2026. Other years raise an error.
 - **States:** all 50 states and DC. States without an income tax return 0.
 - **Inputs:** all of TAXSIM's inputs, with the same meanings and units
   ([Inputs](inputs.md)).

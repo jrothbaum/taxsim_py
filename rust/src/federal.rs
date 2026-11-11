@@ -379,7 +379,7 @@ impl FedParams {
         let pt_doc = load(root, "national/payroll_tax.yaml")?;
         let adj_doc = load(root, "national/state_adjustments.yaml")?;
 
-        if !(1987..=2025).contains(&year) {
+        if !(1987..=2026).contains(&year) {
             return Err(format!("law year {year} is not supported by the compiled calculator"));
         }
         let inc = YearParams::new(&inc_doc, year);

@@ -129,7 +129,7 @@ calculate_taxes(lf, year=2022, mtr=85).sink_parquet("taxes.parquet")
 ```
 
 The year can come from a column (`year_column`, default `"year"`), so one pass can cover many
-years and states. Checks of the data itself (a null or unsupported `mstat`, years after 2025)
+years and states. Checks of the data itself (a null or unsupported `mstat`, years after 2026)
 raise when the plan runs, and a `DataFrame` input is checked up front. `engine="python"`
 collects a `LazyFrame` and returns a `DataFrame`.
 

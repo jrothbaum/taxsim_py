@@ -67,6 +67,7 @@ rate_0_ceiling:
     2023: 44625
     2024: 47025
     2025: 48350
+    2026: 49450
   head_of_household:
     1987: 2500
     1988: 23900
@@ -107,6 +108,7 @@ rate_0_ceiling:
     2023: 59750
     2024: 63000
     2025: 64750
+    2026: 66200
   married_separate:
     1987: 1500
     1988: 14875
@@ -147,6 +149,7 @@ rate_0_ceiling:
     2023: 44625
     2024: 47025
     2025: 48350
+    2026: 49450
   married_joint:
     1987: 3000
     1988: 29750
@@ -187,9 +190,17 @@ rate_0_ceiling:
     2023: 89250
     2024: 94050
     2025: 96700
+    2026: 98900
 # TAXSIM mode: the regular-tax copy of the single 20% rate threshold in 2022
 # ($100 below the AMT copy and the published $459,750).
 taxsim_rate_15_ceiling_single: {2022: 459650, 2023: null}
+# TAXSIM mode from 2024: its start of the 15% rate is the 2023 amount carried by its price index, a little above the
+# published one.
+taxsim_rate_0_ceiling:
+  single: {2024: 47034.75, 2025: 48445.64, 2026: 49899.31}
+  married_joint: {2024: 94069.5, 2025: 96891.28, 2026: 99798.62}
+  head_of_household: {2024: 62976.5, 2025: 64865.59, 2026: 66811.96}
+  married_separate: {2024: 47034.75, 2025: 48445.64, 2026: 49899.31}
 rate_15_ceiling:
   single:
     1987: 1000000000000000.0
@@ -210,6 +221,7 @@ rate_15_ceiling:
     2023: 492300
     2024: 518900
     2025: 533400
+    2026: 545500
   head_of_household:
     1987: 1000000000000000.0
     1991: 70450
@@ -229,6 +241,7 @@ rate_15_ceiling:
     2023: 523050
     2024: 551350
     2025: 566700
+    2026: 579600
   married_separate:
     1987: 1000000000000000.0
     1991: 41075
@@ -248,6 +261,7 @@ rate_15_ceiling:
     2023: 276925
     2024: 291850
     2025: 300000
+    2026: 306850
   married_joint:
     1987: 1000000000000000.0
     1991: 82150
@@ -267,6 +281,7 @@ rate_15_ceiling:
     2023: 553850
     2024: 583750
     2025: 600050
+    2026: 613700
 rate_0: {1993: 0.1, 2003: 0.05, 2008: 0.0}
 rate_15: {1993: 0.2, 2003: 0.15}
 rate_20: {1994: 0.2}

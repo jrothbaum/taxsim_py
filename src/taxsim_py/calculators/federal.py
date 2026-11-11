@@ -344,6 +344,13 @@ def _capital_gain(year: int) -> pl.Expr:
     return pl.max_horizontal(pl.col("stcg") + pl.col("ltcg"), -loss_limit / _sepret())
 
 
+def _amt_phaseout_rate(amt_p: YearParams, behavior: BehaviorProfile) -> float:
+    """The AMT exemption phaseout rate; the TAXSIM build keeps 25% from 2026."""
+    if amt_p.in_effect("taxsim_exemption_phaseout_rate") and not behavior.phase_out_amt_exemption_at_half_rate_from_2026:
+        return amt_p.num("taxsim_exemption_phaseout_rate")
+    return amt_p.num("exemption_phaseout_rate")
+
+
 def _schedule_e(behavior: BehaviorProfile, year: int) -> pl.Expr:
     """Schedule E income: other property income and S corporation income.
 
@@ -608,10 +615,11 @@ def _deductions(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorPr
     # state calculators, which read it as the federal itemized total less mortgage interest.
     salt_uncapped_expr = pl.col("proptax") + pl.col("state_sales_or_income_tax_ded")
     if itemized_p.in_effect("salt_cap"):
-        salt_cap_expr = pl.lit(itemized_p.num("salt_cap")) / sepret_expr
+        taxsim_cap = itemized_p.in_effect("taxsim_salt_cap") and not behavior.index_salt_cap_from_2026
+        salt_cap_expr = pl.lit(itemized_p.num("taxsim_salt_cap" if taxsim_cap else "salt_cap")) / sepret_expr
         if itemized_p.in_effect("salt_phaseout"):
             # The cap shrinks with income but never below the floor.
-            phaseout = itemized_p.value("salt_phaseout")
+            phaseout = itemized_p.value("taxsim_salt_phaseout" if taxsim_cap else "salt_phaseout")
             salt_cap_expr = pl.max_horizontal(
                 pl.lit(float(phaseout["floor"])) / sepret_expr,
                 salt_cap_expr - phaseout["rate"] * (pl.col("agi") - phaseout["threshold"] / sepret_expr).clip(0, None),
@@ -763,6 +771,8 @@ def _regular_tax(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorP
     max_rate = cg_p.num("maximum_rate") if cg_p.in_effect("maximum_rate") else None
     rate_0_ceiling_expr = _by_status_at(cg_p["rate_0_ceiling"], year)
     rate_15_ceiling_expr = _by_status_at(cg_p["rate_15_ceiling"], year)
+    if year >= 2024 and not behavior.use_published_capital_gains_thresholds:
+        rate_0_ceiling_expr = _by_status_at(cg_p["taxsim_rate_0_ceiling"], year)
     if not behavior.use_published_capital_gains_thresholds and cg_p.in_effect("taxsim_rate_15_ceiling_single"):
         # TAXSIM's regular-tax copy of the single threshold differs from its AMT copy.
         rate_15_ceiling_expr = pl.when(files_single()).then(cg_p.num("taxsim_rate_15_ceiling_single")).otherwise(
@@ -971,7 +981,7 @@ def _alternative_minimum_tax(df: pl.DataFrame | pl.LazyFrame, year: int, behavio
         regular_tax=pl.col("regular_tax"),
         exemption=amt_exemption_expr,
         exemption_phaseout_threshold=amt_phaseout_threshold_expr,
-        exemption_phaseout_rate=amt_p.num("exemption_phaseout_rate"),
+        exemption_phaseout_rate=_amt_phaseout_rate(amt_p, behavior),
         rate_breakpoint=amt_p.num("rate_breakpoint"),
         rate_below_breakpoint=amt_p.num("rate_below_breakpoint"),
         rate_above_breakpoint=amt_p.num("rate_above_breakpoint"),
@@ -995,7 +1005,7 @@ def _alternative_minimum_tax(df: pl.DataFrame | pl.LazyFrame, year: int, behavio
     if _models_analytic_rate(year):
         # The exemption left (`exclnt`), whether it is phasing out, and AMT
         # income after it (`alminc`).
-        phaout = amt_p.num("exemption_phaseout_rate") * (
+        phaout = _amt_phaseout_rate(amt_p, behavior) * (
             pl.col("amt_income") - amt_phaseout_threshold_expr
         ).clip(0, None)
         exclnt = (amt_exemption_expr - phaout).clip(0, None)

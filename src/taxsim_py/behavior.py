@@ -28,6 +28,8 @@ class BehaviorProfile:
     count_business_and_professional_inputs_as_income: bool = True
     count_nonproperty_income_once: bool = True
     count_other_property_income_from_2024: bool = True
+    index_salt_cap_from_2026: bool = True
+    phase_out_amt_exemption_at_half_rate_from_2026: bool = True
     honor_separate_and_unmarried_codes_with_dependents: bool = True
     use_published_capital_gains_thresholds: bool = True
     tax_alaska_before_1979: bool = True

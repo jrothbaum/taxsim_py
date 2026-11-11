@@ -34,6 +34,7 @@ exemption:
     2023: 81300
     2024: 85700
     2025: 88100
+    2026: 90100
   head_of_household:
     1987: 30000
     1993: 33750
@@ -59,6 +60,7 @@ exemption:
     2023: 81300
     2024: 85700
     2025: 88100
+    2026: 90100
   married_separate:
     1987: 20000
     1993: 22500
@@ -84,6 +86,7 @@ exemption:
     2023: 63250
     2024: 66650
     2025: 68500
+    2026: 70100
   married_joint:
     1987: 40000
     1993: 45000
@@ -109,6 +112,7 @@ exemption:
     2023: 126500
     2024: 133300
     2025: 137000
+    2026: 140200
 exemption_phaseout_threshold:
   single:
     1987: 112500
@@ -125,6 +129,7 @@ exemption_phaseout_threshold:
     2023: 578150
     2024: 609350
     2025: 626350
+    2026: 500000
   head_of_household:
     1987: 112500
     2013: 115400
@@ -140,6 +145,7 @@ exemption_phaseout_threshold:
     2023: 578150
     2024: 609350
     2025: 626350
+    2026: 500000
   married_separate:
     1987: 75000
     2013: 76950
@@ -155,6 +161,7 @@ exemption_phaseout_threshold:
     2023: 578150
     2024: 609350
     2025: 626350
+    2026: 500000
   married_joint:
     1987: 150000
     2013: 153900
@@ -170,7 +177,10 @@ exemption_phaseout_threshold:
     2023: 1156300
     2024: 1218700
     2025: 1252700
-exemption_phaseout_rate: {1987: 0.25}
+    2026: 1000000
+# P.L. 119-21 doubles the rate to 50% from 2026; the TAXSIM build keeps 25%.
+exemption_phaseout_rate: {1987: 0.25, 2026: 0.5}
+taxsim_exemption_phaseout_rate: {2026: 0.25}
 # `rate_below_breakpoint` on AMT income after the exemption up to the breakpoint
 # (halved for married separate), `rate_above_breakpoint` above it; through 1992
 # the two rates are equal (a flat rate).
@@ -189,6 +199,7 @@ rate_breakpoint:
   2023: 220700
   2024: 232600
   2025: 239100
+  2026: 244500
 rate_below_breakpoint: {1987: 0.21, 1991: 0.24, 1993: 0.26}
 rate_above_breakpoint: {1987: 0.21, 1991: 0.24, 1993: 0.28}
 # From 1990 married-separate returns add back `separate_return_addback_rate` of
@@ -268,6 +279,7 @@ cg_rate_15_ceiling:
     2023: 492300
     2024: 518900
     2025: 533400
+    2026: 545500
   head_of_household:
     1993: 1000000000000000.0
     2013: 425000
@@ -283,6 +295,7 @@ cg_rate_15_ceiling:
     2023: 523050
     2024: 551350
     2025: 566700
+    2026: 579600
   married_separate:
     1993: 1000000000000000.0
     2013: 225000
@@ -298,6 +311,7 @@ cg_rate_15_ceiling:
     2023: 276925
     2024: 291850
     2025: 300000
+    2026: 306850
   married_joint:
     1993: 1000000000000000.0
     2013: 450000
@@ -313,4 +327,5 @@ cg_rate_15_ceiling:
     2023: 553850
     2024: 583750
     2025: 600050
+    2026: 613700
 gains_top_rate_addition: {1997: 0.05}

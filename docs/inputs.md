@@ -9,7 +9,7 @@ untouched.
 
 | Column | Meaning |
 |:--|:--|
-| `year` | Tax year, 1960-2025. Not needed if you pass `year=` to `calculate_taxes`. |
+| `year` | Tax year, 1960-2026. Not needed if you pass `year=` to `calculate_taxes`. |
 | `state` | TAXSIM state code 1-51 (alphabetical, with DC as 9), or 0 for no state tax. With `state_id_type="fips"`, Census FIPS codes. |
 | `mstat` | Filing status: `1` single (head of household if `depx > 0`), `2` joint, `6` married filing separately, `8` dependent filer. The older codes `3`, `33` and `66` are also accepted. |
 

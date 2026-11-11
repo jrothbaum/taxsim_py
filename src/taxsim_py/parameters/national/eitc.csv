@@ -467,3 +467,15 @@ year,num_children,filing_status,rate_in,max_credit,phaseout_start,rate_out
 2025,3,single,0.45,8046,23350,0.2106
 2025,3,head_of_household,0.45,8046,23350,0.2106
 2025,3,married_joint,0.45,8046,30470,0.2106
+2026,0,single,0.0765,664,10860,0.0765
+2026,0,head_of_household,0.0765,664,10860,0.0765
+2026,0,married_joint,0.0765,664,18140,0.0765
+2026,1,single,0.34,4427,23890,0.1598
+2026,1,head_of_household,0.34,4427,23890,0.1598
+2026,1,married_joint,0.34,4427,31160,0.1598
+2026,2,single,0.40,7316,23890,0.2106
+2026,2,head_of_household,0.40,7316,23890,0.2106
+2026,2,married_joint,0.40,7316,31160,0.2106
+2026,3,single,0.45,8231,23890,0.2106
+2026,3,head_of_household,0.45,8231,23890,0.2106
+2026,3,married_joint,0.45,8231,31160,0.2106

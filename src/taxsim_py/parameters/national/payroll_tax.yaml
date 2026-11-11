@@ -62,6 +62,7 @@ oasdi_wage_base:
   2023: 160200
   2024: 168600
   2025: 176100
+  2026: 184500
 # Medicare (HI) taxable wage maximum; uncapped (a large sentinel) from 1994.
 hi_wage_base:
   1960: 4800

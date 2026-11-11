@@ -8,12 +8,17 @@
 
 # State and local tax deduction cap per return from 2018 (halved for married
 # separate); none before.
-salt_cap: {2018: 10000, 2025: 40000}
+salt_cap: {2018: 10000, 2025: 40000, 2026: 40400}
 # 2025-2029 (P.L. 119-21 sec. 70120): the SALT cap falls by the rate times AGI
 # over the threshold, but not below the floor (all halved for married separate).
 salt_phaseout:
   2025: {rate: 0.3, threshold: 500000, floor: 10000}
+  2026: {rate: 0.3, threshold: 505000, floor: 10000}
   2030: null
+# The TAXSIM build leaves the 2025 cap and phaseout threshold unindexed in 2026 (the law indexes them 1%).
+taxsim_salt_cap: {2026: 40000}
+taxsim_salt_phaseout:
+  2026: {rate: 0.3, threshold: 500000, floor: 10000}
 # Limitation on itemized deductions (1991-2009 and 2013-2017): reduced by the
 # lesser of `pease_reduction_rate` of AGI over the threshold and
 # `pease_cap_rate` of itemized deductions, times `limitation_phasedown_share`.

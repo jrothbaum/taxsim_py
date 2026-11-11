@@ -324,3 +324,17 @@ calculation runs one pass for federal-only returns and gives nothing. About 26 r
 
 Rows with ordinary income plus gains above the 20% threshold differ by $1.5 (2024) to $14 (2025) from the oracle; the thresholds
 match the published ones, so the cause is somewhere in how the build splits taxable income at that bracket.
+
+## 2026 build: EITC with child ages (open)
+
+For tax year 2026 a record that gives child ages (`age1`-`age3`) gets an earned income credit of 7.65% of earnings with no
+maximum and a different phaseout (e.g. wages $30,000 and two children: $2,295; the dependent-count inputs give $7,316). The
+age-to-count tables run one year short for 2026, so the build treats the children as absent but keeps the dependent filer
+count. Not reproduced: three rows of `scripts/validate_federal.py` for 2026 ("child ages ...").
+
+## Federal 2026 values the TAXSIM build does not index
+
+Its SALT cap stays $40,000 with the phaseout starting at $500,000 (the law: $40,400 and $505,000 for 2026), and its AMT
+exemption phaseout rate stays 25% (the law: 50% from 2026). TAXSIM mode keeps them
+(`index_salt_cap_from_2026`, `phase_out_amt_exemption_at_half_rate_from_2026`). Its 0% capital gains threshold is the 2023
+amount carried by its price index (about $450 above the published one in 2026).

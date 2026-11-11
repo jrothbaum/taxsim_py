@@ -64,6 +64,10 @@ KNOWN_ORACLE_DIVERGENT_YEARS: set[int] = set()
 def main() -> None:
     # The API derives the sales-tax deduction itself.
     cases = build_federal_test_cases().drop("state_sales_or_income_tax_ded")
+    if _os.environ.get("FED_YEARS"):
+        # e.g. FED_YEARS=2025,2026 checks only those years.
+        wanted = [int(y) for y in _os.environ["FED_YEARS"].split(",")]
+        cases = cases.filter(pl.col("year").is_in(wanted))
     expected = run_oracle(cases, mtr=85, idtl=2).select(
         "taxsimid", *[pl.col(c).alias(f"{c}_expected") for c in COMPARED_COLUMNS]
     )
