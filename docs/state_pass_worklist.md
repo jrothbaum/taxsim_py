@@ -27,7 +27,7 @@ Not zero means unfinished: each state below needs another pass.
 | ME | 39 | 2014-21 property tax fairness credit / renter cases, 2020 childless EITC 18-24 |
 | ID | 46 | dependent filers 2010-23, 2018-23 high-income itemizers (own deduction rules) |
 | WV | 91 | 2022-23 family tax credit phase-out (smooth), 2007-2021 one to five cases a year, 2020-21 ten |
-| OH | 137 | 1977:4, 1978:4, 1979:2, 1980:2, 1981:2, 1982:2, 1983:1, 1984:1, 1985:1, 1986:1, 1987:1, 1988:1, 1989:1, 1990:1, 1991:1, 1992:1, 1993:1, 1994:1, 1995:1, 1996:... |
+| OH | 64 | 2017+ business income and non-property cases (own routines), 2021 pennies (rate rounding), 1977-78 two a year |
 | MI | 41 | 1977:1, 1978:2, 1979:2, 1980:2, 1981:2, 1982:2, 1983:2, 1984:2, 1985:2, 1986:2, 1987:2, 1988:2, 1989:2, 1990:2, 1991:2, 1992:2, 1993:2, 1994:2, 1995:2, 1996:... |
 | GA | 84 | 1982:5, 1983:5, 1984:5, 1985:5, 1986:1, 1987:1, 1988:1, 1989:2, 1990:2, 1991:2, 1992:2, 1993:2, 1994:2, 1995:2, 1996:2, 1997:2, 1998:2, 1999:2, 2000:2, 2001:... |
 | DC | 58 |  |

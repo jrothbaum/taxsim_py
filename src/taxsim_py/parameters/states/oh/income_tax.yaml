@@ -275,6 +275,12 @@ pension_exclusion: {1977: 4000, 1983: null}
 # `business_brackets` and left out of taxable income.
 business_deduction_share: {2015: 0.75, 2016: 1.0}
 business_deduction_cap: {2015: 187500.0, 2016: 250000.0}
+# TAXSIM also gives the deduction in 2013 and 2014 (the statute started it with a larger cap), taxing
+# the rest at a flat rate, and caps every year at 250,000.
+taxsim_business_deduction:
+  2013: {share: 0.5, cap: 250000.0, rate: 0.03}
+  2014: {share: 0.75, cap: 250000.0, rate: 0.03}
+  2015: null
 business_brackets:
   2015: [[0, 0.00495], [5200, 0.0099], [10400, 0.0198], [15650, 0.02476], [20900, 0.02969], [41700, 0.03]]
 

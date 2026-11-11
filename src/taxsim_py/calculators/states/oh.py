@@ -64,7 +64,15 @@ def compute_oh_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     businc = pl.lit(0.0)
     statb = pl.lit(0.0)
     business_rate = pl.lit(0.0)
-    if p.in_effect("business_deduction_share"):
+    if p.in_effect("taxsim_business_deduction") and not behavior.start_ohio_business_deduction_per_statute:
+        c = p.value("taxsim_business_deduction")
+        business = (pl.col("psemp") + pl.col("ssemp")).clip(0, None)
+        busded = pl.min_horizontal(float(c["share"]) * business, float(c["cap"]) / sep)
+        agi = agi - busded
+        businc = (business - busded).clip(0, None)
+        statb = float(c["rate"]) * businc
+        business_rate = pl.lit(float(c["rate"]))
+    elif p.in_effect("business_deduction_share"):
         business = (pl.col("psemp") + pl.col("ssemp")).clip(0, None)
         busded = pl.min_horizontal(p.num("business_deduction_share") * business, p.num("business_deduction_cap") / sep)
         agi = agi - busded
@@ -145,7 +153,7 @@ def compute_oh_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     wagi = xlind - hagi
     min_income = p["joint_credit_min_spouse_income"]
     joint_eligible = (hagi >= min_income) & (wagi >= min_income)
-    if p.in_effect("joint_credit_min_earned"):
+    if p.in_effect("joint_credit_min_earned") and behavior.require_earned_income_for_ohio_joint_credit:
         joint_eligible = joint_eligible & (pl.col("earned_income") >= p.num("joint_credit_min_earned"))
     if y <= 1988 and behavior.limit_ohio_joint_credit_to_joint_returns:
         # TAXSIM does not test the filing status through 1988.

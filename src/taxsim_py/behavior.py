@@ -278,6 +278,8 @@ class BehaviorProfile:
     credit_maine_1988_standard_deduction_and_exemptions: bool = True
     make_maine_elderly_credit_refundable: bool = True
     halve_west_virginia_separate_brackets_per_statute: bool = True
+    require_earned_income_for_ohio_joint_credit: bool = True
+    start_ohio_business_deduction_per_statute: bool = True
     start_wisconsin_head_of_household_third_tier_per_statute: bool = True
     use_own_bounds_in_new_york_worksheets: bool = True
     use_single_standard_deduction_for_new_york_head_of_household_before_1987: bool = True
