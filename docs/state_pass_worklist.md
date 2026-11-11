@@ -31,7 +31,7 @@ Not zero means unfinished: each state below needs another pass.
 | MI | 23 | 2017-23 aged low-income refundable credits, 2021-23 dependent filer and self-employed property credit |
 | GA | 84 | aged cases 1989-2020 depend on uninitialised ceilings (record order), 1982-85 five a year, 2022-23 |
 | DC | 6 | 2018-23 dependent filer with interest |
-| MN | 39 | 1977-84 (federal pre-1982 gaps) 2-4 a year, 2022-23 eight |
+| MN | 32 | 1977-86 federal pre-1982 gaps, 2023 married separate, 2018-20 itemized joint high income |
 | VA | 31 | itemizer pennies 2019-23, 1989-99 one a year, 2021 childcare HoH and aged couple |
 | PA | 0 | done |
 | ND | 20 | 2018-22 joint self-employment ($2.20), 2023 married separate |

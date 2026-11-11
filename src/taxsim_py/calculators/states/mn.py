@@ -864,7 +864,15 @@ def compute_mn_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         allowed = (
             maximum - float(p["social_security_subtraction_phaseout_rate"]) * (provisional - threshold).clip(0, None)
         ).clip(0, None)
-        subrac = subrac + pl.when(ss_taxable > 0).then(pl.min_horizontal(ss_taxable, allowed)).otherwise(0.0)
+        subtraction = pl.min_horizontal(ss_taxable, allowed)
+        if y >= 2023:
+            full_threshold = pl.when(single_class).then(_sub(p["social_security_full_subtraction_threshold"], "single", y)).otherwise(
+                _sub(p["social_security_full_subtraction_threshold"], "married", y)
+            )
+            steps = phaseout_steps(((fed_agi - full_threshold) / (4000.0 / sep)).clip(0, None), behavior)
+            full = (ss_taxable * (1.0 - 0.1 * steps)).clip(0, None)
+            subtraction = pl.max_horizontal(subtraction, full)
+        subrac = subrac + pl.when(ss_taxable > 0).then(subtraction).otherwise(0.0)
     taxinc = taxinc - subrac + add
 
     if 2011 <= y <= 2013:

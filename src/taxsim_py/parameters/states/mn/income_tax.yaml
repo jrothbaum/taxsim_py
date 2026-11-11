@@ -251,11 +251,15 @@ elderly_subtraction_reduction_rate: 0.5
 # plus `benefit_share` of all benefits) over a threshold; married amounts
 # halved on separate returns.
 social_security_subtraction_threshold:
-  single: {2017: 60200, 2018: 61400, 2019: 61080, 2020: 62090, 2021: 62710}
-  married: {2017: 77000, 2018: 78530, 2019: 78180, 2020: 79480, 2021: 80270}
+  single: {2017: 60200, 2018: 61400, 2019: 61080, 2020: 62090, 2021: 62710, 2022: 64670, 2023: 69250}
+  married: {2017: 77000, 2018: 78530, 2019: 78180, 2020: 79480, 2021: 80270, 2022: 82770, 2023: 88630}
 social_security_subtraction_max:
-  single: {2017: 3500, 2019: 4020, 2020: 4090, 2021: 4130}
-  married: {2017: 4500, 2019: 5150, 2020: 5240, 2021: 5950}
+  single: {2017: 3500, 2019: 4020, 2020: 4090, 2021: 4130, 2022: 4260, 2023: 4560}
+  married: {2017: 4500, 2019: 5150, 2020: 5240, 2021: 5290, 2022: 5450, 2023: 5840}
+# From 2023 the benefit is fully subtracted below this income, then less 10% per $4,000 of income over it.
+social_security_full_subtraction_threshold:
+  single: {2023: 78000}
+  married: {2023: 100000}
 social_security_subtraction_benefit_share: 0.5
 social_security_subtraction_phaseout_rate: 0.2
 
