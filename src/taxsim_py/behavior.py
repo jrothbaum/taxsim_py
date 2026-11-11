@@ -265,6 +265,7 @@ class BehaviorProfile:
     test_indiana_childless_credit_ages_per_statute: bool = True
     apply_indiana_federal_credit_floor_from_2011: bool = True
     use_indiana_decoupled_credit_schedule_in_2021: bool = True
+    compute_california_2021_earned_income_credit_per_statute: bool = True
     start_wisconsin_head_of_household_third_tier_per_statute: bool = True
     use_own_bounds_in_new_york_worksheets: bool = True
     use_single_standard_deduction_for_new_york_head_of_household_before_1987: bool = True

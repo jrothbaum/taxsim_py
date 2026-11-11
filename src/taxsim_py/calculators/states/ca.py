@@ -127,6 +127,11 @@ def compute_ca_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             # California never adopted the federal SALT cap: real estate tax is
             # deductible in full and its own income tax not at all.
             xitded_base = (pl.col("proptax") + pl.col("otheritem") + pl.col("mortgage")).clip(0, None)
+        if 2018 <= effective_year <= 2020 and not behavior.ignore_federal_salt_cap_in_california and p.in_effect("taxsim_salt_addback_limit"):
+            # TAXSIM: "California does not limit the deduction" - it puts back the state and local tax over $10,000.
+            excess = (pl.col("state_sales_or_income_tax_ded") + pl.col("proptax") - p.num("taxsim_salt_addback_limit")).clip(0, None)
+        else:
+            excess = pl.lit(0.0)
         df = df.with_columns(ca_xitded_base=xitded_base)
         if p.in_effect("itemized_limitation"):
             lim = p.value("itemized_limitation")
@@ -143,7 +148,7 @@ def compute_ca_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             )
         else:
             df = df.with_columns(ca_reduce=pl.lit(0.0))
-        df = df.with_columns(ca_xitded=(pl.col("ca_xitded_base") - pl.col("ca_reduce")).clip(0, None))
+        df = df.with_columns(ca_xitded=(pl.col("ca_xitded_base") - pl.col("ca_reduce")).clip(0, None) + excess)
         if effective_year == 1999:
             df = df.with_columns(ca_xitded=pl.when(forced_standard()).then(0.0).otherwise(pl.col("ca_xitded")))
 
@@ -384,7 +389,26 @@ def compute_ca_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
                 out = pl.when(ieic == i).then(float(values[i])).otherwise(out)
             return out
 
-        if p.in_effect("caleitc"):
+        if p.in_effect("taxsim_caleitc") and not behavior.compute_california_2021_earned_income_credit_per_statute:
+            ce = p.value("taxsim_caleitc")
+            rate = by_children(ce["phase_in_rate"])
+            max_credit = by_children(ce["max_credit"])
+            inflection = by_children(ce["credit_at_inflection"])
+            limit = by_children(ce["income_limit"])
+            peak = max_credit / rate
+            second = peak + (max_credit - inflection) / rate
+            slope = -inflection / (limit - second)
+
+            def caeic2(income):
+                return (
+                    pl.when(income < peak).then(income.clip(0, None) * rate)
+                    .when(income < second).then(max_credit - rate * (income - peak))
+                    .when(income < limit).then(inflection + slope * (income - second))
+                    .otherwise(0.0)
+                )
+
+            earncr = pl.min_horizontal(caeic2(pl.col("agi")), caeic2(earned))
+        elif p.in_effect("caleitc"):
             ce = p.value("caleitc")
             cr = by_children(ce["max_credit"], 0.0)
             am = by_children(ce["max_earned"], 0.0)
@@ -430,7 +454,9 @@ def compute_ca_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             + pl.col("otherprop").clip(0, None)
         )
         earncr = pl.when(disqy >= p.num("eitc_disqualified_income_limit")).then(0.0).otherwise(earncr)
-        earncr = pl.when((pl.col("ca_sep") == 2) | is_dependent_filer()).then(0.0).otherwise(earncr)
+        if not (effective_year >= 2021 and not behavior.compute_california_2021_earned_income_credit_per_statute):
+            # TAXSIM's 2021 recomputation comes after its checks for separate and dependent returns.
+            earncr = pl.when((pl.col("ca_sep") == 2) | is_dependent_filer()).then(0.0).otherwise(earncr)
         df = df.with_columns(ca_earncr=earncr)
         # Young Child Tax Credit: requires a state EITC and an
         # EITC-qualifying child; the earnings test uses children under 6.
