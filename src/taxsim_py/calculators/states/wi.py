@@ -142,6 +142,10 @@ def compute_wi_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
                 tables["head_of_household"][2][3] = tables["head_of_household"][1][0]
             if 1988 <= y <= 1998:
                 tables["married_separate"][1][3] = tables["married_separate"][0][0]
+        if 2016 <= y and not behavior.start_wisconsin_head_of_household_third_tier_per_statute and len(tables["head_of_household"]) > 3:
+            # TAXSIM measures the head of household third tier from where the second ends.
+            tables = {key: [list(row) for row in rows] for key, rows in tables.items()}
+            tables["head_of_household"][2][3] = tables["head_of_household"][1][0]
         if not behavior.use_wisconsin_form_standard_deduction and p.in_effect("taxsim_standard_deduction"):
             tables = dict(p.value("taxsim_standard_deduction"))
             index = p.num("taxsim_standard_deduction_index")
@@ -287,13 +291,9 @@ def compute_wi_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             renter_base = pl.when(renter).then(pl.col("rentpaid")).otherwise(0.0)
         if not behavior.use_wisconsin_statutory_school_credit:
             # The 2026 TAXSIM build adds the renter and owner credits, caps the sum at the
-            # unhalved maximum, and pays owners nothing from 2018.
+            # unhalved maximum.
             rent_part = p.num("school_property_credit_renter_rate") * pl.col("rentpaid") / p["school_property_credit_renter_divisor"]
-            owner_part = (
-                pl.lit(0.0)
-                if y >= 2018
-                else p.num("school_property_credit_owner_rate") * pl.col("proptax") / p["school_property_credit_owner_divisor"]
-            )
+            owner_part = p.num("school_property_credit_owner_rate") * pl.col("proptax") / p["school_property_credit_owner_divisor"]
             spcred = pl.min_horizontal(rent_part + owner_part, p.num("school_property_credit_max"))
         else:
           spcred = pl.when(pl.col("rentpaid") > 0).then(
@@ -312,6 +312,9 @@ def compute_wi_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         spcred = pl.lit(0.0)
 
     chcr = p.num("child_care_credit_share") * pl.col("federal_chcr") if p.in_effect("child_care_credit_share") else pl.lit(0.0)
+    if not behavior.pay_wisconsin_child_care_credit_per_statute:
+        # TAXSIM multiplies the share by a federal variable that is never set (always zero).
+        chcr = pl.lit(0.0)
 
     wcred = pl.lit(0.0)
     if p.in_effect("working_families_credit"):

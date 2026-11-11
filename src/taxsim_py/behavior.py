@@ -261,6 +261,8 @@ class BehaviorProfile:
     limit_oklahoma_2021_child_credits_to_tax: bool = True
     compute_oklahoma_itemized_deduction_from_2022_per_statute: bool = True
     test_oklahoma_earned_income_credit_age_per_statute: bool = True
+    pay_wisconsin_child_care_credit_per_statute: bool = True
+    start_wisconsin_head_of_household_third_tier_per_statute: bool = True
     use_own_bounds_in_new_york_worksheets: bool = True
     use_single_standard_deduction_for_new_york_head_of_household_before_1987: bool = True
     complete_new_york_1986_maximum_tax_table: bool = True
@@ -333,6 +335,7 @@ FIXED_IN_2026_BUILD = frozenset(
         "apply_michigan_retirement_tiers",
         "count_capital_gains_in_dc_childless_eitc_investment_income",
         "include_self_employment_in_household_income",
+        "tax_wisconsin_1986_separate_returns",
     }
 )
 TAXSIM_BEHAVIOR = BehaviorProfile(
