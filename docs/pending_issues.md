@@ -312,3 +312,15 @@ Virginia 2022-2023 low-income returns (the Form 760ADJ choice between the low-in
 ## District of Columbia 2014-2018: property credit cap read from outside a table
 
 `dctax77` ends with `pcred=max(0,min(pcred,pcreda(5,law)))`, but `pcreda` is dimensioned for 2019 on, so 2014-2018 read whatever memory precedes it. With the compiler used for the oracle that is about $355, $349-341, $353-345, $279-253 and $0 in 2014-2018 (the value moved by a few dollars with the kind of return). Python uses the amounts the validation cases show.
+
+## Federal 2008 recovery rebate at very low incomes (open)
+
+The 2008 rebate in the Fortran tests `agi > zbr`. When the itemize-forced pass (zero bracket amount zeroed) pays the rebate and
+the standard pass does not, TAXSIM keeps the itemize pass, so a filer with wages of $1 gets $300 per child. The Python federal
+calculation runs one pass for federal-only returns and gives nothing. About 26 rows of `scripts/validate_federal.py` for 2008
+(plus a few in 2009-2010 through the same mechanism).
+
+## Federal capital gains at the top 2024-2025 (open)
+
+Rows with ordinary income plus gains above the 20% threshold differ by $1.5 (2024) to $14 (2025) from the oracle; the thresholds
+match the published ones, so the cause is somewhere in how the build splits taxable income at that bracket.
