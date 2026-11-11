@@ -611,3 +611,11 @@ Taxsim mode now follows the statutory rule for these (they remain in
 | OR | 2025 | | The surplus credit is 9.863% of tax before credits | Statutory: left out as a one-time rebate |
 | NM | 2024 on | | The low income rebate is interpolated between the table's income rows (its own 2024-2025 tables), and 2026 has none | Statutory: the stepped rebate schedule. `use_new_mexico_low_income_rebate_per_statute` |
 | CT | 2024 on | | The exemption starts $500 low and falls dollar for dollar; separate returns are treated as single; the personal credit steps by the first listed threshold above AGI (list unsorted at $22,300/$21,800); the recapture has its own four tiers | Statutory: dated amounts. `phase_out_connecticut_exemption_per_statute`, `use_connecticut_personal_credit_table_per_statute`, `add_connecticut_recapture_per_statute` |
+| Federal | 2024 on | | The child and dependent care credit rate falls a point for each started $2,000 of AGI over $15,000 (earlier TAXSIM years let it fall continuously) | Statutory: each started step. `round_up_phaseout_steps` |
+| MN | 2024 on | | Social Security is subtracted only with a taxpayer aged 62 or more; the itemized deduction removes only taxes over the SALT limit before its AGI reduction; there is no alternative minimum tax | Statutory: the dated rules. `subtract_minnesota_social_security_without_age_from_2024`, `limit_minnesota_itemized_deduction_from_2024_per_statute`, `charge_minnesota_alternative_minimum_tax_from_2024` |
+| DC | 2024 on | | The childless credit needs a reported age 25 to 64; the itemized deduction adds back the whole state tax estimate | Statutory: the age tests as the form has them; capped state tax. `allow_unreported_ages_in_dc_childless_credit_from_2024`, `cap_district_of_columbia_state_tax_deduction_from_2024` |
+| WV | 2024 on | | Half of the federal child care credit is also taken | Statutory: none. `leave_out_west_virginia_child_care_credit_from_2024` |
+| NJ | 2024 on | | The earned income credit is not reinflated in a projected year | Statutory: reinflated with the tax |
+| NE | 2024 on | | The exemption credit counts taxpayers and dependents, not the deflated federal count | Statutory: federal exemption count |
+| MI | 2025 | | Home heating credit uses base $604, $212 per extra exemption and a 60% share | Both modes |
+

@@ -3,7 +3,7 @@
 import polars as pl
 
 
-def child_care_credit_rate(agi: pl.Expr, rate: dict) -> pl.Expr:
+def child_care_credit_rate(agi: pl.Expr, rate: dict, round_up: bool = False) -> pl.Expr:
     """Child and dependent care credit rate for one year's `rate` parameters.
 
     The rate falls one point per `step_amount` of AGI above `phase_start`
@@ -13,7 +13,8 @@ def child_care_credit_rate(agi: pl.Expr, rate: dict) -> pl.Expr:
     """
     top_rate = float(rate["top_rate"])
     if "second_phase_start" not in rate:
-        stepped_down = top_rate - ((agi - rate["phase_start"]) / rate["step_amount"]).clip(0, None) * 0.01
+        steps = ((agi - rate["phase_start"]) / rate["step_amount"]).clip(0, None)
+        stepped_down = top_rate - (steps.ceil() if round_up else steps) * 0.01
         return pl.max_horizontal(stepped_down, pl.lit(float(rate["floor_rate"])))
     mid_rate = float(rate["mid_rate"])
     first_start, second_start = float(rate["first_phase_start"]), float(rate["second_phase_start"])

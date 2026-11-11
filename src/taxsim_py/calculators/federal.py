@@ -1030,7 +1030,10 @@ def _credits(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorProfi
     ccc_p = YearParams(FEDERAL_CREDITS_PARAMS["child_care_credit"], year)
     max_qualifying_persons = ccc_p.num("max_qualifying_persons")
     max_expense_per_person = ccc_p.num("max_expense_per_person")
-    ccc_rate = child_care_credit_rate(pl.col("agi"), ccc_p.value("rate"))
+    # A started $2,000 step lowers the rate a point; TAXSIM's 2024 on routine rounds up, its earlier ones do not.
+    ccc_rate = child_care_credit_rate(
+        pl.col("agi"), ccc_p.value("rate"), round_up=behavior.round_up_phaseout_steps or year >= 2024
+    )
     num_qualifying_persons = pl.col("dep13").clip(0, max_qualifying_persons)
     qualifying_expense = pl.col("childcare").clip(0, num_qualifying_persons * max_expense_per_person)
     ccc_earned_income_cap = (
