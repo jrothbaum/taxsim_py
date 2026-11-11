@@ -89,6 +89,7 @@ standard_deduction_floor:
   2018: 2030
   2019: 2090
   2020: 2130
+  2021: 2140
   2022: 2260
   2023: 2460
 head_of_household_standard_deduction_taxpayers: 2
@@ -274,6 +275,11 @@ capital_gains_credit_rate: {1977: 0.0, 2005: 0.01, 2007: 0.02}
 # 2007 homeowner credit.
 homeowner_credit: {2007: 140, 2008: null}
 # Earned income credit: a share of the federal credit.
+# One-time rebate the 2026 TAXSIM build pays in the year it was paid (2023, for the 2021 tax year):
+# an amount per taxpayer, at most the tax left after the nonrefundable credits.
+taxsim_rebate:
+  2023: {per_taxpayer: 1250.0}
+  2024: null
 eitc_match_rate: {1977: 0.0, 2019: 0.03, 2022: 0.03, 2023: 0.03, 2024: 0.1}
 
 # Married couples may be taxed as two separate returns: the higher earner
@@ -338,6 +344,9 @@ elderly_credit_income_limit: {1998: 35000, 1999: null}
 # From 1999 a multiplier by household income; in 1981-1982 the same table is
 # a share of income subtracted from property tax.
 elderly_credit_multiplier: [[35000, 1.0], [37500, 0.4], [40000, 0.3], [42500, 0.2], [44999, 0.1], [1.0e+20, 0.0]]
+# TAXSIM's table starts at zero income and falls straight-line to each listed value, so the
+# credit shrinks from the first dollar of income.
+taxsim_elderly_credit_multiplier: [[0, 1.0], [35000, 0.4], [37500, 0.3], [40000, 0.2], [42500, 0.1], [44999, 0.0], [1.0e+20, 0.0]]
 
 # From 2024: two ordinary rates below and above `threshold`, and net
 # long-term gains on their own two rates stacked above ordinary income.

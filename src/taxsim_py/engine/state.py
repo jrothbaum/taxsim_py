@@ -170,6 +170,18 @@ def household_income(behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.Expr:
     )
 
 
+def optimal_split(amount: pl.Expr, income_primary: pl.Expr, income_spouse: pl.Expr) -> tuple[pl.Expr, pl.Expr]:
+    """TAXSIM `optalloc`: split `amount` between spouses to cut the larger of their incomes first."""
+    gap = (income_primary - income_spouse).abs()
+    to_larger = pl.min_horizontal(amount, gap)
+    shared = (amount - to_larger) / 2
+    primary_larger = income_primary > income_spouse
+    primary = pl.when(gap <= 0).then(amount / 2).otherwise(pl.when(primary_larger).then(to_larger).otherwise(0.0) + shared)
+    spouse = pl.when(gap <= 0).then(amount / 2).otherwise(pl.when(primary_larger).then(0.0).otherwise(to_larger) + shared)
+    positive = amount > 0
+    return pl.when(positive).then(primary).otherwise(0.0), pl.when(positive).then(spouse).otherwise(0.0)
+
+
 def higher_earner_share(income: pl.Expr) -> pl.Expr:
     """The higher earner's share of joint income: their wages plus half the rest."""
     return pl.max_horizontal(pl.col("pwages"), pl.col("swages")) + (income - pl.col("wages")) / 2.0

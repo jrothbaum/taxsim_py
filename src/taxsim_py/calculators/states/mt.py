@@ -5,7 +5,8 @@ from __future__ import annotations
 import polars as pl
 
 from taxsim_py.engine.brackets import bracket_rate, bracket_tax
-from taxsim_py.engine.inputs import aged_count, files_head_of_household, files_joint, files_separate, taxpayer_count
+from taxsim_py.engine.eitc import eitc_age_eligible, eitc_filer_eligible, federal_eitc
+from taxsim_py.engine.inputs import aged_count, federal_exemption_count, files_head_of_household, files_joint, files_separate, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml, resolve_year
 from taxsim_py.engine.state import (
     by_filing_status,
@@ -13,7 +14,10 @@ from taxsim_py.engine.state import (
     household_income,
     interpolate_table,
     unemployment_total,
+    REVERSE_FALLING_TABLE_WEIGHTS,
     forced_standard,
+    optimal_split,
+    split_agi,
     with_state_detail,
 )
 from taxsim_py.behavior import BehaviorProfile, TAXSIM_BEHAVIOR
@@ -21,6 +25,8 @@ from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, reso
 
 MT_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "mt" / "income_tax.yaml")
 CAPITAL_GAINS_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "capital_gains.yaml")
+FEDERAL_EITC_PARAMS = pl.read_csv(PARAMETERS_ROOT / "national" / "eitc.csv")
+FEDERAL_EITC_MISC = load_yaml(PARAMETERS_ROOT / "national" / "eitc_misc.yaml")
 
 
 def _brackets(y: int) -> list[list[float]]:
@@ -94,6 +100,19 @@ def compute_mt_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             .otherwise(retexc)
         )
         retexc = pl.when(aged > 0).then(retexc).otherwise(0.0)
+        if not behavior.compute_montana_retirement_exclusion_per_statute:
+            # TAXSIM: no age test; the cap scales with taxpayers (from 2010).
+            taxpayers = pl.max_horizontal(pl.lit(1.0), ntp)
+            retmax_t = pl.min_horizontal(
+                p.num("retirement_exclusion_max") * (taxpayers * index if y >= 2010 else 1.0), pensions
+            )
+            old = pl.lit(1.0)  # TAXSIM divides by a variable that is never set (always 1)
+            xl3 = pl.min_horizontal(delta, pensions / old)
+            xl6 = rate * (fed_agi / old - agiret).clip(0, None)
+            retexc = old * (xl3 - xl6).clip(0, None)
+            retexc = pl.when(fed_agi / old < agiret + delta).then(
+                pl.when(fed_agi / old < agiret).then(retmax_t).otherwise((retmax_t - rate * (fed_agi - agiret)).clip(0, None))
+            ).otherwise(retexc)
         if p.in_effect("old_age_subtraction"):
             retexc = p.num("old_age_subtraction") * aged
         agi = (agi - retexc).clip(0, None)
@@ -234,6 +253,9 @@ def compute_mt_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         agi - wages_total
     )
     agiw = agi - agih
+    if not behavior.split_montana_joint_returns_per_statute:
+        # TAXSIM's `splitagi`: each spouse's own income, with the rest shared equally.
+        agih, agiw = split_agi(agi, 0.0, 0.0)
     stdh = standard(agih, 1.0)
     stdw = standard(agiw, 1.0)
     split_stded = stdh + stdw if y >= 1981 else stded
@@ -244,12 +266,23 @@ def compute_mt_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     dedw = pl.when(use_itemized).then(xitd_each).otherwise(stdw)
     exempw = pl.when(aged > 0).then(2.0 * xmp).otherwise(xmp)
     exemph = exemp - exempw
+    if not behavior.split_montana_joint_returns_per_statute:
+        # TAXSIM: each spouse's own exemption (plus one for being 65 or older); dependents' exemptions
+        # go where they cut the larger taxable income first.
+        exemph = xmp * (1.0 + ((aged > 0) & (pl.col("page") >= 65)).cast(pl.Float64))
+        exempw = xmp * (1.0 + ((aged > 0) & (pl.col("sage") >= 65)).cast(pl.Float64))
+        exempd = (federal_exemption_count(y) - ntp) * xmp
+        dependent_h, dependent_w = optimal_split(exempd, (agih - dedh).clip(0, None), (agiw - dedw).clip(0, None))
+        exemph, exempw = exemph + dependent_h, exempw + dependent_w
     split_tax = bracket_tax((agih - dedh - exemph).clip(0, None), brackets) + bracket_tax(
         (agiw - dedw - exempw).clip(0, None), brackets
     )
     rate = pl.when(is_joint).then(
         bracket_rate((agiw - dedw - exempw).clip(0, None), brackets)
     ).otherwise(bracket_rate(taxinc, brackets))
+    separate_on_joint = is_joint & (split_tax < statax) if not two_rate else pl.lit(False)
+    taxhi = bracket_tax((agih - xitd_each - exemph).clip(0, None), brackets)
+    taxwi = bracket_tax((agiw - xitd_each - exempw).clip(0, None), brackets)
     if not two_rate:
         statax = pl.when(is_joint).then(pl.min_horizontal(statax, split_tax)).otherwise(statax)
     df, (statax,) = checkpoint(df, mt_tax=statax * p.num("surtax"))
@@ -268,6 +301,13 @@ def compute_mt_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         else:
             ptax = pl.col("proptax") + rent_share
         multiplier = interpolate_table(hy, MT_PARAMS["elderly_credit_multiplier"])
+        if not behavior.read_montana_elderly_credit_multiplier_per_statute:
+            # TAXSIM's `tablk2` weights a falling table correctly, unlike `tablki`.
+            token = REVERSE_FALLING_TABLE_WEIGHTS.set(False)
+            try:
+                multiplier = interpolate_table(hy, MT_PARAMS["taxsim_elderly_credit_multiplier"])
+            finally:
+                REVERSE_FALLING_TABLE_WEIGHTS.reset(token)
         if y <= 1982:
             pcred = (ptax - hy * multiplier).clip(0, p.num("elderly_credit_max"))
         else:
@@ -286,6 +326,33 @@ def compute_mt_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         statax = statax - howcrd
     earncr = p.num("eitc_match_rate") * pl.col("eitc")
     statax = statax - earncr
+    if p.in_effect("taxsim_rebate") and not behavior.leave_out_one_time_state_rebates:
+        # TAXSIM pays it per taxpayer, capped by the tax left after the nonrefundable credits; a couple
+        # filing separately on one return gets one rebate per spouse, each capped by that spouse's tax.
+        per_taxpayer = p.value("taxsim_rebate")["per_taxpayer"]
+        taxbc = pl.col("mt_tax")
+        rebate = pl.min_horizontal(per_taxpayer * ntp, taxbc - cgcred)
+        # Spouses filing separately on one return each get the rebate, capped by the tax on their share as
+        # if they itemized (whatever the return does) less their own earned income credit.
+        status = pl.col("filing_status")
+        nkids = pl.col("dep18").clip(0, 3)
+        disqy = capgn.clip(0, None) + pl.col("dividends") + pl.col("intrec") + pl.col("otherprop").clip(0, None)
+        eitc_params = FEDERAL_EITC_PARAMS.filter(pl.col("year") == y)
+        dylim = float(resolve_year(FEDERAL_EITC_MISC["dylim"], y))
+
+        def spouse_credit(earned: pl.Expr) -> pl.Expr:
+            credit = federal_eitc(earned, pl.col("agi"), disqy, status, nkids, eitc_params, dylim)
+            childless = nkids == 0
+            eligible = eitc_filer_eligible(childless, y) & eitc_age_eligible(childless, y)
+            return p.num("eitc_match_rate") * pl.when(eligible).then(credit).otherwise(0.0)
+
+        earned_h = pl.col("pwages") + pl.col("psemp")
+        earned_w = pl.col("swages") + pl.col("ssemp")
+        separate_rebate = pl.min_horizontal(per_taxpayer, taxhi - spouse_credit(earned_h)) + pl.min_horizontal(
+            per_taxpayer, taxwi - spouse_credit(earned_w)
+        )
+        rebate = pl.when(separate_on_joint).then(separate_rebate).otherwise(rebate)
+        statax = statax - pl.when(pl.col("mstat") == 8).then(0.0).otherwise(rebate)
 
     reported_stded = pl.when(is_joint & (pl.lit(y) >= 1981)).then(split_stded).otherwise(stded)
     return with_state_detail(
