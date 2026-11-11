@@ -5,7 +5,7 @@ import polars as pl
 from taxsim_py.engine.brackets import bracket_rate, bracket_tax, scale_brackets
 from taxsim_py.engine.inputs import aged_count, files_joint, files_separate, is_dependent_filer, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml
-from taxsim_py.engine.state import checkpoint, interpolate_table, tier_values, with_state_detail
+from taxsim_py.engine.state import allocate_pensions, checkpoint, interpolate_table, tier_values, with_state_detail
 from taxsim_py.behavior import BehaviorProfile, TAXSIM_BEHAVIOR
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
@@ -39,6 +39,16 @@ def _joint_credit(statax: pl.Expr, taxinc: pl.Expr, businc: pl.Expr, p: YearPara
     return pl.when(eligible).then((statax - jcred).clip(0, None)).otherwise(statax)
 
 
+def _taxsim_business_income() -> pl.Expr:
+    """Business income as TAXSIM counts it through 2020: self-employment, other non-property income and the business inputs."""
+    parts = [pl.col("pbusinc"), pl.col("pprofinc"), pl.col("scorp"), pl.col("sbusinc"), pl.col("sprofinc")]
+    return (
+        (pl.col("psemp") + pl.col("ssemp")).clip(0, None)
+        + pl.col("nonprop").clip(0, None)
+        + pl.sum_horizontal(part.clip(0, None) for part in parts)
+    )
+
+
 def compute_oh_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
     """Calculate Ohio income tax for each row."""
     effective_year, flate = resolve_state_year(year, behavior, OH_PARAMS)
@@ -62,23 +72,37 @@ def compute_oh_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     if y >= 1984:
         agi = agi - pl.col("taxable_social_security")
     businc = pl.lit(0.0)
+    busded = pl.lit(0.0)
     statb = pl.lit(0.0)
     business_rate = pl.lit(0.0)
     if p.in_effect("taxsim_business_deduction") and not behavior.start_ohio_business_deduction_per_statute:
         c = p.value("taxsim_business_deduction")
         business = (pl.col("psemp") + pl.col("ssemp")).clip(0, None)
+        if y <= 2020:
+            business = _taxsim_business_income()
+        if y >= 2021:
+            # TAXSIM's business income also takes in S corporation, other property and other
+            # non-property income, and cannot exceed income.
+            business = pl.min_horizontal(
+                (pl.col("psemp") + pl.col("ssemp") + pl.col("scorp") + pl.col("otherprop") + pl.col("nonprop")).clip(0, None),
+                agi.clip(0, None),
+            )
         busded = pl.min_horizontal(float(c["share"]) * business, float(c["cap"]) / sep)
-        agi = agi - busded
         businc = (business - busded).clip(0, None)
         statb = float(c["rate"]) * businc
         business_rate = pl.lit(float(c["rate"]))
     elif p.in_effect("business_deduction_share"):
         business = (pl.col("psemp") + pl.col("ssemp")).clip(0, None)
+        if y <= 2020 and not behavior.start_ohio_business_deduction_per_statute:
+            business = _taxsim_business_income()
         busded = pl.min_horizontal(p.num("business_deduction_share") * business, p.num("business_deduction_cap") / sep)
-        agi = agi - busded
         businc = (business - busded).clip(0, None)
         statb = bracket_tax(businc, p.value("business_brackets"))
         business_rate = bracket_rate(businc, p.value("business_brackets"))
+    if y <= 2020 and not behavior.test_ohio_credits_before_business_deduction_per_statute:
+        # Through 2020 TAXSIM tests the exemption and credits on income after the business deduction.
+        agi = agi - busded
+        busded = pl.lit(0.0)
     df, (agi, businc) = checkpoint(df, oh_agi=agi, oh_businc=businc)
 
     # --- Exemptions ---
@@ -98,7 +122,13 @@ def compute_oh_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             amount = interpolate_table(agi, p.value("taxsim_exemption_table"))
         exemp = amount * exemptions
     exemp = pl.when(is_dependent_filer()).then(0.0).otherwise(exemp)
-    df, (taxinc,) = checkpoint(df, oh_taxinc=(agi - businc - exemp).clip(0, None))
+    if y >= 2021 and p.in_effect("taxsim_business_deduction") and not behavior.start_ohio_business_deduction_per_statute:
+        # The excess business income is taxed flat net of the exemption, and only it comes out of income.
+        businc = (pl.min_horizontal(businc, busded) - exemp).clip(0, None)
+        statb = float(p.value("taxsim_business_deduction")["rate"]) * businc
+        df, (taxinc,) = checkpoint(df, oh_taxinc=(agi - busded - exemp - businc).clip(0, None))
+    else:
+        df, (taxinc,) = checkpoint(df, oh_taxinc=(agi - busded - businc - exemp).clip(0, None))
 
     # --- Child care credit (share of the federal credit before its tax limit) ---
     chcrbc = pl.col("ccc_uncapped")
@@ -141,7 +171,7 @@ def compute_oh_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     if p.in_effect("exemption_credit"):
         excred = p.num("exemption_credit") * exemptions
         if p.in_effect("exemption_credit_income_limit"):
-            excred = pl.when(taxinc < p.num("exemption_credit_income_limit")).then(excred).otherwise(0.0)
+            excred = pl.when(agi - exemp < p.num("exemption_credit_income_limit")).then(excred).otherwise(0.0)
 
     # --- Joint filing credit eligibility: each spouse's income share ---
     wages = pl.col("pwages").clip(0, None) + pl.col("swages").clip(0, None)
@@ -151,6 +181,12 @@ def compute_oh_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     xlind = wages + pl.col("psemp") + pl.col("ssemp") + pl.col("pensions") + pl.col("taxable_unemployment") - adjust
     hagi = pl.col("pwages").clip(0, None) + 0.5 * (xlind - wages)
     wagi = xlind - hagi
+    if not behavior.count_ohio_joint_credit_unemployment_as_taxable_per_statute:
+        # TAXSIM adds each spouse's full unemployment compensation, taxable or not.
+        pent, pens = allocate_pensions(pl.col("pensions"), 55)
+        ui_total = pl.max_horizontal(pl.col("ui"), pl.col("pui") + pl.col("sui"))
+        hagi = pl.col("pwages") + pent + pl.col("pbusinc") + pl.col("pprofinc") + (ui_total - pl.col("sui")) + pl.col("psemp")
+        wagi = pl.col("swages") + pens + pl.col("sbusinc") + pl.col("sprofinc") + pl.col("sui") + pl.col("ssemp")
     min_income = p["joint_credit_min_spouse_income"]
     joint_eligible = (hagi >= min_income) & (wagi >= min_income)
     if p.in_effect("joint_credit_min_earned") and behavior.require_earned_income_for_ohio_joint_credit:

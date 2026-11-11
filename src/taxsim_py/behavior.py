@@ -291,6 +291,8 @@ class BehaviorProfile:
     subtract_west_virginia_social_security_per_statute: bool = True
     require_earned_income_for_ohio_joint_credit: bool = True
     start_ohio_business_deduction_per_statute: bool = True
+    test_ohio_credits_before_business_deduction_per_statute: bool = True
+    count_ohio_joint_credit_unemployment_as_taxable_per_statute: bool = True
     compute_north_dakota_marriage_credit_earnings_per_statute: bool = True
     tax_south_carolina_capital_gains_1985_1989: bool = True
     pay_district_of_columbia_property_credit_2014_2018: bool = True
