@@ -159,6 +159,8 @@ def compute_ks_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     exemption = exemps * xmp
     if p.in_effect("exemptions_by_status"):
         e = p.value("exemptions_by_status")
+        if "taxsim_by_status" in e and not behavior.use_published_kansas_exemption_from_2024:
+            e = {**e, "by_status": e["taxsim_by_status"]}
         exemption = pl.when(is_dependent_filer()).then(0.0).otherwise(
             by_filing_status(e["by_status"]) + float(e["dependent"]) * pl.col("depx") + pl.when(is_hoh).then(float(e["head_of_household_addition"])).otherwise(0.0)
         )

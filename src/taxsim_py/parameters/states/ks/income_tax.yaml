@@ -109,6 +109,7 @@ personal_exemption: {1977: 750, 1979: 1000, 1988: 1950, 1989: 2000, 1998: 2250}
 exemptions_by_status:
   2024:
     by_status: {single: 9160, married_joint: 18320, married_separate: 9160, head_of_household: 9160}
+    taxsim_by_status: {single: 9180, married_joint: 18360, married_separate: 9180, head_of_household: 9180}
     dependent: 2320
     head_of_household_addition: 2320
 
