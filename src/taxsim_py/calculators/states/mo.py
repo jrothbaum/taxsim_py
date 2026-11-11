@@ -100,8 +100,8 @@ def compute_mo_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         ssaxmp = (
             p.num("social_security_exemption_share") * pl.col("taxable_social_security") - (agi - phase).clip(0, None)
         ).clip(0, None)
-        if not behavior.compute_missouri_pension_exemption_per_statute:
-            # TAXSIM: half for each spouse 62 or older (a lone filer gets half), and the amount comes off twice.
+        if not behavior.compute_missouri_pension_exemption_per_statute and y < 2022:
+            # TAXSIM (through 2021): half for each spouse 62 or older (a lone filer gets half), and the amount comes off twice.
             share_62 = 0.5 * (pl.col("page") >= 62).cast(pl.Float64) + 0.5 * (pl.col("sage") >= 62).cast(pl.Float64)
             ssaxmp = share_62 * ssaxmp
             extra_taxsim_subtraction = ssaxmp
@@ -308,6 +308,15 @@ def compute_mo_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         # TAXSIM (2026 build): the smaller of the tax plus a fifth of rent and the maximum, less 0.0625 percent
         # of household income, with no income limit.
         ptc_max = pl.min_horizontal(ptax, p.num("property_credit_maximum"))
+        if y == 2021:
+            # 2021: owners' tax up to the owner maximum plus a fifth of rent up to the ordinary maximum, together
+            # capped at the owner maximum.
+            owner_cap = float(p.value("property_credit_owner")["maximum"])
+            ptc_max = pl.min_horizontal(
+                pl.lit(owner_cap),
+                pl.min_horizontal(proptax, pl.lit(owner_cap))
+                + pl.min_horizontal(float(MO_PARAMS["property_credit_rent_share"]) * rentpaid, pl.lit(p.num("property_credit_maximum"))),
+            )
         pcred = pl.when((aged > 0) & (ptc_max > 0)).then(
             (ptc_max - float(MO_PARAMS["taxsim_property_credit_income_rate"]) * hy1).clip(0, None)
         ).otherwise(0.0)

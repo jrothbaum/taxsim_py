@@ -9,7 +9,7 @@ Not zero means unfinished: each state below needs another pass.
 | RI | 24 | 1977-81 professional and non-property cases, 2021 childcare marginal rate, 2022-23 high-income wages ($1-12) |
 | NC | 0 | done |
 | AZ | 10 | 1977-81 professional and non-property cases (federal pre-1982 gaps) |
-| MO | 27 | 2008+ itemizers and dividends, srate-only head of household rows |
+| MO | 21 | 2008-12 itemizers, 1986-87 HoH low income, small dividends 2017-21 (pennies) |
 | NM | 0 | done |
 | DE | 0 | done |
 | VT | 0 | done |
