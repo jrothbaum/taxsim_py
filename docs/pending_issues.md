@@ -304,3 +304,7 @@ Virginia 2022-2023 low-income returns (the Form 760ADJ choice between the low-in
 ## New York 2021: worksheets chosen by the wrong filing code
 
 `nytax21` tests the filing index `mri` (single 1, head of household 2, joint 3) against 2 (joint) and 4 (head of household), so joint returns use the single worksheets and head of household returns the joint ones. Python reproduces this in TAXSIM mode (`pick_new_york_worksheet_by_filing_status`).
+
+## Georgia: retirement exclusion ceilings are uninitialised before 2021
+
+`gatax77` sets `rtmaxt`/`rtmaxs` only for law 2021 and later, so the retirement income exclusion for 1989-2020 uses whatever those locals held from an earlier record: the same record gives a different tax depending on which records ran before it in the file (an isolated 1995 aged single pays $1,340, but $500 in a file that already ran a 2021 record). Python keeps the statutory exclusion; the aged Georgia validation cases are order-dependent and cannot be matched.
