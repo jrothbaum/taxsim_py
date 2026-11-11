@@ -619,3 +619,6 @@ Taxsim mode now follows the statutory rule for these (they remain in
 | NE | 2024 on | | The exemption credit counts taxpayers and dependents, not the deflated federal count | Statutory: federal exemption count |
 | MI | 2025 | | Home heating credit uses base $604, $212 per extra exemption and a 60% share | Both modes |
 
+| SC | 2025 on | | The federal state-tax deduction added back is capped at the old $10,000 (halved for separate and head-of-household filers), not at the new federal cap | Statutory: federal cap. `cap_south_carolina_state_tax_addback_per_statute` |
+| SC | 2025 on | | The $750/$1,500/$1,125 standard-deduction increase is added back for itemizers too | Statutory: nonitemizers only. `limit_south_carolina_standard_deduction_addback_to_nonitemizers_per_statute` |
+| Federal | 2025 on | | The SALT cap phase-out starts at $500,000 even on separate returns and runs over $100,000 of income before the cap is halved | Statutory: threshold and range halved. `halve_salt_phaseout_for_separate_returns_per_statute` |

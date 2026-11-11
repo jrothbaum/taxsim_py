@@ -170,6 +170,9 @@ def compute_nm_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         xitded = pl.when(fed_itemizes).then(fed_deduc - removed).otherwise(0.0)
         if 1991 <= y <= 2024:
             stded = federal_zero_bracket()
+        elif y >= 2025:
+            # From 2025 TAXSIM reads the federal standard deduction directly, so it is never zeroed.
+            stded = pl.col("standard_deduction")
     df, (deduc, xitded, stded) = checkpoint(
         df,
         nm_deduc=pl.max_horizontal(xitded, stded),

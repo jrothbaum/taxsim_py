@@ -620,10 +620,17 @@ def _deductions(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorPr
         if itemized_p.in_effect("salt_phaseout"):
             # The cap shrinks with income but never below the floor.
             phaseout = itemized_p.value("taxsim_salt_phaseout" if taxsim_cap else "salt_phaseout")
-            salt_cap_expr = pl.max_horizontal(
-                pl.lit(float(phaseout["floor"])) / sepret_expr,
-                salt_cap_expr - phaseout["rate"] * (pl.col("agi") - phaseout["threshold"] / sepret_expr).clip(0, None),
-            )
+            if behavior.halve_salt_phaseout_for_separate_returns_per_statute:
+                salt_cap_expr = pl.max_horizontal(
+                    pl.lit(float(phaseout["floor"])) / sepret_expr,
+                    salt_cap_expr - phaseout["rate"] * (pl.col("agi") - phaseout["threshold"] / sepret_expr).clip(0, None),
+                )
+            else:
+                # TAXSIM phases the whole-return cap down over the unhalved range, then halves it.
+                base_cap = itemized_p.num("taxsim_salt_cap" if taxsim_cap else "salt_cap")
+                width = (base_cap - float(phaseout["floor"])) / phaseout["rate"]
+                reduction = phaseout["rate"] * (pl.col("agi") - phaseout["threshold"]).clip(0, width)
+                salt_cap_expr = (base_cap - reduction) / sepret_expr
         salt_capped = salt_uncapped_expr.clip(0, None).clip(None, salt_cap_expr)
     else:
         salt_capped = salt_uncapped_expr.clip(0, None)

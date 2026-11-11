@@ -29,6 +29,7 @@ class BehaviorProfile:
     count_nonproperty_income_once: bool = True
     count_other_property_income_from_2024: bool = True
     index_salt_cap_from_2026: bool = True
+    halve_salt_phaseout_for_separate_returns_per_statute: bool = True
     phase_out_amt_exemption_at_half_rate_from_2026: bool = True
     honor_separate_and_unmarried_codes_with_dependents: bool = True
     use_published_capital_gains_thresholds: bool = True
@@ -131,6 +132,8 @@ class BehaviorProfile:
     give_south_carolina_pension_deduction_to_each_taxpayer: bool = True
     use_south_carolina_published_tax_table: bool = True
     allow_qbi_deduction_in_south_carolina: bool = True
+    cap_south_carolina_state_tax_addback_per_statute: bool = True
+    limit_south_carolina_standard_deduction_addback_to_nonitemizers_per_statute: bool = True
     subtract_state_tax_from_south_carolina_itemized_deductions: bool = True
     assign_south_carolina_business_income_to_its_earner: bool = True
     pay_vermont_telephone_credit: bool = True

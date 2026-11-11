@@ -189,7 +189,13 @@ def compute_sc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             # The addback is limited to the itemized total above the federal standard deduction.
             tx = pl.min_horizontal(tx, itemized - federal_zero_bracket())
     else:
-        cap = p.num("salt_cap") / sep if p.in_effect("salt_cap") else pl.col("salt_capped")
+        if p.in_effect("salt_cap"):
+            cap = p.num("salt_cap") / sep
+        elif not behavior.cap_south_carolina_state_tax_addback_per_statute and p.in_effect("taxsim_salt_cap"):
+            # TAXSIM keeps the pre-2025 ten-thousand-dollar cap on the addback.
+            cap = p.num("taxsim_salt_cap") / sep
+        else:
+            cap = pl.col("salt_capped")
         room = (cap - pl.col("proptax")).clip(0, None)
         tx = pl.min_horizontal(salt, pl.min_horizontal(itemized.clip(0, None), room))
         if y >= 2022 and not behavior.use_current_federal_standard_deduction_for_south_carolina_addback:
@@ -228,7 +234,8 @@ def compute_sc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
 
     if p.in_effect("federal_standard_deduction_increase_addback"):
         increase = by_filing_status(p.value("federal_standard_deduction_increase_addback"))
-        add = add + pl.when(fed_itemizes).then(0.0).otherwise(increase) + pl.col("senior_deduction")
+        itemizer_increase = 0.0 if behavior.limit_south_carolina_standard_deduction_addback_to_nonitemizers_per_statute else increase
+        add = add + pl.when(fed_itemizes).then(itemizer_increase).otherwise(increase) + pl.col("senior_deduction")
     if y >= 2021 and not behavior.allow_qbi_deduction_in_south_carolina:
         # TAXSIM adds back the federal qualified business income deduction.
         add = add + pl.col("qbi_deduction")
