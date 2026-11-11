@@ -330,6 +330,8 @@ class BehaviorProfile:
     deduct_idaho_itemized_from_2018_per_statute: bool = True
     limit_idaho_dependent_standard_deduction_per_statute: bool = True
     add_back_michigan_self_employment_tax_from_2021_per_statute: bool = True
+    pay_maine_childless_credit_rate_to_all_ages_per_statute: bool = True
+    take_maine_property_fairness_rent_at_statutory_share: bool = True
     deduct_virginia_age_deduction_per_statute: bool = True
     limit_virginia_itemized_deductions_without_other_items: bool = True
     scale_virginia_itemized_limit_threshold: bool = True

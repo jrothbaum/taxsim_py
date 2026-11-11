@@ -24,7 +24,7 @@ Not zero means unfinished: each state below needs another pass.
 | NY | 16 | 1985-86 renter credit cutoff (hy offset), 2020 unemployment/aged low-income marginal rates, 2021 childless aged EITC and unemployment |
 | AR | 18 | 2018-23 itemized (own rules), 2021 five cases, 1984 three cases |
 | KS | 16 | 1977-81 federal gaps, 2013-16 non-property income, 2021 low-income childcare, 2008 aged couple |
-| ME | 39 | 2014-21 property tax fairness credit / renter cases, 2020 childless EITC 18-24 |
+| ME | 11 | 2020-21 aged low-income and renter refundable credits, 2021 itemized and low-income childcare |
 | ID | 5 | 1977 aged renter, 2021-22 dependent filer rate |
 | WV | 0 | done |
 | OH | 0 | done |

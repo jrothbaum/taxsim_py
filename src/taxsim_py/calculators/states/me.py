@@ -391,7 +391,14 @@ def compute_me_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         if p.in_effect("eitc_rate_childless"):
             # On the federal credit before its minimum-age test.
             federal = pl.col("eitc_before_age_test")
-            earncr = pl.when(pl.col("dep18") < 1).then(p.num("eitc_rate_childless") * federal).otherwise(rate_eitc * federal)
+            childless_rate = pl.col("dep18") < 1
+            if not behavior.pay_maine_childless_credit_rate_to_all_ages_per_statute:
+                # TAXSIM gives the childless rate only to taxpayers aged 18 to 24; others get the ordinary rate.
+                childless_rate = childless_rate & (pl.col("page") >= 18) & (pl.col("page") <= 24)
+                federal_other = pl.col("eitc")
+            else:
+                federal_other = federal
+            earncr = pl.when(childless_rate).then(p.num("eitc_rate_childless") * federal).otherwise(rate_eitc * federal_other)
     if p.in_effect("eitc_rates_by_children"):
         # Childless filers from age 18 (not the federal 25).
         rates = p.value("eitc_rates_by_children")
@@ -414,6 +421,8 @@ def compute_me_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     ptfc = pl.lit(0.0)
     if p.in_effect("property_tax_fairness_credit"):
         rent_share = p.num("ptfc_rent_share")
+        if p.in_effect("taxsim_ptfc_rent_share") and not behavior.take_maine_property_fairness_rent_at_statutory_share:
+            rent_share = p.num("taxsim_ptfc_rent_share")
         pf = p.value("property_tax_fairness_credit")
         if "income_ceiling" in pf:
             ceiling = float(pf["income_ceiling"])

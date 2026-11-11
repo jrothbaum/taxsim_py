@@ -212,6 +212,8 @@ eitc_refundable: {2000: false, 2016: true}
 # `income_share` of income, up to `cap` (`elderly_cap` 65 or older). None
 # for separate filers from 2017.
 ptfc_rent_share: {2013: 0.2125, 2014: 0.1275}
+# What the TAXSIM build uses from 2014: 15% of rent without the 85% factor.
+taxsim_ptfc_rent_share: {2014: 0.15}
 property_tax_fairness_credit:
   2013: {income_ceiling: 40000, cap: 300, elderly_cap: 400, income_share: 0.1, benefit_share: 0.4}
   2014:
