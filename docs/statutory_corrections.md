@@ -558,3 +558,5 @@ Taxsim mode now follows the statutory rule for these (they remain in
 | WV | 1984-1986 | | The 2026 build reads the whole head of household table, so the old 17-row bug is gone | Same in both modes (`complete_west_virginia_1984_head_of_household_table` is in `FIXED_IN_2026_BUILD`) |
 | OH | all | | The joint filing credit needs only $500 of income for each spouse (pensions included), not earned income | Statutory: earned income. `require_earned_income_for_ohio_joint_credit` |
 | OH | 2013-2014 | | A business income deduction (50 percent, then 75 percent, to $250,000) with the rest at a flat 3 percent, which the statute did not have | Statutory: none until 2015. `start_ohio_business_deduction_per_statute` |
+| PA | all | | Other non-property income is part of Pennsylvania income | Statutory: not income. `count_nonproperty_income_once` |
+| ND | 2007 on | | The marriage credit's lower earner is found from net earnings (self-employment income less half its tax) plus pension shares | Statutory: wages (pensions from 2022). `compute_north_dakota_marriage_credit_earnings_per_statute` |

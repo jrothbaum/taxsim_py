@@ -8,6 +8,7 @@ from taxsim_py.engine.brackets import bracket_rate, bracket_tax
 from taxsim_py.engine.inputs import federal_exemption_count, files_head_of_household, files_joint, files_separate, files_single, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml
 from taxsim_py.engine.state import (
+    allocate_pensions,
     dividend_input_adjustment,
     checkpoint,
     dividend_exclusion_addback,
@@ -186,6 +187,13 @@ def compute_nd_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             # Pensions are shared between spouses.
             half = pl.col("pensions") / 2.0
             lower = pl.min_horizontal(pw + half, sw + half)
+        if not behavior.compute_north_dakota_marriage_credit_earnings_per_statute:
+            # TAXSIM: each spouse's net earnings (wages plus self-employment income less half its tax) plus a
+            # share of pensions given to the spouse 55 or older (half each when both or neither are).
+            pent, pens = allocate_pensions(pl.col("pensions"), 55)
+            earn_h = pl.col("pwages") + pl.col("psemp") + pl.col("pbusinc") + pl.col("pprofinc") - 0.5 * pl.col("payroll_setax_primary")
+            earn_w = pl.col("swages") + pl.col("ssemp") + pl.col("sbusinc") + pl.col("sprofinc") - 0.5 * pl.col("payroll_setax_secondary")
+            lower = pl.min_horizontal(earn_h + pent, earn_w + pens)
         single = _single_schedule(y)
         taxin3 = (lower - p.num("marriage_credit_deduction")).clip(0, None)
         taxin4 = (taxinc - taxin3).clip(0, None)

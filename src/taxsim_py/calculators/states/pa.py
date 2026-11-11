@@ -39,6 +39,9 @@ def compute_pa_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         + pl.col("pa_schede")
         + pl.when(aged_count() > 0).then(0.0).otherwise(pl.col("pensions"))
     )
+    if not behavior.count_nonproperty_income_once:
+        # TAXSIM's variable for other non-property income (`d(23)`) is part of Pennsylvania income.
+        income = income + pl.col("nonprop")
     taxinc = income.clip(0, None)
     statax = taxinc * p.num("rate")
 
