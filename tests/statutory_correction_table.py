@@ -480,7 +480,7 @@ CASES = [
     ),
     _case(
         "WI-002", "Wisconsin 1986 separate return", "siitax",
-        0.0, 1_197.10, year=1986, state=50, mstat=6, pwages=20_000,
+        1_197.10, 1_197.10, year=1986, state=50, mstat=6, pwages=20_000,
     ),
     _case(
         "WI-003", "Wisconsin 1983 homeowner", "siitax",
