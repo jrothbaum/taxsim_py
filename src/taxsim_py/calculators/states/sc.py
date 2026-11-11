@@ -78,6 +78,9 @@ def compute_sc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         agi = (pl.col("taxable_income") - zbr).clip(0, None)
     else:
         agi = pl.col("taxable_income")
+    if 1985 <= y <= 1989 and not behavior.tax_south_carolina_capital_gains_1985_1989:
+        # TAXSIM's federal taxable income leaves the net capital gain out of these years' totals.
+        agi = (agi - pl.min_horizontal((pl.col("stcg") + pl.col("ltcg")).clip(0, None), pl.col("ltcg").clip(0, None))).clip(0, None)
     if y in (2009, 2020):
         # Unemployment compensation is taxed in full.
         agi = agi - pl.col("taxable_unemployment") + pl.col("sc_ui")

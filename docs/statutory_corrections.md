@@ -560,3 +560,4 @@ Taxsim mode now follows the statutory rule for these (they remain in
 | OH | 2013-2014 | | A business income deduction (50 percent, then 75 percent, to $250,000) with the rest at a flat 3 percent, which the statute did not have | Statutory: none until 2015. `start_ohio_business_deduction_per_statute` |
 | PA | all | | Other non-property income is part of Pennsylvania income | Statutory: not income. `count_nonproperty_income_once` |
 | ND | 2007 on | | The marriage credit's lower earner is found from net earnings (self-employment income less half its tax) plus pension shares | Statutory: wages (pensions from 2022). `compute_north_dakota_marriage_credit_earnings_per_statute` |
+| SC | 1985-1989 | | Federal taxable income leaves out the net long-term capital gain | Statutory: gains taxed in full. `tax_south_carolina_capital_gains_1985_1989` |
