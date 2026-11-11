@@ -170,6 +170,19 @@ def household_income(behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.Expr:
     )
 
 
+def allocate_pensions(pensions: pl.Expr, age: int) -> tuple[pl.Expr, pl.Expr]:
+    """TAXSIM `penalloc`: pension income to the taxpayer and spouse by age.
+
+    A joint return gives it all to the spouse at or over `age` when the other is under, half each when
+    both or neither are; any other return gives it all to the taxpayer. A joint spouse of unknown age is 40.
+    """
+    sage = pl.when(pl.col("sage") == 0).then(40.0).otherwise(pl.col("sage").cast(pl.Float64))
+    joint = pl.col("filing_status") == "married_joint"
+    taxpayer_old, spouse_old = pl.col("page") >= age, sage >= age
+    primary = pl.when(~joint).then(pensions).when(taxpayer_old & ~spouse_old).then(pensions).when(~taxpayer_old & spouse_old).then(0.0).otherwise(pensions / 2)
+    return primary, pensions - primary
+
+
 def optimal_split(amount: pl.Expr, income_primary: pl.Expr, income_spouse: pl.Expr) -> tuple[pl.Expr, pl.Expr]:
     """TAXSIM `optalloc`: split `amount` between spouses to cut the larger of their incomes first."""
     gap = (income_primary - income_spouse).abs()

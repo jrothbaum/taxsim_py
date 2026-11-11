@@ -12,6 +12,7 @@ from taxsim_py.engine.state import (
     dividend_input_adjustment,
     by_filing_status,
     checkpoint,
+    allocate_pensions,
     dividend_exclusion_addback,
     household_income,
     pre1987_federal_itemizing,
@@ -22,6 +23,7 @@ from taxsim_py.behavior import BehaviorProfile, TAXSIM_BEHAVIOR
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
 OK_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "ok" / "income_tax.yaml")
+FEDERAL_ITEMIZED_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "itemized.yaml")
 FEDERAL_EITC_PARAMS = pl.read_csv(PARAMETERS_ROOT / "national" / "eitc.csv")
 FEDERAL_EITC_MISC = load_yaml(PARAMETERS_ROOT / "national" / "eitc_misc.yaml")
 
@@ -38,6 +40,7 @@ def compute_ok_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     effective_year, flate = resolve_state_year(year, behavior, OK_PARAMS)
     y = effective_year
     p = YearParams(OK_PARAMS, effective_year)
+    FEDERAL_ITEMIZED = YearParams(FEDERAL_ITEMIZED_PARAMS, effective_year) if effective_year >= 2018 else None
     dividend_input_adjustment()
     # Household income is taken before projected years are deflated (`hy`);
     # the 1999+ sales tax credit reads the deflated copy (`data(159)`).
@@ -77,6 +80,14 @@ def compute_ok_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     else:
         penmax = pl.when(agi <= float(limits) * aged).then(amount * aged).otherwise(0.0)
     agi = pl.when(pensions > 0).then((agi - pl.min_horizontal(penmax, pensions)).clip(0, None)).otherwise(agi)
+    if not behavior.compute_oklahoma_pension_exclusion_per_statute:
+        # TAXSIM: up to the amount for each spouse regardless of age (the age only decides who holds the
+        # pension), below an income limit per taxpayer that ends in 2010.
+        agi_before = fed_agi - pl.col("taxable_social_security") if y >= 1985 else fed_agi
+        pent, pens = allocate_pensions(pensions, 62)
+        excluded = pl.min_horizontal(amount, pent) + pl.min_horizontal(amount, pens)
+        limit = p.num("taxsim_pension_exclusion_agi_limit_per_taxpayer") * txp
+        agi = pl.when((pensions > 0) & (agi_before < limit)).then((agi_before - excluded).clip(0, None)).otherwise(agi_before)
     if y == 2009:
         # Unemployment compensation is taxed in full.
         agi = agi - pl.col("taxable_unemployment") + pl.col("ok_ui")
@@ -173,6 +184,11 @@ def compute_ok_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
                 xitded = pl.when(deducp - stt - charity > p.num("itemized_cap")).then(
                     p.num("itemized_cap") + charity
                 ).otherwise(deducp - stt)
+            if y >= 2022 and not behavior.compute_oklahoma_itemized_deduction_from_2022_per_statute:
+                # TAXSIM: the federal total less the state and local tax above the cap, limited to the
+                # itemized maximum, with the charitable deduction then added again.
+                excess_salt = (pl.col("proptax") + salt - FEDERAL_ITEMIZED.num("salt_cap") / sep).clip(0, None)
+                xitded = pl.min_horizontal(pl.lit(p.num("itemized_cap")), pl.col("itemized_deduction") - excess_salt) + pl.col("charity_cash")
             deduc = pl.when(fed_itemizes & (deducp > 0)).then(xitded).otherwise(stded)
             detail_xitded = pl.when(fed_itemizes & (deducp > 0)).then(xitded).otherwise(detail_xitded)
         taxinc = pl.when(fed_agi > 0).then((agi - deduc - exemp).clip(0, None)).otherwise(0.0)
@@ -195,7 +211,11 @@ def compute_ok_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         # credit only when the federal year itself is 2021, when all of it was
         # refundable; projected years run their own federal law.
         federal_credit = pl.col("odc") + pl.col("actc") if year == 2021 else pl.col("odc")
-        if y == 2021:
+        if y == 2021 and not behavior.limit_oklahoma_2021_child_credits_to_tax:
+            # TAXSIM takes the whole 2021 federal credits, which were fully refundable.
+            chcare = fed_ccc
+            chtax = federal_credit
+        elif y == 2021:
             chtax = pl.min_horizontal(federal_credit, room)
         else:
             chtax = pl.min_horizontal(federal_credit + pl.col("actc"), room)
@@ -206,12 +226,17 @@ def compute_ok_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     earncr = pl.lit(0.0)
     if p.in_effect("eitc_rate"):
         eitc_base = pl.col("eitc")
-        if p.in_effect("eitc_federal_law_year"):
-            law = int(p.value("eitc_federal_law_year"))
+        taxsim_law_year = p.in_effect("taxsim_eitc_federal_law_year") and not behavior.read_oklahoma_federal_credit_law_year_per_statute
+        if p.in_effect("eitc_federal_law_year") or taxsim_law_year:
+            law = int(p.value("taxsim_eitc_federal_law_year" if taxsim_law_year else "eitc_federal_law_year"))
             nkids = pl.col("dep18").clip(0, 3)
             disqy = (pl.col("stcg") + pl.col("ltcg")).clip(0, None) + pl.col("dividends") + pl.col("intrec") + pl.col("otherprop").clip(0, None)
             childless = nkids == 0
-            eitc_base = pl.when(eitc_filer_eligible(childless, law) & eitc_age_eligible(childless, law)).then(
+            eligible = eitc_filer_eligible(childless, law) & eitc_age_eligible(childless, law)
+            if y >= 2022 and not behavior.test_oklahoma_earned_income_credit_age_per_statute:
+                # TAXSIM's state credit has no age tests (the line is commented out): any filer who is not a dependent.
+                eligible = ~dependent_filer
+            eitc_base = pl.when(eligible).then(
                 federal_eitc(
                     pl.col("earned_income"), pl.col("agi"), disqy, pl.col("filing_status"), nkids,
                     FEDERAL_EITC_PARAMS.filter(pl.col("year") == law), float(resolve_year(FEDERAL_EITC_MISC["dylim"], law)),
@@ -232,6 +257,18 @@ def compute_ok_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         scred = pl.when(pl.col("ok_household_income_undeflated") < float(limits)).then(per_person * (txp + depx)).otherwise(0.0)
     elif limits is not None:
         hhy = pl.col("ok_household_income") + pl.col("eitc")
+        if not behavior.compute_oklahoma_sales_tax_credit_income_per_statute:
+            # TAXSIM: federal AGI, losses added back, untaxed benefits, transfers, and the earned income credits.
+            gains = (pl.col("stcg") + pl.col("ltcg"))
+            business = (
+                pl.col("psemp") + pl.col("ssemp") + pl.col("pbusinc") + pl.col("pprofinc")
+                + pl.col("sbusinc") + pl.col("sprofinc")
+            )
+            loss = -pl.min_horizontal(pl.lit(0.0), business + gains)
+            hhy = (
+                fed_agi + loss + (pl.col("gssi") - pl.col("taxable_social_security")) + pl.col("transfers")
+                + pl.col("eitc") + earncr
+            )
         with_dependents = (depx > 0) | (aged > 0)
         limit = pl.when(with_dependents).then(float(limits["with_dependents"])).otherwise(float(limits["alone"]))
         amount = pl.when(with_dependents).then(per_person * (txp + depx)).otherwise(per_person * txp)

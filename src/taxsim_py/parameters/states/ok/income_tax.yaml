@@ -300,6 +300,8 @@ salt_cap: {2018: 10000.0}
 # per taxpayer 65 or older with AGI up to the limit for one or two taxpayers;
 # from 2010 per taxpayer.
 pension_exclusion: {1977: 2200, 1999: 3300, 2000: 4400, 2001: 5500, 2005: 7500, 2006: 10000}
+# TAXSIM tests federal AGI against this per taxpayer; there is no limit before 2007 or from 2010.
+taxsim_pension_exclusion_agi_limit_per_taxpayer: {1977: 1.0e+20, 2007: 50000, 2008: 62500, 2009: 100000, 2010: 1.0e+20}
 pension_exclusion_agi_limit:
   1977: 25000
   2007: {one: 50000, two: 100000}
@@ -320,6 +322,8 @@ eitc_rate: {2002: 0.05}
 eitc_refundable: {2002: true, 2016: false, 2022: true}
 # From 2022 the federal credit under the rules for this year (68 O.S. 2357.43).
 eitc_federal_law_year: {2022: 2020}
+# TAXSIM also reads the 2020 federal credit in 2021, when the statute used that year's own.
+taxsim_eitc_federal_law_year: {2021: 2020}
 # Sales tax credit per person from 1990, below a household income limit: one
 # limit for everyone (1990-1998 and 2003), otherwise a limit for households
 # without and with dependents (taxpayers 65 or older count as with), where those

@@ -255,6 +255,12 @@ class BehaviorProfile:
     scale_maryland_child_care_credit_per_statute: bool = True
     step_maryland_exemption_phaseout_per_statute: bool = True
     compute_maryland_itemized_deduction_from_2018_per_statute: bool = True
+    compute_oklahoma_pension_exclusion_per_statute: bool = True
+    compute_oklahoma_sales_tax_credit_income_per_statute: bool = True
+    read_oklahoma_federal_credit_law_year_per_statute: bool = True
+    limit_oklahoma_2021_child_credits_to_tax: bool = True
+    compute_oklahoma_itemized_deduction_from_2022_per_statute: bool = True
+    test_oklahoma_earned_income_credit_age_per_statute: bool = True
     use_own_bounds_in_new_york_worksheets: bool = True
     use_single_standard_deduction_for_new_york_head_of_household_before_1987: bool = True
     complete_new_york_1986_maximum_tax_table: bool = True
