@@ -17,7 +17,7 @@ Not zero means unfinished: each state below needs another pass.
 | MD | 4 | 2020 aged single and 2022-23 aged couple with low wages (poverty/EITC interplay), 2023 low income single |
 | OK | 50 | 1977-86 dividend/interest/gain and non-property cases (federal pre-1982 gaps), 2021-23 aged low-income marginal rate |
 | MA | 39 | 1977-80 self-employment, 2020 capital gains (rounding of the exempt amount), 2022 pennies on very high incomes |
-| WI | 130 | 2022-23 (own routine: separate returns, childcare, itemized, homestead), 1988-97 separate returns by $1.80, 2000-2016 one or two cases a year |
+| WI | 81 | 2023 capital loss cases, 2022-23 married separate pennies/one case, 1988-97 separate returns $1.80, 2000-2016 one to four a year |
 | IN | 20 | 1977-80 aged low-income (property/renter credits), 2022-23 aged low-income and 2023 joint |
 | CA | 94 | marginal-rate (srate) gaps on high-income itemizers 2018-20, 1987-90 high income and AMT cases, 2005 HoH $260,000 (one case a year 1998-2013) |
 | UT | 121 | 2018-2023 itemizers and SS/aged cases (credit phaseout xl14 via nlaw, retirement credit 2022+), 1988 and 1993-2007 three cases a year, HoH itemizer state-tax iteration |

@@ -493,6 +493,8 @@ school_property_credit_renter_divisor: 100
 school_property_credit_owner_divisor: 10
 # 1984-1985 child care credit: a share of the federal credit.
 child_care_credit_share: {1984: 0.3, 1986: null}
+# TAXSIM also pays this share of the federal credit from 2022.
+taxsim_child_care_credit_share: {2022: 0.5}
 # Working families credit from 1998: the whole tax up to an income limit per
 # taxpayer, then (intercept - slope * AGI) times tax after other credits.
 working_families_credit:

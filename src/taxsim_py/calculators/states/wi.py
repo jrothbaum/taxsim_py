@@ -116,7 +116,7 @@ def compute_wi_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     if y != 2020:
         agi = agi - pl.when(ui > 0).then(ui - ui_taxable).otherwise(0.0)
     # Child and dependent care expenses (2011 on, with a federal credit).
-    if p.in_effect("child_care_subtraction_per_child"):
+    if p.in_effect("child_care_subtraction_per_child") and (y <= 2021 or behavior.pay_wisconsin_child_care_credit_per_statute):
         children = pl.when(pl.col("dep13") > 0).then(pl.col("dep13")).otherwise(depx).clip(None, 2)
         child = pl.min_horizontal(pl.col("childcare"), p.num("child_care_subtraction_per_child") * children)
         child = pl.when(is_joint).then(
@@ -154,11 +154,12 @@ def compute_wi_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
                 [separate["upper"], separate["amount"], 0, 0],
                 [1.0e20, separate["amount"], separate["separate_rate"] * index, separate["upper"]],
             ]
+        sep_uses_single = y >= 2023 and not behavior.use_wisconsin_separate_standard_deduction_from_2023
         stded = (
             pl.when(files_single()).then(_standard_deduction(tables["single"], agi, index))
             .when(files_head_of_household()).then(_standard_deduction(tables["head_of_household"], agi, index))
             .when(is_joint).then(_standard_deduction(tables["married_joint"], agi, index))
-            .otherwise(_standard_deduction(tables["married_separate"], agi, index))
+            .otherwise(_standard_deduction(tables["single" if sep_uses_single else "married_separate"], agi, index))
         )
     d = p["dependent_standard_deduction"]
     stded = pl.when(dependent_filer).then(
@@ -194,7 +195,7 @@ def compute_wi_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             xitded = gross - pl.col("state_sales_or_income_tax_ded") - pl.col("proptax")
     else:
         xitded = contr + inrst
-        if y >= 1987 and not behavior.exclude_other_itemized_deductions_from_wisconsin_credit:
+        if 1987 <= y <= 2022 and not behavior.exclude_other_itemized_deductions_from_wisconsin_credit:
             xitded = xitded + pl.col("otheritem")
     xitded = xitded.clip(0, None)
     if y == 1999 and not behavior.keep_wisconsin_1999_itemized_credit:
@@ -312,7 +313,10 @@ def compute_wi_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         spcred = pl.lit(0.0)
 
     chcr = p.num("child_care_credit_share") * pl.col("federal_chcr") if p.in_effect("child_care_credit_share") else pl.lit(0.0)
-    if not behavior.pay_wisconsin_child_care_credit_per_statute:
+    if y >= 2022 and p.in_effect("taxsim_child_care_credit_share") and not behavior.pay_wisconsin_child_care_credit_per_statute:
+        # TAXSIM pays half the federal credit from 2022 (the statute's credit is not in the table).
+        chcr = p.num("taxsim_child_care_credit_share") * pl.col("ccc_uncapped")
+    if y < 2022 and not behavior.pay_wisconsin_child_care_credit_per_statute:
         # TAXSIM multiplies the share by a federal variable that is never set (always zero).
         chcr = pl.lit(0.0)
 
@@ -361,7 +365,7 @@ def compute_wi_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     if y <= 1988:
         statax = (statax - credit).clip(0, None)
     else:
-        statax = (statax - exempc - xcred - spcred - wcred).clip(0, None)
+        statax = (statax - exempc - xcred - spcred - wcred - chcr).clip(0, None)
 
     # --- Minimum tax ---
     amt = pl.lit(0.0)
@@ -427,6 +431,9 @@ def compute_wi_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         .otherwise(homestead_rate * tableb)
     )
     pcred = pl.when(income_test <= c["income_limit"]).then(pcred).otherwise(0.0)
+    if y >= 2023 and not behavior.pay_wisconsin_homestead_credit_from_2023:
+        # TAXSIM's homestead credit goes only to a return with a taxpayer 65 or older from 2023.
+        pcred = pl.when(aged > 0).then(pcred).otherwise(0.0)
     statax = statax - pcred
     if y >= 1989:
         statax = statax - earncr
