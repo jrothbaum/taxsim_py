@@ -496,7 +496,7 @@ CASES = [
     ),
     _case(
         "WI-005", "Wisconsin 1995 separate return at $5,200", "siitax",
-        52.02, 52.02, year=1995, state=50, mstat=6, pwages=5_200,
+        50.21, 52.02, year=1995, state=50, mstat=6, pwages=5_200,
     ),
     _case(
         "WI-006", "Wisconsin 1990 long-term loss and short-term gain", "siitax",

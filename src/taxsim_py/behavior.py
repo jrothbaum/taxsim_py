@@ -328,6 +328,9 @@ class BehaviorProfile:
     omit_vermont_student_credit: bool = True
     floor_wisconsin_capital_gain_exclusion: bool = True
     start_wisconsin_standard_deduction_tiers_at_their_range: bool = True
+    start_wisconsin_separate_standard_deduction_tier_at_its_range: bool = True
+    limit_wisconsin_capital_loss_to_statutory_amount: bool = True
+    limit_wisconsin_dependent_standard_deduction_from_2023: bool = True
     keep_wisconsin_mortgage_interest_cents: bool = True
     keep_wisconsin_1999_itemized_credit: bool = True
     index_wisconsin_joint_brackets: bool = True

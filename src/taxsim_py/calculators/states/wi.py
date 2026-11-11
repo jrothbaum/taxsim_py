@@ -94,7 +94,10 @@ def compute_wi_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         loss_limit = float(resolve_year(CAPITAL_GAINS_PARAMS["net_capital_loss_limit"], y))
         # The federal loss limit reaches the state deflated in projected years.
         caplss = pl.max_horizontal(fullcg, -loss_limit / flate / sep).abs()
-        closswi = pl.min_horizontal(caplss, pl.lit(p.num("capital_loss_limit")), agi.clip(0, None))
+        limit = p.num("capital_loss_limit")
+        if p.in_effect("taxsim_capital_loss_limit") and not behavior.limit_wisconsin_capital_loss_to_statutory_amount:
+            limit = p.num("taxsim_capital_loss_limit")
+        closswi = pl.min_horizontal(caplss, pl.lit(limit), agi.clip(0, None))
         agi = agi + pl.when(fullcg <= 0).then(caplss - closswi).otherwise(0.0)
     if p.in_effect("capital_gain_exclusion_addback"):
         agi = agi + pl.when(fullcg > 0).then(p.num("capital_gain_exclusion_addback") * pl.col("pre1987_capded")).otherwise(0.0)
@@ -140,7 +143,7 @@ def compute_wi_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             tables = {key: [list(row) for row in rows] for key, rows in tables.items()}
             if 2000 <= y <= 2015:
                 tables["head_of_household"][2][3] = tables["head_of_household"][1][0]
-            if 1988 <= y <= 1998:
+            if 1988 <= y <= 1998 and behavior.start_wisconsin_separate_standard_deduction_tier_at_its_range:
                 tables["married_separate"][1][3] = tables["married_separate"][0][0]
         if 2016 <= y and not behavior.start_wisconsin_head_of_household_third_tier_per_statute and len(tables["head_of_household"]) > 3:
             # TAXSIM measures the head of household third tier from where the second ends.
@@ -162,7 +165,7 @@ def compute_wi_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             .otherwise(_standard_deduction(tables["single" if sep_uses_single else "married_separate"], agi, index))
         )
     d = p["dependent_standard_deduction"]
-    stded = pl.when(dependent_filer).then(
+    stded = pl.when(dependent_filer & (y < 2023 or behavior.limit_wisconsin_dependent_standard_deduction_from_2023)).then(
         pl.min_horizontal(stded, pl.max_horizontal(pl.lit(float(d["floor"])), pl.col("earned_income") + d["earned_addition"]))
     ).otherwise(stded)
     if p.in_effect("low_income_deduction"):
@@ -361,11 +364,19 @@ def compute_wi_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     elif shares is not None:
         earncr = float(shares) * eitc
 
+    # --- Married couple credit ---
+    twocrd = pl.lit(0.0)
+    if p.in_effect("married_couple_credit"):
+        c = p.value("married_couple_credit")
+        business = 0.5 * (pl.col("psemp") + pl.col("ssemp"))
+        earh = (pl.col("pwages") + pl.col("pbusinc") + pl.col("pprofinc") + business).clip(0, None)
+        earw = (pl.col("swages") + pl.col("sbusinc") + pl.col("sprofinc") + business).clip(0, None)
+        twocrd = pl.when(is_joint).then(c["rate"] * pl.min_horizontal(pl.min_horizontal(earh, earw), pl.lit(float(c["cap"])))).otherwise(0.0)
     credit = xcred + exempc + earncr + chcr + spcred + wcred
     if y <= 1988:
-        statax = (statax - credit).clip(0, None)
+        statax = (statax - credit - twocrd).clip(0, None)
     else:
-        statax = (statax - exempc - xcred - spcred - wcred - chcr).clip(0, None)
+        statax = (statax - exempc - xcred - spcred - wcred - chcr - twocrd).clip(0, None)
 
     # --- Minimum tax ---
     amt = pl.lit(0.0)
@@ -394,15 +405,6 @@ def compute_wi_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         statax = statax + amt
     df, (statax, amt) = checkpoint(df, wi_after_amt=statax, wi_amt=amt)
 
-    # --- Married couple credit ---
-    twocrd = pl.lit(0.0)
-    if p.in_effect("married_couple_credit"):
-        c = p.value("married_couple_credit")
-        business = 0.5 * (pl.col("psemp") + pl.col("ssemp"))
-        earh = (pl.col("pwages") + pl.col("pbusinc") + pl.col("pprofinc") + business).clip(0, None)
-        earw = (pl.col("swages") + pl.col("sbusinc") + pl.col("sprofinc") + business).clip(0, None)
-        twocrd = pl.when(is_joint).then(c["rate"] * pl.min_horizontal(pl.min_horizontal(earh, earw), pl.lit(float(c["cap"])))).otherwise(0.0)
-        statax = (statax - twocrd).clip(0, None)
     if not behavior.add_wisconsin_minimum_tax_once:
         # TAXSIM adds the minimum tax again where it exceeds the tax now.
         statax = statax + (amt - statax).clip(0, None)

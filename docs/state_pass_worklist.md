@@ -17,7 +17,7 @@ Not zero means unfinished: each state below needs another pass.
 | MD | 4 | 2020 aged single and 2022-23 aged couple with low wages (poverty/EITC interplay), 2023 low income single |
 | OK | 50 | 1977-86 dividend/interest/gain and non-property cases (federal pre-1982 gaps), 2021-23 aged low-income marginal rate |
 | MA | 39 | 1977-80 self-employment, 2020 capital gains (rounding of the exempt amount), 2022 pennies on very high incomes |
-| WI | 81 | 2023 capital loss cases, 2022-23 married separate pennies/one case, 1988-97 separate returns $1.80, 2000-2016 one to four a year |
+| WI | 16 | 2022-23 married separate pennies, 2023 aged couple 2 cents |
 | IN | 20 | 1977-80 aged low-income (property/renter credits), 2022-23 aged low-income and 2023 joint |
 | CA | 12 | 1987-95 itemized joint high-income (AMT), 2022-23 a few cents on high-income wages |
 | UT | 96 | 2008-2012 and 2022-23 small groups, 1988 (10), 1993-2007 three cases a year, 1977-81 two a year |

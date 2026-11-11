@@ -152,6 +152,8 @@ capital_loss_reduction:
   1982: null
 # From 1987 net capital losses above this amount are added back.
 capital_loss_limit: {1987: 500}
+# What the TAXSIM build uses from 2023: the federal $3,000.
+taxsim_capital_loss_limit: {2023: 3000}
 # Through 1983, share of the federal capital gain exclusion added back to AGI.
 capital_gain_exclusion_addback: {1977: 1.0, 1982: 0.6666666666666666, 1983: 0.3333333333333333, 1984: null}
 # Share of long-term gains excluded from income (subtracted from 1987).
