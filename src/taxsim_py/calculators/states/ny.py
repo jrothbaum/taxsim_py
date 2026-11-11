@@ -500,6 +500,10 @@ def compute_ny_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     # --- Exemptions and taxable income ---
     xmp = p.num("exemption_per_person")
     exemp = (exemps if y <= 1987 else depx) * xmp
+    if y > 1987 and behavior.mode.value != "statutory":
+        # TAXSIM takes the (deflated, in a projected year) federal exemption count less the taxpayers, so a
+        # projected year gives a small negative exemption.
+        exemp = (exemps / flate - taxpayer_count()) * xmp
     taxinc = (agi - deduc - exemp).clip(0, None)
     taxy = taxinc
     df = df.with_columns(ny_exemp=exemp)
