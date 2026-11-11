@@ -308,3 +308,7 @@ Virginia 2022-2023 low-income returns (the Form 760ADJ choice between the low-in
 ## Georgia: retirement exclusion ceilings are uninitialised before 2021
 
 `gatax77` sets `rtmaxt`/`rtmaxs` only for law 2021 and later, so the retirement income exclusion for 1989-2020 uses whatever those locals held from an earlier record: the same record gives a different tax depending on which records ran before it in the file (an isolated 1995 aged single pays $1,340, but $500 in a file that already ran a 2021 record). Python keeps the statutory exclusion; the aged Georgia validation cases are order-dependent and cannot be matched.
+
+## District of Columbia 2014-2018: property credit cap read from outside a table
+
+`dctax77` ends with `pcred=max(0,min(pcred,pcreda(5,law)))`, but `pcreda` is dimensioned for 2019 on, so 2014-2018 read whatever memory precedes it. With the compiler used for the oracle that is about $355, $349-341, $353-345, $279-253 and $0 in 2014-2018 (the value moved by a few dollars with the kind of return). Python uses the amounts the validation cases show.

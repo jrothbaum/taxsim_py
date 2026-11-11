@@ -282,6 +282,8 @@ class BehaviorProfile:
     start_ohio_business_deduction_per_statute: bool = True
     compute_north_dakota_marriage_credit_earnings_per_statute: bool = True
     tax_south_carolina_capital_gains_1985_1989: bool = True
+    pay_district_of_columbia_property_credit_2014_2018: bool = True
+    deduct_district_of_columbia_other_itemized_with_state_taxes: bool = True
     start_wisconsin_head_of_household_third_tier_per_statute: bool = True
     use_own_bounds_in_new_york_worksheets: bool = True
     use_single_standard_deduction_for_new_york_head_of_household_before_1987: bool = True

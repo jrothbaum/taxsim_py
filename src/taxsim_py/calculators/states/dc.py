@@ -35,8 +35,9 @@ def compute_dc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     if effective_year <= 1981:
         addit = dividend_exclusion_addback(effective_year, behavior)
         # Other non-property income is not DC income before 1982.
+        nonprop_out = pl.col("nonprop") if behavior.count_nonproperty_income_once else pl.col("nonprop") * 0.0
         df = df.with_columns(
-            dc_agi=pl.col("agi") + addit - pl.col("taxable_unemployment") - pl.col("nonprop")
+            dc_agi=pl.col("agi") + addit - pl.col("taxable_unemployment") - nonprop_out
         )
     else:
         df = df.with_columns(dc_agi=pl.col("agi"))
@@ -146,16 +147,25 @@ def compute_dc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         )
     if p.in_effect("state_tax_deduction_cap"):
         sttax_cap = p.num("state_tax_deduction_cap") / pl.col("dc_sep")
-        sttax = pl.min_horizontal(
-            sttax_cap, pl.col("proptax") + pl.col("state_sales_or_income_tax_ded") + pl.col("otheritem")
-        )
-        room_after_proptax_otheritem = sttax - (pl.col("proptax") + pl.col("otheritem"))
-        df = df.with_columns(
-            dc_xitded=(
-                pl.col("dc_raw_itemized")
-                - pl.min_horizontal(pl.col("state_sales_or_income_tax_ded"), room_after_proptax_otheritem)
-            ).clip(0, None)
-        )
+        if not behavior.deduct_district_of_columbia_other_itemized_with_state_taxes:
+            # TAXSIM counts property tax and the state tax only in the cap, and lets the federal total
+            # rise when property tax alone is over it.
+            sttax_t = pl.min_horizontal(sttax_cap, pl.col("proptax") + pl.col("state_sales_or_income_tax_ded"))
+            room_t = sttax_t - pl.col("proptax")
+            df = df.with_columns(
+                dc_xitded=pl.col("itemized_before_limit") - pl.min_horizontal(pl.col("state_sales_or_income_tax_ded"), room_t)
+            )
+        else:
+            sttax = pl.min_horizontal(
+                sttax_cap, pl.col("proptax") + pl.col("state_sales_or_income_tax_ded") + pl.col("otheritem")
+            )
+            room_after_proptax_otheritem = sttax - (pl.col("proptax") + pl.col("otheritem"))
+            df = df.with_columns(
+                dc_xitded=(
+                    pl.col("dc_raw_itemized")
+                    - pl.min_horizontal(pl.col("state_sales_or_income_tax_ded"), room_after_proptax_otheritem)
+                ).clip(0, None)
+            )
 
     reduction = p["itemized_reduction"]
     threshold = float(reduction["threshold"]) / pl.col("dc_sep")
@@ -326,6 +336,10 @@ def compute_dc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             aged_pcred = pl.when(agix <= pagi_val).then((ptax - c["low_rate"] * agix).clip(0, None)).otherwise(0.0)
             pcred = pl.min_horizontal(prlim_val, pl.when(aged > 0).then(aged_pcred).otherwise(young))
     pcred = pl.when(is_dependent_filer() & (aged < 1)).then(0.0).otherwise(pcred)
+    if 2014 <= effective_year <= 2018 and not behavior.pay_district_of_columbia_property_credit_2014_2018:
+        # TAXSIM caps the credit at an array element it does not have before 2019; the memory it reads
+        # holds these amounts (found by running it).
+        pcred = pl.min_horizontal(pcred, p.num("taxsim_property_credit_cap"))
     df = df.with_columns(dc_pcred=pcred)
 
     # Low Income Credit (1987-2017), when federal tax before credits is

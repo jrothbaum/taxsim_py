@@ -561,3 +561,6 @@ Taxsim mode now follows the statutory rule for these (they remain in
 | PA | all | | Other non-property income is part of Pennsylvania income | Statutory: not income. `count_nonproperty_income_once` |
 | ND | 2007 on | | The marriage credit's lower earner is found from net earnings (self-employment income less half its tax) plus pension shares | Statutory: wages (pensions from 2022). `compute_north_dakota_marriage_credit_earnings_per_statute` |
 | SC | 1985-1989 | | Federal taxable income leaves out the net long-term capital gain | Statutory: gains taxed in full. `tax_south_carolina_capital_gains_1985_1989` |
+| DC | 1977-1981 | | Other non-property income stays in the DC income | Statutory: not income. `count_nonproperty_income_once` |
+| DC | 2014-2018 | | The property tax credit is capped at a number read from memory past a table ($355, $349, $353, $279, $0) | Statutory: the credit schedule. `pay_district_of_columbia_property_credit_2014_2018` |
+| DC | 2018 on | | The itemized deduction removes the state tax inside the cap measured from property tax only (not other itemized), starting from the federal total | Statutory: from the inputs. `deduct_district_of_columbia_other_itemized_with_state_taxes` |

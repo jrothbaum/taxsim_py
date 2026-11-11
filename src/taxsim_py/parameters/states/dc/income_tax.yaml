@@ -318,3 +318,6 @@ eitc_childless:
   2025: {max_credit: 649, max_earned: 30941, phaseout_start: 23288, phase_in_rate: 0.0765, disqualified_income_limit: 11950}
 eitc_childless_phaseout_rate: 0.0848
 eitc_childless_age_limits: {minimum_age: 25, maximum_age: 65}
+
+# TAXSIM's cap on the 2014-2018 property tax credit: the contents of memory it reads past a table.
+taxsim_property_credit_cap: {2014: 355.0, 2015: 349.0, 2016: 353.0, 2017: 279.0, 2018: 0.0, 2019: null}
