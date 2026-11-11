@@ -135,6 +135,8 @@ class BehaviorProfile:
     pay_kansas_credits_per_statute: bool = True
     use_idaho_standard_deduction_2008_2009_per_statute: bool = True
     use_idaho_building_fund_limits_per_statute: bool = True
+    split_mississippi_joint_returns_per_statute: bool = True
+    use_mississippi_federal_itemized_deductions_from_2021: bool = True
     count_idaho_child_credit_children_under_17: bool = True
     subtract_state_tax_in_georgia_itemized_deduction: bool = True
     pay_hawaii_credits_below_zero_tax: bool = True

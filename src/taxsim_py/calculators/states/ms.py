@@ -7,6 +7,7 @@ from taxsim_py.engine.inputs import aged_count, files_joint, files_separate, tax
 from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml, resolve_year
 from taxsim_py.engine.state import (
     forced_standard,
+    split_agi,
     by_filing_status,
     checkpoint,
     dividend_exclusion_addback,
@@ -108,7 +109,12 @@ def compute_ms_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         deducp = (pl.col("proptax") + pl.col("otheritem") + salt_ded).clip(0, None) + pl.col("mortgage") + fed_char
     else:
         deducp = pl.col("itemized_deduction")
-    if y < 1991:
+    if y >= 2021 and not behavior.use_mississippi_federal_itemized_deductions_from_2021:
+        # TAXSIM adds up property tax (capped), mortgage interest and a few other items itself, no state tax.
+        deducp = pl.min_horizontal(pl.lit(10_000.0) / sep, pl.col("proptax")) + pl.col("mortgage")
+    if y < 1992:
+        xitded = deducp
+    elif y >= 2021 and not behavior.use_mississippi_federal_itemized_deductions_from_2021:
         xitded = deducp
     else:
         xitded = (deducp - salt_ded).clip(0, None)
@@ -163,6 +169,26 @@ def compute_ms_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     rate_expr = pl.when(is_joint & (agi > 0)).then(
         bracket_rate((taxyw1 - deducw).clip(0, None), brackets)
     ).otherwise(bracket_rate(taxinc, brackets))
+    if not behavior.split_mississippi_joint_returns_per_statute:
+        # TAXSIM splits AGI as `splitagi` does and gives the exemptions and deduction to whichever spouse has more
+        # income first (`optalloc`).
+        agit, agis = split_agi(agi, 0.0, 0.0)
+        amount = exemp + deduc
+        gap = (agit - agis).abs()
+        to_larger = pl.min_horizontal(amount, gap)
+        shared = (amount - to_larger) / 2
+        larger_is_primary = agit > agis
+        allocated_h = pl.when(gap <= 0).then(amount / 2).otherwise(
+            pl.when(larger_is_primary).then(to_larger).otherwise(0.0) + shared
+        )
+        allocated_w = pl.when(gap <= 0).then(amount / 2).otherwise(
+            pl.when(larger_is_primary).then(0.0).otherwise(to_larger) + shared
+        )
+        allocated_h = pl.when(amount <= 0).then(0.0).otherwise(allocated_h)
+        allocated_w = pl.when(amount <= 0).then(0.0).otherwise(allocated_w)
+        split_tax = bracket_tax((agit - allocated_h).clip(0, None), brackets) + bracket_tax(
+            (agis - allocated_w).clip(0, None), brackets
+        )
     statax = pl.when(is_joint & (agi > 0)).then(pl.min_horizontal(statax, split_tax)).otherwise(statax)
 
     return with_state_detail(
