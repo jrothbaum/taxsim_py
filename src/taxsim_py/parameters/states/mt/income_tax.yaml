@@ -371,3 +371,18 @@ two_rate_schedule:
 # retirement exclusion. Source: PolicyEngine-US
 # gov.states.mt.tax.income.subtractions.old_age.
 old_age_subtraction: {2024: 5500, 2025: 5660}
+
+# The TAXSIM 2024 on routine: a two-rate schedule per filing group (`upper` is
+# the top of the lower-rate range, the second row's `subtraction` is taken off
+# rate times income), the long-term gains threshold, and the exemption per
+# taxpayer 65 or older. Married-separate filers use the single schedule.
+taxsim_two_rate_schedule:
+  2024:
+    single: {upper: 20500, rate_low: 0.047, rate_high: 0.059, subtraction: 246}
+    married_joint: {upper: 41000, rate_low: 0.047, rate_high: 0.059, subtraction: 492}
+    head_of_household: {upper: 30750, rate_low: 0.047, rate_high: 0.059, subtraction: 369}
+  2025:
+    single: {upper: 21000, rate_low: 0.047, rate_high: 0.059, subtraction: 253}
+    married_joint: {upper: 42200, rate_low: 0.047, rate_high: 0.059, subtraction: 506}
+    head_of_household: {upper: 31700, rate_low: 0.047, rate_high: 0.059, subtraction: 380}
+taxsim_exemption: {2024: 5500, 2025: 5660}

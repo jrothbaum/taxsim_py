@@ -35,6 +35,52 @@ def _brackets(y: int) -> list[list[float]]:
     return [[float(start) * factor, float(rate)] for start, rate in p.value("brackets")]
 
 
+def _compute_taxsim_2024(df: pl.DataFrame, p: YearParams, flate: float) -> pl.DataFrame:
+    """TAXSIM's 2024 on routine: federal AGI less the larger federal deduction, the aged exemption, and
+    a two-rate schedule with a lower rate on long-term gains below the first-rate limit; no subtractions."""
+    agi = pl.col("agi")
+    stded = pl.col("standard_deduction")
+    xitded = pl.col("itemized_deduction")
+    exemp = aged_count() * p.num("taxsim_exemption")
+    # The state income tax deducted federally (within the cap) is added back, up to the itemized deduction above the standard.
+    state_tax_added_back = pl.min_horizontal(
+        (pl.col("salt_capped") - pl.col("otheritem") - pl.col("proptax")).clip(0, None), (xitded - stded).clip(0, None)
+    )
+    taxinc = (
+        agi - pl.max_horizontal(stded, xitded) - exemp - pl.col("senior_deduction") + state_tax_added_back
+    ).clip(0, None)
+    schedule = p.value("taxsim_two_rate_schedule")
+    group = pl.when(files_joint()).then(pl.lit("married_joint")).when(files_head_of_household()).then(
+        pl.lit("head_of_household")
+    ).otherwise(pl.lit("single"))
+
+    def by_group(key: str) -> pl.Expr:
+        return pl.when(group == "married_joint").then(float(schedule["married_joint"][key])).when(
+            group == "head_of_household"
+        ).then(float(schedule["head_of_household"][key])).otherwise(float(schedule["single"][key]))
+
+    upper, low, high, subtraction = by_group("upper"), by_group("rate_low"), by_group("rate_high"), by_group("subtraction")
+    gains = pl.min_horizontal(pl.col("ltcg").clip(0, None), taxinc)
+    ordinary = taxinc - gains
+    ordinary_tax = pl.when(ordinary <= upper).then(low * ordinary).otherwise(high * ordinary - subtraction)
+    low_gains = pl.min_horizontal(gains, (upper - ordinary).clip(0, None))
+    gains_tax = 0.03 * low_gains + 0.041 * (gains - low_gains)
+    taxbc = ordinary_tax + gains_tax
+    earncr = p.num("eitc_match_rate") * pl.col("eitc")
+    df = df.with_columns(siitax=(taxbc - earncr) * flate)
+    return with_state_detail(
+        df,
+        agi=agi,
+        exemptions=exemp,
+        standard_deduction=stded,
+        itemized_deductions=xitded,
+        taxable_income=taxinc,
+        eic=earncr,
+        credits=earncr,
+        rate=pl.when(ordinary <= upper).then(low).otherwise(high),
+    )
+
+
 def compute_mt_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
     """Calculate Montana income tax for each row."""
     effective_year, flate = resolve_state_year(year, behavior, MT_PARAMS)
@@ -48,6 +94,9 @@ def compute_mt_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         mt_half_setax=0.5 * pl.col("payroll_setax"),
     )
     df = deflate_for_extrapolation(df, flate, extra=("mt_ui", "mt_half_setax"))
+
+    if y >= 2024 and p.in_effect("taxsim_two_rate_schedule") and not behavior.compute_montana_tax_from_2024_per_statute:
+        return _compute_taxsim_2024(df, p, flate)
 
     is_joint = files_joint()
     is_sep = files_separate()
