@@ -120,6 +120,9 @@ def compute_ut_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         fed_itemizes = pl.col("itemizes")
         if not p.in_effect("salt_cap"):
             itemized = (pl.col("itemized_deduction") - salt).clip(0, None)
+            if not behavior.exclude_utah_state_income_tax_from_taxpayer_credit_before_2018:
+                # TAXSIM subtracts a variable it never sets, so the state income tax stays in.
+                itemized = pl.col("itemized_deduction")
         else:
             other = pl.col("proptax") + pl.col("otheritem")
             sttax = pl.min_horizontal(p.num("salt_cap") / sep, other + salt)
@@ -132,6 +135,8 @@ def compute_ut_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             threshold = pl.when(is_hoh).then(t["head_of_household"] * index).otherwise(t["per_taxpayer"] * index * txp)
         else:
             threshold = by_filing_status(t) * index
+            if p.in_effect("taxsim_taxpayer_credit_phaseout_threshold") and not behavior.use_utah_2022_credit_threshold_per_statute:
+                threshold = by_filing_status(p.value("taxsim_taxpayer_credit_phaseout_threshold")) * index
         if p.in_effect("taxpayer_credit_personal_exemption"):
             credit_base = deduc + p.num("taxpayer_credit_personal_exemption") * pl.col("depx")
         else:
@@ -164,6 +169,22 @@ def compute_ut_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
                     float(p["social_security_credit_rate"]) * ss,
                 )
             ).otherwise(0.0)
+
+        if not p.in_effect("retirement_credit_age") and not behavior.pay_utah_retirement_credit_per_statute:
+            # TAXSIM: the credit needs a reported age and a birth year no later than 1952 (a spouse's age,
+            # when reported, replaces the taxpayer's), pays 450 per taxpayer without earnings.
+            birth_year = pl.when(pl.col("sage") > 0).then(year - pl.col("sage")).when(pl.col("page") > 0).then(year - pl.col("page")).otherwise(99999)
+            born_early = birth_year <= p.num("taxsim_retirement_credit_birth_year")
+            no_earnings_h = (pl.col("pwages") + pl.col("psemp")) <= 0
+            no_earnings_w = (pl.col("swages") + pl.col("ssemp")) <= 0
+            maximum = p.num("retirement_credit_max") * (no_earnings_h.cast(pl.Float64) + no_earnings_w.cast(pl.Float64))
+            retcrd = pl.when(born_early).then((maximum - phaseout_rate * (agi - phase).clip(0, None)).clip(0, None)).otherwise(0.0)
+            if p.in_effect("taxsim_social_security_credit_rate"):
+                start = pl.when(files_single()).then(p.value("taxsim_social_security_credit_start")["single"]).otherwise(
+                    p.value("taxsim_social_security_credit_start")["other"] / sep
+                )
+                ssbcrd = pl.when(ss > 0).then((p.num("taxsim_social_security_credit_rate") * ss - phaseout_rate * (agi - start).clip(0, None)).clip(0, None)).otherwise(0.0)
+                retcrd = pl.max_horizontal(retcrd, ssbcrd)
 
         ctc = pl.lit(0.0)
         if p.in_effect("child_tax_credit"):

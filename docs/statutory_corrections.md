@@ -543,3 +543,6 @@ Taxsim mode now follows the statutory rule for these (they remain in
 | CA | 2018-2020 | | The itemized deduction puts back the state and local tax above $10,000 after the high-income reduction | Statutory: real estate tax in full, no state income tax. `ignore_federal_salt_cap_in_california` |
 | CA | 2018, 2020 | | The old formula's income points for 2018 and 2020 differ from the form's (the 2026 build's tables) | Both modes use the build's tables (Fortran is the source for this `caleitc` table) |
 | CA | 2021 | | The 2021 tax brackets are exact (not the 2012 table times an index) | Both modes now |
+| UT | 2008-2017 | | The taxpayer credit counts the state income tax in the itemized deduction (it subtracts a variable it never sets) | Statutory: other deductions only. `exclude_utah_state_income_tax_from_taxpayer_credit_before_2018` |
+| UT | 2008-2021 | | The retirement credit needs a reported age and a birth year of 1952 or earlier (the spouse's replaces the taxpayer's), is 450 per taxpayer with no earnings, and the Social Security credit exists only in 2021 | Statutory: aged taxpayers, plus a Social Security credit. `pay_utah_retirement_credit_per_statute` |
+| UT | 2022 | | The taxpayer credit phaseout thresholds use an index of 1.299 | Statutory: 15,548 and so on. `use_utah_2022_credit_threshold_per_statute` |

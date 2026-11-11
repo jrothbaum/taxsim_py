@@ -20,7 +20,7 @@ Not zero means unfinished: each state below needs another pass.
 | WI | 130 | 2022-23 (own routine: separate returns, childcare, itemized, homestead), 1988-97 separate returns by $1.80, 2000-2016 one or two cases a year |
 | IN | 20 | 1977-80 aged low-income (property/renter credits), 2022-23 aged low-income and 2023 joint |
 | CA | 94 | marginal-rate (srate) gaps on high-income itemizers 2018-20, 1987-90 high income and AMT cases, 2005 HoH $260,000 (one case a year 1998-2013) |
-| UT | 240 | 1977:2, 1978:2, 1979:2, 1980:2, 1981:2, 1988:10, 1993:3, 1994:3, 1995:3, 1996:3, 1997:3, 1998:3, 1999:3, 2000:3, 2001:2, 2002:2, 2003:2, 2004:2, 2005:2, 2006... |
+| UT | 121 | 2018-2023 itemizers and SS/aged cases (credit phaseout xl14 via nlaw, retirement credit 2022+), 1988 and 1993-2007 three cases a year, HoH itemizer state-tax iteration |
 | NY | 237 | 1978:2, 1979:2, 1980:2, 1981:2, 1982:2, 1983:2, 1984:2, 1985:4, 1986:4, 1987:2, 1988:2, 1989:2, 1990:2, 1991:2, 1992:2, 1993:2, 1994:2, 1995:2, 1996:2, 1997:... |
 | AR | 203 | 1977:2, 1978:2, 1979:2, 1980:2, 1981:2, 1982:2, 1983:2, 1984:5, 1985:4, 1986:4, 1987:3, 1988:3, 1989:3, 1990:5, 1991:5, 1992:5, 1993:5, 1994:5, 1995:5, 1996:... |
 | KS | 188 | 1977:2, 1978:2, 1979:2, 1980:2, 1981:2, 1986:1, 1987:1, 1988:1, 1989:1, 1990:1, 1991:1, 1992:1, 1993:1, 1994:1, 1995:1, 1996:1, 1997:1, 1998:6, 1999:6, 2000:... |
