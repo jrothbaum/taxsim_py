@@ -192,7 +192,8 @@ def compute_id_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
 
     # --- Permanent building fund tax ---
     taxsim_fund = not behavior.use_idaho_building_fund_limits_per_statute and effective_year <= 2020
-    if p.in_effect("building_fund_tax") or taxsim_fund:
+    taxsim_filing_fund = p.in_effect("taxsim_building_fund_filing_threshold") and not behavior.use_idaho_building_fund_limits_per_statute
+    if (p.in_effect("building_fund_tax") or taxsim_fund) and not taxsim_filing_fund:
         bf = p.value("taxsim_building_fund_tax" if taxsim_fund else "building_fund_tax")
         limits = bf["limit"]
         lim = (
@@ -211,7 +212,14 @@ def compute_id_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
                 .otherwise(pl.when(is_aged).then(r[1]).otherwise(r[0]))
             )
         df = df.with_columns(
-            id_statax=pl.when(pl.col("id_household_income") > lim).then(pl.col("id_statax") + float(bf["amount"])).otherwise(pl.col("id_statax"))
+            id_statax=pl.when((pl.col("id_household_income") - pl.col("gssi") + pl.col("taxable_social_security")) > lim).then(pl.col("id_statax") + float(bf["amount"])).otherwise(pl.col("id_statax"))
+        )
+    elif taxsim_filing_fund:
+        lim = by_filing_status(p.value("taxsim_building_fund_filing_threshold")) + by_filing_status(
+            p.value("taxsim_building_fund_aged_addition")
+        ) * aged_count()
+        df = df.with_columns(
+            id_statax=pl.when((pl.col("id_household_income") - pl.col("gssi") + pl.col("taxable_social_security")) > lim).then(pl.col("id_statax") + 10.0).otherwise(pl.col("id_statax"))
         )
 
     df = df.with_columns(siitax=pl.col("id_statax") * flate)
