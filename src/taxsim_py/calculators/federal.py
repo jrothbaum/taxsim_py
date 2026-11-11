@@ -321,14 +321,14 @@ def _by_status_at(table: dict, year: int) -> pl.Expr:
     return by_filing_status({status: resolve_year(table[status], year) for status in FILING_STATUSES})
 
 
-def _gross_se_income(behavior: BehaviorProfile) -> pl.Expr:
+def _gross_se_income(behavior: BehaviorProfile, year: int) -> pl.Expr:
     """Self-employment, business and professional income.
 
     The 2026 TAXSIM build treats `pbusinc`, `pprofinc`, `sbusinc` and `sprofinc`
-    as memo items for self-employment tax and the QBI deduction, not income.
+    as memo items for self-employment tax and the QBI deduction, not income (the 2024 on routine counts them).
     """
     income = pl.col("psemp") + pl.col("ssemp")
-    if behavior.count_business_and_professional_inputs_as_income:
+    if behavior.count_business_and_professional_inputs_as_income or year >= 2024:
         income = income + pl.col("pbusinc") + pl.col("pprofinc") + pl.col("sbusinc") + pl.col("sprofinc")
     return income
 
@@ -344,8 +344,13 @@ def _capital_gain(year: int) -> pl.Expr:
     return pl.max_horizontal(pl.col("stcg") + pl.col("ltcg"), -loss_limit / _sepret())
 
 
-def _schedule_e() -> pl.Expr:
-    """Schedule E income: other property income and S corporation income."""
+def _schedule_e(behavior: BehaviorProfile, year: int) -> pl.Expr:
+    """Schedule E income: other property income and S corporation income.
+
+    The 2026 TAXSIM build's 2024 on routine leaves other property income out.
+    """
+    if year >= 2024 and not behavior.count_other_property_income_from_2024:
+        return pl.col("scorp")
     return pl.col("otherprop") + pl.col("scorp")
 
 
@@ -406,7 +411,7 @@ def _income(
     # applicable share of self-employment tax.
     pt_p = YearParams(PAYROLL_TAX_PARAMS, year)
     payroll = payroll_parts(year, behavior)
-    gross_se_income = _gross_se_income(behavior)
+    gross_se_income = _gross_se_income(behavior, year)
 
     # The payroll figures are kept for the payroll step.
     prerequisites = payroll_prerequisites(year, behavior)
@@ -455,7 +460,7 @@ def _income(
 
     # Other property income and S corporation income enter as Schedule E
     # income; other non-property income is a (negative) adjustment.
-    schedule_e = _schedule_e()
+    schedule_e = _schedule_e(behavior, year)
     income_before_ui = (
         pl.col("wages")
         + pl.col("intrec")
@@ -465,7 +470,7 @@ def _income(
         + dividends_with_fudge
         + pl.col("pensions")
         + schedule_e
-        + pl.col("nonprop") * (1.0 if behavior.count_nonproperty_income_once else 2.0)
+        + pl.col("nonprop") * (1.0 if behavior.count_nonproperty_income_once or year >= 2024 else 2.0)
     )
 
     # Prefer split unemployment amounts when they exceed the combined input.
@@ -560,7 +565,7 @@ def _income(
 def _deductions(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame | pl.LazyFrame:
     """Standard or itemized deduction, exemptions and taxable income."""
     sepret_expr = _sepret()
-    gross_se_income = _gross_se_income(behavior)
+    gross_se_income = _gross_se_income(behavior, year)
     analytic_rate = _models_analytic_rate(year)
 
     # Married-separate uses half of the joint standard deduction.
@@ -1063,9 +1068,9 @@ def _credits(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorProfi
     eitc_p = YearParams(FEDERAL_EITC_PARAMS_MISC, year)
     phaseout_income = pl.col("agi")
     if year <= 2002:
-        phaseout_income = phaseout_income - _capital_gain(year).clip(None, 0) - _schedule_e().clip(None, 0)
+        phaseout_income = phaseout_income - _capital_gain(year).clip(None, 0) - _schedule_e(behavior, year).clip(None, 0)
         loss_share = eitc_p.num("loss_addback_share") if year >= 1997 else 0.0
-        business = _gross_se_income(behavior) + pl.col("scorp")
+        business = _gross_se_income(behavior, year) + pl.col("scorp")
         phaseout_income = phaseout_income - loss_share * business.clip(None, 0)
     eitc_ordinary = (
         pl.when(pl.col("rate_in").is_not_null())
@@ -1177,14 +1182,15 @@ def _credits(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorProfi
         # The 2026 TAXSIM build follows Form 8812 but counts every dependent it treats as
         # EITC-eligible (`dep18`) as a qualifying child, and lets the other dependent credit
         # count toward the refundable credit.
-        children = pl.col("dep18")
+        # Its child credit counts dependents under 18 (`numlt(18)`), the refundable cap those under 17.
+        children = pl.col("children_under_18")
         base = children * ctc_p.num("amount_per_child") + odc_p.num("amount") * (pl.col("depx") - children)
         after_phaseout = (base - 0.05 * (agi.clip(0, None) - odc_threshold_expr).clip(0, None)).clip(0, None)
         tax_room = pl.col("tax_before_credits").clip(0, None)
         remaining_after_ccc = (pl.col("tax_before_credits") - pl.col("ccc") - pl.col("elderly_credit_raw")).clip(0, None)
         nonrefundable_credit = pl.min_horizontal(pl.min_horizontal(after_phaseout, tax_room), remaining_after_ccc)
         unused = (after_phaseout - pl.min_horizontal(after_phaseout, tax_room)).clip(0, None)
-        capped = pl.min_horizontal(unused, children * ctc_p.num("actc_max_refundable_per_child"))
+        capped = pl.min_horizontal(unused, pl.col("children_under_17") * ctc_p.num("actc_max_refundable_per_child"))
         earned_formula = pl.when(children > 0).then(
             ctc_p.num("actc_rate") * (pl.col("earned_income").clip(0, None) - ctc_p.num("actc_earned_income_floor")).clip(0, None)
         ).otherwise(0.0)
@@ -1277,7 +1283,7 @@ def _net_tax(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorProfi
         # Schedule E income and the business memo items, which can be negative.
         net_investment_income = (
             (pl.col("intrec") + _dividends() + _capital_gain(year)).clip(0, None)
-            + _schedule_e() + pl.col("pbusinc") + pl.col("sbusinc")
+            + _schedule_e(behavior, year) + pl.col("pbusinc") + pl.col("sbusinc")
         )
     niit = net_investment_income_tax(
         net_investment_income=net_investment_income,

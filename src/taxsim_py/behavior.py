@@ -27,6 +27,7 @@ class BehaviorProfile:
     floor_child_credit_phaseout_at_zero: bool = True
     count_business_and_professional_inputs_as_income: bool = True
     count_nonproperty_income_once: bool = True
+    count_other_property_income_from_2024: bool = True
     honor_separate_and_unmarried_codes_with_dependents: bool = True
     use_published_capital_gains_thresholds: bool = True
     tax_alaska_before_1979: bool = True
