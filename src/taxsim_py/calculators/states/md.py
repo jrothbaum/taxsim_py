@@ -12,13 +12,17 @@ from taxsim_py.engine.state import (
     phaseout_steps,
     federal_dividend_exclusion_limit,
     by_filing_status,
+    REVERSE_FALLING_TABLE_WEIGHTS,
+    interpolate_table,
     pre1987_federal_itemizing,
+    split_agi,
     with_state_detail,
 )
 from taxsim_py.behavior import BehaviorProfile, TAXSIM_BEHAVIOR
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
 MD_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "md" / "income_tax.yaml")
+FEDERAL_ITEMIZED_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "itemized.yaml")
 _STATUSES = ["single", "married_joint", "married_separate", "head_of_household"]
 
 
@@ -34,6 +38,7 @@ def _tiered_replace(income: pl.Expr, tiers: list[list[float]]) -> pl.Expr:
 def compute_md_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
     effective_year, flate = resolve_state_year(year, behavior, MD_PARAMS)
     p = YearParams(MD_PARAMS, effective_year)
+    FEDERAL_ITEMIZED = YearParams(FEDERAL_ITEMIZED_PARAMS, effective_year) if effective_year >= 2018 else None
 
     is_joint = files_joint()
     is_hoh_status = pl.col("filing_status") == "head_of_household"
@@ -83,6 +88,9 @@ def compute_md_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     wages_total = pl.col("pwages") + pl.col("swages")
     agih = pl.col("pwages") + 0.5 * (pl.col("agi") - wages_total)
     agiw = pl.col("swages") + 0.5 * (pl.col("agi") - wages_total)
+    if not behavior.split_maryland_joint_income_per_statute:
+        # TAXSIM's `splitagi`: each spouse's own income (self-employment and benefits too), the rest shared.
+        agih, agiw = split_agi(pl.col("agi"), 0.0, 0.0)
     # Exclusions are split evenly, except that one aged spouse's pension
     # exclusion comes from the spouse's share.
     ss_subtracted = pl.col("taxable_social_security") if effective_year >= 1985 else pl.lit(0.0)
@@ -151,6 +159,20 @@ def compute_md_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         salt_plus_mortgage = pl.col("salt_capped") + pl.col("mortgage")
         itemizing_gate = pl.col("itemizes") & (salt_plus_mortgage > 0)
         xitded_base = (salt_plus_mortgage - pl.col("state_sales_or_income_tax_ded")).clip(0, None)
+        if 2018 <= effective_year <= 2021 and not behavior.compute_maryland_itemized_deduction_from_2018_per_statute:
+            # TAXSIM: the federal total less the state and local tax (capped at $10,000 with property tax
+            # first) plus the property tax (also capped).
+            salt_cap = FEDERAL_ITEMIZED.num("salt_cap") / pl.col("md_sep")
+            capsalt = pl.min_horizontal(salt_cap, pl.col("state_sales_or_income_tax_ded") + pl.col("proptax"))
+            capptax = pl.min_horizontal(salt_cap, pl.col("proptax"))
+            xitded_base = (pl.col("itemized_deduction") - capsalt).clip(0, None) + capptax
+            itemizing_gate = pl.col("itemizes") & (pl.col("itemized_deduction") > 0)
+        if effective_year >= 2022 and not behavior.compute_maryland_itemized_deduction_from_2018_per_statute:
+            # TAXSIM (2022 on): the federal total less the state and local tax above the cap.
+            salt_cap = FEDERAL_ITEMIZED.num("salt_cap") / pl.col("md_sep")
+            excess_salt = (pl.col("proptax") + pl.col("state_sales_or_income_tax_ded") - salt_cap).clip(0, None)
+            xitded_base = (pl.col("itemized_deduction") - excess_salt).clip(0, None)
+            itemizing_gate = pl.col("itemizes")
         if effective_year <= 2017 and not behavior.floor_maryland_itemized_deduction_at_zero:
             # TAXSIM floors it at the federal zero bracket amount (the standard deduction on the pass that
             # does not force itemizing).
@@ -196,6 +218,17 @@ def compute_md_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             replaced = pl.when(is_single_or_separate).then(_tiered_replace(fed_agi, ss_tiers)).otherwise(_tiered_replace(fed_agi, jh_tiers))
             phased = pl.when(replaced == 0).then(0.0).otherwise(blage + base_exemp * replaced)
             exemp = pl.when((fed_agi > p["exemption_phaseout_agi_floor"]) & replaced.is_not_null()).then(phased).otherwise(exemp)
+        if effective_year >= 2008 and not behavior.step_maryland_exemption_phaseout_per_statute:
+            table = p.value("taxsim_exemption_table")
+            rows_ss, rows_jh = table["single_or_separate"], table["joint_or_hoh"]
+            token = REVERSE_FALLING_TABLE_WEIGHTS.set(effective_year < 2012)  # `tablki` to 2011, `tablk3` after
+            try:
+                per_exemption = pl.when(is_single_or_separate).then(interpolate_table(fed_agi, rows_ss)).otherwise(
+                    interpolate_table(fed_agi, rows_jh)
+                )
+            finally:
+                REVERSE_FALLING_TABLE_WEIGHTS.reset(token)
+            exemp = blage + base_exemp * per_exemption
         # A dependent filer gets no exemptions from 2008; the high-income
         # reductions apply only to other returns.
         if effective_year >= 2008:
@@ -268,13 +301,17 @@ def compute_md_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     elif 2001 <= effective_year <= 2018:
         c = p.value("child_care_credit_rate")
         step = c["step_numerator"] / (c["step_divisor"] * sep)
-        chr_ = c["unit"] * (c["units"] - ((pl.col("agi") - c["start"] / sep) / step).clip(0, None)).clip(0, None)
+        unit = c["unit"] if behavior.scale_maryland_child_care_credit_per_statute else p.num("taxsim_child_care_credit_unit")
+        chr_ = unit * (c["units"] - ((pl.col("agi") - c["start"] / sep) / step).clip(0, None)).clip(0, None)
     elif effective_year >= 2019:
         rates = p.value("child_care_credit_rate")
         joint, other = rates["married_joint"], rates["other"]
 
         def phased_rate(c: dict) -> pl.Expr:
-            return c["unit"] * (c["units"] - ((pl.col("agi") - c["start"]) / c["step"]).clip(0, None)).clip(0, None)
+            steps = ((pl.col("agi") - c["start"]) / c["step"]).clip(0, None)
+            if not behavior.scale_maryland_child_care_credit_per_statute:
+                return c["unit"] * c["units"] * (1.0 - p.num("taxsim_child_care_credit_reduction_per_step") * steps).clip(0, None)
+            return c["unit"] * (c["units"] - steps).clip(0, None)
 
         chr_ = pl.when(is_joint).then(phased_rate(joint)).otherwise(phased_rate(other))
         fagim = pl.when(is_joint).then(float(joint["refundable_agi_limit"])).otherwise(float(other["refundable_agi_limit"]))
@@ -300,6 +337,9 @@ def compute_md_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         xlin3 = pov1 + pov2 * (exemps_count - 1.0)
         xlin4 = pl.max_horizontal(pl.col("agi"), pl.col("earned_income"))
         ptcr = pl.when((xlin3 >= xlin4) & ~is_dependent_filer()).then(p["poverty_credit_rate"] * pl.col("earned_income")).otherwise(0.0)
+        if not behavior.pay_maryland_poverty_level_credit_per_statute:
+            # TAXSIM works the credit out but never takes it off the tax.
+            ptcr = pl.lit(0.0)
     else:
         ptcr = pl.lit(0.0)
     df = df.with_columns(md_statax=(pl.col("md_statax") - ptcr).clip(0, None))
@@ -324,6 +364,28 @@ def compute_md_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     if effective_year >= 2019:
         chref = pl.when(pl.col("agi") <= fagim).then((chcr - pl.col("md_taxbc")).clip(0, None)).otherwise(0.0)
         df = df.with_columns(md_statax=pl.col("md_statax") - chref)
+
+    if effective_year in (2020, 2021) and not behavior.compute_maryland_earned_income_credit_per_statute:
+        # TAXSIM 2020-21: an unmarried filer with no children gets back the whole tax less a $530 credit
+        # (so pays nothing once the earned income credit is gone), and a $300 rebate in 2021.
+        taxbc = pl.col("md_taxbc")
+        c59 = pl.col("eitc")
+        childless_single = (pl.col("filing_status") == "single") & (pl.col("depx") == 0)
+        earn_t = pl.when(childless_single).then(pl.min_horizontal(pl.lit(530.0), pl.col("eitc_before_age_test"))).otherwise(0.0)
+        x3 = pl.when(childless_single).then(taxbc - 0.5 * c59).otherwise(0.0)
+        parent_or_couple = (pl.col("depx") > 0) | is_joint
+        refcr_parent = (p.num("refundable_eitc_rate") * c59 - taxbc).clip(0, None)
+        refcr_t = (
+            pl.when(x3 > 0).then(pl.when(taxbc >= earn_t).then(taxbc - earn_t).otherwise(0.0))
+            .when(parent_or_couple).then(refcr_parent)
+            .otherwise(0.0)
+        )
+        rebate_t = pl.lit(0.0)
+        if effective_year == 2021:
+            rebate_t = pl.when(earn_t > 0).then(pl.when(taxpayer_count() == 1).then(300.0).otherwise(500.0)).otherwise(0.0)
+        credno = pl.min_horizontal(0.5 * c59 + (chcr if effective_year != 2021 else 0.0), taxbc)
+        credref = refcr_t + chref + (chr_ * pl.col("federal_chcr") if effective_year == 2021 else 0.0)
+        df = df.with_columns(md_statax=taxbc - credno - credref - rebate_t)
 
     ctc = pl.lit(0.0)
     if p.in_effect("child_tax_credit"):
