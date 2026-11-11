@@ -156,6 +156,7 @@ heating_credit_share:
   2022: 0.9
   2023: 0.56
   2024: 0.52
+  2025: 0.6
 heating_credit_income_rate:
   1977: 0.035
 # Through 2005 by exemptions (1-6): 1977-1984 times `heating_credit_inflation`;
@@ -204,7 +205,7 @@ heating_credit_base:
   2022: 524
   2023: 562
   2024: 581
-  2025: 597.751
+  2025: 604
 heating_credit_per_extra_exemption:
   1985: 70
   1986: 73
@@ -244,7 +245,7 @@ heating_credit_per_extra_exemption:
   2022: 182
   2023: 198
   2024: 208
-  2025: 213.997
+  2025: 212
 
 # Refundable earned income credit from 2008, a share of the federal credit
 # (the Working Families Tax Credit, 30% from 2023). Source for 2022 on:
