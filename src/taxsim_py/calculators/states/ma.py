@@ -59,6 +59,9 @@ def compute_ma_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     business_h = pl.col("pbusinc") + pl.col("pprofinc")
     business_w = pl.col("sbusinc") + pl.col("sprofinc")
     d17 = semp + business_h + business_w
+    if not behavior.count_business_and_professional_inputs_as_income:
+        # TAXSIM's net business income (`d(17)`) is self-employment only.
+        d17 = semp
     ui_total = unemployment_total()
 
     # --- Exemptions ---
@@ -102,12 +105,11 @@ def compute_ma_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             binc = binc + (pl.col("intrec") - p["interest_exclusion_per_taxpayer"] * n_tp).clip(0, None)
 
     # --- Part B deductions ---
-    # Payroll tax and Social Security benefits, each up to the cap.
+    # Each spouse's employee payroll tax, up to the cap.
     fica_cap = pl.lit(float(p["payroll_tax_deduction_cap"]))
     fica = (
         pl.min_horizontal(pl.col("ma_c183"), fica_cap)
         + pl.min_horizontal(pl.col("ma_c183_spouse"), fica_cap)
-        + pl.min_horizontal(pl.col("gssi").clip(0, None), fica_cap)
     )
     setax = pl.col("ma_setax")
 

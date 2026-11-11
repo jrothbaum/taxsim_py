@@ -16,7 +16,7 @@ Not zero means unfinished: each state below needs another pass.
 | MT | 23 | 1977-81 professional/S corporation and non-property cases, 1984-86 unemployment couple, 2014-17 childcare couple at $90,000 (marginal rate), 2022-23 aged renter and aged couple with low wages |
 | MD | 4 | 2020 aged single and 2022-23 aged couple with low wages (poverty/EITC interplay), 2023 low income single |
 | OK | 50 | 1977-86 dividend/interest/gain and non-property cases (federal pre-1982 gaps), 2021-23 aged low-income marginal rate |
-| MA | 311 | 1977:9, 1978:9, 1979:9, 1980:9, 1981:7, 1982:7, 1983:7, 1984:7, 1985:6, 1986:6, 1987:6, 1988:6, 1989:6, 1990:5, 1991:5, 1992:5, 1993:5, 1994:5, 1995:5, 1996:... |
+| MA | 39 | 1977-80 self-employment, 2020 capital gains (rounding of the exempt amount), 2022 pennies on very high incomes |
 | WI | 271 | 1984:16, 1985:16, 1986:23, 1988:2, 1989:2, 1990:2, 1991:2, 1992:2, 1993:2, 1994:2, 1995:2, 1996:2, 1997:2, 2000:1, 2001:2, 2002:1, 2003:1, 2004:1, 2005:1, 20... |
 | IN | 246 | 1977:3, 1978:3, 1979:3, 1980:3, 2003:4, 2004:4, 2005:4, 2006:4, 2007:4, 2008:4, 2009:4, 2010:4, 2011:17, 2012:15, 2013:17, 2014:15, 2015:14, 2016:18, 2017:16... |
 | CA | 245 | 1987:3, 1988:3, 1989:4, 1990:5, 1991:1, 1992:1, 1993:2, 1994:2, 1995:2, 1996:1, 1997:1, 1998:4, 1999:4, 2000:2, 2001:2, 2002:2, 2003:2, 2004:2, 2005:2, 2006:... |
