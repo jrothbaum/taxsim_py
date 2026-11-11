@@ -8,7 +8,7 @@ import polars as pl
 from taxsim_py.engine.brackets import bracket_rate, bracket_tax, scale_brackets
 from taxsim_py.engine.inputs import aged_count, federal_exemption_count, files_head_of_household, files_joint, files_separate, files_single, is_dependent_filer, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml
-from taxsim_py.engine.state import phaseout_steps, checkpoint, household_income, interpolate_table, unemployment_total, with_state_detail
+from taxsim_py.engine.state import allocate_pensions, phaseout_steps, checkpoint, household_income, interpolate_table, unemployment_total, with_state_detail
 from taxsim_py.behavior import BehaviorProfile, TAXSIM_BEHAVIOR
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
@@ -83,9 +83,18 @@ def compute_ri_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         index = p.num("retirement_exclusion_index")
         limits = p["retirement_exclusion_agi_limit"]
         fagi = pl.when(married).then(limits["married"] * index / sep).otherwise(limits["single"] * index)
-        agi = agi - pl.when(fed_agi <= fagi).then(
-            pl.min_horizontal(aged * p.num("retirement_exclusion_per_aged_taxpayer"), pl.col("pensions"))
-        ).otherwise(0.0)
+        exclusion = pl.min_horizontal(aged * p.num("retirement_exclusion_per_aged_taxpayer"), pl.col("pensions"))
+        if not behavior.limit_rhode_island_retirement_exclusion_to_aged_per_statute:
+            # TAXSIM gives each spouse up to the cap on the pension allocated by age 66, aged or not, and
+            # (in 2022 on) treats a return with no ages as aged.
+            limit = p.num("retirement_exclusion_per_aged_taxpayer")
+            primary, spouse = allocate_pensions(pl.col("pensions"), 66)
+            exclusion = pl.min_horizontal(primary, pl.lit(limit)) + pl.min_horizontal(spouse, pl.lit(limit))
+            fagi = pl.when(txp > 1).then(limits["married"] * index).otherwise(limits["single"] * index)
+            if y >= 2022:
+                unknown_or_old = ((pl.col("page") == 0) | (pl.col("page") >= 66) | (pl.col("sage") >= 66))
+                exclusion = pl.when(unknown_or_old).then(exclusion).otherwise(0.0)
+        agi = agi - pl.when(fed_agi <= fagi).then(exclusion).otherwise(0.0)
     if y in (2009, 2020):
         # Unemployment compensation is taxed in full.
         agi = agi - pl.col("taxable_unemployment") + pl.col("ri_ui")
