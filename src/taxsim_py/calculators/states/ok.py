@@ -194,6 +194,9 @@ def compute_ok_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         taxinc = pl.when(fed_agi > 0).then((agi - deduc - exemp).clip(0, None)).otherwise(0.0)
         df, (taxinc,) = checkpoint(df, ok_taxinc=taxinc)
         tables = p.value("brackets")
+        if p.in_effect("taxsim_joint_top_bracket_start") and not behavior.start_oklahoma_joint_top_bracket_per_statute:
+            # TAXSIM keeps the 4.75% joint bracket starting at $12,200 from 2024.
+            tables = {**tables, "married": [*tables["married"][:-1], [p.num("taxsim_joint_top_bracket_start"), tables["married"][-1][1]]]}
         statax = _by_table(taxinc, tables, single_like)
         detail_taxinc = taxinc
         rate = _by_table(taxinc, tables, single_like, bracket_rate)
