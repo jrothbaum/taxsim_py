@@ -69,6 +69,7 @@ def compute_ok_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     if y >= 1985:
         agi = agi - pl.col("taxable_social_security")
     # Retirement income exclusion.
+    agi_before = agi
     pensions = pl.col("pensions")
     amount = p.num("pension_exclusion")
     limits = p.value("pension_exclusion_agi_limit") if p.in_effect("pension_exclusion_agi_limit") else None
@@ -83,7 +84,6 @@ def compute_ok_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     if not behavior.compute_oklahoma_pension_exclusion_per_statute:
         # TAXSIM: up to the amount for each spouse regardless of age (the age only decides who holds the
         # pension), below an income limit per taxpayer that ends in 2010.
-        agi_before = fed_agi - pl.col("taxable_social_security") if y >= 1985 else fed_agi
         pent, pens = allocate_pensions(pensions, 62)
         excluded = pl.min_horizontal(amount, pent) + pl.min_horizontal(amount, pens)
         limit = p.num("taxsim_pension_exclusion_agi_limit_per_taxpayer") * txp

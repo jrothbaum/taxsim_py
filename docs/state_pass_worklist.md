@@ -15,7 +15,7 @@ Not zero means unfinished: each state below needs another pass.
 | VT | 0 | done |
 | MT | 23 | 1977-81 professional/S corporation and non-property cases, 1984-86 unemployment couple, 2014-17 childcare couple at $90,000 (marginal rate), 2022-23 aged renter and aged couple with low wages |
 | MD | 4 | 2020 aged single and 2022-23 aged couple with low wages (poverty/EITC interplay), 2023 low income single |
-| OK | 50 | 1977-86 dividend/interest/gain and non-property cases (federal pre-1982 gaps), 2021-23 aged low-income marginal rate |
+| OK | 11 | 1979-81 federal gaps, 2021-23 aged low-income marginal rate |
 | MA | 39 | 1977-80 self-employment, 2020 capital gains (rounding of the exempt amount), 2022 pennies on very high incomes |
 | WI | 16 | 2022-23 married separate pennies, 2023 aged couple 2 cents |
 | IN | 20 | 1977-80 aged low-income (property/renter credits), 2022-23 aged low-income and 2023 joint |
