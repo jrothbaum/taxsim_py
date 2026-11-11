@@ -609,3 +609,4 @@ Taxsim mode now follows the statutory rule for these (they remain in
 | VA | 2025 on | | The refundable earned income credit stays 15% of the federal credit | Statutory: 20%. `refund_virginia_earned_income_credit_at_2025_rate` |
 | OK | 2024 on | | The joint 4.75% bracket starts at $12,200 | Statutory: $14,400. `start_oklahoma_joint_top_bracket_per_statute` |
 | OR | 2025 | | The surplus credit is 9.863% of tax before credits | Statutory: left out as a one-time rebate |
+| NM | 2024 on | | The low income rebate is interpolated between the table's income rows (its own 2024-2025 tables), and 2026 has none | Statutory: the stepped rebate schedule. `use_new_mexico_low_income_rebate_per_statute` |

@@ -209,6 +209,12 @@ def compute_nm_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             inflation = p.num("taxsim_low_income_rebate_inflation")
             rows = [[float(row[0]), float(row[size])] for row in p["taxsim_low_income_rebate"]]
             lookup = inflation * interpolate_table(modagi - 0.01, rows)
+        elif y >= 2024 and not behavior.use_new_mexico_low_income_rebate_per_statute:
+            if p.in_effect("taxsim_low_income_rebate_table"):
+                rows = [[float(row[0]), float(row[size])] for row in p.value("taxsim_low_income_rebate_table")]
+                lookup = interpolate_table(modagi, rows)
+            else:
+                lookup = pl.lit(0.0)
         elif p.in_effect("low_income_rebate_steps"):
             table = [[float(a), float(b)] for a, b in p.value("low_income_rebate_steps")[size - 1]]
             lookup = bracket_rate(modagi, table)
