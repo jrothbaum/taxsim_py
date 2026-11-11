@@ -311,7 +311,13 @@ def compute_me_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     eldcr = pl.lit(0.0)
     if p.in_effect("elderly_credit_share"):
         eldcr = p.num("elderly_credit_share") * pl.col("federal_elder")
-    credit = chcrn + depcrd + eldcr
+    refundable_elderly = pl.lit(0.0)
+    if behavior.make_maine_elderly_credit_refundable:
+        credit = chcrn + depcrd + eldcr
+    else:
+        # TAXSIM lists the credit for the elderly with the refundable credits.
+        credit = chcrn + depcrd
+        refundable_elderly = eldcr
 
     if p.in_effect("credit_per_exemption"):
         credit = credit + p.num("credit_per_exemption") * (taxpayer_count() + pl.col("depx") + aged_count())
@@ -319,7 +325,7 @@ def compute_me_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         rp = p.value("rent_or_property_tax_credit")
         cap_r, cap_p = float(rp["rent_cap"]), float(rp["property_tax_cap"])
         credit = credit + pl.max_horizontal(pl.lit(0.0), pl.min_horizontal(pl.col("rentpaid"), cap_r), pl.min_horizontal(cap_p, pl.col("proptax")))
-    if p.in_effect("deduction_credits"):
+    if p.in_effect("deduction_credits") and behavior.credit_maine_1988_standard_deduction_and_exemptions:
         c88 = p.value("deduction_credits")
         pct88 = float(c88["earned_income_pct"])
         floor88 = float(c88["earned_income_floor"])
@@ -508,7 +514,7 @@ def compute_me_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
 
     df = df.with_columns(me_ptfc=ptfc, me_stfc=stfc)
     df = df.with_columns(
-        me_statax=pl.col("me_statax") - pl.col("me_chcrr") - pl.col("me_ptfc") - pl.col("me_stfc") - dep_refundable
+        me_statax=pl.col("me_statax") - pl.col("me_chcrr") - pl.col("me_ptfc") - pl.col("me_stfc") - dep_refundable - refundable_elderly
     )
     if p.in_effect("eitc_rate") and p.value("eitc_refundable"):
         df = df.with_columns(me_statax=pl.col("me_statax") - pl.col("me_earncr"))
