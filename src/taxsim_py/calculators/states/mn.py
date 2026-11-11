@@ -415,6 +415,9 @@ def _statutory_working_family_credit(
         taxsim_base = float(c["child_amount"]) * pl.col("dep18") + float(c["phase_in_rate"]) * earned.clip(0, float(d["phase_in_end"]))
         taxsim_threshold = pl.when(is_joint).then(float(d["phase_out_joint"])).otherwise(float(d["phase_out_other"]))
         taxsim_credit = (taxsim_base - float(c["phase_out_rate"]) * (income - taxsim_threshold).clip(0, None)).clip(0, None)
+        if y >= 2024:
+            # The 2024 on routine pays a childless return only with a reported taxpayer age 19 to 64.
+            return pl.when((pl.col("depx") > 0) | _childless_age_eligible(is_joint, False)).then(taxsim_credit).otherwise(0.0)
         return pl.when((pl.col("depx") > 0) | (aged_count() == 0)).then(taxsim_credit).otherwise(0.0)
     base = float(c["child_amount"]) * pl.col("dep17") + float(c["phase_in_rate"]) * earned.clip(0, float(d["phase_in_end"]))
     threshold = pl.when(is_joint).then(float(d["phase_out_joint"])).otherwise(float(d["phase_out_other"]))
