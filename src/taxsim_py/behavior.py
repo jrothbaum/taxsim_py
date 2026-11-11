@@ -330,6 +330,7 @@ class BehaviorProfile:
     compute_virginia_spouse_adjustment_per_statute: bool = True
     zero_virginia_tax_below_filing_threshold: bool = True
     read_virginia_low_income_limits_per_statute: bool = True
+    refund_virginia_earned_income_credit_at_2025_rate: bool = True
     deduct_idaho_itemized_from_2018_per_statute: bool = True
     limit_idaho_dependent_standard_deduction_per_statute: bool = True
     add_back_michigan_self_employment_tax_from_2021_per_statute: bool = True

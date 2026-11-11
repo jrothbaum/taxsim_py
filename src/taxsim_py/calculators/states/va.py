@@ -288,7 +288,10 @@ def compute_va_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         crlow = pl.min_horizontal(statax, crlow)
         if p.in_effect("eitc_refundable_rate"):
             # Electing the refundable credit gives up the nonrefundable one.
-            refundable_claim = p.num("eitc_refundable_rate") * pl.col("eitc")
+            refundable_rate = p.num("eitc_refundable_rate")
+            if p.in_effect("taxsim_eitc_refundable_rate") and not behavior.refund_virginia_earned_income_credit_at_2025_rate:
+                refundable_rate = p.num("taxsim_eitc_refundable_rate")
+            refundable_claim = refundable_rate * pl.col("eitc")
             elect = (refundable_claim > crlow) & (elder <= 0)
             refundable_extra = pl.when(elect).then(refundable_claim).otherwise(0.0)
             crlow = pl.when(elect).then(0.0).otherwise(crlow)

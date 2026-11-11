@@ -195,6 +195,8 @@ eitc_rate: {2006: 0.2}
 # larger benefit applies. Source: PolicyEngine-US
 # gov.states.va.tax.income.credits.eitc.match.
 eitc_refundable_rate: {2022: 0.15, 2025: 0.2}
+# TAXSIM keeps the 15% refundable floor from 2025 (it pays 20% only up to the tax).
+taxsim_eitc_refundable_rate: {2025: 0.15}
 # 2023-2024 rebate (nonrefundable). Source: PolicyEngine-US
 # gov.states.va.tax.income.credits.rebate.
 rebate:

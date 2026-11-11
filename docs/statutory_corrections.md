@@ -606,3 +606,6 @@ Taxsim mode now follows the statutory rule for these (they remain in
 | Federal | 2024 on | | TAXSIM's 2024 on routine counts the business inputs as income, leaves out other property income, counts non-property income once, reports the standard deduction even when itemizing, takes the child credit for dependents under 18 and caps its refundable part by those under 17 | Statutory: other property income counted; `count_other_property_income_from_2024`, `count_business_and_professional_inputs_as_income` |
 | Federal | 2024 on | | The 0% capital gains threshold is the 2023 amount carried by TAXSIM's price index | Statutory: the published amount. `use_published_capital_gains_thresholds` |
 | Federal | 2026 | | SALT cap stays $40,000 (threshold $500,000) and the AMT exemption phaseout rate stays 25% | Statutory: $40,400 / $505,000 and 50%. `index_salt_cap_from_2026`, `phase_out_amt_exemption_at_half_rate_from_2026` |
+| VA | 2025 on | | The refundable earned income credit stays 15% of the federal credit | Statutory: 20%. `refund_virginia_earned_income_credit_at_2025_rate` |
+| OK | 2024 on | | The joint 4.75% bracket starts at $12,200 | Statutory: $14,400. `start_oklahoma_joint_top_bracket_per_statute` |
+| OR | 2025 | | The surplus credit is 9.863% of tax before credits | Statutory: left out as a one-time rebate |

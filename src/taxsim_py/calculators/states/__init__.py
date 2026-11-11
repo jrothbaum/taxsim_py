@@ -123,10 +123,15 @@ def _with_rebates(taxsim_state: int, calculator: StateCalculator) -> StateCalcul
             return result
         names = result.collect_schema().names()
         before_credits = pl.col("state_tax_before_credits") if "state_tax_before_credits" in names else pl.col("siitax")
-        rebate = state_rebate(taxsim_state, year, pl.col("siitax"), before_credits)
+        # A year past the last coded one runs that year's law (rebate included) on deflated figures and
+        # reinflates the result.
+        from taxsim_py.engine.state_extrapolation import resolve_state_year
+
+        law_year, flate = resolve_state_year(year, behavior)
+        rebate = state_rebate(taxsim_state, law_year, pl.col("siitax") / flate, before_credits / flate)
         if rebate is None:
             return result
-        return result.with_columns(siitax=pl.col("siitax") - rebate)
+        return result.with_columns(siitax=pl.col("siitax") - rebate * flate)
 
     return with_rebate
 
