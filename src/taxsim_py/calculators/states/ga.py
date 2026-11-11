@@ -147,9 +147,13 @@ def compute_ga_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         )
     else:
         itemizes_indicator = pl.col("itemizes").cast(pl.Float64)
-        df = df.with_columns(
-            ga_xitded=(pl.col("itemized_deduction") - pl.col("state_sales_or_income_tax_ded")) * itemizes_indicator
-        )
+        if behavior.subtract_state_tax_in_georgia_itemized_deduction:
+            df = df.with_columns(
+                ga_xitded=(pl.col("itemized_deduction") - pl.col("state_sales_or_income_tax_ded")) * itemizes_indicator
+            )
+        else:
+            # TAXSIM takes the federal itemized deductions as they stand, state tax included.
+            df = df.with_columns(ga_xitded=pl.col("itemized_deduction") * itemizes_indicator)
 
     if effective_year == 1999:
         df = df.with_columns(ga_xitded=pl.when(forced_standard()).then(0.0).otherwise(pl.col("ga_xitded")))

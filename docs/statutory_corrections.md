@@ -495,3 +495,5 @@ Taxsim mode now follows the statutory rule for these (they remain in
 | DE | 1996 on | Pension exclusions go by age 60, the personal credit adds $110 at 60 or over, and joint returns take the lower of the joint tax and each spouse's tax with income, deductions and dependents allocated as TAXSIM's `splitagi` does | Both modes |
 | DE | 2019 on | Itemized deductions are property tax (up to $10,000), mortgage interest and charity: no state income tax and no other itemized deductions | Both modes |
 | Federal | 2021 | A separate return claims the earned income credit (with the single-filer parameters) | Both modes |
+
+| GA | 1987 on | | The itemized deduction is the federal one with the state income tax left in | Statutory: less the state tax. `subtract_state_tax_in_georgia_itemized_deduction` |
