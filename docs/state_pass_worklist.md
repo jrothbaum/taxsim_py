@@ -25,7 +25,7 @@ Not zero means unfinished: each state below needs another pass.
 | AR | 18 | 2018-23 itemized (own rules), 2021 five cases, 1984 three cases |
 | KS | 16 | 1977-81 federal gaps, 2013-16 non-property income, 2021 low-income childcare, 2008 aged couple |
 | ME | 39 | 2014-21 property tax fairness credit / renter cases, 2020 childless EITC 18-24 |
-| ID | 46 | dependent filers 2010-23, 2018-23 high-income itemizers (own deduction rules) |
+| ID | 5 | 1977 aged renter, 2021-22 dependent filer rate |
 | WV | 0 | done |
 | OH | 0 | done |
 | MI | 41 | 1977:1, 1978:2, 1979:2, 1980:2, 1981:2, 1982:2, 1983:2, 1984:2, 1985:2, 1986:2, 1987:2, 1988:2, 1989:2, 1990:2, 1991:2, 1992:2, 1993:2, 1994:2, 1995:2, 1996:... |

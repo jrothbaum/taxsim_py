@@ -327,6 +327,8 @@ class BehaviorProfile:
     compute_virginia_spouse_adjustment_per_statute: bool = True
     zero_virginia_tax_below_filing_threshold: bool = True
     read_virginia_low_income_limits_per_statute: bool = True
+    deduct_idaho_itemized_from_2018_per_statute: bool = True
+    limit_idaho_dependent_standard_deduction_per_statute: bool = True
     deduct_virginia_age_deduction_per_statute: bool = True
     limit_virginia_itemized_deductions_without_other_items: bool = True
     scale_virginia_itemized_limit_threshold: bool = True

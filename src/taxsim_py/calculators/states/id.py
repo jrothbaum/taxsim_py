@@ -53,6 +53,13 @@ def compute_id_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         df = df.with_columns(id_raw_itemized=pl.col("salt_capped") + pl.col("mortgage"))
         id_itemized_deduction = pl.col("itemized_deduction")
     df = df.with_columns(id_xitded=(pl.col("id_raw_itemized") - pl.col("state_sales_or_income_tax_ded")).clip(0, None))
+    if effective_year >= 2018 and not behavior.deduct_idaho_itemized_from_2018_per_statute:
+        # TAXSIM takes the state tax off the federal itemized total only to the extent the federal cap let it
+        # stand: it keeps what fits under the cap after property tax.
+        cap = 10000.0 / pl.col("id_sep")
+        state_tax = pl.col("state_sales_or_income_tax_ded")
+        removed = pl.when(state_tax + pl.col("proptax") > cap).then((cap - pl.col("proptax")).clip(0, None)).otherwise(state_tax)
+        df = df.with_columns(id_xitded=(pl.col("itemized_before_limit") - removed).clip(0, None))
 
     if 1991 <= effective_year <= 2017:
         threshold = p.value("itemized_limitation_threshold")
@@ -144,6 +151,9 @@ def compute_id_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     if effective_year >= 1987:
         minimum = p.num("dependent_standard_deduction_minimum")
         limit = pl.max_horizontal(pl.lit(minimum), pl.col("earned_income") + p["dependent_standard_deduction_earned_addition"])
+        if effective_year >= 2010 and not behavior.limit_idaho_dependent_standard_deduction_per_statute:
+            # TAXSIM's worksheet leaves a dependent filer with no standard deduction from 2010.
+            limit = pl.lit(0.0)
         df = df.with_columns(
             id_stded=pl.when(is_dependent_filer()).then(pl.min_horizontal(pl.col("id_stded"), limit)).otherwise(pl.col("id_stded"))
         )
