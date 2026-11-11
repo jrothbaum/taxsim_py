@@ -42,6 +42,13 @@ brackets:
   2023: [[0, 0.0375], [73450, 0.0475], [166950, 0.0599]]
   2024: [[0, 0.0375], [77450, 0.0475], [176050, 0.0599]]
   2025: [[0, 0.0375], [79900, 0.0475], [181650, 0.0599]]
+# TAXSIM's own factors for the 2011 schedule, 2012 on.
+taxsim_bracket_index: {2011: 1.0, 2012: 1.039, 2013: 1.066, 2014: 1.084, 2015: 1.101, 2016: 1.1016, 2017: 1.115, 2018: 1.1408, 2019: 1.1648, 2020: 1.186, 2021: 1.2044, 2022: 1.2404, 2023: 1.3356, 2024: null}
+# TAXSIM's deduction and exemption phaseout (2012 on), in place of the published steps.
+taxsim_deduction_phaseout:
+  2011: {floor: 175000, range: 20000, divisions: 4, rounding: 50, share: 0.2}
+  2021: {start: 210750.002, width: 6000, share: 0.2}
+  2022: {floor: 175000, range: 20000, divisions: 4, rounding: 50, share: 0.2}
 bracket_index:
   2001: 1.0
   2002: 1.0

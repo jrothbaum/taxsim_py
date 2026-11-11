@@ -2,6 +2,7 @@
 
 
 from __future__ import annotations
+import math
 import polars as pl
 
 from taxsim_py.engine.brackets import bracket_rate, bracket_tax, scale_brackets
@@ -160,7 +161,23 @@ def compute_ri_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         exemps = federal_exemption_count(y) / flate
         exemp = exemps * p.num("exemption_amount")
         index = p.num("bracket_index")
-        if not p.in_effect("deduction_phaseout"):
+        base_table = p.value("brackets")
+        taxsim_index = not behavior.use_rhode_island_published_brackets and 2011 <= y <= 2023
+        if taxsim_index:
+            # TAXSIM scales the 2011 schedule by its own factor every year.
+            index = p.num("taxsim_bracket_index")
+            base_table = RI_PARAMS["brackets"][2011]
+        if taxsim_index:
+            # TAXSIM: a straight line from the start (scaled by its factor) to full loss; 2021 has a fixed start and width.
+            tp = p.value("taxsim_deduction_phaseout")
+            if "start" in tp and y == 2021:
+                quotient = (agi - float(tp["start"])) / float(tp["width"])
+            else:
+                width = index * float(tp["range"]) / float(tp["divisions"])
+                width = float(tp["rounding"]) * math.floor(width / float(tp["rounding"]))
+                quotient = (agi - index * float(tp["floor"])) / width
+            factor = (1.0 - float(tp["share"]) * quotient.clip(0, None)).clip(0, None)
+        elif not p.in_effect("deduction_phaseout"):
             start = p.num("deduction_phaseout_start") * index
             end = p["deduction_phaseout_end"] * index
             step = p["deduction_phaseout_step"] * index
@@ -181,7 +198,7 @@ def compute_ri_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             factor = (1 - float(d["share_per_step"]) * steps).clip(0, 1)
         taxinc = (agi - stded * factor / sep - exemp * factor).clip(0, None)
         df, (taxinc,) = checkpoint(df, ri_taxinc=taxinc)
-        table = scale_brackets(p.value("brackets"), index)
+        table = scale_brackets(base_table, index)
         statax = bracket_tax(taxinc, table)
         rate = bracket_rate(taxinc, table)
         detail_stded = stded * factor

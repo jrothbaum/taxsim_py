@@ -243,6 +243,7 @@ skips would count the EITC slope twice.
 | RI | 2003-2010 | 18133-18134 | The regular tax is subtracted twice in the minimum tax without gains | Statutory, RI-003: once. `subtract_rhode_island_tax_once_in_minimum_tax` |
 | RI | 2011 on | 18095-18110 | The deduction phaseout is applied in 20% steps and again smoothly (78.4% kept at $180,000 instead of 80%) | Statutory, RI-004 (2011-2021): steps only. `use_rhode_island_deduction_phaseout_steps_only` |
 | RI | 2016 on | ritax | `mst.eq.4.or.mst.eq.4` is a typo for 4 or 7 | No effect |
+| RI | 2011-2023 | | The 2011 schedule is scaled by TAXSIM's own yearly factor (2016: 1.1016, 2018: 1.1408 ...), not the published brackets, and the deduction and exemption fall in a straight line over a width of 5% of $175,000 times the factor (rounded down to $50), not in steps | Statutory: published brackets and steps. `use_rhode_island_published_brackets` |
 | SC | 1981-1984 | 18383-18386 | The federal tax deduction meant to use 1980 law reads the current year's tax ($220.20 instead of $215.00 in a 1983 example) | Statutory, SC-001: tax under 1980 law. `deduct_south_carolina_federal_tax_under_1980_law` |
 | VA | 2003 | 19433-19437 | The year ranges skip 2003, so there is no child care deduction | Statutory, VA-001: the $3,000 federal expense limit. `allow_virginia_child_care_deduction_2003` |
 | VA | 2021 | 19409-19411 | The itemized-deduction limit's threshold is scaled by 1.25 in the test but not in the reduction | Statutory, VA-002: in the reduction too. `scale_virginia_itemized_limit_threshold` |

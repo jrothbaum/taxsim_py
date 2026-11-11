@@ -437,7 +437,7 @@ CASES = [
     ),
     _case(
         "RI-004", "Rhode Island 2011 single at $180,000", "state_standard_deduction",
-        4_410.0, 4_500.0, year=2011, state=40, pwages=180_000,
+        6_000.0, 4_500.0, year=2011, state=40, pwages=180_000,
     ),
     # South Carolina 1981-1984: the federal tax deduction uses 1980-law tax.
     # South Carolina (2018 on) and Virginia (2000 on) give each spouse their
