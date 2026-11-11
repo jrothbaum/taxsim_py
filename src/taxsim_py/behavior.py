@@ -247,6 +247,10 @@ class BehaviorProfile:
     use_rhode_island_deduction_phaseout_steps_only: bool = True
     deduct_south_carolina_federal_tax_under_1980_law: bool = True
     allow_virginia_child_care_deduction_2003: bool = True
+    compute_virginia_spouse_adjustment_per_statute: bool = True
+    zero_virginia_tax_below_filing_threshold: bool = True
+    deduct_virginia_age_deduction_per_statute: bool = True
+    limit_virginia_itemized_deductions_without_other_items: bool = True
     scale_virginia_itemized_limit_threshold: bool = True
     omit_vermont_student_credit: bool = True
     floor_wisconsin_capital_gain_exclusion: bool = True

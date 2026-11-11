@@ -43,9 +43,14 @@ retirement_subtraction:
 # From 1990: age deduction per taxpayer 65 or older (1992: one amount per
 # return), up to federal AGI; from 2004 reduced dollar for dollar by federal AGI
 # less taxable Social Security over the income limit.
+# TAXSIM gives a taxpayer 82 or older this flat deduction.
+taxsim_age_deduction_oldest: {1990: 12000}
 age_deduction: {1990: 12000, 1992: 12472, 1993: 12944, 1995: 10000, 1996: 12000}
 age_deduction_income_limit:
   2004: {single: 50000, married_joint: 75000}
+# TAXSIM applies the income limit from the first year of the age deduction.
+taxsim_age_deduction_income_limit:
+  1990: {single: 50000, married_joint: 75000}
 
 # --- Deductions and exemptions ---
 # Standard deduction through 1986: a share of AGI between `low` and `high`
@@ -103,6 +108,11 @@ itemized_limit_index:
 itemized_limit_status_factor:
   2013: {single: 1.0, married_joint: 1.2, head_of_household: 1.1, married_separate: 0.6}
   2018: null
+# TAXSIM's inflation factors for the 2019 on thresholds (2021 has its own thresholds).
+taxsim_itemized_limit_index: {2019: 1.0, 2021: 1.0248, 2022: 1.0548, 2023: 1.13142, 2024: 1.1623, 2025: 1.1948}
+taxsim_itemized_limit_override:
+  2021: {single: 278450, married_joint: 334150, head_of_household: 306300, married_separate: 167075}
+  2022: null
 itemized_limit_test_index: {2019: 1.0, 2021: 1.25}
 itemized_limit_share: 0.8
 itemized_limit_rate: 0.03
@@ -120,6 +130,8 @@ aged_exemption: {2005: 800}
 # Spouse tax adjustment from 2000 when taxable income exceeds the minimum,
 # capped. A spouse 65 or older has the age deduction and age exemption.
 spouse_adjustment_cap: {2000: 259.0}
+# TAXSIM's spouse tax adjustment: the amount taken off each spouse's share of AGI.
+taxsim_spouse_adjustment: {2000: {deduction: 930, aged_addition: 800}}
 spouse_adjustment_min_taxable: 3000.0
 spouse_adjustment_age_deduction: 12000
 spouse_adjustment_aged_exemption: 800

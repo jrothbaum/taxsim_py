@@ -284,3 +284,7 @@ The 2026 build's federal AGI is the inputs plus $0.011, not plus $0.001: it adds
 ## Federal AMT, 2003-2010, large married separate returns
 
 Python's federal AMT for a 2005 married separate return with $350,000 of wages, $15,000 of property tax and $20,000 of mortgage interest is $5,816 against the build's $5,676; Connecticut's minimum tax reads it (the case differs by $400).
+
+## Virginia, remaining differences
+
+Virginia 2022-2023 low-income returns (the Form 760ADJ choice between the low-income credit and the earned income credit, the $250 rebate), the aged couple case of 1989-1999 and married separate itemizers in 2019-2022 still differ by small amounts. Virginia's `x14` (age deduction for 2021) is never set in other years; the oracle build should set it to 0.

@@ -12,6 +12,7 @@ from taxsim_py.engine.state import (
     by_filing_status,
     checkpoint,
     pre1987_federal_itemizing,
+    split_agi,
     with_state_detail,
 )
 from taxsim_py.behavior import BehaviorProfile, TAXSIM_BEHAVIOR
@@ -75,6 +76,18 @@ def compute_va_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             .otherwise(0.0)
         )
         agi = agi - pl.when(aged >= 1).then(subtraction).otherwise(0.0)
+    elif p.in_effect("age_deduction") and not behavior.deduct_virginia_age_deduction_per_statute and y != 2021:
+        # TAXSIM sets the deduction from a variable it never fills for a lone aged taxpayer (so nothing), keeps the income
+        # limited amount only for two aged taxpayers, and gives $12,000 to each taxpayer 82 or older.
+        amount = p.num("age_deduction")
+        limits = p.value("taxsim_age_deduction_income_limit")
+        ylimit = pl.when(txp > 1).then(float(limits["married_joint"])).otherwise(float(limits["single"]))
+        over = (fed_agi - pl.col("taxable_social_security") - ylimit).clip(0, None)
+        limited = (aged * amount - over).clip(0, None)
+        oldest = float(p.value("taxsim_age_deduction_oldest"))
+        elder = pl.when(pl.col("page") >= 82).then(oldest).when(aged == 1).then(0.0).otherwise(limited)
+        elder = elder + pl.when((txp > 1) & (pl.col("sage") >= 82)).then(oldest).otherwise(0.0)
+        agi = agi - elder
     elif p.in_effect("age_deduction"):
         amount = p.num("age_deduction")
         elder = pl.min_horizontal(fed_agi, pl.lit(amount) if y == 1992 else amount * aged)
@@ -119,11 +132,13 @@ def compute_va_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
                 )
             ag = fed_agi.clip(0, None)
             xtot = salt + pl.col("proptax") + pl.col("mortgage") + pl.col("charity_cash")
+            if not behavior.limit_virginia_itemized_deductions_without_other_items:
+                xtot = xtot + pl.col("otheritem")  # TAXSIM's total includes other itemized deductions (line 25).
             xconst = pl.min_horizontal(p["itemized_limit_share"] * xtot, p["itemized_limit_rate"] * (ag - phas92))
             limited = (itemized - (xtot - xconst) / xtot * salt).clip(0, None)
             xitded = pl.when(fed_itemizes & (ag >= phas92) & (ag > phas92) & (xtot > 0)).then(limited).otherwise(xitded)
     elif y == 2018:
-        other = pl.col("proptax") + pl.col("otheritem")
+        other = pl.col("proptax") + (pl.col("otheritem") if behavior.limit_virginia_itemized_deductions_without_other_items else 0.0)
         stt = pl.min_horizontal(salt, pl.min_horizontal(p.num("salt_cap") / sep, other + salt) - other)
         xitded = pl.when(fed_itemizes).then(pl.col("itemized_before_limit") - stt).otherwise(0.0)
     else:
@@ -142,6 +157,19 @@ def compute_va_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         test_index = 1.0 if behavior.scale_virginia_itemized_limit_threshold else p.num("itemized_limit_test_index")
         over = fed_agi > threshold * test_index
         xitded = pl.when(fed_itemizes).then(pl.when(over).then(limited).otherwise(deduc1 - salt)).otherwise(0.0)
+        if not behavior.limit_virginia_itemized_deductions_without_other_items:
+            # TAXSIM: the capped state tax is added to the other items, and below the limit the whole state tax comes off again.
+            stx = pl.min_horizontal(salt, (p.num("salt_cap") / sep - pl.col("proptax")).clip(0, None))
+            xlin1 = stx + pl.col("proptax") + pl.col("mortgage") + pl.col("otheritem") + pl.col("charity_cash")
+            limit_start = by_filing_status(p.value("itemized_limit_threshold")) * p.num("taxsim_itemized_limit_index")
+            if p.in_effect("taxsim_itemized_limit_override"):
+                limit_start = by_filing_status(p.value("taxsim_itemized_limit_override"))
+            reduction = pl.min_horizontal(0.8 * xlin1, 0.03 * (fed_agi - limit_start).clip(0, None))
+            share = pl.when(xlin1 > 0).then(reduction / xlin1).otherwise(0.0)
+            limited_xitded = (xlin1 - reduction - (stx - stx * share)).clip(0, None)
+            xitded = pl.when(fed_itemizes).then(
+                pl.when(fed_agi > limit_start).then(limited_xitded).otherwise(xlin1 - salt)
+            ).otherwise(0.0)
 
     child = depx.clip(None, 2) * p.num("child_care_deduction_per_child") if p.in_effect("child_care_deduction_per_child") else pl.lit(0.0)
     if y == 2003 and not behavior.allow_virginia_child_care_deduction_2003:
@@ -183,7 +211,8 @@ def compute_va_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         zero = agi <= z["per_taxpayer"] * txp
     else:
         zero = pl.when(single_type).then(agi <= z["single"]).otherwise(agi <= z["married_per_taxpayer"] * txp)
-    statax = pl.when(zero).then(0.0).otherwise(statax)
+    if behavior.zero_virginia_tax_below_filing_threshold:
+        statax = pl.when(zero).then(0.0).otherwise(statax)
     df, (statax,) = checkpoint(df, va_statax=statax)
 
     # --- Spouse tax adjustment (2000 on) ---
@@ -209,6 +238,13 @@ def compute_va_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             wife - aged_w * p["spouse_adjustment_age_deduction"] - 0.5 * ss - p.num("exemption")
             - p["spouse_adjustment_aged_exemption"] * aged_w
         ).clip(0, None)
+        if not behavior.compute_virginia_spouse_adjustment_per_statute:
+            # TAXSIM splits AGI as `splitagi` does and takes a fixed $930 (plus $800 at 65) off each share.
+            sa = p.value("taxsim_spouse_adjustment")
+            agit, agis = split_agi(agi, 0.0, 0.0)
+            dedt = float(sa["deduction"]) + float(sa["aged_addition"]) * (pl.col("page") >= 65).cast(pl.Float64)
+            deds = float(sa["deduction"]) + float(sa["aged_addition"]) * (pl.col("sage") >= 65).cast(pl.Float64)
+            taxy23 = pl.min_horizontal(agit - dedt, agis - deds)
         taxy24 = (taxinc - taxy23).clip(0, None)
         taxy25 = taxinc / 2
         stat26 = bracket_tax(pl.min_horizontal(taxy23, taxy25), brackets)
@@ -257,7 +293,11 @@ def compute_va_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         statax = (statax - ocred).clip(0, None)
         credits = credits + ocred
 
-    statax = pl.when(must_file).then(statax.clip(0, None)).otherwise(0.0)
+    if behavior.zero_virginia_tax_below_filing_threshold:
+        statax = pl.when(must_file).then(statax.clip(0, None)).otherwise(0.0)
+    else:
+        must_file = pl.lit(True)  # TAXSIM leaves its filing-minimum test commented out.
+        statax = statax.clip(0, None)
     statax = statax - refundable_extra
     credits = credits + refundable_extra
     df = df.with_columns(siitax=statax * flate)
