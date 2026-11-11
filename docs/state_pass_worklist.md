@@ -4,51 +4,51 @@ Counts are failures from `scripts/validate_states.py` (cases that differ from `t
 
 Not zero means unfinished: each state below needs another pass.
 
-| State | Failures | Years with failures (count) |
-| --- | ---: | --- |
-| RI | 24 | 1977-81 professional and non-property cases, 2021 childcare marginal rate, 2022-23 high-income wages ($1-12) |
-| NC | 0 | done |
-| AZ | 10 | 1977-81 professional and non-property cases (federal pre-1982 gaps) |
-| MO | 21 | 2008-12 itemizers, 1986-87 HoH low income, small dividends 2017-21 (pennies) |
-| NM | 0 | done |
-| DE | 0 | done |
-| VT | 0 | done |
-| MT | 23 | 1977-81 professional/S corporation and non-property cases, 1984-86 unemployment couple, 2014-17 childcare couple at $90,000 (marginal rate), 2022-23 aged renter and aged couple with low wages |
-| MD | 4 | 2020 aged single and 2022-23 aged couple with low wages (poverty/EITC interplay), 2023 low income single |
-| OK | 11 | 1979-81 federal gaps, 2021-23 aged low-income marginal rate |
-| MA | 39 | 1977-80 self-employment, 2020 capital gains (rounding of the exempt amount), 2022 pennies on very high incomes |
-| WI | 16 | 2022-23 married separate pennies, 2023 aged couple 2 cents |
-| IN | 20 | 1977-80 aged low-income (property/renter credits), 2022-23 aged low-income and 2023 joint |
-| CA | 12 | 1987-95 itemized joint high-income (AMT), 2022-23 a few cents on high-income wages |
-| UT | 80 | 2008-12 HoH itemizer credit, 1993-2007 itemizers, 2022-23 dependent filer, 1977-81 federal gaps |
-| NY | 16 | 1985-86 renter credit cutoff (hy offset), 2020 unemployment/aged low-income marginal rates, 2021 childless aged EITC and unemployment |
-| AR | 18 | 2018-23 itemized (own rules), 2021 five cases, 1984 three cases |
-| KS | 16 | 1977-81 federal gaps, 2013-16 non-property income, 2021 low-income childcare, 2008 aged couple |
-| ME | 11 | 2020-21 aged low-income and renter refundable credits, 2021 itemized and low-income childcare |
-| ID | 5 | 1977 aged renter, 2021-22 dependent filer rate |
-| WV | 0 | done |
-| OH | 0 | done |
-| MI | 23 | 2017-23 aged low-income refundable credits, 2021-23 dependent filer and self-employed property credit |
-| GA | 84 | aged cases 1989-2020 depend on uninitialised ceilings (record order), 1982-85 five a year, 2022-23 |
-| DC | 6 | 2018-23 dependent filer with interest |
-| MN | 32 | 1977-86 federal pre-1982 gaps, 2023 married separate, 2018-20 itemized joint high income |
-| VA | 31 | itemizer pennies 2019-23, 1989-99 one a year, 2021 childcare HoH and aged couple |
-| PA | 0 | done |
-| ND | 20 | 2018-22 joint self-employment ($2.20), 2023 married separate |
-| SC | 1 | 2021 itemized joint |
-| MS | 12 | 1977:1, 1978:1, 1979:1, 2018:3, 2019:3, 2020:3 |
-| AL | 10 | 1977:2, 1978:2, 1979:2, 1980:2, 1981:2 |
-| IA | 10 | 1977:2, 1978:2, 1979:2, 1980:2, 1981:2 |
-| KY | 10 | 1977:2, 1978:2, 1979:2, 1980:2, 1981:2 |
-| CT | 8 | 2003:1, 2004:1, 2005:1, 2006:1, 2007:1, 2008:1, 2009:1, 2010:1 |
-| CO | 4 | 1977:2, 2008:1, 2022:1 |
-| LA | 4 | 1980:2, 1981:2 |
-| IL | 1 | 2022:1 |
-| AK | 0 |  |
-| HI | 0 |  |
-| NE | 0 |  |
-| NJ | 0 |  |
-| OR | 0 |  |
+Counts are from one batched run of every state (`VALIDATE_OUT=<dir> TAXSIM_VALIDATE_DETAIL=0 uv run python scripts/validate_states.py`, about two minutes; it saves `cases.parquet`, `results.parquet` and `failures.parquet`). States not listed match exactly.
+
+| State | 1977-2023 | 2024-2026 |
+| --- | ---: | ---: |
+| NY | 16 | 248 |
+| WI | 16 | 195 |
+| RI | 24 | 193 |
+| KS | 16 | 169 |
+| VT | 0 | 162 |
+| ND | 20 | 159 |
+| MN | 32 | 126 |
+| MT | 23 | 116 |
+| NE | 0 | 100 |
+| UT | 80 | 89 |
+| MI | 23 | 75 |
+| NJ | 0 | 70 |
+| DC | 6 | 64 |
+| OK | 11 | 62 |
+| CO | 4 | 49 |
+| SC | 1 | 40 |
+| VA | 31 | 37 |
+| MA | 39 | 36 |
+| ID | 5 | 36 |
+| AL | 10 | 34 |
+| PA | 0 | 32 |
+| AR | 18 | 31 |
+| ME | 11 | 28 |
+| WV | 0 | 26 |
+| GA | 84 | 23 |
+| IN | 20 | 22 |
+| MO | 21 | 21 |
+| HI | 0 | 19 |
+| DE | 0 | 16 |
+| NM | 0 | 15 |
+| MD | 4 | 15 |
+| CA | 12 | 14 |
+| IL | 1 | 12 |
+| OR | 0 | 10 |
+| CT | 8 | 6 |
+| IA | 10 | 5 |
+| OH | 0 | 4 |
+| LA | 4 | 2 |
+| KY | 10 | 2 |
+| AZ | 10 | 2 |
+| MS | 12 | 1 |
 
 ## Known open causes
 
