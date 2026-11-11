@@ -147,6 +147,12 @@ def main() -> None:
         parts.append(cases.drop("taxsimid", strict=False).with_columns(validation_state=pl.lit(name)))
     batch = pl.concat(parts, how="diagonal_relaxed").with_row_index("taxsimid", offset=1)
 
+    out_dir = Path(_os.environ["VALIDATE_OUT"]) if _os.environ.get("VALIDATE_OUT") else None
+    if out_dir is not None:
+        # The test inputs, saved so a run can be repeated or inspected without rebuilding the cases.
+        out_dir.mkdir(parents=True, exist_ok=True)
+        batch.write_parquet(out_dir / "cases.parquet")
+    failure_frames = []
     oracle_order = batch.sort(_oracle_last(), maintain_order=True)
     with ThreadPoolExecutor(max_workers=1) as oracle:
         expected_future = oracle.submit(run_taxsim_exe, oracle_order)
@@ -156,6 +162,8 @@ def main() -> None:
             "taxsimid", "description", *COMPARED_COLUMNS, *FEDERAL_COLUMNS
         )
         expected = expected_future.result()
+    if out_dir is not None:
+        results.join(expected, on="taxsimid").write_parquet(out_dir / "results.parquet")
 
     # Rate-only mismatches that vanish a dollar away are TAXSIM round-off.
     rate_only = results.join(expected, on="taxsimid").filter(
@@ -296,12 +304,19 @@ def main() -> None:
         if mismatches.is_empty():
             print(f"[{state_name}] All cases match {TAXSIM_EXE.name} exactly.")
         else:
+            failure_frames.append(mismatches.with_columns(state_name=pl.lit(state_name)).join(flags.select("taxsimid", "year"), on="taxsimid", how="left", suffix="_case"))
             print(f"[{state_name}] {mismatches.height} FAILURES:")
             for row in mismatches.iter_rows(named=True):
                 failed = [c for c in COMPARED_COLUMNS if row[f"{c}_diff"] > MISMATCH_TOLERANCE]
                 detail = ", ".join(f"{c}: got {row[c]}, expected {row[f'{c}_expected']}" for c in failed)
                 print(f"  [{row['description']}] {detail}")
 
+    if out_dir is not None and failure_frames:
+        failures = pl.concat(failure_frames, how="diagonal_relaxed")
+        failures.write_parquet(out_dir / "failures.parquet")
+        by_year = failures.group_by("state_name", pl.col("year").alias("failure_year")).len().sort("state_name", "failure_year")
+        by_state = by_year.group_by("state_name").agg(pl.col("len").sum().alias("failures")).sort("failures", descending=True)
+        print("\nFailures by state:", ", ".join(f"{r['state_name']}:{r['failures']}" for r in by_state.iter_rows(named=True)))
     print(
         f"\nTotal: {total} cases, {total_failures} failures across {len(states_to_run)} state(s) "
         f"({total_knife_edges} threshold round-off mismatches and {total_itemize_ties} itemizing ties "
