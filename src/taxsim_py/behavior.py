@@ -105,6 +105,10 @@ class BehaviorProfile:
     count_capital_gains_in_dc_childless_eitc_investment_income: bool = True
     exclude_children_under_4_from_ny_empire_credit: bool = True
     pay_new_york_empire_child_credit_per_statute: bool = True
+    round_new_york_empire_child_credit_phaseout_per_statute: bool = True
+    limit_new_york_property_credit_rent_per_statute: bool = True
+    round_new_york_recapture_ratio_per_statute: bool = True
+    pay_new_york_household_credit_to_separate_returns: bool = True
     step_ohio_exemption_by_income: bool = True
     count_children_under_6_by_dep6: bool = True
     use_idaho_published_brackets: bool = True

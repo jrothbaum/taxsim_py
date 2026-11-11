@@ -21,7 +21,7 @@ Not zero means unfinished: each state below needs another pass.
 | IN | 20 | 1977-80 aged low-income (property/renter credits), 2022-23 aged low-income and 2023 joint |
 | CA | 94 | marginal-rate (srate) gaps on high-income itemizers 2018-20, 1987-90 high income and AMT cases, 2005 HoH $260,000 (one case a year 1998-2013) |
 | UT | 96 | 2008-2012 and 2022-23 small groups, 1988 (10), 1993-2007 three cases a year, 1977-81 two a year |
-| NY | 102 | 2021 marginal rate in the recapture range (srate only), 2018-21 HoH itemized and childcare ($8.26), 2022-23 married separate ($30), 2020 unemployment single |
+| NY | 16 | 1985-86 renter credit cutoff (hy offset), 2020 unemployment/aged low-income marginal rates, 2021 childless aged EITC and unemployment |
 | AR | 18 | 2018-23 itemized (own rules), 2021 five cases, 1984 three cases |
 | KS | 54 | 2018-23 itemizers and very high income (SALT limit rules), 2007-12 homestead/renter, 1977-81 two a year |
 | ME | 39 | 2014-21 property tax fairness credit / renter cases, 2020 childless EITC 18-24 |

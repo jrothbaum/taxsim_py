@@ -294,7 +294,9 @@ def _recapture_tiers(
     decimals = int(c["ratio_decimals"])
 
     def ratio(start: float) -> pl.Expr:
-        return ((agi - start) / phase).round(decimals)
+        share = (agi - start) / phase
+        # TAXSIM leaves the worksheet ratio unrounded.
+        return share.round(decimals) if behavior.round_new_york_recapture_ratio_per_statute else share
 
     def worksheet(rate: pl.Expr | float, addition: pl.Expr | float, start: pl.Expr | float) -> pl.Expr:
         flat = taxinc * rate
@@ -603,6 +605,9 @@ def compute_ny_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         other_credit = (30.0 - (fed_agi - 15_000.0).clip(0, None) / 500.0).clip(0, None) * exemps / flate / sep
         hcred = pl.when(is_single).then(single_credit).otherwise(other_credit)
     hcred = pl.when(dependent_filer).then(0.0).otherwise(hcred)
+    if y >= 2022 and not behavior.pay_new_york_household_credit_to_separate_returns:
+        # TAXSIM's household credit branches skip a married-separate return, which gets none.
+        hcred = pl.when(status == "married_separate").then(0.0).otherwise(hcred)
     df = df.with_columns(ny_hcred=hcred)
     hcred = pl.col("ny_hcred")
     df = df.with_columns(ny_after_household=(statax - hcred).clip(0, None))
@@ -715,7 +720,11 @@ def compute_ny_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         pcred = pl.when(hy <= c["income_limit"]).then((ptax - hy * share).clip(0, None).clip(None, pmax)).otherwise(0.0)
         if p.in_effect("real_property_deduction"):
             pcred = pl.when(is_aged & (pl.col("ny_reald") > 0)).then(0.0).otherwise(pcred)
-    pcred = pl.when(float(p["property_credit_rent_share"]) * rentpaid > p["property_credit_rent_limit"]).then(0.0).otherwise(pcred)
+    if behavior.limit_new_york_property_credit_rent_per_statute:
+        pcred = pl.when(float(p["property_credit_rent_share"]) * rentpaid > p["property_credit_rent_limit"]).then(0.0).otherwise(pcred)
+    elif p.in_effect("taxsim_property_credit_monthly_rent_limit"):
+        # TAXSIM's rent test applies from 2010 and reads the limit as monthly rent.
+        pcred = pl.when(rentpaid / 12.0 > p.num("taxsim_property_credit_monthly_rent_limit")).then(0.0).otherwise(pcred)
     df, (pcred,) = checkpoint(df, ny_pcred=pcred)
 
     # Earned income credit.
@@ -813,9 +822,13 @@ def compute_ny_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             kids = depx - young
         if y == 2020:
             fagi = fagi + pl.col("ny_ui") - pl.col("taxable_unemployment")
+        excess = (fagi - cphase).clip(0, None)
+        if not behavior.round_new_york_empire_child_credit_phaseout_per_statute:
+            # TAXSIM adds $500 to the excess over the threshold (its stand-in for rounding up to $1,000).
+            excess = pl.when(fagi > cphase).then(excess + 500.0).otherwise(0.0)
         df, (precrd,) = checkpoint(
             df,
-            ny_precrd=(e["per_child"] * dep18 - e["phaseout_rate"] * (fagi - cphase).clip(0, None)).clip(0, None),
+            ny_precrd=(e["per_child"] * dep18 - e["phaseout_rate"] * excess).clip(0, None),
         )
         taxbca = pl.col("ny_taxbca")
         df, (ctcred,) = checkpoint(df, ny_ctcred=pl.min_horizontal(precrd, (taxbca - pl.col("ccc") - pl.col("federal_elder")).clip(0, None)))

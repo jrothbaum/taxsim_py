@@ -963,6 +963,8 @@ property_credit:
 # limit.
 property_credit_rent_share: 0.25
 property_credit_rent_limit: 350
+# What the TAXSIM build tests instead: monthly rent over this amount, from 2010 only.
+taxsim_property_credit_monthly_rent_limit: {2010: 450}
 property_tax_share: {1977: 0.5, 1981: 1.0}
 # Earned income credit: a share of the federal credit (from 1996 less the
 # household credit used).
