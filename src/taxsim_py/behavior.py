@@ -31,6 +31,7 @@ class BehaviorProfile:
     use_published_capital_gains_thresholds: bool = True
     tax_alaska_before_1979: bool = True
     use_vermont_published_standard_deductions: bool = True
+    use_vermont_social_security_exemption_starts_per_statute: bool = True
     use_vermont_capital_gain_exclusion_options: bool = True
     use_new_mexico_published_child_tax_credit: bool = True
     pay_pennsylvania_child_care_credit_only_from_2023: bool = True

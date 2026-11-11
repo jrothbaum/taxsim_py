@@ -115,7 +115,11 @@ def compute_vt_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
                 dedg = pl.min_horizontal(share * fti, dedp, pl.lit(350000.0)).clip(0, None)
             # Taxable Social Security is exempt, phased out above an AGI start.
             ss = pl.col("taxable_social_security")
-            starts = p.value("social_security_exemption_start")
+            starts = p.value(
+                "social_security_exemption_start"
+                if behavior.use_vermont_social_security_exemption_starts_per_statute
+                else "taxsim_social_security_exemption_start"
+            )
             phb = pl.when(is_joint).then(float(starts["married_joint"])).otherwise(float(starts["other"]))
             exssb = ss - ((fed_agi - phb).clip(0, None) / p["social_security_exemption_range"]).clip(None, 1.0) * ss
             if not behavior.use_vermont_published_standard_deductions:
@@ -196,6 +200,13 @@ def compute_vt_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         low = fed_agi <= pl.when(is_joint).then(limits["married_joint"]).otherwise(limits["other"])
         chcref = pl.when(low).then(p.num("child_care_refundable_rate") * fed_ccc).otherwise(0.0)
         chcr = pl.when(chcref > 0).then(0.0).otherwise(chcr)
+    if p.in_effect("child_care_full_refundable_rate"):
+        chcref = p.num("child_care_full_refundable_rate") * fed_ccc
+        chcr = pl.lit(0.0)
+    elif y <= 2002 and not behavior.use_vermont_nonrefundable_child_care_credit_before_2003:
+        # TAXSIM pays 72% of the federal credit as refundable in every year outside 2003-21.
+        chcref = 0.72 * fed_ccc
+        chcr = pl.lit(0.0)
     contr = pl.lit(0.0)
     if p.in_effect("charity_credit"):
         c = p.value("charity_credit")
@@ -249,13 +260,6 @@ def compute_vt_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
                 below = vthy < (32800.0 + pl.col("stcg") - 1.0) * 4142.0
                 pcred = pl.when(below & (vthy <= 47000.0)).then(0.1 * rentpaid.clip(None, 2500.0)).otherwise(0.0)
     ctc = pl.lit(0.0)
-    if p.in_effect("child_care_full_refundable_rate"):
-        chcref = p.num("child_care_full_refundable_rate") * fed_ccc
-        chcr = pl.lit(0.0)
-    elif y <= 2002 and not behavior.use_vermont_nonrefundable_child_care_credit_before_2003:
-        # TAXSIM pays 72% of the federal credit as refundable in every year outside 2003-21.
-        chcref = 0.72 * fed_ccc
-        chcr = pl.lit(0.0)
     if p.in_effect("child_tax_credit"):
         credit = p.value("child_tax_credit")
         excess = (fed_agi - float(credit["reduction_start"])).clip(0, None)
