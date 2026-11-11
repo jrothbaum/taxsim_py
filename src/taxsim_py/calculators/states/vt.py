@@ -138,11 +138,18 @@ def compute_vt_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             if not behavior.use_vermont_published_standard_deductions and y >= 2022:
                 # TAXSIM computes these as 1.5 and 2 times the single amount.
                 hoh_amount, joint_amount = 1.5 * float(amounts["single"]), 2.0 * float(amounts["single"])
+            exemption_amount = p.num("exemption_amount")
+            if not behavior.use_vermont_published_standard_deductions and p.in_effect("taxsim_standard_deduction_single"):
+                # TAXSIM's 2024 amounts are the 2023 ones carried by its index, unrounded.
+                single_amount = p.num("taxsim_standard_deduction_single")
+                hoh_amount, joint_amount = 1.5 * single_amount, 2.0 * single_amount
+                exemption_amount = p.num("taxsim_exemption_amount")
+                amounts = {**amounts, "single": single_amount}
             stded = pl.when(is_hoh).then(hoh_amount).when(is_joint).then(joint_amount).otherwise(float(amounts["single"]))
             stded = stded + p.num("standard_deduction_aged_addition") * aged
-            taxinc = (agi - exemps * p.num("exemption_amount") - stded).clip(0, None)
+            taxinc = (agi - exemps * exemption_amount - stded).clip(0, None)
             detail_agi = agi
-            detail_exemp = exemps * p.num("exemption_amount")
+            detail_exemp = exemps * exemption_amount
             detail_stded = stded
         df, (taxinc,) = checkpoint(df, vt_taxinc=taxinc)
         tables = p.value("brackets")

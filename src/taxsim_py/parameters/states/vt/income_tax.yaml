@@ -140,6 +140,9 @@ standard_deduction:
   2023: {single: 7000.0, head_of_household: 10550.0, married_joint: 14050.0}
   2024: {single: 7400.0, head_of_household: 11100.0, married_joint: 14850.0}
   2025: {single: 7650.0, head_of_household: 11450.0, married_joint: 15300.0}
+# TAXSIM's 2024 single standard deduction and exemption (its price index, unrounded); other years match the law.
+taxsim_standard_deduction_single: {2024: 7378, 2025: null}
+taxsim_exemption_amount: {2024: 5112, 2025: null}
 # From 2018, additional standard deduction per taxpayer 65 or older.
 standard_deduction_aged_addition: {2018: 1000.0, 2021: 1050.0, 2023: 1150.0, 2024: 1200.0, 2025: 1250}
 # From 2018, exemption per federal exemption.
