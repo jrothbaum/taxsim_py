@@ -128,6 +128,9 @@ def compute_ut_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             sttax = pl.min_horizontal(p.num("salt_cap") / sep, other + salt)
             stt = pl.min_horizontal(salt, sttax - other)
             itemized = pl.col("itemized_before_limit") - stt
+            if not behavior.exclude_utah_state_income_tax_from_taxpayer_credit_before_2018:
+                # TAXSIM's attempt to take the state tax out (from 2018) changes nothing.
+                itemized = pl.col("itemized_deduction")
         deduc = pl.when(fed_itemizes).then(itemized).otherwise(pl.col("standard_deduction"))
         t = p.value("taxpayer_credit_phaseout_threshold")
         index = p.num("taxpayer_credit_index")
