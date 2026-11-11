@@ -110,6 +110,9 @@ def compute_ut_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         if p.in_effect("small_tax_credit"):
             c = p.value("small_tax_credit")
             credits = pl.when(statax <= c["tax_limit"]).then((c["rate"] * statax).clip(0, c["cap"])).otherwise(0.0)
+            if not behavior.take_utah_small_tax_credit_once:
+                # TAXSIM takes the credit twice.
+                credits = 2.0 * credits
             statax = (statax - credits).clip(0, None)
         detail = {"standard_deduction": stded, "itemized_deductions": xitded}
     else:
@@ -162,6 +165,18 @@ def compute_ut_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             ss_threshold = by_filing_status(p.value("social_security_credit_phaseout_start"))
             ss_credit = (p["social_security_credit_rate"] * ss - phaseout_rate * (agi - ss_threshold).clip(0, None)).clip(0, None)
             retcrd = pl.max_horizontal(retirement_credit, ss_credit)
+            if not behavior.pay_utah_retirement_credit_per_statute:
+                # TAXSIM: the retirement credit by birth year (1952 or earlier) at 450 per such taxpayer, and the
+                # benefit credit at the flat income tax rate, its income threshold indexed by the year's factor.
+                born_p = (pl.col("page") > 0) & (year - pl.col("page") <= 1952)
+                born_s = (pl.col("sage") > 0) & (year - pl.col("sage") <= 1952)
+                maximum = 450.0 * (born_p.cast(pl.Float64) + born_s.cast(pl.Float64))
+                taxsim_phase = pl.when(files_single()).then(25000.0).otherwise(32000.0 / sep)
+                retirement_taxsim = (maximum - phaseout_rate * (agi - taxsim_phase).clip(0, None)).clip(0, None)
+                index = p.num("taxsim_social_security_credit_index")
+                ss_start = pl.when(files_single()).then(index * 30000.0).otherwise(index * 50000.0 / sep)
+                ss_taxsim = (p.num("flat_rate") * ss - phaseout_rate * (agi - ss_start).clip(0, None)).clip(0, None)
+                retcrd = pl.max_horizontal(retirement_taxsim, ss_taxsim)
         else:
             retcrd = pl.when(aged > 0).then(
                 (p.num("retirement_credit_max") * aged - phaseout_rate * (agi - phase).clip(0, None)).clip(0, None)

@@ -141,6 +141,8 @@ social_security_credit_rate: 0.06
 # Social Security credit exists only in 2021 (at the flat rate, phasing out above these AGIs).
 taxsim_retirement_credit_birth_year: {2008: 1952}
 taxsim_social_security_credit_rate: {2021: 0.0495, 2022: null}
+# From 2022 the TAXSIM build indexes its benefit credit's income threshold by this factor (2021 = 1).
+taxsim_social_security_credit_index: {2022: 1.24, 2023: 1.5, 2024: 1.5, 2025: 1.8}
 taxsim_social_security_credit_start: {2021: {single: 30000, other: 50000}, 2022: null}
 social_security_credit_per_taxpayer: {2008: 288, 2022: null}
 social_security_credit_phaseout_start:

@@ -20,7 +20,7 @@ Not zero means unfinished: each state below needs another pass.
 | WI | 16 | 2022-23 married separate pennies, 2023 aged couple 2 cents |
 | IN | 20 | 1977-80 aged low-income (property/renter credits), 2022-23 aged low-income and 2023 joint |
 | CA | 12 | 1987-95 itemized joint high-income (AMT), 2022-23 a few cents on high-income wages |
-| UT | 96 | 2008-2012 and 2022-23 small groups, 1988 (10), 1993-2007 three cases a year, 1977-81 two a year |
+| UT | 80 | 2008-12 HoH itemizer credit, 1993-2007 itemizers, 2022-23 dependent filer, 1977-81 federal gaps |
 | NY | 16 | 1985-86 renter credit cutoff (hy offset), 2020 unemployment/aged low-income marginal rates, 2021 childless aged EITC and unemployment |
 | AR | 18 | 2018-23 itemized (own rules), 2021 five cases, 1984 three cases |
 | KS | 16 | 1977-81 federal gaps, 2013-16 non-property income, 2021 low-income childcare, 2008 aged couple |
