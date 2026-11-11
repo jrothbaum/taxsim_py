@@ -483,6 +483,9 @@ def _taxsim_tax(df: pl.DataFrame, y: int, flate: float, p: YearParams, behavior:
             applies_min = (depx == 0) & ~in_range & (before_test > 0)
             earncr = pl.when(applies_min).then(pl.max_horizontal(flat, earncr)).otherwise(earncr)
 
+    if y >= 2024 and behavior.mode.value != "statutory":
+        # TAXSIM's 2024 on routine does not reinflate the earned income credit in a projected year.
+        earncr = earncr / flate
     refundable_nonref = chcr_nonref + pcred
     refundable = earncr + chcr_ref + ctc
     if y <= 1984:
