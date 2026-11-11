@@ -276,7 +276,7 @@ CASES = [
     # percentage (1/16 of 1% in the first step above the base).
     _case(
         "MO-001", "Missouri 2010 aged owner with $300 of property tax", "state_property_tax_credit",
-        1_100.0, 300.0, year=2010, state=26, page=70, pensions=10_000, proptax=300,
+        293.75, 300.0, year=2010, state=26, page=70, pensions=10_000, proptax=300,
     ),
     _case(
         "MO-001", "Missouri 2010 aged owner just above the base", "state_property_tax_credit",
