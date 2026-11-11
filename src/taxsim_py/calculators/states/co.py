@@ -406,19 +406,35 @@ def compute_co_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
                 fed.num("actc_rate") * (pl.col("earned_income").clip(0, None) - fed.num("actc_earned_income_floor")).clip(0, None),
             ).clip(0, None)
             co_ctc = (ctc_rate / fed.num("amount_per_child")) * (nonrefundable + refundable)
+        elif not behavior.count_colorado_credit_children_per_statute and p.in_effect("taxsim_family_affordability_table"):
+            # TAXSIM's `numlt(6)` counts children under 13 and `numlt(17)` those under 18; the
+            # credits come from the published tables, interpolated between rows.
+            young, older = pl.col("dep13"), (pl.col("children_under_18") - pl.col("dep13")).clip(0, None)
+            joint = pl.col("filing_status") == "married_joint"
+            tables = p.value("taxsim_child_tax_credit_table")
+            ctc_per_child = pl.when(joint).then(interpolate_table(pl.col("agi"), tables["married_joint"])).otherwise(
+                interpolate_table(pl.col("agi"), tables["single"])
+            )
+            fat = p.value("taxsim_family_affordability_table")
+            table_income = pl.col("agi") - pl.when(joint).then(float(fat["joint_income_reduction"])).otherwise(0.0) - 0.01
+            co_ctc = (
+                ctc_per_child * young
+                + interpolate_table(table_income, fat["ages_under_six"]) * young
+                + interpolate_table(table_income, fat["ages_six_to_sixteen"]) * older
+            )
         else:
             co_ctc = ctc_rate * pl.col("dep6")
-        if p.in_effect("family_affordability_credit"):
-            fac = p.value("family_affordability_credit")
-            threshold = pl.lit(0.0)
-            for status in _STATUSES:
-                threshold = pl.when(pl.col("filing_status") == status).then(
-                    float(fac["reduction_threshold"][status])
-                ).otherwise(threshold)
-            increments = phaseout_steps((pl.col("agi") - threshold).clip(0, None) / float(fac["reduction_increment"]), behavior)
-            remaining = 1.0 - (increments * float(fac["reduction_rate"])).clip(None, 1.0)
-            children = pl.col("dep6") + float(fac["older_child_share"]) * (pl.col("dep17") - pl.col("dep6")).clip(0, None)
-            co_ctc = co_ctc + float(fac["amount"]) * children * remaining
+            if p.in_effect("family_affordability_credit"):
+                fac = p.value("family_affordability_credit")
+                threshold = pl.lit(0.0)
+                for status in _STATUSES:
+                    threshold = pl.when(pl.col("filing_status") == status).then(
+                        float(fac["reduction_threshold"][status])
+                    ).otherwise(threshold)
+                increments = phaseout_steps((pl.col("agi") - threshold).clip(0, None) / float(fac["reduction_increment"]), behavior)
+                remaining = 1.0 - (increments * float(fac["reduction_rate"])).clip(None, 1.0)
+                children = pl.col("dep6") + float(fac["older_child_share"]) * (pl.col("dep17") - pl.col("dep6")).clip(0, None)
+                co_ctc = co_ctc + float(fac["amount"]) * children * remaining
     else:
         co_ctc = pl.lit(0.0)
         if p.in_effect("taxsim_child_credit") and not behavior.use_colorado_statutory_sales_tax_refund:
@@ -430,8 +446,12 @@ def compute_co_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     df = df.with_columns(
         co_statax=(pl.col("co_statax") - pl.col("co_foodcr") - pl.col("co_propcr") - pl.col("co_fuelcr")).clip(0, None)
     )
+    # TAXSIM's 2024 on routine leaves the earned income credit unreinflated in a projected year.
+    earncr_reinflated = pl.col("co_earncr")
+    if effective_year >= 2024 and not behavior.reinflate_colorado_earned_income_credit_per_statute:
+        earncr_reinflated = earncr_reinflated / flate
     df = df.with_columns(
-        siitax=(pl.col("co_statax") - pl.col("co_salesrefund") - pl.col("co_chcr") - pl.col("co_earncr") - co_ctc) * flate
+        siitax=(pl.col("co_statax") - pl.col("co_salesrefund") - pl.col("co_chcr") - earncr_reinflated - co_ctc) * flate
     )
     return with_state_detail(
         df,

@@ -622,3 +622,7 @@ Taxsim mode now follows the statutory rule for these (they remain in
 | SC | 2025 on | | The federal state-tax deduction added back is capped at the old $10,000 (halved for separate and head-of-household filers), not at the new federal cap | Statutory: federal cap. `cap_south_carolina_state_tax_addback_per_statute` |
 | SC | 2025 on | | The $750/$1,500/$1,125 standard-deduction increase is added back for itemizers too | Statutory: nonitemizers only. `limit_south_carolina_standard_deduction_addback_to_nonitemizers_per_statute` |
 | Federal | 2025 on | | The SALT cap phase-out starts at $500,000 even on separate returns and runs over $100,000 of income before the cap is halved | Statutory: threshold and range halved. `halve_salt_phaseout_for_separate_returns_per_statute` |
+| CO | 2024 on | | Child tax credit and family affordability credit come from the published tables, interpolated between rows, counting children under 13 and under 18 | Statutory: children under 6 and 6-16 with the flat formula. `count_colorado_credit_children_per_statute` |
+| CO | 2024 on | | The earned income credit is not reinflated in a projected year | Statutory: reinflated. `reinflate_colorado_earned_income_credit_per_statute` |
+| OK | 2025 on | | The itemized deduction removes the state and local tax above the phased-down federal cap | Statutory: fixed cap |
+| OK | 2024 on | | The state earned income credit phase-out reads the undeflated federal AGI in a projected year | Statutory: deflated income. `deflate_oklahoma_earned_income_credit_income_per_statute` |

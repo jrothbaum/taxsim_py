@@ -230,3 +230,24 @@ family_affordability_credit:
     reduction_rate: 0.06875
     reduction_increment: 5000
     reduction_threshold: {single: 15000, head_of_household: 15000, married_separate: 15000, married_joint: 26000}
+
+# TAXSIM reads the 2024 on child tax credit and family affordability credit
+# from published tables (the DR 0104CN worksheets) and interpolates between
+# their rows; `ages_under_six` and `ages_six_to_sixteen` are per child, and a
+# joint return's income is first reduced by `joint_income_reduction`.
+taxsim_child_tax_credit_table:
+  2024:
+    single: [[25000, 1200], [50000, 600], [75000, 200], [1.0e+20, 0]]
+    married_joint: [[35000, 1200], [60000, 600], [85000, 200], [1.0e+20, 0]]
+  2025:
+    single: [[26000, 1200], [51000, 600], [77000, 200], [1.0e+20, 0]]
+    married_joint: [[36000, 1200], [61000, 600], [87000, 200], [1.0e+20, 0]]
+taxsim_family_affordability_table:
+  2024:
+    joint_income_reduction: 10000
+    ages_under_six: [[15000, 3200], [20000, 2980], [25000, 2760], [30000, 2540], [35000, 2320], [40000, 2100], [45000, 1880], [50000, 1660], [55000, 1440], [60000, 1220], [65000, 1000], [70000, 780], [75000, 560], [80000, 340], [85000, 120], [1.0e+20, 0]]
+    ages_six_to_sixteen: [[15000, 2400], [20000, 2235], [25000, 2070], [30000, 1905], [35000, 1740], [40000, 1575], [45000, 1410], [50000, 1245], [55000, 1080], [60000, 915], [65000, 750], [70000, 585], [75000, 420], [80000, 255], [85000, 90], [1.0e+20, 0]]
+  2025:
+    joint_income_reduction: 11000
+    ages_under_six: [[15000, 3273], [20000, 3048], [25000, 2823], [30000, 2598], [35000, 2373], [40000, 2148], [45000, 1923], [50000, 1698], [55000, 1473], [60000, 1248], [65000, 1023], [70000, 798], [75000, 573], [80000, 348], [85000, 123], [1.0e+20, 0]]
+    ages_six_to_sixteen: [[15000, 2455], [20000, 2286], [25000, 2117], [30000, 1949], [35000, 1780], [40000, 1611], [45000, 1442], [50000, 1274], [55000, 1105], [60000, 936], [65000, 767], [70000, 598], [75000, 430], [80000, 261], [85000, 92], [1.0e+20, 0]]

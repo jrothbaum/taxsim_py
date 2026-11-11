@@ -132,6 +132,9 @@ class BehaviorProfile:
     give_south_carolina_pension_deduction_to_each_taxpayer: bool = True
     use_south_carolina_published_tax_table: bool = True
     allow_qbi_deduction_in_south_carolina: bool = True
+    count_colorado_credit_children_per_statute: bool = True
+    deflate_oklahoma_earned_income_credit_income_per_statute: bool = True
+    reinflate_colorado_earned_income_credit_per_statute: bool = True
     cap_south_carolina_state_tax_addback_per_statute: bool = True
     limit_south_carolina_standard_deduction_addback_to_nonitemizers_per_statute: bool = True
     subtract_state_tax_from_south_carolina_itemized_deductions: bool = True

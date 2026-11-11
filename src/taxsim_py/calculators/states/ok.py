@@ -23,7 +23,6 @@ from taxsim_py.behavior import BehaviorProfile, TAXSIM_BEHAVIOR
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
 OK_PARAMS = load_yaml(PARAMETERS_ROOT / "states" / "ok" / "income_tax.yaml")
-FEDERAL_ITEMIZED_PARAMS = load_yaml(PARAMETERS_ROOT / "national" / "itemized.yaml")
 FEDERAL_EITC_PARAMS = pl.read_csv(PARAMETERS_ROOT / "national" / "eitc.csv")
 FEDERAL_EITC_MISC = load_yaml(PARAMETERS_ROOT / "national" / "eitc_misc.yaml")
 
@@ -40,7 +39,6 @@ def compute_ok_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     effective_year, flate = resolve_state_year(year, behavior, OK_PARAMS)
     y = effective_year
     p = YearParams(OK_PARAMS, effective_year)
-    FEDERAL_ITEMIZED = YearParams(FEDERAL_ITEMIZED_PARAMS, effective_year) if effective_year >= 2018 else None
     dividend_input_adjustment()
     # Household income is taken before projected years are deflated (`hy`);
     # the 1999+ sales tax credit reads the deflated copy (`data(159)`).
@@ -187,7 +185,7 @@ def compute_ok_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             if y >= 2022 and not behavior.compute_oklahoma_itemized_deduction_from_2022_per_statute:
                 # TAXSIM: the federal total less the state and local tax above the cap, limited to the
                 # itemized maximum, with the charitable deduction then added again.
-                excess_salt = (pl.col("proptax") + salt - FEDERAL_ITEMIZED.num("salt_cap") / sep).clip(0, None)
+                excess_salt = (pl.col("proptax") + salt - (pl.col("salt_capped") - pl.col("otheritem"))).clip(0, None)
                 xitded = pl.min_horizontal(pl.lit(p.num("itemized_cap")), pl.col("itemized_deduction") - excess_salt) + pl.col("charity_cash")
             deduc = pl.when(fed_itemizes & (deducp > 0)).then(xitded).otherwise(stded)
             detail_xitded = pl.when(fed_itemizes & (deducp > 0)).then(xitded).otherwise(detail_xitded)
@@ -233,6 +231,10 @@ def compute_ok_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         if p.in_effect("eitc_federal_law_year") or taxsim_law_year:
             law = int(p.value("taxsim_eitc_federal_law_year" if taxsim_law_year else "eitc_federal_law_year"))
             nkids = pl.col("dep18").clip(0, 3)
+            earned, credit_agi = pl.col("earned_income"), pl.col("agi")
+            if not behavior.deflate_oklahoma_earned_income_credit_income_per_statute:
+                # TAXSIM's phase-out reads the federal AGI before any deflation in a projected year.
+                credit_agi = credit_agi * flate
             disqy = (pl.col("stcg") + pl.col("ltcg")).clip(0, None) + pl.col("dividends") + pl.col("intrec") + pl.col("otherprop").clip(0, None)
             childless = nkids == 0
             eligible = eitc_filer_eligible(childless, law) & eitc_age_eligible(childless, law)
@@ -241,7 +243,7 @@ def compute_ok_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
                 eligible = ~dependent_filer
             eitc_base = pl.when(eligible).then(
                 federal_eitc(
-                    pl.col("earned_income"), pl.col("agi"), disqy, pl.col("filing_status"), nkids,
+                    earned, credit_agi, disqy, pl.col("filing_status"), nkids,
                     FEDERAL_EITC_PARAMS.filter(pl.col("year") == law), float(resolve_year(FEDERAL_EITC_MISC["dylim"], law)),
                 )
             ).otherwise(0.0)
