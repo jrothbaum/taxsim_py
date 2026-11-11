@@ -6,7 +6,7 @@ from taxsim_py.calculators.federal_pre1987 import PRE1987_PARAMS
 from taxsim_py.engine.brackets import bracket_rate, bracket_tax
 from taxsim_py.engine.inputs import aged_count, files_head_of_household, files_joint, files_separate, files_single, is_dependent_filer, separate_divisor, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml, resolve_year
-from taxsim_py.engine.state import by_filing_status, forced_standard, household_income, unemployment_total, with_state_detail
+from taxsim_py.engine.state import by_filing_status, federal_zero_bracket, forced_standard, household_income, unemployment_total, with_state_detail
 from taxsim_py.behavior import BehaviorProfile, TAXSIM_BEHAVIOR
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
@@ -85,7 +85,7 @@ def compute_id_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     elif effective_year <= 1992:
         # The federal standard deduction, 0 when the federal return itemizes.
         df = df.with_columns(
-            id_stded=pl.when(pl.col("itemizes")).then(0.0).otherwise(pl.col("standard_deduction"))
+            id_stded=federal_zero_bracket()
         )
         if p.in_effect("standard_deduction_separate_addition"):
             df = df.with_columns(
@@ -111,6 +111,9 @@ def compute_id_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
                 .when(files_joint()).then(j)
                 .otherwise(w / pl.col("id_sep"))
             )
+        if 2008 <= effective_year <= 2009 and not behavior.use_idaho_standard_deduction_2008_2009_per_statute:
+            # TAXSIM adds the property tax allowance to a standard deduction it never sets.
+            df = df.with_columns(id_stded=pl.lit(0.0))
         if p.in_effect("standard_deduction_property_tax_addition"):
             addback = pl.min_horizontal(p.num("standard_deduction_property_tax_addition") * pl.col("id_taxpayers"), pl.col("proptax"))
             df = df.with_columns(id_stded=pl.col("id_stded") + addback)
@@ -170,7 +173,7 @@ def compute_id_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     # --- Credits ---
     if p.in_effect("child_tax_credit_per_child"):
         per_child = p.num("child_tax_credit_per_child")
-        df = df.with_columns(id_ctcred=pl.min_horizontal(per_child * pl.col("dep17"), pl.col("id_statax")))
+        df = df.with_columns(id_ctcred=pl.min_horizontal(per_child * (pl.col("dep17") if behavior.count_idaho_child_credit_children_under_17 else pl.col("dep18")), pl.col("id_statax")))
     else:
         df = df.with_columns(id_ctcred=pl.lit(0.0))
 
@@ -188,8 +191,9 @@ def compute_id_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     df = df.with_columns(id_statax=pl.col("id_statax") - pl.col("id_credit"))
 
     # --- Permanent building fund tax ---
-    if p.in_effect("building_fund_tax"):
-        bf = p.value("building_fund_tax")
+    taxsim_fund = not behavior.use_idaho_building_fund_limits_per_statute and effective_year <= 2020
+    if p.in_effect("building_fund_tax") or taxsim_fund:
+        bf = p.value("taxsim_building_fund_tax" if taxsim_fund else "building_fund_tax")
         limits = bf["limit"]
         lim = (
             pl.when(pl.col("filing_status").is_in(["single", "head_of_household"])).then(float(limits["single_or_hoh"]))

@@ -105,6 +105,14 @@ building_fund_tax:
     amount: 10
     limit: {single_or_hoh: 3300, married_joint: 5400, married_separate: 1000}
 building_fund_limit_aged: 1000
+# TAXSIM's limits: none in 1977, and the 1978 limits through 2020.
+taxsim_building_fund_tax:
+  1977:
+    amount: 10
+    limit: {single_or_hoh: 0, married_joint: 0, married_separate: 0}
+  1978:
+    amount: 10
+    limit: {single_or_hoh: 2300, married_joint: 3400, married_separate: 750}
 # From 2022 the limit is the federal filing requirement by status, higher when a taxpayer is
 # 65 or older: [single, single aged, head of household, head of household aged, joint, joint aged].
 building_fund_filing_requirement:

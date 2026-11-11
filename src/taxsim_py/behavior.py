@@ -133,6 +133,9 @@ class BehaviorProfile:
     split_iowa_joint_income_by_wages_only: bool = True
     deduct_colorado_federal_tax_after_1977: bool = True
     pay_kansas_credits_per_statute: bool = True
+    use_idaho_standard_deduction_2008_2009_per_statute: bool = True
+    use_idaho_building_fund_limits_per_statute: bool = True
+    count_idaho_child_credit_children_under_17: bool = True
     subtract_state_tax_in_georgia_itemized_deduction: bool = True
     pay_hawaii_credits_below_zero_tax: bool = True
     count_all_dependents_for_hawaii_child_care: bool = True

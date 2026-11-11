@@ -427,6 +427,10 @@ Taxsim mode now follows the statutory rule for these (they remain in
 | SC | 2022 on | The state tax added back for itemizers is measured against the 2021 federal standard deduction | Statutory: the current one. `use_current_federal_standard_deduction_for_south_carolina_addback` |
 | ID | 2022-23 | The 2022 bracket tops are $1 lower than the statute, and the 2023 no-tax amount is $4,489 | Statutory: published. `use_idaho_published_brackets` |
 | ID | 2022 on | The building fund tax limit is the federal filing requirement by status and age | Both modes |
+| ID | 2008-2009 | | The standard deduction is only the property tax allowance (it adds to a variable never set) | Statutory: the published amount plus the allowance. `use_idaho_standard_deduction_2008_2009_per_statute` |
+| ID | 1977-2020 | | The permanent building fund limits stay at the 1978 amounts (none in 1977) | Statutory: published. `use_idaho_building_fund_limits_per_statute` |
+| ID | 2018 on | | The child tax credit counts the dependents of earned income credit age (under 19), not under 17 | Statutory: under 17. `count_idaho_child_credit_children_under_17` |
+| ID | 1987-1992 | | The standard deduction is read from the pass TAXSIM is on, so it is kept when itemizing | Both modes |
 | AZ | 2021-23 | A short-term loss variable is never set (-9), so every return deducts 25% of its long-term gains plus $9 | Statutory: 25% of gains. `initialize_arizona_short_term_loss` |
 | CT | 1991-2020 | | The exemption phases out $1,000 early for joint, head of household and separate returns (joint from $47,000, not $48,000); from 2021 a separate return takes the head of household terms | Statutory: published. `phase_out_connecticut_exemption_per_statute` |
 | CT | 1991-2023 | | The personal credit is read from one table: single returns scale it by year-specific factors from 2000, joint and head of household returns keep the 1995 thresholds, 1991-1994 reads income per taxpayer, and from 1995 the table is read $0.002 under AGI | Statutory: published thresholds. `use_connecticut_personal_credit_table_per_statute` |
