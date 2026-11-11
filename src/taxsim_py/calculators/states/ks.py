@@ -297,7 +297,19 @@ def compute_ks_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         earncr = rate_eitc * pl.col("eitc")
     df = df.with_columns(ks_earncr=earncr)
 
-    if effective_year <= 2012:
+    if not behavior.pay_kansas_credits_per_statute:
+        # TAXSIM: every credit stops at the tax, except the earned income credit's excess over the tax after child care,
+        # which is paid from 2013 only.
+        earned = pl.col("ks_earncr")
+        tax = pl.col("ks_statax")
+        excess = earned - (tax - pl.min_horizontal(tax, pl.col("ks_chcr")))
+        eic_limited = pl.when(earned > 0).then(pl.when(excess >= 0).then(tax - pl.col("ks_chcr")).otherwise(earned)).otherwise(0.0)
+        eic_paid = pl.when((earned > 0) & (excess >= 0)).then(excess).otherwise(0.0)
+        credno = pl.min_horizontal(tax, pl.col("ks_chcr") + encred + pl.col("ks_pcred") + pl.col("ks_fd") + eic_limited)
+        df = df.with_columns(
+            ks_statax=tax - credno - (eic_paid if effective_year >= 2013 else 0.0)
+        )
+    elif effective_year <= 2012:
         df = df.with_columns(
             ks_statax=(pl.col("ks_statax") - encred - pl.col("ks_chcr")).clip(0, None)
             - pl.col("ks_fd") - pl.col("ks_earncr") - pl.col("ks_pcred")
