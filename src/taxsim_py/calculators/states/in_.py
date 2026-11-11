@@ -146,13 +146,15 @@ def compute_in_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         rate_cr = p.num("eitc_federal_share")
         fed_eitc = pl.col("eitc")
         earncr = pl.when(fed_eitc >= p.num("eitc_federal_floor")).then(rate_cr * fed_eitc).otherwise(0.0)
-        if effective_year >= 2022:
+        if not behavior.apply_indiana_federal_credit_floor_from_2011:
+            earncr = pl.when(fed_eitc > 0).then(rate_cr * fed_eitc).otherwise(0.0)
+        if effective_year >= 2022 or (effective_year == 2021 and not behavior.use_indiana_decoupled_credit_schedule_in_2021):
             earncr = rate_cr * fed_eitc
-            if effective_year == 2022:
+            if effective_year >= 2021:
                 # 2022 is computed on its own formula: at most two children and no
                 # higher phase-out start for joint returns.
-                rows = FEDERAL_EITC_PARAMS.filter((pl.col("year") == 2022) & (pl.col("filing_status") == "single"))
-                children = pl.col("dep18").clip(0, 2)
+                rows = FEDERAL_EITC_PARAMS.filter((pl.col("year") == effective_year) & (pl.col("filing_status") == "single"))
+                children = pl.col("dep18").clip(0, 3)
                 decoupled = pl.lit(0.0)
                 for row in rows.to_dicts():
                     amount = trapezoid_credit(
@@ -182,6 +184,18 @@ def compute_in_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             eicpo = rtlw * pl.max_horizontal(modagi, earny, ym) - rtlw * ym
             eic11 = pl.when(over).then(pl.min_horizontal(eic11, (crm - eicpo).clip(0, None))).otherwise(eic11)
             earncr = pl.min_horizontal(earncr, eic11)
+            if not behavior.apply_indiana_federal_credit_floor_from_2011:
+                # TAXSIM pays the decoupled credit whenever the federal credit is positive, with no floor.
+                earncr = pl.when(fed_eitc > 0).then(eic11).otherwise(0.0)
+            if not behavior.test_indiana_childless_credit_ages_per_statute:
+                # TAXSIM: a childless filer needs a reported age from 25 to 64 (an unreported age fails);
+                # on a joint return, one spouse in that range is enough (a missing spouse age is 40).
+                older = pl.max_horizontal(pl.col("page"), pl.when(files_joint()).then(pl.when(pl.col("sage") == 0).then(40.0).otherwise(pl.col("sage").cast(pl.Float64))).otherwise(0.0))
+                younger = pl.when(files_joint()).then(pl.min_horizontal(pl.col("page"), pl.when(pl.col("sage") == 0).then(40.0).otherwise(pl.col("sage").cast(pl.Float64)))).otherwise(pl.col("page"))
+                joint_out = (younger < 25) & (older < 25) | (younger > 64) & (older > 64)
+                single_out = (pl.col("page") < 25) | (pl.col("page") > 64)
+                childless_out = pl.when(files_joint()).then(joint_out).otherwise(single_out)
+                earncr = pl.when((pl.col("dep18") == 0) & childless_out).then(0.0).otherwise(earncr)
     else:
         earncr = pl.lit(0.0)
 
