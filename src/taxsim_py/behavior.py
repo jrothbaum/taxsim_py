@@ -241,6 +241,9 @@ class BehaviorProfile:
     disallow_new_jersey_capital_losses: bool = True
     exempt_new_mexico_social_security_1984_1989: bool = True
     count_new_mexico_aged_once_in_rebate: bool = True
+    set_new_mexico_capital_gains_share_per_statute: bool = True
+    test_new_mexico_aged_deduction_on_state_agi: bool = True
+    compute_new_mexico_capital_gains_deduction_per_statute: bool = True
     use_own_bounds_in_new_york_worksheets: bool = True
     use_single_standard_deduction_for_new_york_head_of_household_before_1987: bool = True
     complete_new_york_1986_maximum_tax_table: bool = True
@@ -312,6 +315,7 @@ FIXED_IN_2026_BUILD = frozenset(
         "limit_arizona_property_credit_per_statute",
         "apply_michigan_retirement_tiers",
         "count_capital_gains_in_dc_childless_eitc_investment_income",
+        "include_self_employment_in_household_income",
     }
 )
 TAXSIM_BEHAVIOR = BehaviorProfile(

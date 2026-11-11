@@ -236,6 +236,20 @@ brackets:
 # the gain, halved on separate returns. 2025 (HB 252): the business-sale share
 # cannot be identified, so only the floor applies.
 capital_gains_deduction_share: {1977: 0.0, 1999: 0.0, 2003: 0.1, 2004: 0.2, 2005: 0.3, 2006: 0.4, 2007: 0.5, 2019: 0.4, 2025: 0.0}
+# From 2022 taxable Social Security is exempt when federal AGI is below these limits
+# (NM Form PIT-ADJ; TAXSIM uses the same amounts).
+social_security_exemption_agi_limit:
+  2022: {single: 100000.0, married_joint: 150000.0, head_of_household: 150000.0, married_separate: 75000.0}
+# TAXSIM's itemized deduction worksheet keeps the federal standard deduction in for this year only
+# (basic amount by filing status, and the addition per taxpayer 65 or older).
+taxsim_worksheet_standard_deduction:
+  2021: {single: 12550.0, married_joint: 25100.0, head_of_household: 18800.0, married_separate: 12550.0}
+  2022: null
+taxsim_worksheet_standard_deduction_aged_addition:
+  2021: {married_joint: 1350.0, other: 1700.0}
+  2022: null
+# TAXSIM keeps the 50 percent share for 2006 (the statute began it in 2007) and 2019 (reduced that year).
+taxsim_capital_gains_deduction_share: {2006: 0.5, 2020: 0.4, 2025: 0.0}
 capital_gains_deduction_floor: {1977: 0.0, 1999: 1000, 2025: 2500}
 # Deduction for taxpayers 65 or older: a flat amount each 1981-1984; from 1985
 # by AGI ([AGI, amount] interpolated, by filing class) per taxpayer 65 or

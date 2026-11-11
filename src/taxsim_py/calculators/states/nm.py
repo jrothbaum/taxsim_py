@@ -107,15 +107,27 @@ def compute_nm_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
 
     # --- New Mexico AGI ---
     share = p.num("capital_gains_deduction_share")
+    if p.in_effect("taxsim_capital_gains_deduction_share") and not behavior.set_new_mexico_capital_gains_share_per_statute:
+        share = p.num("taxsim_capital_gains_deduction_share")
     floor = p.num("capital_gains_deduction_floor")
     cgded = pl.when(capgn > 0).then(
         pl.min_horizontal(capgn, pl.max_horizontal(pl.lit(floor), share * capgn))
     ).otherwise(0.0) / sep
+    if y >= 2022 and not behavior.compute_new_mexico_capital_gains_deduction_per_statute:
+        # TAXSIM from 2022: the larger of the floor (halved on separate returns) and the share of the gain,
+        # even above the gain; from 2025 the gain up to the floor, never halved.
+        if y <= 2024:
+            cgded = pl.when(capgn > 0).then(pl.max_horizontal(pl.lit(floor) / sep, share * capgn)).otherwise(0.0)
+        else:
+            cgded = pl.when(capgn > 0).then(pl.min_horizontal(capgn, pl.lit(floor))).otherwise(0.0)
     agi = fed_agi - cgded
     if 1984 <= y <= 1989:
         # Benefits are exempt; TAXSIM adds them a second time instead.
         sign = -1.0 if behavior.exempt_new_mexico_social_security_1984_1989 else 1.0
         agi = agi + sign * pl.col("taxable_social_security")
+    if p.in_effect("social_security_exemption_agi_limit"):
+        limit = by_filing_status(p.value("social_security_exemption_agi_limit"))
+        agi = agi - pl.when(fed_agi < limit).then(pl.col("taxable_social_security")).otherwise(0.0)
     df, (agi, fed_agi) = checkpoint(df, nm_agi=agi, nm_fed_agi=fed_agi)
 
     # --- Deduction for taxpayers 65 or older ---
@@ -124,10 +136,12 @@ def compute_nm_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         elded = p.num("aged_deduction") * aged
     elif p.in_effect("aged_deduction"):
         tables = p.value("aged_deduction")
+        # TAXSIM tests federal AGI, which differs from New Mexico's once Social Security is exempt.
+        test_agi = agi if behavior.test_new_mexico_aged_deduction_on_state_agi else fed_agi - 0.0015
         amount = (
-            pl.when(is_single).then(interpolate_table(agi, tables["single"]))
-            .when(is_sep).then(interpolate_table(agi, tables["married_separate"]))
-            .otherwise(interpolate_table(agi, tables["married"]))
+            pl.when(is_single).then(interpolate_table(test_agi, tables["single"]))
+            .when(is_sep).then(interpolate_table(test_agi, tables["married_separate"]))
+            .otherwise(interpolate_table(test_agi, tables["married"]))
         )
         elded = amount * (aged if y <= 1986 else pl.min_horizontal(aged, txp))
 
@@ -139,13 +153,20 @@ def compute_nm_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         stded = by_filing_status(p.value("standard_deduction"))
     else:
         stded = fed_zbr
-    if y >= 1987 and not behavior.compute_new_mexico_deductions_per_statute:
+    if not behavior.compute_new_mexico_deductions_per_statute:
         # TAXSIM follows the NM line 10 worksheet for the state tax share of the capped SALT
         # deduction, and keeps the federal standard deduction even when the federal return itemizes.
         state_and_property = salt_ded + pl.col("proptax")
         income_share = pl.when(state_and_property > 0).then(salt_ded / state_and_property).otherwise(0.0)
         capped = pl.min_horizontal(state_and_property, 10_000.0 / sep)
-        removed = pl.min_horizontal(capped * income_share, fed_deduc.clip(0, None))
+        removed_limit = fed_deduc.clip(0, None)
+        if p.in_effect("taxsim_worksheet_standard_deduction"):
+            addition = p.value("taxsim_worksheet_standard_deduction_aged_addition")
+            standard = by_filing_status(p.value("taxsim_worksheet_standard_deduction")) + pl.min_horizontal(
+                aged, txp
+            ) * pl.when(is_joint).then(float(addition["married_joint"])).otherwise(float(addition["other"]))
+            removed_limit = (fed_deduc - standard).clip(0, None)
+        removed = pl.min_horizontal(capped * income_share, removed_limit)
         xitded = pl.when(fed_itemizes).then(fed_deduc - removed).otherwise(0.0)
         if 1991 <= y <= 2024:
             stded = federal_zero_bracket()
@@ -180,8 +201,8 @@ def compute_nm_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     # --- Refundable credits ---
     # Taxpayers 65 or older add one to household size (TAXSIM: two from 1985).
     ncred = (txp + depx + aged).clip(None, 6).floor()
-    if y >= 1985 and not behavior.count_new_mexico_aged_once_in_rebate:
-        ncred = (ncred + aged).clip(None, 6)
+    if not behavior.count_new_mexico_aged_once_in_rebate:
+        ncred = (txp + depx + 2 * aged).clip(None, 6).floor()
     ycred = pl.lit(0.0)
     for size in range(1, 7):
         if y in (2022, 2023) and not behavior.use_new_mexico_low_income_rebate_per_statute:
