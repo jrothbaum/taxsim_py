@@ -112,13 +112,14 @@ def _schedule_tax(
         tax = bracket_tax(taxinc, _scaled(tables, factor))
     elif y <= 1986:
         with_deduction = (taxinc - fedtax).clip(0, None)
+        joint_like = is_joint | (is_sep & ~pl.lit(halve_separate))
         tax_a = (
-            pl.when(is_joint)
+            pl.when(joint_like)
             .then(bracket_tax(taxinc, _scaled(tables["joint_a"], factor)))
             .otherwise(bracket_tax(taxinc, _scaled(tables["single_a"], factor)))
         )
         tax_b = (
-            pl.when(is_joint)
+            pl.when(joint_like)
             .then(bracket_tax(with_deduction, _scaled(tables["joint_b"], factor)))
             .otherwise(bracket_tax(with_deduction, _scaled(tables["single_b"], factor)))
         )
