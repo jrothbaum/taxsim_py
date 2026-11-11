@@ -141,7 +141,15 @@ def compute_nd_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         df, (taxinc,) = checkpoint(df, nd_taxinc=taxinc)
         factor = p.num("bracket_inflation")
         tables = {k: _scaled(v, factor) for k, v in p.value("brackets").items()}
+        if y >= 2024 and not behavior.use_published_north_dakota_brackets_from_2024:
+            # TAXSIM scales the 2023 brackets by its index ratio, unrounded.
+            base = YearParams(ND_PARAMS, 2023).value("brackets")
+            ratio = p.num("taxsim_index") / float(YearParams(ND_PARAMS, 2023).num("taxsim_index"))
+            tables = {k: _scaled(v, ratio) for k, v in base.items()}
         married = bracket_tax(taxinc * sep, tables["married"]) / sep
+        if y >= 2023 and not behavior.use_north_dakota_married_separate_brackets_from_2023:
+            # TAXSIM reads a separate return from the single table from 2023.
+            is_single = is_single | (pl.col("filing_status") == "married_separate")
         statax = (
             pl.when(is_single).then(bracket_tax(taxinc, tables["single"]))
             .when(is_hoh).then(bracket_tax(taxinc, tables["head_of_household"]))

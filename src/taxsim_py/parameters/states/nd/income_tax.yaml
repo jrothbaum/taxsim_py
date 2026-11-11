@@ -235,3 +235,5 @@ marriage_credit_deduction:
   2025: 15750
 # 2021-2022 tax relief credit per taxpayer.
 relief_credit: {2021: 350.0, 2023: null}
+# TAXSIM's price index for the 2023 brackets (ratio of a year's value to 2023's scales them).
+taxsim_index: {2023: 275101, 2024: 289976, 2025: 298076}
