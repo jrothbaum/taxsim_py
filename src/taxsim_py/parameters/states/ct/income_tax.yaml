@@ -93,6 +93,8 @@ exemption:
   married_joint: {1991: {amount: 24000, phaseout_start: 48000}}
   married_separate: {2000: {amount: 12000, phaseout_start: 24000}}
 
+# From 2024 TAXSIM takes this much off every exemption before the phaseout starts (it adds half a $1,000 step).
+taxsim_exemption_head_start: {2024: 500}
 # TAXSIM's phaseout starts for the statuses other than single, through 2020.
 taxsim_exemption_phaseout_start:
   head_of_household: {1991: 37000}
@@ -372,3 +374,18 @@ property_credit_requires_dependent_or_elderly: {1996: false, 2017: true, 2022: f
 # on: PolicyEngine-US gov.states.ct.tax.income.credits.eitc.
 eitc_federal_share: {2011: 0.30, 2013: 0.25, 2014: 0.275, 2017: 0.23, 2021: 0.305, 2023: 0.40}
 eitc_child_bonus: {2011: 0, 2025: 250}
+# TAXSIM's 2024 on personal tax credit: the rate of the first threshold above AGI (thresholds not sorted: 22,300 precedes 21,800).
+taxsim_personal_credit_steps:
+  2024:
+    single: [18800, 19300, 19800, 20300, 20800, 21300, 22300, 21800, 25000, 25500, 26000, 26500, 31300, 31800, 32300, 32800, 33300, 60000, 60500, 61000, 61500, 62000, 62500, 63000, 63500, 64000, 64500, 1.0e+20]
+    joint: [30000, 30500, 31000, 31500, 32000, 32500, 33500, 33000, 40000, 40500, 41000, 41500, 50000, 50500, 51000, 51500, 52000, 96000, 96500, 97000, 97500, 98000, 98500, 99000, 99500, 100000, 100500, 1.0e+20]
+    head_of_household: [24000, 24500, 25000, 25500, 26000, 26500, 27500, 27000, 34500, 34500, 35000, 35500, 44000, 44500, 45000, 45500, 46000, 74000, 74500, 75000, 75500, 76000, 76500, 77000, 78000, 78000, 78500, 1.0e+20]
+taxsim_personal_credit_step_rates:
+  2024: [0.75, 0.70, 0.65, 0.60, 0.55, 0.50, 0.45, 0.40, 0.35, 0.30, 0.25, 0.20, 0.15, 0.14, 0.13, 0.12, 0.11, 0.10, 0.09, 0.08, 0.07, 0.06, 0.05, 0.04, 0.03, 0.02, 0.01, 0.0]
+# TAXSIM's 2024 on recapture of the lower bracket rates: per status, tiers of [AGI start, amount per increment,
+# increment, cap]; separate returns use `single`.
+taxsim_recapture:
+  2024:
+    head_of_household: [[78000, 50, 5000, 400], [168000, 40, 8000, 400], [320000, 140, 8000, 4200], [800000, 80, 8000, 720]]
+    joint: [[100500, 50, 5000, 500], [210000, 50, 10000, 500], [400000, 180, 10000, 5400], [1000000, 100, 10000, 900]]
+    single: [[56500, 25, 5000, 250], [105000, 25, 5000, 250], [200000, 90, 5000, 2700], [500000, 50, 5000, 450]]

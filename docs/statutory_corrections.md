@@ -610,3 +610,4 @@ Taxsim mode now follows the statutory rule for these (they remain in
 | OK | 2024 on | | The joint 4.75% bracket starts at $12,200 | Statutory: $14,400. `start_oklahoma_joint_top_bracket_per_statute` |
 | OR | 2025 | | The surplus credit is 9.863% of tax before credits | Statutory: left out as a one-time rebate |
 | NM | 2024 on | | The low income rebate is interpolated between the table's income rows (its own 2024-2025 tables), and 2026 has none | Statutory: the stepped rebate schedule. `use_new_mexico_low_income_rebate_per_statute` |
+| CT | 2024 on | | The exemption starts $500 low and falls dollar for dollar; separate returns are treated as single; the personal credit steps by the first listed threshold above AGI (list unsorted at $22,300/$21,800); the recapture has its own four tiers | Statutory: dated amounts. `phase_out_connecticut_exemption_per_statute`, `use_connecticut_personal_credit_table_per_statute`, `add_connecticut_recapture_per_statute` |

@@ -170,14 +170,20 @@ def compute_ct_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         df = df.with_columns(ct_exemp=p.num("exemption_per_person") * (taxpayer_count() + aged_count()))
     else:
         def exemption(status: str) -> pl.Expr:
-            if status == "married_separate" and effective_year >= 2021 and not behavior.phase_out_connecticut_exemption_per_statute:
+            if status == "married_separate" and 2021 <= effective_year < 2024 and not behavior.phase_out_connecticut_exemption_per_statute:
                 status = "head_of_household"  # TAXSIM's 2021 on formula gives separate returns the head of household terms.
+            if status == "married_separate" and effective_year >= 2024 and not behavior.phase_out_connecticut_exemption_per_statute:
+                status = "single"  # Its 2024 on routine treats a separate return as single throughout.
             terms = p.value("exemption", status)
             amount, start = float(terms["amount"]), float(terms["phaseout_start"])
             if effective_year >= 2022:
                 # $1,000 less for each $1,000 (or part) of AGI over the start.
                 excess = (pl.col("ct_agi") - start).clip(0, None)
                 if not behavior.round_up_phaseout_steps:
+                    if p.in_effect("taxsim_exemption_head_start"):
+                        # TAXSIM's 2024 on routine falls dollar for dollar from half a step below the amount.
+                        excess = (pl.col("ct_agi") - start - 0.02).clip(0, None)
+                        return (amount - p.num("taxsim_exemption_head_start") - excess).clip(0, amount)
                     # TAXSIM's `rup` does not round, so the exemption falls dollar for dollar.
                     return (amount - excess).clip(0, amount)
                 steps = (excess / 1000.0).ceil()
@@ -271,6 +277,19 @@ def compute_ct_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
                 for name, tier in p.value("recapture_steps").items():
                     if tier.get("in_effect", True):
                         recapture = recapture + stepped(tier)
+                if p.in_effect("taxsim_recapture") and not behavior.add_connecticut_recapture_per_statute:
+                    # TAXSIM's 2024 on recapture: four tiers per status, each its amount per increment of AGI over a
+                    # start up to a cap (its separate returns use the single tiers).
+                    tiers = p.value("taxsim_recapture")
+                    table = pl.when(files_head_of_household()).then(pl.lit(0)).when(files_joint()).then(pl.lit(1)).otherwise(pl.lit(2))
+                    total = pl.lit(0.0)
+                    for index, status in enumerate(("head_of_household", "joint", "single")):
+                        amount = pl.lit(0.0)
+                        for start, per_increment, increment, cap in tiers[status]:
+                            steps = phaseout_steps((pl.col("ct_agi") - float(start)).clip(0, None) / float(increment), behavior)
+                            amount = amount + pl.min_horizontal(float(cap), steps * float(per_increment))
+                        total = pl.when(table == index).then(amount).otherwise(total)
+                    stax, recapture = total, pl.lit(0.0)
                 xtax = xtax + stax + recapture
             elif p.in_effect("add_back"):
                 ab = p.value("add_back")
@@ -354,6 +373,21 @@ def compute_ct_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
                 interpolate_table(agi_read * pl.col("ct_sep"), list(zip(joint_base, rates)))
             ).otherwise(interpolate_table(agi_read, list(zip(base, rates))))
 
+        if effective_year >= 2024 and not behavior.use_connecticut_personal_credit_table_per_statute:
+            # TAXSIM's 2024 on routine: the rate of the first listed threshold above AGI (the single, joint
+            # or head of household column; separate returns use the joint one).
+            steps = p.value("taxsim_personal_credit_steps")
+            step_rates = [float(r) for r in p.value("taxsim_personal_credit_step_rates")]
+
+            def first_above(thresholds: list[float]) -> pl.Expr:
+                expr = pl.lit(step_rates[-1])
+                for threshold, rate in reversed(list(zip(thresholds, step_rates))):
+                    expr = pl.when(pl.col("ct_agi") < float(threshold)).then(rate).otherwise(expr)
+                return expr
+
+            credp = pl.when(files_head_of_household()).then(first_above(steps["head_of_household"])).when(
+                files_joint()
+            ).then(first_above(steps["joint"])).otherwise(first_above(steps["single"]))
         df = df.with_columns(ct_credp=credp)
         df = df.with_columns(ct_inctax=pl.col("ct_xtax") * (1.0 - pl.col("ct_credp")))
         df = df.with_columns(ct_statax=pl.col("ct_inctax"))
