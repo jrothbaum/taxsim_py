@@ -811,6 +811,17 @@ def compute_mn_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         # federal itemized deductions.
         limitation = pl.min_horizontal(0.8 * fed_deduc.clip(0, None), 0.03 * (fed_agi - p.num("taxsim_deduction_reduction_start")).clip(0, None))
         xitded = (xitded - limitation.clip(0, None)).clip(0, None)
+    if y >= 2024 and not behavior.limit_minnesota_itemized_deduction_from_2024_per_statute:
+        # TAXSIM's 2024 on routine: the federal total less property and other taxes over the federal SALT limit (the
+        # state tax estimate stays in), cut by 3% and 10% of AGI over two tiers, or 80% above a top level.
+        t24 = p.value("taxsim_itemized_deduction")
+        over_limit = (pl.col("proptax") + pl.col("otheritem") - float(t24["salt_limit"])).clip(0, None)
+        base = pl.col("itemized_before_limit") - over_limit
+        first = (fed_agi - float(t24["start"])).clip(0, float(t24["range"]))
+        second = (fed_agi - float(t24["start"]) - float(t24["range"])).clip(0, None)
+        reduction = pl.min_horizontal(0.03 * first + 0.1 * second, 0.8 * base)
+        reduction = pl.when(fed_agi > float(t24["top"])).then(0.8 * base).otherwise(reduction)
+        xitded = pl.when(fed_itemizes).then((base - reduction).clip(0, None)).otherwise(0.0)
     df, (stded, xitded, exemp) = checkpoint(df, mn_stded=stded, mn_xitded=xitded, mn_exemp=exemp)
     deduc = pl.max_horizontal(stded, xitded)
     taxinc = agi - deduc - exemp
@@ -875,7 +886,11 @@ def compute_mn_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             steps = phaseout_steps(((fed_agi - full_threshold) / (4000.0 / sep)).clip(0, None), behavior)
             full = (ss_taxable * (1.0 - 0.1 * steps)).clip(0, None)
             subtraction = pl.max_horizontal(subtraction, full)
-        subrac = subrac + pl.when(ss_taxable > 0).then(subtraction).otherwise(0.0)
+        has_benefit = ss_taxable > 0
+        if y >= 2024 and not behavior.subtract_minnesota_social_security_without_age_from_2024:
+            # TAXSIM's 2024 on routine takes it only with a taxpayer aged 62 or more (it also tests pensions in dollars).
+            has_benefit = has_benefit & ((pl.col("page") >= 62) | (pl.col("pensions") >= 62) | (aged > 0))
+        subrac = subrac + pl.when(has_benefit).then(subtraction).otherwise(0.0)
     taxinc = taxinc - subrac + add
 
     if 2011 <= y <= 2013:
@@ -908,7 +923,7 @@ def compute_mn_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     ))
 
     # --- Alternative minimum tax ---
-    if y >= 2001:
+    if y >= 2001 and (y < 2024 or behavior.charge_minnesota_alternative_minimum_tax_from_2024):
         char_pref = (fed_char - p.num("amt_charity_floor") * fed_agi.clip(0, None)).clip(0, None)
         alminy = fed_agi - char_pref
         excl = by_filer(*(_sub(p["amt_exclusion"], k, y) for k in ("single", "married", "head_of_household"))) / sep

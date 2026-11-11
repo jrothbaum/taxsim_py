@@ -2272,3 +2272,8 @@ property_tax_credit:
     maximum_top_rate: 0.2
   1989: null
 property_credit_rent_share: 0.2
+# TAXSIM's 2024 on itemized deduction: the federal SALT limit it applies, then the reduction (3% of AGI over `start` up
+# to `range`, 10% beyond, at most 80%; 80% of the total over `top`).
+taxsim_itemized_deduction:
+  2024: {salt_limit: 10000, start: 232500, range: 88850, top: 1053750}
+  2025: {salt_limit: 40000, start: 238950, range: 91350, top: 1083150}

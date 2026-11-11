@@ -336,6 +336,9 @@ class BehaviorProfile:
     use_published_kansas_exemption_from_2024: bool = True
     allow_unreported_ages_in_dc_childless_credit_from_2024: bool = True
     cap_district_of_columbia_state_tax_deduction_from_2024: bool = True
+    subtract_minnesota_social_security_without_age_from_2024: bool = True
+    limit_minnesota_itemized_deduction_from_2024_per_statute: bool = True
+    charge_minnesota_alternative_minimum_tax_from_2024: bool = True
     deduct_idaho_itemized_from_2018_per_statute: bool = True
     limit_idaho_dependent_standard_deduction_per_statute: bool = True
     add_back_michigan_self_employment_tax_from_2021_per_statute: bool = True
