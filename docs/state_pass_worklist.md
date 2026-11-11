@@ -23,7 +23,7 @@ Not zero means unfinished: each state below needs another pass.
 | UT | 96 | 2008-2012 and 2022-23 small groups, 1988 (10), 1993-2007 three cases a year, 1977-81 two a year |
 | NY | 16 | 1985-86 renter credit cutoff (hy offset), 2020 unemployment/aged low-income marginal rates, 2021 childless aged EITC and unemployment |
 | AR | 18 | 2018-23 itemized (own rules), 2021 five cases, 1984 three cases |
-| KS | 54 | 2018-23 itemizers and very high income (SALT limit rules), 2007-12 homestead/renter, 1977-81 two a year |
+| KS | 16 | 1977-81 federal gaps, 2013-16 non-property income, 2021 low-income childcare, 2008 aged couple |
 | ME | 39 | 2014-21 property tax fairness credit / renter cases, 2020 childless EITC 18-24 |
 | ID | 46 | dependent filers 2010-23, 2018-23 high-income itemizers (own deduction rules) |
 | WV | 0 | done |

@@ -137,12 +137,12 @@ def compute_ks_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         ).otherwise(0.0)
     else:
         aifit_val = p.num("itemized_scaling")
-        txpaid = pl.col("proptax") + pl.col("otheritem")
+        txpaid = pl.col("proptax") + (pl.col("otheritem") if behavior.deduct_kansas_other_taxes_per_statute else 0.0)
         xitded = pl.when(itemizing).then(aifit_val * (txpaid + pl.col("mortgage"))).otherwise(0.0)
 
-    if effective_year == 2021:
-        # 2021: itemized inputs, whether or not the return itemizes.
-        xitded = pl.col("proptax") + pl.col("otheritem") + pl.col("mortgage")
+    if effective_year >= 2021:
+        # From 2021: itemized inputs, whether or not the return itemizes.
+        xitded = pl.col("proptax") + (pl.col("otheritem") if behavior.deduct_kansas_other_taxes_per_statute else 0.0) + pl.col("mortgage")
 
     df = df.with_columns(ks_xitded=xitded)
     df = df.with_columns(ks_deduc=pl.max_horizontal(pl.col("ks_stded"), pl.col("ks_xitded")))
@@ -260,6 +260,9 @@ def compute_ks_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             hhy = pl.col("ks_agi") + pl.col("eitc") + 0.5 * pl.col("gssi")
         pmax = p.num("homestead_refund_income_limit")
         pcred = pl.when(hhy < pmax).then(ptax * interpolate_table(hhy, p.value("homestead_refund_share"))).otherwise(0.0)
+        if effective_year >= 2007 and not behavior.pay_kansas_homestead_refund_from_2007_per_statute:
+            # TAXSIM has no homestead refund table after 2006.
+            pcred = pl.lit(0.0)
         if p.in_effect("senior_property_relief_share"):
             share = p.num("senior_property_relief_share")
             limit = p.num("senior_property_relief_income_limit")

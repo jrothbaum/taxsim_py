@@ -72,6 +72,8 @@ class BehaviorProfile:
     apply_illinois_exemption_income_limit: bool = True
     add_washington_working_families_credit: bool = True
     allow_kansas_itemizing_after_2020: bool = True
+    deduct_kansas_other_taxes_per_statute: bool = True
+    pay_kansas_homestead_refund_from_2007_per_statute: bool = True
     apply_kentucky_pension_cap_per_taxpayer: bool = True
     compute_louisiana_tax_per_statute: bool = True
     count_wisconsin_rent_at_statutory_share: bool = True
