@@ -104,8 +104,8 @@ brackets:
     single: [[0, 0], [48475, 0.0195], [244825, 0.025]]
     head_of_household: [[0, 0], [64950, 0.0195], [271450, 0.025]]
     married: [[0, 0], [80975, 0.0195], [298075, 0.025]]
-  # 2026: indexed amounts from PolicyEngine-US gov.states.nd.tax.income.rates (not yet
-  # checked against the Tax Commissioner's 2026 schedule).
+  # 2026: Tax Commissioner's 2026 rate schedules (form ND-1ES 2026); separate
+  # returns use the married schedule halved.
   2026:
     single: [[0, 0], [49575, 0.0195], [250400, 0.025]]
     head_of_household: [[0, 0], [66400, 0.0195], [277600, 0.025]]

@@ -317,14 +317,14 @@ rate_table:
     - [97901, 3.9, 89]
     - [1.0e+20, 3.9, 91.0]
   # 2026: top rate 3.7% (Acts 1 and 2 of the 2026 first extraordinary session).
-  # Rows rebuilt from PolicyEngine-US gov.states.ar.tax.income.rates.main; the
-  # official 2026 DFA table is not available, so the constants are unverified.
+  # Verified against the DFA Withholding Tax Formula for 2026 (revised
+  # 2026-05-29 for the 3.7% rate): bracket tops and constants match.
   2026:
     - [5600, 0, 0]
-    - [11200, 2, 112]
-    - [16000, 3, 224]
-    - [26400, 3.4, 288]
-    - [94701, 3.7, 367.2]
+    - [11200, 2, 111.98]
+    - [16000, 3, 223.97]
+    - [26400, 3.4, 287.97]
+    - [94701, 3.7, 367.16]
     - [94801, 3.7, 369.9]
     - [94901, 3.7, 359.9]
     - [95001, 3.7, 349.9]
@@ -427,7 +427,7 @@ standard_deduction_percent:
   1987: {rate: 0.10, cap_per_taxpayer: 2000}
   1998: null
 # From 1998: a flat amount per taxpayer.
-standard_deduction: {1998: 2000, 2015: 2200, 2022: 2270, 2023: 2340, 2024: 2410, 2025: 2470, 2026: 2570}
+standard_deduction: {1998: 2000, 2015: 2200, 2022: 2270, 2023: 2340, 2024: 2410, 2025: 2470, 2026: 2470}
 # Itemized deduction limitation, 1991-2017 (suspended 2010-2012): `rate` of
 # AGI above the threshold, at most `cap_rate` of itemized deductions. The
 # threshold is indexed (state_adjustments.yaml itemized_phaseout_inflation);

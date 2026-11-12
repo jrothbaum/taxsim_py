@@ -36,7 +36,7 @@ what was not. Dates are the dates of the sources, retrieved November 2026.
 | State | 2026 change in the model | Status |
 |---|---|---|
 | AL, AK, FL, NV, NH, SD, TN, TX, WA, WY | No wage income tax. | n/a |
-| AR | Top rate 3.7% (from 3.9%); rate table and low-income tables rebuilt; standard deduction $2,570. | Rate: **Law** (HB 1001 / SB 1, May 2026 special session). Table rows and low-income tables: **Derived** from PolicyEngine; the 2026 DFA tables were not available. |
+| AR | Top rate 3.7% (from 3.9%); rate table and low-income tables rebuilt; standard deduction $2,470. | Rate: **Law** (HB 1001 / SB 1, May 2026 special session). Rate table and the $2,470 standard deduction: **Official** (DFA Withholding Tax Formula for 2026, revised 2026-05-29). Low-income step tables: **Derived** from PolicyEngine; the DFA return tables are not out yet. |
 | AZ | Dependent credit $125 per child under 17; standard deduction $16,100. | **Law** (HB 4168, signed 2026-06-13). The same bill's other changes (SALT cap on itemizers, charitable standard deduction, adoption subtraction) are not modeled. |
 | CA | 3.4% inflation factor on brackets, standard deduction, exemption credits, renter's credit, AMT, CalEITC, young child credit. | Standard deduction ($5,900 / $11,800), exemption credits ($158 / $491), renter's AGI limits: **Official** (FTB Tax News, October 2026). Bracket tops and CalEITC: **Derived** (FTB posts schedules in late December). |
 | CO | See table above; flat rate 4.4% unchanged; QBI addback continues. | EITC 25% and credit shutoff: **Law**. Addback cap: **Derived**. |
@@ -57,7 +57,7 @@ what was not. Dates are the dates of the sources, retrieved November 2026.
 | MS | Rate 4.0% above $10,000. | **Law**. |
 | MT | 4.7% to $47,500 ($95,000 joint, $71,250 head of household), 5.65% above; same thresholds for capital gains (3% / 4.1%); state EITC match 20% (from 10%). | Brackets and rates: **Official** (Department of Revenue, HB 337). EITC match: **Law**. |
 | NC | Rate 3.99%. | **Law**. |
-| ND | Brackets $49,575 / $250,400 (single), $82,800 / $304,850 (joint); marriage credit amounts. | **Derived** (PolicyEngine). One secondary source matches. The Tax Commissioner's 2026 schedule was not found. |
+| ND | Brackets $49,575 / $250,400 (single), $66,400 / $277,600 (head of household), $82,800 / $304,850 (joint). | Brackets: **Official** (form ND-1ES 2026). Marriage credit amounts: **Derived**. |
 | NE | Two upper rates become 4.55%; indexed amounts. | **Law** for the rate; amounts **Derived**. |
 | NJ | Child tax credit up to $1,250 per child under six (2026-2028); other amounts indexed. | One tax guide only; enactment not confirmed from an official source. |
 | NM | Child tax credit and low-income rebate tables scaled by PolicyEngine's inflation factor. | **Derived**. |
@@ -65,7 +65,7 @@ what was not. Dates are the dates of the sources, retrieved November 2026.
 | OH | Tax is $332 plus 2.75% of income over $26,050 (the 3.125% top rate is gone); exemption and joint credit limit at $500,000. | **Law** (HB 96, Legislative Service Commission, EY, Plante Moran); the $332 base from one secondary source. |
 | OK | Rates 2.5% / 3.5% / 4.5% (three lowest rates removed). | **Law** (HB 2764). Exact bracket tops: **Derived**. |
 | OR | Standard deduction, exemption credit and the state EITC match (14%) indexed or raised. | **Derived** (PolicyEngine / statute). |
-| RI | Brackets $82,050 / $186,450; standard deduction $11,200 / $16,800 / $22,400; exemption $5,250; property tax credit maximum $715. | Standard deduction and exemption: **Official** (Tax Foundation index). Brackets: **Derived**, one guide matches. |
+| RI | Brackets $82,050 / $186,450; standard deduction $11,200 / $16,800 / $22,400; exemption $5,250; property tax credit maximum $715. | Standard deduction and exemption: **Official** (Tax Foundation index). Brackets: **Official** (Division of Taxation advisory ADV 2025-22). Property tax credit maximum ($715): **Derived**; the advisory only gives $700 for 2025. |
 | SC | 1.99% to $30,000 and 5.21% above; new state deduction ($15,000 / $22,500 / $30,000, phased out over $55,000 to $110,000 of income); state EITC capped at $200. | **Law** (H. 4216, signed 2026-03-30). Phase-out start and widths: **Derived**. |
 | UT | Rate 4.45%; taxpayer credit $2,159; child credit phase-out starts $49,000 / $61,000. | Rate: **Law** (S.B. 60). Credit amounts: **Derived**. |
 | VT | Standard deduction and exemption indexed. | **Derived**. |
@@ -75,7 +75,7 @@ what was not. Dates are the dates of the sources, retrieved November 2026.
 ## Not checked against anything
 
 - Michigan heating credit, Maine property tax fairness credit tiers, New
-  Mexico rebate rows, the Arkansas rate-table constants above $95,000, and New
+  Mexico rebate rows, and New
   York's supplemental tax tables come from PolicyEngine-US only.
 - Provisions with no TAXSIM input (tips and overtime deductions, state senior
   deductions that depend on benefit data) are not modeled for 2026.
