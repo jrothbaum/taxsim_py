@@ -5,7 +5,7 @@ from __future__ import annotations
 import polars as pl
 
 from taxsim_py.engine.brackets import bracket_rate, bracket_tax, scale_brackets
-from taxsim_py.engine.inputs import aged_count, files_head_of_household, files_joint, files_separate, files_single, is_dependent_filer, taxpayer_count
+from taxsim_py.engine.inputs import aged_count, federal_exemption_count, files_head_of_household, files_joint, files_separate, files_single, is_dependent_filer, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml, resolve_year
 from taxsim_py.engine.state import (
     by_filing_status,
@@ -213,8 +213,12 @@ def compute_wi_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         taxinc = (agi - stded).clip(0, None)
     exemp = pl.lit(0.0)
     if p.in_effect("exemption"):
+        people = depx + txp
+        if flate != 1.0 and y >= 2023 and not behavior.deflate_wisconsin_exemption_count_per_statute:
+            # TAXSIM's exemption is the personal amount times the deflated federal exemption count.
+            people = (federal_exemption_count(y) / flate - aged).clip(0, None)
         exemp = pl.when(dependent_filer).then(0.0).otherwise(
-            p.num("exemption") * (depx + txp) + p.num("exemption_aged") * aged
+            p.num("exemption") * people + p.num("exemption_aged") * aged
         )
     df, (taxinc,) = checkpoint(df, wi_taxinc=(taxinc - exemp).clip(0, None))
 
