@@ -341,4 +341,4 @@ amount carried by its price index (about $450 above the published one in 2026).
 
 ## Tracing the oracle
 
-`scripts/trace_oracle.py year=2025 state=27 mstat=1 pwages=60000 ...` prints every nonzero federal result `c(i)` and input `d(i)` the NBER code hands a state routine for one household (the patch is in `scripts/build_oracle.sh`; it runs only when `opt1=30, opt1v=999`). Use it before reading a state routine, to see hidden inputs such as `c(201)` or `c(215)`.
+`scripts/trace_failures.py <VALIDATE_OUT dir> state=MT year=2025 min=5 limit=5` traces only the worst disagreeing cases of a validation run, one file each (console shows one line per case). `scripts/trace_oracle.py year=2025 state=27 mstat=1 pwages=60000 ...` prints every nonzero federal result `c(i)` and input `d(i)` the NBER code hands a state routine for one household (the patch is in `scripts/build_oracle.sh`; it runs only when `opt1=30, opt1v=999`). Use it before reading a state routine, to see hidden inputs such as `c(201)` or `c(215)`.
