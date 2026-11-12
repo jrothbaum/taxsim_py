@@ -442,12 +442,17 @@ def _income(
     else:
         se_agi_deduction = 0.5 * setax_total
 
+    # TAXSIM's earned income (EITC, additional child tax credit, making work pay) counts the business and professional
+    # inputs even though its income does not, and they count in its self-employment tax.
+    earned_business_inputs = pl.lit(0.0)
+    if not behavior.count_business_and_professional_inputs_as_income and year < 2024:
+        earned_business_inputs = pl.col("pbusinc") + pl.col("pprofinc") + pl.col("sbusinc") + pl.col("sprofinc")
     # EITC earned income always deducts the SE-tax share calculated above.
     df = df.with_columns(
         setax=setax_total,
         setax_qbi=payroll["setax_qbi"],
         setax_sstb=payroll["setax_sstb"],
-        earned_income=(pl.col("wages") + gross_se_income - se_agi_deduction).clip(0, None),
+        earned_income=(pl.col("wages") + gross_se_income + earned_business_inputs - se_agi_deduction).clip(0, None),
     )
 
     # The AGI deduction for self-employment tax begins in 1990.
