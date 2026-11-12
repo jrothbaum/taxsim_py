@@ -161,7 +161,14 @@ def compute_in_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
                         pl.col("earned_income"), pl.col("agi"), row["rate_in"], row["max_credit"], row["phaseout_start"], row["rate_out"]
                     )
                     decoupled = pl.when(children == row["num_children"]).then(amount).otherwise(decoupled)
-                earncr = pl.when(fed_eitc > 0).then(rate_cr * decoupled).otherwise(0.0)
+                if behavior.require_indiana_federal_credit_for_decoupled_credit_per_statute:
+                    earncr = pl.when(fed_eitc > 0).then(rate_cr * decoupled).otherwise(0.0)
+                else:
+                    # TAXSIM computes its own credit with no age test, whatever the federal credit is.
+                    no_credit = is_dependent_filer()
+                    if p.value("taxsim_decoupled_credit_excludes_separate_returns"):
+                        no_credit = no_credit | (pl.col("filing_status") == "married_separate")
+                    earncr = pl.when(no_credit).then(0.0).otherwise(rate_cr * decoupled)
         elif p.in_effect("eitc_schedule"):
             schedule = p.value("eitc_schedule")
             rates = p["eitc_schedule_rates"]
@@ -204,7 +211,7 @@ def compute_in_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     if p.in_effect("property_credit"):
         pc = p.value("property_credit")
         ptax = pl.col("proptax") + pc["rent_share"] * pl.col("rentpaid")
-        pcred = pl.when(aged > 0).then(
+        pcred = pl.when((aged > 0) & (pl.col("in_household_income") <= float(pc["share_table"][-1][0]))).then(
             (interpolate_table(pl.col("in_household_income"), pc["share_table"]) * ptax).clip(0, pc["cap"])
         ).otherwise(0.0)
         flat = p.value("elderly_credit_flat")
@@ -217,7 +224,7 @@ def compute_in_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         second = p.num("elderly_credit_second_aged")
         # From 2022 the statute's step schedule, not TAXSIM's interpolation.
         base_credit = interpolate_table(fed_agi, table)
-        if effective_year >= 2022:
+        if effective_year >= 2022 and behavior.use_indiana_elderly_credit_steps_per_statute:
             base_credit = pl.lit(0.0)
             for limit, amount in reversed(table):
                 base_credit = pl.when(fed_agi < float(limit)).then(float(amount)).otherwise(base_credit)

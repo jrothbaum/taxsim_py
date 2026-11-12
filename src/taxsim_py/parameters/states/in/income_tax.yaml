@@ -86,6 +86,8 @@ eitc_own:
 # `eitc_federal_floor` (no floor from 2022). Source for 2022 on:
 # PolicyEngine-US gov.states.in.tax.income.credits.earned_income.match_rate.
 eitc_federal_share: {2003: 0.06, 2009: 0.09, 2022: 0.10}
+# TAXSIM's own credit for 2021-2022 gives separate returns nothing in 2022 only.
+taxsim_decoupled_credit_excludes_separate_returns: {2003: false, 2022: true, 2023: false}
 eitc_federal_floor: {2003: 9.0, 2009: 6.0}
 # 2011-2021: at most Indiana's own schedule, by EITC children (0, 1, 2+):
 # `phase_in_rate` of earnings up to `max_credit`, less `phaseout_rate` of

@@ -52,6 +52,11 @@ brackets:
   2025:
     single: [[11079, 0.01], [26264, 0.02], [41452, 0.04], [57542, 0.06], [72724, 0.08], [371479, 0.093], [445771, 0.103], [742953, 0.113], [1.0e+20, 0.123]]
     head_of_household: [[22173, 0.01], [52530, 0.02], [67716, 0.04], [83805, 0.06], [98990, 0.08], [505208, 0.093], [606251, 0.103], [1010417, 0.113], [1.0e+20, 0.123]]
+# TAXSIM's 2025 table has 371,749 (not 371,479) and 505,209 as the tops of the 9.3% bracket.
+taxsim_brackets:
+  2025:
+    single: [[11079, 0.01], [26264, 0.02], [41452, 0.04], [57542, 0.06], [72724, 0.08], [371749, 0.093], [445771, 0.103], [742953, 0.113], [1.0e+20, 0.123]]
+    head_of_household: [[22173, 0.01], [52530, 0.02], [67716, 0.04], [83805, 0.06], [98990, 0.08], [505209, 0.093], [606251, 0.103], [1010417, 0.113], [1.0e+20, 0.123]]
 bracket_inflation: {1977: 1.0, 1978: 1.052, 1979: 1.1, 1980: 1.319, 1981: 1.43, 1982: 1.0, 1983: 0.987, 1984: 1.032, 1985: 1.0857, 1986: 1.125, 1987: 1.0, 1988: 1.048, 1989: 1.1014, 1990: 1.153, 1991: 1.0, 1992: 1.036, 1993: 1.062, 1994: 1.075, 1995: 1.0994538, 1996: 1.0, 1997: 1.0218, 1998: 1.0454, 1999: 1.072, 2000: 1.112, 2001: 1.171, 2002: 1.1886715, 2003: 1.215, 2004: 1.253, 2005: 1.2874, 2006: 1.349, 2007: 1.3912, 2008: 1.46047, 2009: 1.439, 2010: 1.4515, 2011: 1.491, 2012: 1.0, 2013: 1.017, 2014: 1.0394, 2015: 1.0529, 2016: 1.075, 2017: 1.103, 2018: 1.1461, 2019: 1.1814, 2020: 1.198, 2021: 1.0, 2022: 1.0}
 
 # Index for the standard deduction, the pre-1987 exemption credits and the
@@ -222,6 +227,9 @@ amt_exemption:
   2023: {single: 87171, married_joint: 116229, head_of_household: 87171, married_separate: 58111}
   2024: {single: 90048, married_joint: 120065, head_of_household: 90048, married_separate: 60029}
   2025: {single: 92749, married_joint: 123667, head_of_household: 92749, married_separate: 61830}
+# TAXSIM keeps the 2024 exemption and phase-out start for 2025.
+taxsim_amt_exemption:
+  2025: {single: 90048, married_joint: 120065, head_of_household: 90048, married_separate: 60029}
 amt_phaseout_start:
   1987: {single: 112500, married_joint: 150000, head_of_household: 112500, married_separate: 75000}
   1998: {single: 161044, married_joint: 214725, head_of_household: 161044, married_separate: 107362}
@@ -252,6 +260,8 @@ amt_phaseout_start:
   2023: {single: 326891, married_joint: 435855, head_of_household: 326891, married_separate: 217924}
   2024: {single: 337678, married_joint: 450238, head_of_household: 337678, married_separate: 225115}
   2025: {single: 347808, married_joint: 463745, head_of_household: 347808, married_separate: 231868}
+taxsim_amt_phaseout_start:
+  2025: {single: 337678, married_joint: 450238, head_of_household: 337678, married_separate: 225115}
 
 # Mental Health Services tax from 2005: `rate` of taxable income above
 # `threshold`.

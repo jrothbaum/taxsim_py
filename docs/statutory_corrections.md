@@ -684,3 +684,10 @@ Taxsim mode now follows the statutory rule for these (they remain in
 | Maine | 2024 | | The sales tax fairness credit uses TAXSIM's table (starts 24,558 / 36,837 / 49,116; second tier 237) | Statutory: published schedule. `use_maine_published_2024_sales_tax_credit_per_statute` |
 | Maine | 2024 | | A dependent filer gets the full standard deduction (14,600 and so on) | Statutory: the federal (limited) amount. `limit_maine_dependent_filer_standard_deduction_per_statute` |
 | Maine | projected years | | The earned income credit before the age test is deflated | Statutory: n/a. `deflate_maine_earned_income_credit_per_statute` |
+| California | 1987 on | | The minimum tax add-back for itemizers is property tax only (other itemized deductions are not added back) | Statutory: adds back property tax and other items. `add_back_other_itemized_in_california_minimum_tax_per_statute` |
+| California | 2025 | | The 9.3% bracket tops are 371,749 and 505,209 (typos) | Statutory: 371,479 and 505,208. `use_california_published_2025_brackets_per_statute` |
+| California | 2025 | | The minimum tax exemption and phase-out start are the 2024 amounts (120,065 joint; 450,238) | Statutory: 2025 amounts. `use_california_2025_minimum_tax_exemption_per_statute` |
+| California | 2024 on | | Other property income is left out of the minimum tax base | Statutory: counted. `count_other_property_income_from_2024` |
+| Indiana | 1977-1980 | | The property tax credit goes to nobody whose household income exceeds the table's last bound (5,000) | Statutory: table extended. |
+| Indiana | 2023 on | | The elderly credit interpolates its table | Statutory: step schedule. `use_indiana_elderly_credit_steps_per_statute` |
+| Indiana | 2021-2022 | | The state earned income credit is 10% of TAXSIM's own federal-style credit with no age test and no need for a federal credit (none for dependent filers, and none for separate returns in 2022) | Statutory: requires the federal credit. `require_indiana_federal_credit_for_decoupled_credit_per_statute` |

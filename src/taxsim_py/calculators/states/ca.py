@@ -171,6 +171,8 @@ def compute_ca_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     # --- Tax: joint returns use the single schedule on half their income,
     # doubled; heads of household have their own schedule. ---
     brackets = p.value("brackets")
+    if p.in_effect("taxsim_brackets") and not behavior.use_california_published_2025_brackets_per_statute:
+        brackets = p.value("taxsim_brackets")
     scale = p.num("bracket_inflation")
     if effective_year <= 1981:
         # Bounds are rounded to $10, halves away from zero.
@@ -323,7 +325,8 @@ def compute_ca_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         # Itemizers add back property and other taxes; others add back the
         # standard deduction.
         itemizing = pl.col("ca_xitded") > pl.col("ca_stded")
-        addprf = pl.when(itemizing).then(pl.col("proptax") + pl.col("otheritem")).otherwise(pl.col("ca_stded"))
+        itemized_addback = pl.col("proptax") + (pl.col("otheritem") if behavior.add_back_other_itemized_in_california_minimum_tax_per_statute else 0.0)
+        addprf = pl.when(itemizing).then(itemized_addback).otherwise(pl.col("ca_stded"))
         # CA-002: TAXSIM subtracts positive self-employment and Schedule E
         # income from the base.
         reduce_col = pl.col("ca_reduce")
@@ -331,13 +334,17 @@ def compute_ca_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             alminy = (addprf + pl.col("ca_taxinc") - reduce_col).clip(0, None)
         else:
             gross_se = pl.col("psemp").clip(0, None) + pl.col("ssemp").clip(0, None)
-            schedule_e = (pl.col("otherprop") + pl.col("scorp")).clip(0, None)
+            other_property = pl.col("otherprop") if effective_year < 2024 or behavior.count_other_property_income_from_2024 else 0.0
+            schedule_e = (other_property + pl.col("scorp")).clip(0, None)
             alminy = (addprf + pl.col("ca_taxinc") - gross_se - schedule_e - reduce_col).clip(0, None)
         if p.in_effect("amt_exemption"):
             excl = by_filing_status(p.value("amt_exemption"))
         else:
             excl = by_filing_status({s: float(resolve_year(FEDERAL_AMT_PARAMS["exemption"][s], effective_year)) for s in _STATUSES})
         phase = by_filing_status(p.value("amt_phaseout_start"))
+        if p.in_effect("taxsim_amt_exemption") and not behavior.use_california_2025_minimum_tax_exemption_per_statute:
+            excl = by_filing_status(p.value("taxsim_amt_exemption"))
+            phase = by_filing_status(p.value("taxsim_amt_phaseout_start"))
         phaout = p["amt_exemption_phaseout_rate"] * (alminy - phase).clip(0, None)
         exclnt = (excl - phaout).clip(0, None)
         alminc = (alminy - exclnt).clip(0, None)

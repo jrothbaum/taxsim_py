@@ -137,6 +137,11 @@ class BehaviorProfile:
     use_south_carolina_published_tax_table: bool = True
     allow_qbi_deduction_in_south_carolina: bool = True
     count_colorado_credit_children_per_statute: bool = True
+    add_back_other_itemized_in_california_minimum_tax_per_statute: bool = True
+    use_indiana_elderly_credit_steps_per_statute: bool = True
+    require_indiana_federal_credit_for_decoupled_credit_per_statute: bool = True
+    use_california_published_2025_brackets_per_statute: bool = True
+    use_california_2025_minimum_tax_exemption_per_statute: bool = True
     start_child_tax_credit_phaseout_at_statutory_threshold_for_dependent_filers: bool = True
     count_eitc_children_from_ages_per_statute: bool = True
     count_business_inputs_in_earned_income_before_1987_per_statute: bool = True
