@@ -142,6 +142,9 @@ class BehaviorProfile:
     apply_minnesota_pension_exclusion_through_1986_per_statute: bool = True
     exclude_utah_other_itemized_from_state_tax_limit_per_statute: bool = True
     deflate_wisconsin_exemption_count_per_statute: bool = True
+    deflate_massachusetts_payroll_tax_deduction_per_statute: bool = True
+    use_massachusetts_2020_part_c_rate_per_statute: bool = True
+    use_massachusetts_2001_rent_cap_per_statute: bool = True
     halve_new_york_married_itemized_limit_for_separate_per_statute: bool = True
     compute_new_york_property_credit_per_statute: bool = True
     compute_new_york_earned_income_credit_base_per_statute: bool = True

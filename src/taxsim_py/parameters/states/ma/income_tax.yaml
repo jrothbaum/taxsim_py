@@ -24,6 +24,9 @@ part_b_rate:
   2016: 0.051
   2019: 0.0505
   2020: 0.05
+# TAXSIM's 2020 long-term gains rate.
+taxsim_part_c_rate:
+  2020: 0.0505
 
 # Part A (interest/dividends/short-term gains) rate.
 part_a_rate:
@@ -202,6 +205,8 @@ rent_deduction_cap:
   2001: 3000
   2023: 4000  # 2023 tax relief law
 rent_deduction_cap_separate: {1997: 1250, 2001: null}
+# TAXSIM's 2001 cap (the statute's amount starts in 2001).
+taxsim_rent_deduction_cap: {2001: 2500, 2002: null}
 
 # Senior circuit breaker credit (2001+, refundable): property tax (rent
 # counts at this share) over 10% of household income, up to a maximum,

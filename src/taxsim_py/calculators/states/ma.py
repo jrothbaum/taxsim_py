@@ -28,6 +28,9 @@ def compute_ma_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         # earner's.
         own_fica = own_fica - 0.5 * pl.col("own_wage_fica_primary")
         own_fica_spouse = pl.col("own_fica_secondary") - 0.5 * pl.col("own_wage_fica_secondary")
+    if flate != 1.0 and not behavior.deflate_massachusetts_payroll_tax_deduction_per_statute:
+        # In a projected year TAXSIM hands the state its payroll tax in deflated dollars.
+        own_fica, own_fica_spouse = own_fica / flate, own_fica_spouse / flate
     df = df.with_columns(ma_c183=own_fica, ma_c183_spouse=own_fica_spouse, ma_setax=pl.col("payroll_setax"))
     # Federal Schedule E income: other property income, plus S corporation
     # income from 1987.
@@ -35,10 +38,12 @@ def compute_ma_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     if y >= 2022 and not behavior.count_other_property_income_from_2024:
         # TAXSIM's 2024 on routine leaves other property income out of Massachusetts income.
         other_property = pl.lit(0.0)
-    schede = other_property + (pl.col("scorp") if y >= 1987 else 0.0)
-    df = df.with_columns(ma_schede=schede)
+    df = df.with_columns(ma_schede=other_property)
 
     df = deflate_for_extrapolation(df, flate, extra=("ma_untax", "ma_schede"))
+    # S corporation income is not deflated in projected years.
+    if y >= 1987:
+        df = df.with_columns(ma_schede=pl.col("ma_schede") + pl.col("scorp"))
 
     is_joint = files_joint()
     is_hoh = files_head_of_household()
@@ -164,7 +169,11 @@ def compute_ma_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     rnt = pl.lit(0.0)
     if p.in_effect("rent_deduction_share"):
         rnt = p.num("rent_deduction_share") * pl.col("rentpaid")
-        if y >= 2001:
+        if y == 2001 and not behavior.use_massachusetts_2001_rent_cap_per_statute:
+            # TAXSIM keeps the 1997-2000 cap for 2001.
+            cap = p.num("taxsim_rent_deduction_cap")
+            rnt = pl.min_horizontal(rnt, pl.when(is_sep).then(cap / 2.0).otherwise(cap))
+        elif y >= 2001:
             rnt = pl.min_horizontal(rnt, p.num("rent_deduction_cap") / pl.when(is_sep).then(2.0).otherwise(1.0))
         elif y >= 1982:
             rnt = pl.min_horizontal(rnt, p.num("rent_deduction_cap"))
@@ -313,7 +322,11 @@ def compute_ma_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     else:
         statxb = rate_b * taxbin
     statxa = p.num("part_a_rate") * ainc
-    statxc = p.num("part_c_rate") * cinc.clip(0, None) if y >= 1997 else pl.lit(0.0)
+    part_c_rate = p.num("part_c_rate") if y >= 1997 else 0.0
+    if y == 2020 and not behavior.use_massachusetts_2020_part_c_rate_per_statute:
+        # TAXSIM keeps the 2019 long-term gains rate for 2020.
+        part_c_rate = p.num("taxsim_part_c_rate")
+    statxc = part_c_rate * cinc.clip(0, None) if y >= 1997 else pl.lit(0.0)
     surtax = p.num("surtax")
     if p.in_effect("surtax_income_threshold"):
         threshold = p.num("surtax_income_threshold")
