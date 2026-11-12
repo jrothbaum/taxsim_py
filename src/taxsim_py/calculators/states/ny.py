@@ -726,7 +726,16 @@ def compute_ny_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         pcred = pl.when(hy <= c["income_limit"]).then((ptax - hy * share).clip(0, None).clip(None, pmax)).otherwise(0.0)
         if p.in_effect("real_property_deduction"):
             pcred = pl.when(is_aged & (pl.col("ny_reald") > 0)).then(0.0).otherwise(pcred)
-    if behavior.limit_new_york_property_credit_rent_per_statute:
+    if y >= 2025 and p.in_effect("taxsim_property_credit") and not behavior.compute_new_york_property_credit_per_statute:
+        # TAXSIM's 2025 on credit: rent counts at a quarter, the rate and maximum come from federal AGI tables,
+        # and it has no rent limit.
+        t = p.value("taxsim_property_credit")
+        fagi = pl.col("agi")
+        rate = interpolate_table(fagi, t["rate"])
+        maximum = pl.when(is_aged).then(interpolate_table(fagi, t["aged_maximum"])).otherwise(interpolate_table(fagi, t["maximum"]))
+        credit = (pl.min_horizontal(maximum, pl.col("proptax") + float(t["rent_share"]) * rentpaid - rate * fagi)).clip(0, None)
+        pcred = pl.when(fagi < float(t["income_limit"])).then(credit).otherwise(0.0)
+    elif behavior.limit_new_york_property_credit_rent_per_statute:
         pcred = pl.when(float(p["property_credit_rent_share"]) * rentpaid > p["property_credit_rent_limit"]).then(0.0).otherwise(pcred)
     elif p.in_effect("taxsim_property_credit_monthly_rent_limit"):
         # TAXSIM's rent test applies from 2010 and reads the limit as monthly rent.
@@ -756,7 +765,11 @@ def compute_ny_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             eligible = eitc_filer_eligible(childless, age_law) & eitc_age_eligible(childless, age_law)
             return pl.when(eligible).then(credit).otherwise(0.0)
 
-        df, (eitc,) = checkpoint(df, ny_eitc=eitc_for(y, agieic))
+        if y >= 2024 and not behavior.compute_new_york_earned_income_credit_base_per_statute:
+            # TAXSIM's 2024 on routine reads the federal credit as the federal pass computed it (deflated).
+            df, (eitc,) = checkpoint(df, ny_eitc=pl.col("eitc"))
+        else:
+            df, (eitc,) = checkpoint(df, ny_eitc=eitc_for(y, agieic))
         if p.in_effect("eitc_childless_prior_schedule"):
             # The prior year's schedule, keeping the state's upper age
             # exclusion for taxpayers 65 or older.

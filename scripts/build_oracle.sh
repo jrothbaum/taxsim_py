@@ -108,6 +108,7 @@ assert text.count(old) == 1, "trace patch did not apply"
 trace = (
     "      if(int(extnd(30)).eq.999) then\n"
     "        write(0,*) 'TRACE state id, law, flate, stax', id, law, flate, stax\n"
+    "        write(0,*) 'TRACE calcv', (s(i),i=1,25)\n"
     "        do i=1,255\n"
     "          if(coms(i).ne.0d0) write(0,*) 'TRACE c', i, coms(i)\n"
     "        enddo\n"

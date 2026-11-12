@@ -50,7 +50,19 @@ if dump is not None:
     sys.exit(0)
 lines = [line for line in result.stderr.splitlines() if "TRACE" in line]
 starts = [i for i, line in enumerate(lines) if "TRACE state" in line]
+CALC_NAMES = (
+    "hy rent agi exemp stded xitded taxinc pcred chcr earncr credit rt taxbc rebate solcrd ctc gcred amt fedtax "
+    "rcred refcrd taxinh taxinw stath statw"
+).split()
 for line in lines[starts[-1] :] if starts else []:
-    print(line.replace("TRACE", "").strip())
+    text_line = line.replace("TRACE", "").strip()
+    if text_line.startswith("calcv"):
+        # The state routine's /calc/ block, by name (this is where the routine leaves its AGI, deductions, tax, credits).
+        values = [float(v) for v in text_line.split()[1:]]
+        print("state routine /calc/ block:")
+        for name, value in zip(CALC_NAMES, values):
+            print(f"  {name:8} {value:16.4f}")
+        continue
+    print(text_line)
 if not starts:
     print("(no trace: no state routine ran, or the oracle predates the trace patch)")
