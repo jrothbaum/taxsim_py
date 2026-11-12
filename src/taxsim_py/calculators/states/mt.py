@@ -311,6 +311,10 @@ def compute_mt_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     half = p.num("joint_split_itemized_share")
     xitd_each = pl.when((xitded > 0) & (agi > 0)).then(half * xitded).otherwise(0.0)
     use_itemized = xitded > split_stded
+    if not behavior.split_montana_joint_returns_per_statute:
+        # TAXSIM itemizes on the separate returns only when that gives the lower combined tax; the choice is
+        # made after the exemptions are placed (below), so compare with the standard-deduction taxes there.
+        use_itemized = xitded > 0
     dedh = pl.when(use_itemized).then(xitd_each).otherwise(stdh)
     dedw = pl.when(use_itemized).then(xitd_each).otherwise(stdw)
     exempw = pl.when(aged > 0).then(2.0 * xmp).otherwise(xmp)
@@ -326,6 +330,11 @@ def compute_mt_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     split_tax = bracket_tax((agih - dedh - exemph).clip(0, None), brackets) + bracket_tax(
         (agiw - dedw - exempw).clip(0, None), brackets
     )
+    if not behavior.split_montana_joint_returns_per_statute:
+        standard_split_tax = bracket_tax((agih - stdh - exemph).clip(0, None), brackets) + bracket_tax(
+            (agiw - stdw - exempw).clip(0, None), brackets
+        )
+        split_tax = pl.min_horizontal(split_tax, standard_split_tax)
     rate = pl.when(is_joint).then(
         bracket_rate((agiw - dedw - exempw).clip(0, None), brackets)
     ).otherwise(bracket_rate(taxinc, brackets))

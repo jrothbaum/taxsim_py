@@ -339,6 +339,7 @@ elderly_credit_max:
   1981: 150
   1983: 400
   1995: 1000
+  2022: 1150
 # 1998: no credit at household income of this amount or more.
 elderly_credit_income_limit: {1998: 35000, 1999: null}
 # From 1999 a multiplier by household income; in 1981-1982 the same table is

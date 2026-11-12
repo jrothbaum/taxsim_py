@@ -698,3 +698,5 @@ Taxsim mode now follows the statutory rule for these (they remain in
 | Maryland | 2023 on | | An unmarried childless filer's refundable earned income credit stays capped at 530 | Statutory: no cap from 2023. `lift_maryland_childless_refundable_credit_limit_per_statute` |
 | Maryland | 2022 on | | A childless joint return whose older taxpayer is 25 or younger (or has no age) or 65 or older gets the credit on the federal credit before its age test; dependent filers get none | Statutory: federal credit with the age test. `apply_maryland_earned_income_credit_age_test_per_statute` |
 | Maryland | 2025 | | The single tax table's constants are off by +0.50 (100,000 to 125,000) and -40 (500,000 to 1,000,000) | Statutory: the published rates. `use_maryland_published_2025_tax_table_per_statute` |
+| Montana | 2014-2017 | | On a joint return filed as two separate returns, each spouse takes the itemized deductions only when that gives the lower combined tax | Statutory: itemize when the deduction is larger. `split_montana_joint_returns_per_statute` |
+| Montana | 2022 | | The elderly homeowner/renter credit maximum is 1,150 | (Statutory: same.) |
