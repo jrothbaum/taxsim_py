@@ -703,7 +703,9 @@ def compute_mn_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         penexc = pl.min_horizontal(pl.col("pensions"), (p.num("pension_exclusion_max") - over).clip(0, None))
         if y >= 1985:
             penexc = pl.when(aged > 0).then(penexc).otherwise(0.0)
-        agi = agi - penexc
+        if behavior.apply_minnesota_pension_exclusion_through_1986_per_statute:
+            # TAXSIM computes it but only subtracts it inside its 1988 on age-63 block, so never through 1986.
+            agi = agi - penexc
 
     df, (agi, fed_agi) = checkpoint(df, mn_agi=agi, mn_fed_agi=fed_agi)
 
