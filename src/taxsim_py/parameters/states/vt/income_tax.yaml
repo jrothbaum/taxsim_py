@@ -331,3 +331,6 @@ renter_rebate_aged_cap:
 renter_rebate_income_limit: 47000
 # Vermont household income counts interest and dividends above this again.
 renter_income_investment_threshold: 10000
+
+# Child care contribution (Act 76 of 2023) on net self-employment earnings: half rate in 2024, full from 2025.
+child_care_contribution_rate: {2024: 0.00055, 2025: 0.0011}

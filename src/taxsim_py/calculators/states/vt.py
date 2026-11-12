@@ -219,6 +219,15 @@ def compute_vt_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         c = p.value("charity_credit")
         contr = c["rate"] * pl.col("charity_cash").clip(None, c["cap"])
     statax = (statax - lowcr - studcr - chcr - contr).clip(0, None)
+    if p.in_effect("child_care_contribution_rate"):
+        # Child care contribution on net self-employment earnings (92.35% of positive self-employment income).
+        from taxsim_py.engine.payroll_tax import payroll_items
+
+        net_se = pl.sum_horizontal(
+            0.9235 * pl.sum_horizontal(pl.col(name).clip(0, None) for name in names[1:])
+            for names in payroll_items(behavior)
+        )
+        statax = statax + p.num("child_care_contribution_rate") * net_se
 
     # --- Refundable credits ---
     earncr = p.num("eitc_rate") * pl.col("eitc") if p.in_effect("eitc_rate") else pl.lit(0.0)

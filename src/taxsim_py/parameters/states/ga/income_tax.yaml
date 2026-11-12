@@ -112,3 +112,6 @@ low_income_credit_per_exemption:
     - [100000000, 0]
 # Whether the low-income credit is refundable.
 low_income_credit_refundable: {1977: true, 2010: false}
+
+# TAXSIM's 2024 on routine gives a credit of this much per taxpayer to filers who itemize.
+taxsim_itemizer_credit_per_taxpayer: {2024: 300}

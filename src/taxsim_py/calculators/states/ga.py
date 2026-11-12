@@ -207,13 +207,19 @@ def compute_ga_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         df = df.with_columns(ga_ycred=pl.lit(0.0))
     df = df.with_columns(ga_ycred=pl.when(is_dependent_filer()).then(0.0).otherwise(pl.col("ga_ycred")))
 
+    itemizer_credit = pl.lit(0.0)
+    if p.in_effect("taxsim_itemizer_credit_per_taxpayer") and not behavior.omit_georgia_itemizer_credit_per_statute:
+        # TAXSIM's 2024 on routine gives itemizers a credit per taxpayer, limited to the tax before credits.
+        itemizer_credit = pl.when(pl.col("ga_xitded") > pl.col("ga_stded")).then(
+            pl.min_horizontal(pl.col("ga_statax"), p.num("taxsim_itemizer_credit_per_taxpayer") * pl.col("ga_taxpayers"))
+        ).otherwise(0.0)
     if p.value("low_income_credit_refundable"):
         df = df.with_columns(
-            ga_statax=(pl.col("ga_statax") - pl.col("ga_chcr")).clip(0, None) - pl.col("ga_ycred")
+            ga_statax=(pl.col("ga_statax") - pl.col("ga_chcr") - itemizer_credit).clip(0, None) - pl.col("ga_ycred")
         )
     else:
         df = df.with_columns(
-            ga_statax=(pl.col("ga_statax") - pl.col("ga_chcr") - pl.col("ga_ycred")).clip(0, None)
+            ga_statax=(pl.col("ga_statax") - pl.col("ga_chcr") - pl.col("ga_ycred") - itemizer_credit).clip(0, None)
         )
 
     df = df.with_columns(siitax=pl.col("ga_statax") * flate)
@@ -225,6 +231,6 @@ def compute_ga_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         itemized_deductions=pl.col("ga_xitded"),
         taxable_income=pl.col("ga_taxinc"),
         child_care_credit=pl.col("ga_chcr"),
-        credits=pl.col("ga_chcr") + pl.col("ga_ycred"),
+        credits=pl.col("ga_chcr") + pl.col("ga_ycred") + itemizer_credit,
         rate=rate_expr,
     )
