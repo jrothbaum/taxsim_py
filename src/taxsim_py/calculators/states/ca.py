@@ -307,7 +307,7 @@ def compute_ca_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     else:
         share = p.value("child_care_credit_federal_share")
         # From 2000 the federal credit before its liability limit, undeflated.
-        federal = pl.col("ccc_uncapped") if effective_year >= 2000 else pl.col("federal_chcr")
+        federal = pl.col("ccc_uncapped") / flate if effective_year >= 2000 else pl.col("federal_chcr")
         if isinstance(share, dict):
             rate = pl.when(pl.col("ca_agi") >= share["threshold"]).then(float(share["above"])).otherwise(float(share["below"]))
         elif isinstance(share, list):

@@ -231,7 +231,7 @@ def compute_ne_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         if not behavior.pay_nebraska_refundable_child_care_per_statute and y <= 2023:
             # TAXSIM takes a share of the federal credit before its liability limit.
             fagi = fed_agi - 0.002
-            credit_before_limit = pl.col("ccc_uncapped")
+            credit_before_limit = pl.col("ccc_uncapped") / flate
             if y <= 2020:
                 share = (1 - 0.01 * (fagi - 22_000) / 1000).clip(0, 1)
                 chcref = pl.when(refundable_zone).then(share * credit_before_limit).otherwise(0.0)

@@ -1096,7 +1096,7 @@ def compute_mn_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     elif y <= 1986:
         cost = p.num("child_care_share_of_federal") * pl.col("federal_chcr")
     else:
-        cost = p.num("child_care_share_of_federal") * pl.col("ccc_uncapped")
+        cost = p.num("child_care_share_of_federal") * pl.col("ccc_uncapped") / flate
     phaseout_rate = p.num("child_care_phaseout_rate")
     if y >= 2017:
         over = (fed_agi - cded).clip(0, None)

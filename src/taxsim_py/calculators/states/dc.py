@@ -266,7 +266,7 @@ def compute_dc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     # Child and dependent care credit: a share of the federal credit before
     # its liability limit, which TAXSIM leaves at 0 before 1987.
     if p.in_effect("child_care_credit_federal_share"):
-        federal = pl.col("ccc_uncapped")
+        federal = pl.col("ccc_uncapped") / flate
         if y_pre1987 and behavior.read_federal_child_care_credit_before_1987:
             federal = pl.col("federal_chcr")
         df = df.with_columns(dc_chcr=p.num("child_care_credit_federal_share") * federal)

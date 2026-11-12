@@ -320,7 +320,7 @@ def compute_wi_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     chcr = p.num("child_care_credit_share") * pl.col("federal_chcr") if p.in_effect("child_care_credit_share") else pl.lit(0.0)
     if y >= 2022 and p.in_effect("taxsim_child_care_credit_share") and not behavior.pay_wisconsin_child_care_credit_per_statute:
         # TAXSIM pays half the federal credit from 2022 (the statute's credit is not in the table).
-        chcr = p.num("taxsim_child_care_credit_share") * pl.col("ccc_uncapped")
+        chcr = p.num("taxsim_child_care_credit_share") * pl.col("ccc_uncapped") / flate
     if y >= 2024 and p.in_effect("taxsim_child_care_credit_expense_based") and not behavior.pay_wisconsin_child_care_credit_per_statute:
         # TAXSIM from 2024: a rate falling with AGI (steps rounded up) on the expenses of up to two children under 13,
         # limited to the lower spouse's earnings.

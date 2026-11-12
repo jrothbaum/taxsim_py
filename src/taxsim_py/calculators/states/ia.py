@@ -313,7 +313,7 @@ def compute_ia_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     posagi = pl.col("ia_agi").clip(0, None)
     # Federal credit before its liability limit, read undeflated; TAXSIM
     # leaves it at 0 before 1987.
-    ccc_base = pl.col("ccc_uncapped")
+    ccc_base = pl.col("ccc_uncapped") / flate
     if effective_year <= 1986 and behavior.read_federal_child_care_credit_before_1987:
         ccc_base = pl.col("federal_chcr")
     if p.in_effect("child_care_credit_expense_rate"):
@@ -432,7 +432,7 @@ def compute_ia_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         )
 
     if effective_year >= 2023 and not behavior.compute_iowa_tax_from_2023_per_statute:
-        df = df.with_columns(ia_statax=_taxsim_tax_from_2023(p))
+        df = df.with_columns(ia_statax=_taxsim_tax_from_2023(p, flate))
 
     df = df.with_columns(siitax=pl.col("ia_statax") * flate)
     return with_state_detail(
@@ -448,7 +448,7 @@ def compute_ia_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     )
 
 
-def _taxsim_tax_from_2023(p: YearParams) -> pl.Expr:
+def _taxsim_tax_from_2023(p: YearParams, flate: float) -> pl.Expr:
     """TAXSIM's Iowa tax from 2023 (`iatax23`): federal taxable income less pensions and taxable Social Security
     benefits, taxed by status, the exemption credit, the alternate tax and the refundable credits.
     """
@@ -468,5 +468,5 @@ def _taxsim_tax_from_2023(p: YearParams) -> pl.Expr:
         p.num("alternate_tax_rate") * (income_for_alternate - combined_floor).clip(0, None)
     ).otherwise((income_for_alternate - single_floor).clip(0, None))
     taxbc = pl.min_horizontal(regtax - pl.col("ia_gcred"), altax)
-    chcr = pl.col("ccc_uncapped") * interpolate_table(taxinc, p.value("child_care_credit_federal_share"))
+    chcr = pl.col("ccc_uncapped") / flate * interpolate_table(taxinc, p.value("child_care_credit_federal_share"))
     return taxbc.clip(0, None) - chcr - pl.col("ia_earncr")

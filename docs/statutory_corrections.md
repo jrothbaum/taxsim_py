@@ -661,3 +661,4 @@ Taxsim mode now follows the statutory rule for these (they remain in
 | OR | 2025 on | | The property tax in the itemized deduction is capped at $40,000 (no phase-down) | Statutory: $10,000. `cap_oregon_property_tax_deduction_per_statute` |
 | IN | 2023 on | | The earned income credit is 10% of the federal credit | Both modes |
 | CT | 2024 on | | The property tax credit is available to everyone and its phase-out steps round up | Statutory: continuous steps. `round_connecticut_property_credit_steps_continuously_per_statute` |
+| PA, IA, DC, OH, NE, WI, MN, CA | 2026 | | The federal child care credit the states copy is deflated with the other federal figures in a projected year | Both modes (projection only) |

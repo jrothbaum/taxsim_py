@@ -131,7 +131,7 @@ def compute_oh_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         df, (taxinc,) = checkpoint(df, oh_taxinc=(agi - busded - businc - exemp).clip(0, None))
 
     # --- Child care credit (share of the federal credit before its tax limit) ---
-    chcrbc = pl.col("ccc_uncapped")
+    chcrbc = pl.col("ccc_uncapped") / flate
     regcr = pl.lit(0.0)
     earncr = pl.lit(0.0)
     c = p.value("child_care_credit") if p.in_effect("child_care_credit") else {}

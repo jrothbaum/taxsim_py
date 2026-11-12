@@ -89,7 +89,7 @@ def compute_pa_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     if not behavior.pay_pennsylvania_child_care_credit_only_from_2023 and p.in_effect("taxsim_child_care_credit_share"):
         care_share = p.num("taxsim_child_care_credit_share")
     if care_share > 0:
-        care_credit = care_share * pl.col("ccc_uncapped").clip(0, None)
+        care_credit = care_share * (pl.col("ccc_uncapped") / flate).clip(0, None)
         if p.in_effect("child_care_credit_per_child_cap"):
             cap = p.value("child_care_credit_per_child_cap")
             per_child = pl.when(pl.col("agi") <= cap["income_limit"]).then(float(cap["low_income"])).otherwise(
