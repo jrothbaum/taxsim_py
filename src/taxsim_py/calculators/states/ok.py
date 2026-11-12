@@ -238,7 +238,7 @@ def compute_ok_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             disqy = (pl.col("stcg") + pl.col("ltcg")).clip(0, None) + pl.col("dividends") + pl.col("intrec") + pl.col("otherprop").clip(0, None)
             childless = nkids == 0
             eligible = eitc_filer_eligible(childless, law) & eitc_age_eligible(childless, law)
-            if y >= 2022 and not behavior.test_oklahoma_earned_income_credit_age_per_statute:
+            if y >= 2021 and not behavior.test_oklahoma_earned_income_credit_age_per_statute:
                 # TAXSIM's state credit has no age tests (the line is commented out): any filer who is not a dependent.
                 eligible = ~dependent_filer
             eitc_base = pl.when(eligible).then(
