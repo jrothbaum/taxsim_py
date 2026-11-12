@@ -27,7 +27,7 @@ def compute_al_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     )
     # Tax before credits, NIIT and additional Medicare tax stay undeflated in
     # projected years.
-    df = deflate_for_extrapolation(df, flate, extra=("al_taxable_ui",))
+    df = deflate_for_extrapolation(df, flate, extra=("al_taxable_ui", "tfica"))
 
     # --- AGI ---
     # The federal deduction for half of self-employment tax is added back.
@@ -179,6 +179,9 @@ def compute_al_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             ).clip(0, None)
         )
 
+    if flate != 1.0 and effective_year >= 2009 and not behavior.deduct_alabama_federal_tax_components_per_statute:
+        # In a projected year TAXSIM deducts its (deflated) federal tax as a whole.
+        df = df.with_columns(al_fedtax=pl.col("fiitax").clip(0, None))
     df = df.with_columns(al_deduc=pl.col("al_deduc_before_fedtax") + pl.col("al_fedtax"))
 
     # --- Exemptions ---
