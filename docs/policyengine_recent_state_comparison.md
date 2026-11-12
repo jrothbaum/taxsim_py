@@ -1,7 +1,8 @@
 # Comparison with PolicyEngine-US
 
 `taxsim_py` in `statutory` mode is compared with PolicyEngine-US's TAXSIM API
-for the federal return and all 45 income-tax states, tax years 2022-2025. It is
+for the federal return and all 45 income-tax states, tax years 2022-2025 (2026 is on the
+[comparison page](comparisons.md), which also gives the share of CPS households that agree in every state and year). It is
 a cross-check, not an assertion that PolicyEngine is the reference: where the two
 disagree, the form or statute decides, and the cause is listed below.
 

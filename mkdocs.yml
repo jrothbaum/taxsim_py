@@ -30,6 +30,7 @@ nav:
       - TAXSIM errors and corrections: statutory_corrections.md
       - 2026 state law, sources and verification: state_2026_parameters.md
       - Performance: performance.md
+      - Comparison with TAXSIM and PolicyEngine, by state and year: comparisons.md
       - PolicyEngine comparison: policyengine_recent_state_comparison.md
 
 # The rest of docs/ is maintainer notes, not part of the site.

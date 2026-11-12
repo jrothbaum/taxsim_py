@@ -277,6 +277,27 @@ maximum-tax and earned-income rules) is not yet reproduced. Federal 1977-81 is p
 | --- | --- | --- | --- |
 | IA | 1977-1997 | `iatax77` adds `xm` to the head-of-household credit, but `xm` is set only for 1998 on, so the credit depends on stack garbage (0 and +$10 in two compiles) | The oracle build sets it to the year's credit (`scripts/build_oracle.sh`); taxsim mode credits the head of household that amount twice |
 
+## TAXSIM's answer for a record depends on the records before it
+
+Run one state at a time, TAXSIM is deterministic; mixed with other states, the same Maryland 1977-1984 households
+differ by about $90 each (192 of 200 in a test), though they agree when run alone. Some state routine reads a variable
+left over from the previous record's state. `scripts/build_comparison_report.py` therefore runs the executable one
+state and year at a time. Not traced to a line yet.
+
+## TAXSIM mode against the oracle on CPS households
+
+On CPS ASEC households ([comparison page](comparisons.md)) TAXSIM mode agrees with TAXSIM for 99.1% of households, but
+a few states stay at 91-96% for decades. The mismatches are small groups with pensions, Social Security, other property
+or non-property income, or self-employment income, and are not covered by the synthetic validation cases:
+
+| State | Years | Households that differ | Example |
+| --- | --- | --- | --- |
+| GA | 1989-2026 | with pensions or other property income | single, age 62, pensions $5,566, Social Security $15,044: TAXSIM -$26.00, taxsim-py -$20.34 (2005) |
+| OR | 1992-2026 | with non-property income or pensions | single, age 66, pensions $40,296, interest $7,164: TAXSIM $3,464.50, taxsim-py $3,424.10 (2005) |
+| IA | 1995-2022 | with pensions | married, ages 67 and 73, pensions $2,343, Social Security $18,545: $1,587.72 against $1,589.07 (2005) |
+| MI | 1994-2026 | with self-employment or other property income | single, age 62, pensions $1,114: $1,302.03 against $1,303.07 (2005) |
+| Others | various | PA, KS, MA 1977-2022, NY and NC 2018-2021, VT 2022 on | see `docs/data/comparison_taxsim.csv` |
+
 ## Federal AGI carries 1 cent more in the oracle
 
 The 2026 build's federal AGI is the inputs plus $0.011, not plus $0.001: it adds $0.01 to wages (even with no wages). The Python federal AGI has only the $0.001 dividend adjustment. Federal validation tolerates the cent, but state tables read by interpolation (Connecticut's personal credit) amplify it into differences of up to 4 cents; those cases are among the Connecticut results that still differ.

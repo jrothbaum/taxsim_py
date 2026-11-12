@@ -81,7 +81,7 @@ optional reader (`pip install "taxsim-py[readstat]"`, which adds
 
 ## What is supported
 
-- **Years:** federal tax 1960-2025 and state tax 1977-2025, all actual law. Other
+- **Years:** federal tax 1960-2026 and state tax 1977-2026, all actual law. Other
   years raise an error.
 - **States:** all 50 states and DC (TAXSIM codes 1-51; 0 means no state). States
   without an income tax return 0, except Washington's Working Families credit in
@@ -93,8 +93,10 @@ optional reader (`pip install "taxsim-py[readstat]"`, which adds
 - **Accuracy:** in `taxsim` mode, to the cent against the compiled TAXSIM on the
   validation matrix, apart from logged TAXSIM errors. `statutory` mode follows the law where TAXSIM is
   wrong ([Statutory corrections](https://jrothbaum.github.io/taxsim_py/statutory_corrections/)); its remaining
-  differences from PolicyEngine-US (2022-2025) are in the
-  [PolicyEngine comparison](https://jrothbaum.github.io/taxsim_py/policyengine_recent_state_comparison/).
+  differences from PolicyEngine-US (2022-2026) are in the
+  [PolicyEngine comparison](https://jrothbaum.github.io/taxsim_py/policyengine_recent_state_comparison/). Agreement with TAXSIM and
+  PolicyEngine for every state and year, on CPS households, is on the
+  [comparison page](https://jrothbaum.github.io/taxsim_py/comparisons/).
 - **Not modelled:** items TAXSIM has no input for, such as 2025 deductions for tips,
   overtime and car-loan interest, and Washington's capital gains tax.
 - **Speed:** on a mixed 42-state batch, 1,000,000 rows including marginal rates take

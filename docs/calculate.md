@@ -145,5 +145,5 @@ See [Performance](performance.md) for timings and memory.
 ## Errors
 
 `calculate_taxes` raises `ValueError` for a missing `state`, `mstat` or year column; a
-null `mstat` or year; an unsupported `mstat`; an empty frame; and years outside 1960-2025
+null `mstat` or year; an unsupported `mstat`; an empty frame; and years outside 1960-2026
 (state tax from 1977).
