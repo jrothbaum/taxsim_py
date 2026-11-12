@@ -1060,7 +1060,7 @@ def compute_mn_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     df, (credit,) = checkpoint(df, mn_credit=credit)
 
     # --- Working Family Credit ---
-    base_agi = fed_agi + (ui_total - untax if y == 2020 else 0.0)
+    base_agi = fed_agi + (ui_total - untax if y == 2020 and behavior.add_back_minnesota_unemployment_exclusion_to_working_family_income_per_statute else 0.0)
     work = _working_family_credit(pl.col("earned_income"), base_agi, fed_agi, is_joint, y, behavior)
     work = pl.when(dependent_filer).then(0.0).otherwise(work)
 
