@@ -355,3 +355,5 @@ The oracle's `witax23` returns a state tax of 0 for a married-separate return wi
 ### Built-in oracle dumps (use with `scripts/trace_oracle.py ... dump=<code>`)
 
 The NBER source prints a state routine's working variables when `extnd(30)` equals a code. `trace_oracle.py` sets it from `dump=`. Codes: 104 AR, 105 CA, 106 CO, 107 CT, 108 DE, 109 DC, 111 GA, 119 LA, 120 ME, 121 MD, 122 MA, 123 MI, 124 MN, 125 MS, 126 MO, 127 MT, 128 NE, 131 NJ, 133 NY (worksheets), 136 OH, 137 OK, 138 OR, 140 RI, 146 VT, 147 VA, 148 WA, 149 WV, 150 WI, 160 federal EITC. Example: `uv run python scripts/trace_oracle.py year=2026 state=20 mstat=2 pwages=30000 depx=1 dep13=1 dep17=1 dep18=1 dump=120`. States without a code (for example Utah and Kansas) can get one by adding a `write` line in `scripts/build_oracle.sh`.
+
+- Utah through 2017 (`uttax77`): the taxpayer credit base subtracted `xl14`, which is only set from 2018, so it used the previous record's value. Now zero (`build_oracle.sh`), which removed every 2008-2017 itemizer mismatch. The 1993-2007 high-income itemizers still differ by $25-$70 (the federal tax deduction base); not yet traced.
