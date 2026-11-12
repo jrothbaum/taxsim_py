@@ -129,6 +129,7 @@ social_security_exemption_start:
 taxsim_social_security_exemption_start:
   2018: {married_joint: 70000.0, other: 55000.0}
   2022: {married_joint: 75000.0, other: 60000.0}
+  2025: {married_joint: 80000.0, other: 65000.0}
 social_security_exemption_range: 10000.0
 # From 2018 (married filing separately uses the single amount).
 standard_deduction:

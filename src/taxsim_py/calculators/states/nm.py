@@ -173,6 +173,12 @@ def compute_nm_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         elif y >= 2025:
             # From 2025 TAXSIM reads the federal standard deduction directly, so it is never zeroed.
             stded = pl.col("standard_deduction")
+            if not behavior.limit_new_mexico_dependent_filer_standard_deduction_per_statute:
+                # ... and the dependent filer's limit is not applied to the amount it reads.
+                federal_amounts = YearParams(load_yaml(PARAMETERS_ROOT / "national" / "income_tax.yaml"), y)
+                stded = pl.when(dependent_filer).then(
+                    by_filing_status({s: float(federal_amounts.num("standard_deduction", "single" if s == "married_separate" else s)) / flate for s in _STATUSES})
+                ).otherwise(stded)
     df, (deduc, xitded, stded) = checkpoint(
         df,
         nm_deduc=pl.max_horizontal(xitded, stded),
