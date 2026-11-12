@@ -133,6 +133,8 @@ class BehaviorProfile:
     use_south_carolina_published_tax_table: bool = True
     allow_qbi_deduction_in_south_carolina: bool = True
     count_colorado_credit_children_per_statute: bool = True
+    cap_michigan_senior_renter_credit_at_statute_amount: bool = True
+    give_michigan_dependent_filers_exemption_per_statute: bool = True
     allow_georgia_retirement_exclusion_before_1989_per_statute: bool = True
     compute_utah_child_tax_credit_per_statute: bool = True
     limit_rhode_island_child_care_credit_by_federal_tax_per_statute: bool = True

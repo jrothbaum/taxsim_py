@@ -651,3 +651,7 @@ Taxsim mode now follows the statutory rule for these (they remain in
 | UT | 2024 on | | Child tax credit counts children under 13 and reduces by federal AGI over $27,000 for singles and separate filers ($43,000 head of household, $54,000 joint) | Statutory: children under 6, taxable income over $43,000 for singles. `compute_utah_child_tax_credit_per_statute` |
 | GA | 1982-1988 | | No retirement income exclusion (TAXSIM starts it in 1989) | Statutory: $2,000-$4,000. `allow_georgia_retirement_exclusion_before_1989_per_statute` |
 | GA | 2024 on | | Retirement exclusion earnings cap is $5,000 | Both modes |
+| MI | 2021 on | | A dependent filer has no exemption and still gets the home heating credit | Statutory: `give_michigan_dependent_filers_exemption_per_statute` |
+| MI | 2023 on | | The senior deduction follows the birth-year tiers (no Worksheet 2 reduction by exemptions) | Same as 2021-22 TAXSIM tiers |
+| MI | 2021 on | | The homestead credit's household income is not reduced by self-employment tax; the renter alternative for age 65+ is capped at $1,500 | Statutory: reduced; capped at the year's maximum. `cap_michigan_senior_renter_credit_at_statute_amount` |
+| MI, WI | 2026 | | Household income for credits is the deflated copy in a projected year | Both modes (projection only) |

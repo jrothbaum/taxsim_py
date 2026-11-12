@@ -105,6 +105,9 @@ def compute_mi_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         exemp = (num - aged) * xmp1 + (aged + ump) * p.num("special_exemption")
         exemp = exemp + p.num("dependent_exemption") * pl.col("depx")
     dependent_exemption = p.num("dependent_filer_exemption")
+    if effective_year >= 2021 and not behavior.give_michigan_dependent_filers_exemption_per_statute:
+        # TAXSIM's 2022 on routine counts no taxpayers for a dependent filer, so no exemption at all.
+        dependent_exemption = 0.0
     exemp = pl.when(is_dependent_filer()).then(dependent_exemption).otherwise(exemp)
 
     if taxsim_tiers_2021:
@@ -154,7 +157,7 @@ def compute_mi_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     if tiered:
         # Born after the second tier: the deduction less exemptions from the age.
         pens = pl.when(tier_three & reached).then((tier_amount - exemp).clip(0, None)).otherwise(pens)
-    if y >= 2023:
+    if y >= 2023 and not taxsim_tiers_2021:
         # MI-1040 Worksheet 2: the senior standard deduction less exemptions.
         pens = pl.when(aged > 0).then((pens - exemp).clip(0, None)).otherwise(pens)
         cap = pl.when(is_joint).then(p.num("expanded_retirement_maximum", "joint")).otherwise(p.num("expanded_retirement_maximum", "single"))
@@ -167,7 +170,7 @@ def compute_mi_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     # --- Homestead property tax credit (non-elderly branch) ---
     hhy = (
         pl.col("mi_household_income")
-        - p.num("property_credit_self_employment_tax_deduction_rate")
+        - (0.0 if y >= 2021 and not behavior.add_back_michigan_self_employment_tax_from_2021_per_statute else p.num("property_credit_self_employment_tax_deduction_rate"))
         * pl.col("mi_setax")
     ).clip(0, None)
     allow = p.num("property_credit_phaseout_start")
@@ -188,7 +191,20 @@ def compute_mi_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         pcred_aged = pl.when(rentpaid > 0).then(
             pl.max_horizontal(pcred_aged, rentpaid - p.num("property_credit_senior_rent_income_share") * hhy)
         ).otherwise(pcred_aged)
-    pcred = pl.when(aged > 0).then(pcred_aged).otherwise(pcred_under65).clip(None, p.num("property_credit_cap"))
+    if y >= 2021 and not behavior.cap_michigan_senior_renter_credit_at_statute_amount:
+        # TAXSIM caps the alternative renter credit for taxpayers 65 or older at a fixed $1,500 (applied after the main cap).
+        pcred_aged_main = (ptax - interpolate_table(hhy, p.value("property_credit_senior_income_share")) * hhy).clip(0, None)
+        pcred_aged_main = pcred_aged_main * interpolate_table(hhy, MI_PARAMS["property_credit_senior_percentage"]) if y >= 2012 else pcred_aged_main
+        pcred_aged = pcred_aged_main.clip(None, p.num("property_credit_cap"))
+        older_65 = pl.max_horizontal(pl.col("page"), pl.col("sage")) >= 65
+        rent_alternative = pl.min_horizontal(
+            pl.lit(1500.0),
+            pl.max_horizontal(pcred_aged, pl.col("rentpaid") - p.num("property_credit_senior_rent_income_share") * hhy),
+        )
+        pcred_aged = pl.when(older_65 & (pl.col("rentpaid") > 0)).then(pl.max_horizontal(pcred_aged, rent_alternative)).otherwise(pcred_aged)
+        pcred = pl.when(aged > 0).then(pcred_aged).otherwise(pcred_under65.clip(None, p.num("property_credit_cap")))
+    else:
+        pcred = pl.when(aged > 0).then(pcred_aged).otherwise(pcred_under65).clip(None, p.num("property_credit_cap"))
     pcred = pl.when(hhy > allow).then(
         pcred
         * (
@@ -205,7 +221,8 @@ def compute_mi_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     # --- Home heating credit ---
     amex = pl.when(is_dependent_filer()).then(0.0).otherwise(n_tp + pl.col("depx"))
     nexemp = amex.clip(None, 6.0).floor()
-    hy = pl.col("mi_household_income_undeflated")
+    # TAXSIM reads the household income from its deflated copy (`data(159)`) in a projected year.
+    hy = pl.col("mi_household_income_undeflated") / flate
     if p.in_effect("heating_credit_inflation"):
         base = p.value("heating_credit_base_by_exemptions")
         fc = pl.lit(0.0)
@@ -223,7 +240,7 @@ def compute_mi_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     fuel = (
         pl.when(nexemp > 0)
         .then((fc - p.num("heating_credit_income_rate") * hy).clip(0, None))
-        .otherwise(0.0)
+        .otherwise(0.0 if behavior.give_michigan_dependent_filers_exemption_per_statute or effective_year < 2021 else pl.when(is_dependent_filer()).then((fc - p.num("heating_credit_income_rate") * hy).clip(0, None)).otherwise(0.0))
         * p.num("heating_credit_share")
     )
 
