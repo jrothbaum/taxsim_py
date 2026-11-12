@@ -34,3 +34,8 @@ eitc_childless_minimum_age: {2023: 18}
 # Child tax credit from 2024 (P.A. 103-0592): this share of the state EITC
 # for a return with a child under 12.
 child_tax_credit_rate: {2024: 0.20, 2025: 0.40}
+
+# The 2022 property tax rebate: the property tax credit up to `maximum`, for AGI under the limit per taxpayer.
+property_tax_rebate:
+  2022: {maximum: 300, agi_limit_per_taxpayer: 250000}
+  2023: null

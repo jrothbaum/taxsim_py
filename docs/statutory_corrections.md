@@ -710,3 +710,6 @@ Taxsim mode now follows the statutory rule for these (they remain in
 | North Dakota | 2007 on | | The lower earner's earnings for the marriage credit are wages plus 92.35% of self-employment income | Statutory: less half the self-employment tax. `compute_north_dakota_marriage_credit_earnings_per_statute` |
 | South Carolina | projected years | | The federal qualified business income deduction added back is in deflated dollars | Statutory: n/a. `allow_qbi_deduction_in_south_carolina` |
 | South Carolina | 2021 | | The state income tax add-back is limited to the itemized total above the 2021 standard deduction | Statutory: the whole tax. `use_current_federal_standard_deduction_for_south_carolina_addback` |
+| Illinois | 2024 on | | The state earned income credit has no upper age limit; dependent filers get none | Statutory: the age test. `apply_illinois_earned_income_credit_age_test_per_statute` |
+| Illinois | 2022 | | A property tax rebate of the property tax credit up to 300 (AGI under 250,000 per taxpayer), on top of the per-person rebate | Statutory: n/a (one-time rebate). `leave_out_one_time_state_rebates` |
+| All | projected years | | The federal qualified business income deduction and senior deduction are deflated when a state reads them | Statutory: n/a. |
