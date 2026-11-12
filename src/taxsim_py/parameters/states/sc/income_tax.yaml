@@ -46,6 +46,8 @@ brackets:
   2023: [[0, 0.0], [3330, 0.03], [16680, 0.064]]
   2024: [[0, 0.0], [3460, 0.03], [17330, 0.062]]
   2025: [[0, 0.0], [3560, 0.03], [17830, 0.06]]
+  # H.4216 of 2026: 1.99% to $30,000, then 5.21%.
+  2026: [[0, 0.0199], [30000, 0.0521]]
 # The TAXSIM build's own bracket tops for 2009-2021 (typed by year, not indexed).
 taxsim_brackets:
   2009: [[0, 0.0], [2760, 0.03], [5520, 0.04], [8280, 0.05], [11040, 0.06], [13800, 0.07]]
@@ -188,6 +190,7 @@ charity_nonitemizer_addback: {2020: 300.0, 2022: null}
 # part that law added, and every filer adds back the federal senior deduction.
 federal_standard_deduction_increase_addback:
   2025: {single: 750, married_joint: 1500, head_of_household: 1125, married_separate: 750}
+  2026: {single: 750, married_joint: 1500, head_of_household: 1150, married_separate: 750}
 # From 2018, exemption per dependent and per child under six.
 dependent_exemption:
   2018: 4110.0
@@ -198,6 +201,7 @@ dependent_exemption:
   2023: 4610.0
   2024: 4790.0
   2025: 4930
+  2026: 5040
 # Retirement income deduction from 1983: pensions up to this per taxpayer; from
 # 1993 taxpayers 65 or older get the higher amount (a joint return with one such
 # taxpayer gets one of each); from 1999 returns with a taxpayer 65 or older
@@ -224,3 +228,13 @@ two_earner_earnings_max:
   2023: 50000.0
 # From 2018, earned income credit as a share of the federal credit.
 eitc_rate: {2018: 0.2083, 2019: 0.4167, 2020: 0.625, 2021: 0.833, 2022: 1.0417, 2023: 1.25}
+# From 2026 (H.4216): a state deduction replaces the federal standard and itemized deductions, phased out
+# linearly from `phase_out_start` over `phase_out_width` of federal AGI. Source: SC Department of Revenue,
+# "Information about H.4216"; the phase-out follows the bill text as modelled by PolicyEngine-US.
+state_deduction:
+  2026:
+    amount: {single: 15000, married_separate: 15000, head_of_household: 22500, married_joint: 30000}
+    phase_out_start: {single: 40000, married_separate: 40000, head_of_household: 60000, married_joint: 80000}
+    phase_out_width: {single: 55000, married_separate: 55000, head_of_household: 82500, married_joint: 110000}
+# The state earned income credit is capped at this amount from 2026.
+eitc_maximum: {2026: 200}

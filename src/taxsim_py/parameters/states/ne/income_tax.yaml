@@ -89,6 +89,11 @@ brackets:
     single: [[0, 0.0246], [4030, 0.0351], [24120, 0.0501], [38870, 0.052]]
     married_joint: [[0, 0.0246], [8040, 0.0351], [48250, 0.0501], [77730, 0.052]]
     head_of_household: [[0, 0.0246], [7510, 0.0351], [38590, 0.0501], [57630, 0.052]]
+  # 2026: the two upper rates become 4.55%.
+  2026:
+    single: [[0, 0.0246], [4130, 0.0351], [24760, 0.0455], [39900, 0.0455]]
+    married_joint: [[0, 0.0246], [8250, 0.0351], [49530, 0.0455], [79800, 0.0455]]
+    head_of_household: [[0, 0.0246], [7700, 0.0351], [39620, 0.0455], [59160, 0.0455]]
 # The TAXSIM build's 2022-2023 tables: its 2014 thresholds times its own inflation factor.
 taxsim_brackets:
   2022:
@@ -252,7 +257,7 @@ standard_deduction_property_tax_cap: {2008: 500, 2010: null}
 # From 2018 Nebraska's own standard deduction (married separate gets half), plus
 # `standard_deduction_aged_addition` per taxpayer 65 or older.
 standard_deduction:
-  single: {2018: 6750, 2019: 6900, 2020: 7000, 2021: 7100, 2022: 7350, 2023: 7900, 2024: 8350, 2025: 8600}
+  single: {2018: 6750, 2019: 6900, 2020: 7000, 2021: 7100, 2022: 7350, 2023: 7900, 2024: 8350, 2025: 8600, 2026: 8750}
   married:
     2018: 13500
     2019: 13800
@@ -262,6 +267,7 @@ standard_deduction:
     2023: 15800
     2024: 16700
     2025: 17200
+    2026: 17550
   head_of_household:
     2018: 9900
     2019: 10100
@@ -271,6 +277,7 @@ standard_deduction:
     2023: 11600
     2024: 12250
     2025: 12600
+    2026: 12850
 standard_deduction_aged_addition:
   single: {2018: 1600, 2020: 1650, 2022: 1700, 2023: 1850, 2024: 1950, 2025: 2000}
   married: {2018: 1300, 2020: 1350, 2022: 1400, 2023: 1500, 2024: 1600, 2025: 1650}
@@ -318,6 +325,7 @@ personal_credit:
   2023: 157
   2024: 166
   2025: 171
+  2026: 175
 # 1993-2005: the personal credit falls by `personal_credit_phaseout_amount` per
 # `personal_credit_phaseout_step` (halved on separate returns) of federal AGI
 # above the threshold.

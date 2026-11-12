@@ -76,6 +76,9 @@ def compute_sc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         # before 1987; the federal tax-table income includes it.
         _, fed_itemizes, zbr = pre1987_federal_itemizing(y)
         agi = (pl.col("taxable_income") - zbr).clip(0, None)
+    elif p.in_effect("state_deduction"):
+        # From 2026 South Carolina starts from federal AGI and takes its own deduction (H.4216).
+        agi = fed_agi
     else:
         agi = pl.col("taxable_income")
     if 1985 <= y <= 1989 and not behavior.tax_south_carolina_capital_gains_1985_1989:
@@ -244,7 +247,18 @@ def compute_sc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         # TAXSIM's `numlt(6)` counts children under 13 (its age bands are off by one).
         young = pl.col("dep6") if (behavior.count_children_under_6_by_dep6 or y < 2022) else pl.col("dep13")
         exemp = p.num("dependent_exemption") * (depx + young)
-    taxinc = (agi + tx - dedgan + add - exemp - adjust).clip(0, None)
+    if p.in_effect("state_deduction"):
+        # The deduction replaces the federal standard and itemized deductions (and their add-backs), phased out
+        # linearly over a width above a start.
+        k = p.value("state_deduction")
+        amount = by_filing_status({s: float(v) for s, v in k["amount"].items()})
+        start = by_filing_status({s: float(v) for s, v in k["phase_out_start"].items()})
+        width = by_filing_status({s: float(v) for s, v in k["phase_out_width"].items()})
+        deduction = amount * (1.0 - ((agi - start).clip(0, None) / width).clip(None, 1.0))
+        tx, add, adjust = pl.lit(0.0), deduction, pl.lit(0.0)
+        taxinc = (agi - dedgan - add - exemp).clip(0, None)
+    else:
+        taxinc = (agi + tx - dedgan + add - exemp - adjust).clip(0, None)
     df, (taxinc,) = checkpoint(df, sc_taxinc=taxinc)
 
     # --- Tax ---
@@ -300,6 +314,8 @@ def compute_sc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         twocrd = pl.when(is_joint).then(p["two_earner_credit_rate"] * earnls).otherwise(0.0)
 
     earncr = p.num("eitc_rate") * pl.col("eitc") if p.in_effect("eitc_rate") else pl.lit(0.0)
+    if p.in_effect("eitc_maximum"):
+        earncr = earncr.clip(None, p.num("eitc_maximum"))
     statax = (statax - chcr - twocrd - earncr).clip(0, None)
 
     df = df.with_columns(siitax=statax * flate)

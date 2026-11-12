@@ -96,6 +96,9 @@ brackets:
   2025:
     single: [[0, 0.0475], [4400, 0.0675], [11100, 0.0875], [125000, 0.099]]
     married: [[0, 0.0475], [8800, 0.0675], [22200, 0.0875], [250000, 0.099]]
+  2026:
+    single: [[0, 0.0475], [4450, 0.0675], [11350, 0.0875], [125000, 0.099]]
+    married: [[0, 0.0475], [8900, 0.0675], [22700, 0.0875], [250000, 0.099]]
 # Tax multiplier (surtax or reduction) on positive tax.
 tax_multiplier: {1977: 1.0, 1985: 0.923, 1986: 1.0, 1987: 0.834, 1988: 1.0, 1989: 0.902, 1992: 1.0}
 # Minimum tax on federal preference income through 1986, when preferences
@@ -150,6 +153,7 @@ federal_tax_limit:
   2023: 7800.0
   2024: 8250.0
   2025: 8500
+  2026: 8650
 federal_tax_limit_phaseout: [[125000, 1.0], [130000, 1.25], [135000, 1.675], [140000, 2.53], [145000, 5.15]]
 # TAXSIM's 2022-2025 federal tax subtraction limit: [federal AGI per person, limit]
 # interpolated (the limit steps down by a fifth of the full amount, rounded).
@@ -182,6 +186,7 @@ standard_deduction:
   2023: {single: 2605.0, married_joint: 5210.0, married_separate: 2605.0, head_of_household: 4195.0}
   2024: {single: 2745.0, married_joint: 5495.0, married_separate: 2745.0, head_of_household: 4420.0}
   2025: {single: 2835.0, married_joint: 5670.0, married_separate: 2835.0, head_of_household: 4560.0}
+  2026: {single: 2895.0, married_joint: 5795.0, married_separate: 2895.0, head_of_household: 4660.0}
 # TAXSIM's working family household and dependent care credit (2016 on): income is
 # scaled to 2024 dollars by `income_scaling`, then the row of `income_limits` (by
 # household size 2-8) that it falls under gives the `percent` of expenses. The credit
@@ -338,6 +343,7 @@ exemption_credit:
   2023: 236.0
   2024: 249.0
   2025: 256
+  2026: 262
 exemption_credit_income_limit: {2013: 100000.0}
 # 2007-2012 phaseout: the rate per step of federal AGI above the itemized
 # limitation threshold times the index (times the factor for heads of household
@@ -356,9 +362,9 @@ retirement_income_credit:
     income_start_per_taxpayer: 15000
     agi_limit_per_taxpayer: 22500
 # Earned income credit from 1997: a share of the federal credit.
-eitc_rate: {1997: 0.05, 2008: 0.06, 2014: 0.08, 2020: 0.09}
+eitc_rate: {1997: 0.05, 2008: 0.06, 2014: 0.08, 2020: 0.09, 2026: 0.14}
 # From 2022, the share for a return with a child under 3.
-eitc_rate_young_child: {2022: 0.12}
+eitc_rate_young_child: {2022: 0.12, 2026: 0.17}
 # Working family child care credit 1997-2015 (not for separate returns): share
 # of child care expenses by federal AGI (interpolated), with thresholds by
 # household size (1-8) times the index; requires earned income of at least the
@@ -484,3 +490,4 @@ kids_credit:
   2023: {amount: 1000, child_limit: 5, reduction_start: 25000, reduction_width: 5000}
   2024: {amount: 1000, child_limit: 5, reduction_start: 25750, reduction_width: 5000}
   2025: {amount: 1050, child_limit: 5, reduction_start: 26550, reduction_width: 5000}
+  2026: {amount: 1050, child_limit: 5, reduction_start: 27250, reduction_width: 5000}

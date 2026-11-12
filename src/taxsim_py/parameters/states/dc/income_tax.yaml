@@ -53,6 +53,7 @@ standard_deduction_property_tax_addition: {2008: 500, 2010: null}
 # (PolicyEngine-US gov.states.dc.tax.income.deductions.standard).
 standard_deduction_nonconforming:
   2025: {single: 15000, married_joint: 30000, head_of_household: 22500}
+  2026: {single: 15300, married_joint: 30650, head_of_household: 23000}
 
 # --- Itemized deductions ---
 # Itemized deductions fall by `rate` of AGI above `threshold` (halved on
@@ -145,6 +146,14 @@ property_credit_schedule:
     nonelderly_upper_bounds: [25000, 52000, 66000, .inf]
     nonelderly_rates: [0.03, 0.04, 0.05, 0.0]
     elderly_upper_bounds: [90000, .inf]
+    elderly_rates: [0.03, 0.0]
+    elderly_age: 70
+    rent_share: 0.20
+  2026:
+    max: 1450
+    nonelderly_upper_bounds: [25000, 52000, 67400, .inf]
+    nonelderly_rates: [0.03, 0.04, 0.05, 0.0]
+    elderly_upper_bounds: [92000, .inf]
     elderly_rates: [0.03, 0.0]
     elderly_age: 70
     rent_share: 0.20
@@ -316,8 +325,15 @@ eitc_childless:
   2023: {max_credit: 600, max_earned: 28964, phaseout_start: 21888, phase_in_rate: 0.0765, disqualified_income_limit: 11000}
   2024: {max_credit: 632, max_earned: 30019, phaseout_start: 22566, phase_in_rate: 0.0765, disqualified_income_limit: 11600}
   2025: {max_credit: 649, max_earned: 30941, phaseout_start: 23288, phase_in_rate: 0.0765, disqualified_income_limit: 11950}
+  2026: {max_credit: 664, max_earned: 31650, phaseout_start: 23816, phase_in_rate: 0.0765, disqualified_income_limit: 12200}
 eitc_childless_phaseout_rate: 0.0848
 eitc_childless_age_limits: {minimum_age: 25, maximum_age: 65}
 
 # TAXSIM's cap on the 2014-2018 property tax credit: the contents of memory it reads past a table.
 taxsim_property_credit_cap: {2014: 355.0, 2015: 349.0, 2016: 353.0, 2017: 279.0, 2018: 0.0, 2019: null}
+# Refundable credit per child under 18 from 2026 (Thomson Reuters and the Council bill summary; the amount is under dispute in Congress).
+child_tax_credit:
+  2026:
+    amount: 1000
+    reduction_per_1000: 50
+    threshold: {single: 55000, married_joint: 70000, head_of_household: 55000, married_separate: 35000}

@@ -64,6 +64,7 @@ personal_exemption:
   2023: 5400
   2024: 5600
   2025: 5800
+  2026: 5950
 special_exemption:
   1977: 0
   1987: 1400
@@ -342,10 +343,10 @@ taxsim_last_tier_three_birth_year: {2020: 1953, 2021: 1954, 2022: 1956, 2023: 19
 # exemptions claimed, and the retirement subtraction is phased in for
 # taxpayers born 1946-1958 as a share of the private-pension maximum when
 # larger (Public Act 4 of 2023).
-expanded_retirement_share: {2022: 0.0, 2023: 0.25, 2024: 0.5, 2025: 0.75}
+expanded_retirement_share: {2022: 0.0, 2023: 0.25, 2024: 0.5, 2025: 0.75, 2026: 1.0}
 expanded_retirement_maximum:
-  single: {2022: 56961, 2023: 61518, 2024: 64040, 2025: 65897}
-  joint: {2022: 113922, 2023: 123036, 2024: 128080, 2025: 131794}
+  single: {2022: 56961, 2023: 61518, 2024: 64040, 2025: 65897, 2026: 67390}
+  joint: {2022: 113922, 2023: 123036, 2024: 128080, 2025: 131794, 2026: 134781}
 
 # A dependent filer's exemption; no tax when AGI is below it.
 dependent_filer_exemption:

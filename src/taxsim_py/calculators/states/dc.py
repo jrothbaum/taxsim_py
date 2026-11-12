@@ -455,6 +455,15 @@ def compute_dc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     )
     df = df.with_columns(dc_statax=(pl.col("dc_statax") - pl.col("dc_pcred")))
 
+    if p.in_effect("child_tax_credit"):
+        # A refundable credit per qualifying child under 18, cut by a fixed amount for each $1,000 (or part) of AGI
+        # over a threshold that depends on the filing status.
+        k = p.value("child_tax_credit")
+        threshold = by_filing_status({s: float(v) for s, v in k["threshold"].items()})
+        steps = ((pl.col("dc_agi") - threshold).clip(0, None) / 1000.0).ceil()
+        child_credit = (float(k["amount"]) * pl.col("dep17") - float(k["reduction_per_1000"]) * steps).clip(0, None)
+        df = df.with_columns(dc_statax=pl.col("dc_statax") - child_credit)
+
     df = df.with_columns(siitax=pl.col("dc_statax") * flate)
     return with_state_detail(
         df,

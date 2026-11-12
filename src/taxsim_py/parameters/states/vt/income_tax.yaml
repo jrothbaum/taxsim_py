@@ -67,6 +67,10 @@ brackets:
     single: [[0, 0.0335], [49400, 0.066], [119700, 0.076], [249700, 0.0875]]
     head_of_household: [[0, 0.0335], [66200, 0.066], [171000, 0.076], [276850, 0.0875]]
     married: [[0, 0.0335], [82500, 0.066], [199450, 0.076], [304000, 0.0875]]
+  2026:
+    single: [[0, 0.0335], [50500, 0.066], [122400, 0.076], [255350, 0.0875]]
+    head_of_household: [[0, 0.0335], [67700, 0.066], [174850, 0.076], [283100, 0.0875]]
+    married: [[0, 0.0335], [84350, 0.066], [203950, 0.076], [310850, 0.0875]]
 bracket_index:
   2001: 1.0
   2003: 1.016
@@ -141,13 +145,14 @@ standard_deduction:
   2023: {single: 7000.0, head_of_household: 10550.0, married_joint: 14050.0}
   2024: {single: 7400.0, head_of_household: 11100.0, married_joint: 14850.0}
   2025: {single: 7650.0, head_of_household: 11450.0, married_joint: 15300.0}
+  2026: {single: 7800.0, head_of_household: 11700.0, married_joint: 15600.0}
 # TAXSIM's 2024 single standard deduction and exemption (its price index, unrounded); other years match the law.
 taxsim_standard_deduction_single: {2024: 7378, 2025: null}
 taxsim_exemption_amount: {2024: 5112, 2025: null}
 # From 2018, additional standard deduction per taxpayer 65 or older.
 standard_deduction_aged_addition: {2018: 1000.0, 2021: 1050.0, 2023: 1150.0, 2024: 1200.0, 2025: 1250}
 # From 2018, exemption per federal exemption.
-exemption_amount: {2018: 4150.0, 2019: 4250.0, 2020: 4350.0, 2022: 4500.0, 2023: 4850.0, 2024: 5100.0, 2025: 5300}
+exemption_amount: {2018: 4150.0, 2019: 4250.0, 2020: 4350.0, 2022: 4500.0, 2023: 4850.0, 2024: 5100.0, 2025: 5300, 2026: 5400}
 
 # --- Nonrefundable credits ---
 # Low income credit through 1990: a share of tax by tax (interpolated) for
