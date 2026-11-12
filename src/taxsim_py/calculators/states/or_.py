@@ -133,7 +133,10 @@ def compute_or_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     tx = salt if y <= 2017 else pl.lit(0.0)
     if y >= 1991:
         if p.in_effect("salt_cap"):
-            xlin8 = pl.min_horizontal(p.num("salt_cap") / sep, pl.col("proptax")) + pl.col("otheritem")
+            cap = p.num("salt_cap")
+            if p.in_effect("taxsim_salt_cap") and not behavior.cap_oregon_property_tax_deduction_per_statute:
+                cap = p.num("taxsim_salt_cap")
+            xlin8 = pl.min_horizontal(cap / sep, pl.col("proptax")) + pl.col("otheritem")
         else:
             xlin8 = tx + pl.col("proptax") + pl.col("otheritem")
         xtot = xlin8 + pl.col("mortgage") + pl.col("charity_cash")

@@ -658,3 +658,5 @@ Taxsim mode now follows the statutory rule for these (they remain in
 | Federal/state | 2024 on | | The federal zero bracket amount that states read (`c(3)`) is not zeroed on the pass that forces itemizing | Engine rule for the TAXSIM build, no statutory counterpart |
 | MO | 2024 on | | Social Security is exempt only for a spouse 62 or older, with no income phase-out | Statutory: all benefits under the income limits. `exempt_missouri_social_security_at_any_age_per_statute` |
 | AL, MO | 2026 | | Payroll taxes deducted are deflated in a projected year; Alabama deducts the deflated federal tax | Alabama: `deduct_alabama_federal_tax_components_per_statute` |
+| OR | 2025 on | | The property tax in the itemized deduction is capped at $40,000 (no phase-down) | Statutory: $10,000. `cap_oregon_property_tax_deduction_per_statute` |
+| IN | 2023 on | | The earned income credit is 10% of the federal credit | Both modes |

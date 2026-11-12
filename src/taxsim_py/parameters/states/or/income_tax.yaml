@@ -274,6 +274,8 @@ itemized_limit_status_factor:
 itemized_limit_share: 0.8
 itemized_limit_rate: 0.03
 salt_cap: {2018: 10000.0}
+# TAXSIM raises the cap on property tax with the federal cap in 2025 (without the federal phase-down).
+taxsim_salt_cap: {2025: 40000.0}
 # 2020: federal charitable deduction for nonitemizers removed.
 charity_nonitemizer: {2020: 300.0, 2021: null}
 # Exemption per federal exemption through 1982 (an exemption credit from 1983).
