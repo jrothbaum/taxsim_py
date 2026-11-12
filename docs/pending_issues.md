@@ -342,3 +342,7 @@ amount carried by its price index (about $450 above the published one in 2026).
 ## Tracing the oracle
 
 `scripts/trace_failures.py <VALIDATE_OUT dir> state=MT year=2025 min=5 limit=5` traces only the worst disagreeing cases of a validation run, one file each (console shows one line per case). `scripts/trace_oracle.py year=2025 state=27 mstat=1 pwages=60000 ...` prints every nonzero federal result `c(i)` and input `d(i)` the NBER code hands a state routine for one household (the patch is in `scripts/build_oracle.sh`; it runs only when `opt1=30, opt1v=999`). Use it before reading a state routine, to see hidden inputs such as `c(201)` or `c(215)`.
+
+## Wisconsin 2023, married separate
+
+The oracle's `witax23` returns a state tax of 0 for a married-separate return with $30,000 of wages in 2023 (`crednon` and the tax before credits are about -8.3e10, apparently an out-of-range table index for filing status 6). Other married-separate incomes in 2023 are fine. Python computes the real $706; left as a known disagreement.

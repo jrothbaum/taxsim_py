@@ -259,7 +259,8 @@ def compute_wi_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     df, (statax,) = checkpoint(df, wi_tax_before_credits=statax)
 
     # --- Credits ---
-    hy = pl.col("wi_household_income_undeflated")
+    # TAXSIM reads the household income from its deflated copy (`data(159)`) in a projected year.
+    hy = pl.col("wi_household_income_undeflated") / flate
     c = p.value("exemption_credit") if p.in_effect("exemption_credit") else {}
     if "taxpayer" in c:
         exempc = c["taxpayer"] * txp + c["aged"] * aged + c["dependent"] * depx + pl.when(
