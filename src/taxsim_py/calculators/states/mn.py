@@ -734,6 +734,9 @@ def compute_mn_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         mult = by_filing_status(p["phaseout_multiplier"])
         ph13 = p.num("phaseout_threshold_base") * aif91 * mult / sep if y >= 2013 else pl.lit(0.0)
         phded = p.num("phaseout_threshold_base") * aif91 / sep if y >= 2013 else pl.lit(0.0)
+        if 2018 <= y <= 2019 and not behavior.start_minnesota_itemized_phaseout_without_status_multiplier_per_statute:
+            # TAXSIM uses the exemption phase-out start (with its status multiplier) for the itemized deduction too.
+            phded = ph13
         if y >= 2021 and not behavior.phase_out_minnesota_exemptions_per_statute:
             # TAXSIM (2021 on): start by capped status code (joint, head of household, other) scaled by its own factor.
             starts = p.value("taxsim_exemption_phaseout_start")

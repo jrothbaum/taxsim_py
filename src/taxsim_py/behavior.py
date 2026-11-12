@@ -133,6 +133,7 @@ class BehaviorProfile:
     use_south_carolina_published_tax_table: bool = True
     allow_qbi_deduction_in_south_carolina: bool = True
     count_colorado_credit_children_per_statute: bool = True
+    start_minnesota_itemized_phaseout_without_status_multiplier_per_statute: bool = True
     add_back_minnesota_unemployment_exclusion_to_working_family_income_per_statute: bool = True
     apply_minnesota_pension_exclusion_through_1986_per_statute: bool = True
     exclude_utah_other_itemized_from_state_tax_limit_per_statute: bool = True
