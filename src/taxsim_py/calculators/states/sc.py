@@ -238,7 +238,7 @@ def compute_sc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         add = add + pl.when(fed_itemizes).then(itemizer_increase).otherwise(increase) + pl.col("senior_deduction")
     if y >= 2021 and not behavior.allow_qbi_deduction_in_south_carolina:
         # TAXSIM adds back the federal qualified business income deduction.
-        add = add + pl.col("qbi_deduction") / flate
+        add = add + pl.col("qbi_deduction")
     exemp = pl.lit(0.0)
     if p.in_effect("dependent_exemption"):
         # TAXSIM's `numlt(6)` counts children under 13 (its age bands are off by one).

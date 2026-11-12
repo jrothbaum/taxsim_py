@@ -51,7 +51,7 @@ PROJECTED_YEAR_DEFLATED_COLUMNS = (
     "itemized_before_limit", "itemized_deduction", "ltcg", "ltg", "making_work_pay", "mortgage", "nonprop",
     "nonrefundable_credits",
     "odc", "otheritem", "otherprop", "pensions", "personal_exemptions", "pre1987_amex", "pre1987_capgn",
-    "pre1987_chcr", "pre1987_deduc", "pre1987_pref", "proptax", "psemp", "pui", "pwages", "regular_tax",
+    "pre1987_chcr", "pre1987_deduc", "pre1987_pref", "proptax", "psemp", "pui", "pwages", "qbi_deduction", "regular_tax", "senior_deduction",
     "rentpaid", "salt_capped", "schedule_tax", "se_adjustment", "ssemp", "standard_deduction",
     "state_sales_or_income_tax_ded", "stcg", "sui", "swages", "taxable_income",
     "taxable_social_security", "taxable_unemployment", "transfers", "ui", "wages",

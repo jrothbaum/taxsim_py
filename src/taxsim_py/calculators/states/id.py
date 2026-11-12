@@ -150,7 +150,9 @@ def compute_id_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         amount = pl.when(single_like).then(aged_p.num("single")).otherwise(
             aged_p.num("married_joint")
         )
-        df = df.with_columns(id_stded=pl.col("id_stded") + amount * aged)
+        if flate == 1.0 or behavior.add_idaho_aged_standard_deduction_in_projected_years_per_statute:
+            # In a projected year TAXSIM's federal standard deduction (read here) already has the aged amount.
+            df = df.with_columns(id_stded=pl.col("id_stded") + amount * aged)
     if effective_year >= 1987:
         minimum = p.num("dependent_standard_deduction_minimum")
         limit = pl.max_horizontal(pl.lit(minimum), pl.col("earned_income") + p["dependent_standard_deduction_earned_addition"])
