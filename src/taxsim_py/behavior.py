@@ -133,6 +133,7 @@ class BehaviorProfile:
     use_south_carolina_published_tax_table: bool = True
     allow_qbi_deduction_in_south_carolina: bool = True
     count_colorado_credit_children_per_statute: bool = True
+    limit_kansas_child_care_credit_by_federal_tax_per_statute: bool = True
     round_connecticut_property_credit_steps_continuously_per_statute: bool = True
     cap_oregon_property_tax_deduction_per_statute: bool = True
     exempt_missouri_social_security_at_any_age_per_statute: bool = True

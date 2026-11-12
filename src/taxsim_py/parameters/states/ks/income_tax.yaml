@@ -133,6 +133,7 @@ child_care_credit_federal_share:
   2013: 0
   2019: 0.1875
   2020: 0.25
+  2024: 0.5
 
 # Homestead property tax refund on property tax plus `homestead_rent_share`
 # of rent. Through 1996, at household income up to `income_ceiling`: the

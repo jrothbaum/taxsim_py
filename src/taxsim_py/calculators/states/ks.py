@@ -213,7 +213,7 @@ def compute_ks_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         ccc_p = YearParams(FEDERAL_CREDITS_PARAMS["child_care_credit"], effective_year)
         max_qualifying_persons = ccc_p.num("max_qualifying_persons")
         max_expense_per_person = ccc_p.num("max_expense_per_person")
-        ccc_rate = child_care_credit_rate(pl.col("agi"), ccc_p.value("rate"))
+        ccc_rate = child_care_credit_rate(pl.col("agi"), ccc_p.value("rate"), round_up=effective_year >= 2024)
         num_qualifying_persons = pl.col("dep13").clip(0, max_qualifying_persons)
         qualifying_expense = pl.col("childcare").clip(0, num_qualifying_persons * max_expense_per_person)
         ccc_earned_income_cap = pl.when(is_joint).then(
@@ -223,8 +223,12 @@ def compute_ks_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         chcare = ccc_rate * ccc_expense
     else:
         chcare = pl.col("federal_chcr")
-    # Up to regular tax.
-    chcare = pl.min_horizontal(chcare, pl.col("regular_tax").clip(0, None))
+    if effective_year == 2021 and not behavior.limit_kansas_child_care_credit_by_federal_tax_per_statute:
+        # TAXSIM takes its share of the federal credit before the federal tax limit.
+        chcare = pl.col("ccc_uncapped")
+    else:
+        # Up to regular tax.
+        chcare = pl.min_horizontal(chcare, pl.col("regular_tax").clip(0, None))
     share = p.value("child_care_credit_federal_share")
     if isinstance(share, list):
         chcr = chcare * interpolate_table(pl.col("ks_agi"), share)
