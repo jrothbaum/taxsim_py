@@ -7,7 +7,7 @@
 # IRA/Keogh, the energy credit and the education credit.
 
 # Statutory mode uses actual law through this year.
-law_coded_through: 2025
+law_coded_through: 2026
 
 # Rate schedules, [start of bracket, rate], with starts times
 # `bracket_inflation`. Through 1984 one schedule; 1985-1986 schedule A without

@@ -218,6 +218,11 @@ def compute_ga_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         itemizer_credit = pl.when(pl.col("ga_xitded") > pl.col("ga_stded")).then(
             pl.min_horizontal(pl.col("ga_statax"), p.num("taxsim_itemizer_credit_per_taxpayer") * pl.col("ga_taxpayers"))
         ).otherwise(0.0)
+    if p.in_effect("child_tax_credit_under_six"):
+        # A nonrefundable credit per child under 6, after the other nonrefundable credits.
+        after_other = (pl.col("ga_statax") - pl.col("ga_chcr") - itemizer_credit).clip(0, None)
+        child_credit = pl.min_horizontal(after_other, p.num("child_tax_credit_under_six") * pl.col("dep6"))
+        df = df.with_columns(ga_chcr=pl.col("ga_chcr") + child_credit)
     if p.value("low_income_credit_refundable"):
         df = df.with_columns(
             ga_statax=(pl.col("ga_statax") - pl.col("ga_chcr") - itemizer_credit).clip(0, None) - pl.col("ga_ycred")

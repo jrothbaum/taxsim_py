@@ -6,7 +6,7 @@
 # before 1979.
 
 # Statutory mode uses actual law through this year.
-law_coded_through: 2025
+law_coded_through: 2026
 
 # Rate schedule, [start of bracket, rate]. Married couples may instead be
 # taxed as two returns, each on their share. Source for 2022 on:
@@ -22,6 +22,7 @@ brackets:
   2023: [[0, 0.0], [10000, 0.05]]
   2024: [[0, 0.0], [10000, 0.047]]
   2025: [[0, 0.0], [10000, 0.044]]
+  2026: [[0, 0.0], [10000, 0.04]]
 
 # --- Income ---
 # Mississippi adds back the federal deduction for half of self-employment

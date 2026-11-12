@@ -6,7 +6,7 @@
 # forgiveness credit.
 
 # Statutory mode uses actual law through this year.
-law_coded_through: 2025
+law_coded_through: 2026
 
 rate: {1977: 0.02, 1978: 0.022, 1983: 0.0245, 1984: 0.024, 1985: 0.0235, 1986: 0.0216, 1987: 0.021, 1991: 0.026, 1992: 0.0295, 1993: 0.028, 2004: 0.0307}
 

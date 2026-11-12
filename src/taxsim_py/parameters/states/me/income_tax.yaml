@@ -6,7 +6,7 @@
 # credits.
 
 # Statutory mode uses actual law through this year.
-law_coded_through: 2025
+law_coded_through: 2026
 
 # Rate schedules, [start of bracket, rate], applied to taxable income
 # divided by `bracket_income_divisor` (2 joint, 1.5 head of household) and

@@ -6,7 +6,7 @@
 # investment credit recapture and energy credits.
 
 # Statutory mode uses actual law through this year.
-law_coded_through: 2025
+law_coded_through: 2026
 
 # --- Income ---
 capital_gains_exclusion_rate: {1977: 0.0, 1987: 0.4, 2003: 0.0}

@@ -6,7 +6,7 @@
 # and charitable adjustments and the solar credit.
 
 # Statutory mode uses actual law through this year.
-law_coded_through: 2025
+law_coded_through: 2026
 
 # Rate schedules, [start of bracket, rate], through 2017; then a flat rate.
 # Joint returns may file combined, each spouse on their own share (through
@@ -15,7 +15,7 @@ brackets:
   1977: [[0, 0.02], [3000, 0.03], [4000, 0.04], [5000, 0.05], [8000, 0.06]]
   2005: [[0, 0.02], [3000, 0.03], [4000, 0.04], [5000, 0.05], [8000, 0.058], [75000, 0.06]]
   2018: null
-flat_rate: {2018: 0.05, 2023: 0.045, 2024: 0.04}
+flat_rate: {2018: 0.05, 2023: 0.045, 2024: 0.04, 2026: 0.035}
 
 # --- Income ---
 # Federal income tax (less self-employment tax and AMT) is deductible
@@ -38,7 +38,7 @@ retirement_exclusion_cap: {1995: 6250, 1996: 12500, 1997: 18750, 1998: 35000, 19
 # Standard deduction, per taxpayer until 2022 (one per return from 2022,
 # Form 740 instructions). Source for 2022 on: PolicyEngine-US
 # gov.states.ky.tax.income.deductions.standard.
-standard_deduction: {1977: 650, 1997: 900, 1998: 1200, 1999: 1500, 2000: 1700, 2001: 1750, 2002: 1800, 2003: 1830, 2004: 1870, 2005: 1910, 2006: 1970, 2007: 2050, 2008: 2100, 2009: 2190, 2010: 2210, 2011: 2240, 2012: 2290, 2013: 2360, 2014: 2400, 2015: 2440, 2016: 2460, 2017: 2480, 2018: 2530, 2019: 2590, 2020: 2650, 2021: 2690, 2022: 2770, 2023: 2980, 2024: 3160, 2025: 3270}
+standard_deduction: {1977: 650, 1997: 900, 1998: 1200, 1999: 1500, 2000: 1700, 2001: 1750, 2002: 1800, 2003: 1830, 2004: 1870, 2005: 1910, 2006: 1970, 2007: 2050, 2008: 2100, 2009: 2190, 2010: 2210, 2011: 2240, 2012: 2290, 2013: 2360, 2014: 2400, 2015: 2440, 2016: 2460, 2017: 2480, 2018: 2530, 2019: 2590, 2020: 2650, 2021: 2690, 2022: 2770, 2023: 2980, 2024: 3160, 2025: 3270, 2026: 3360}
 standard_deduction_per_taxpayer: {1977: true, 2022: false}
 # 1991-2017 itemized limitation: `itemized_phaseout_rate` of AGI above the
 # threshold (times `itemized_limitation_index`, halved on separate

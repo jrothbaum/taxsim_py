@@ -5,7 +5,7 @@
 # solar energy credit and other items with no TAXSIM input are not modeled.
 
 # Statutory mode uses actual law through this year.
-law_coded_through: 2025
+law_coded_through: 2026
 
 # Rate schedules, [start of bracket, rate], applied to taxable income
 # divided by `bracket_inflation` (the tax is then multiplied back).

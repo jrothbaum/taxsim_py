@@ -4,7 +4,7 @@
 # Article 4, D-400 instructions and PolicyEngine-US `gov.states.nc.tax.income`.
 
 # Statutory mode uses actual law through this year.
-law_coded_through: 2025
+law_coded_through: 2026
 
 # Rate schedules, [start of bracket, rate]. Through 1988 each spouse files on a
 # share of income; 1989-1990 joint returns pay the lesser of income splitting
@@ -43,6 +43,7 @@ flat_rate:
   2023: 0.0475
   2024: 0.045
   2025: 0.0425
+  2026: 0.0399
 # 2009-2010 surtax on taxable income: [lower bound, multiplier] (married bounds
 # halved on separate returns).
 surtax:

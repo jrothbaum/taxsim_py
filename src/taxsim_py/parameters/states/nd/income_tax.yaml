@@ -4,7 +4,7 @@
 # and PolicyEngine-US `gov.states.nd.tax.income`.
 
 # Statutory mode uses actual law through this year.
-law_coded_through: 2025
+law_coded_through: 2026
 
 # Rate schedules, [start of bracket, rate]. Through 1986 on North Dakota's own
 # taxable income; 1987-2000 on federal taxable income; from 2001 by filing

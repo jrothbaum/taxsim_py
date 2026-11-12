@@ -7,7 +7,7 @@
 # have no TAXSIM input.
 
 # Statutory mode uses actual law through this year.
-law_coded_through: 2025
+law_coded_through: 2026
 
 # Rate schedules, [start of bracket, rate]; by group from 1992, with single
 # and separate returns reaching the top rates at lower incomes. From 2025

@@ -4,7 +4,7 @@
 # instructions and PolicyEngine-US `gov.states.wv.tax.income`.
 
 # Statutory mode uses actual law through this year.
-law_coded_through: 2025
+law_coded_through: 2026
 
 # --- Tax ---
 # [start of bracket, rate]. Through 1986 joint returns use half the income, tax
@@ -131,6 +131,7 @@ brackets:
   1987: [[0, 0.03], [10000, 0.04], [25000, 0.045], [40000, 0.06], [60000, 0.065]]
   2023: [[0, 0.0236], [10000, 0.0315], [25000, 0.0354], [40000, 0.0472], [60000, 0.0512]]
   2025: [[0, 0.0222], [10000, 0.0296], [25000, 0.0333], [40000, 0.0444], [60000, 0.0482]]
+  2026: [[0, 0.0211], [10000, 0.0281], [25000, 0.0316], [40000, 0.0422], [60000, 0.0458]]
 # 1983-1985 surtax multiplier on tax when taxable income exceeds the amount per
 # taxpayer.
 surtax: {1983: 1.09, 1984: 1.12, 1985: 1.06, 1986: null}
@@ -142,7 +143,7 @@ surtax_income_per_taxpayer: 10000.0
 # Source from 2022: PolicyEngine-US
 # gov.states.wv.tax.income.subtractions.social_security_benefits.
 social_security_subtraction_share: {2020: 0.35, 2021: 0.65, 2022: 1.0}
-social_security_above_limit_share: {2022: 0.0, 2024: 0.35, 2025: 0.65}
+social_security_above_limit_share: {2022: 0.0, 2024: 0.35, 2025: 0.65, 2026: 1.0}
 social_security_subtraction_agi_per_taxpayer: 50000
 # Senior citizen deduction: up to this per taxpayer 65 or older, from total
 # income (federal total income plus taxable Social Security) split between

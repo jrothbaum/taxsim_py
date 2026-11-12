@@ -5,11 +5,11 @@
 # credit carryover have no TAXSIM input.
 
 # Statutory mode uses actual law through this year.
-law_coded_through: 2025
+law_coded_through: 2026
 
 # A flat rate on Indiana AGI less deductions and exemptions. Source for
 # 2022 on: PolicyEngine-US gov.states.in.tax.income.agi_rate.
-rate: {1977: 0.02, 1980: 0.019, 1983: 0.03, 1987: 0.032, 1988: 0.034, 2015: 0.033, 2017: 0.0323, 2023: 0.0315, 2024: 0.0305, 2025: 0.03}
+rate: {1977: 0.02, 1980: 0.019, 1983: 0.03, 1987: 0.032, 1988: 0.034, 2015: 0.033, 2017: 0.0323, 2023: 0.0315, 2024: 0.0305, 2025: 0.03, 2026: 0.0295}
 # 1979: the tax is this share of the computed tax.
 tax_share: {1979: 0.85, 1980: null}
 

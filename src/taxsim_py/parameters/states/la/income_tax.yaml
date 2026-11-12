@@ -5,7 +5,7 @@
 # Blindness has no TAXSIM input.
 
 # Statutory mode uses actual law through this year.
-law_coded_through: 2025
+law_coded_through: 2026
 
 # Rate schedules, [start of bracket, rate]; from 1983 by filing status
 # (separate returns use `single`). From 2025 a flat rate (Act 11 of the 2024
@@ -70,6 +70,8 @@ additional_exemption: {2022: 1000, 2025: null}
 # From 2025: a standard deduction by filing status replaces them.
 standard_deduction:
   2025: {single: 12500, married_joint: 25000, head_of_household: 25000, married_separate: 12500}
+  # Adjusted for inflation from 2026 (R.S. 47:294); PolicyEngine's index, not confirmed against the Department's 2026 table.
+  2026: {single: 13070, married_joint: 26140, head_of_household: 26140, married_separate: 13070}
 
 # --- Credits ---
 # Through 2021, tax is reduced by `dependent_credit_rate` of this amount per

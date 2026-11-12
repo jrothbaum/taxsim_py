@@ -4,7 +4,7 @@
 # Chapter 6, SC1040 instructions and PolicyEngine-US `gov.states.sc.tax.income`.
 
 # Statutory mode uses actual law through this year.
-law_coded_through: 2025
+law_coded_through: 2026
 
 # --- Rate schedule ---
 # [start of bracket, rate], thresholds times `bracket_index`; 1985-1986 single

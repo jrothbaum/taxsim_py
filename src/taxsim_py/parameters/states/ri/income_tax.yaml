@@ -4,7 +4,7 @@
 # RI-1040 instructions and PolicyEngine-US `gov.states.ri.tax.income`.
 
 # Statutory mode uses actual law through this year.
-law_coded_through: 2025
+law_coded_through: 2026
 
 # --- Tax ---
 # Through 2000: a share of federal tax (less the child care credit, the credit

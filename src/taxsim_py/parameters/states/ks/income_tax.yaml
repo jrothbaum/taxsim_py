@@ -5,7 +5,7 @@
 # blindness, medical and casualty deductions and the energy credit.
 
 # Statutory mode uses actual law through this year.
-law_coded_through: 2025
+law_coded_through: 2026
 
 # Rate schedules, [start of bracket, rate]. A single schedule: joint returns
 # are taxed on half their income, doubled, or on each earner's share if

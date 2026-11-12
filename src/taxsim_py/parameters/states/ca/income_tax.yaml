@@ -7,7 +7,7 @@
 # TAXSIM input.
 
 # Statutory mode uses actual law through this year.
-law_coded_through: 2025
+law_coded_through: 2026
 
 # Rate schedules, [upper bound, rate]. Joint returns are taxed on half their
 # income on the `single` schedule and the tax doubled. Bounds are multiplied

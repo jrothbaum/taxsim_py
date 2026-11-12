@@ -5,13 +5,13 @@
 # input): education expense credit and state refund subtraction.
 
 # Statutory mode uses actual law through this year.
-law_coded_through: 2025
+law_coded_through: 2026
 
 # A flat rate on base income less exemptions.
 rate: {1977: 0.0250, 1983: 0.0300, 1984: 0.0275, 1985: 0.0250, 1989: 0.0275, 1990: 0.0300, 2011: 0.0500, 2015: 0.0375, 2017: 0.043549, 2018: 0.0495}
 # Exemption per federal exemption; a dependent filer gets one only when
 # income is at most the amount.
-personal_exemption: {1977: 1000, 1998: 1300, 1999: 1650, 2000: 2000, 2012: 2050, 2013: 2100, 2014: 2125, 2015: 2150, 2016: 2175, 2018: 2225, 2019: 2275, 2020: 2325, 2021: 2375, 2022: 2425, 2024: 2775, 2025: 2850}
+personal_exemption: {1977: 1000, 1998: 1300, 1999: 1650, 2000: 2000, 2012: 2050, 2013: 2100, 2014: 2125, 2015: 2150, 2016: 2175, 2018: 2225, 2019: 2275, 2020: 2325, 2021: 2375, 2022: 2425, 2024: 2775, 2025: 2850, 2026: 2925}
 # Additional exemption per taxpayer 65 or older from 1990.
 aged_exemption: {1990: 1000}
 # From 2017 (statutory mode): no exemption allowance when base income

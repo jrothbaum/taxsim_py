@@ -5,7 +5,7 @@
 # `gov.states.ct.tax.income`.
 
 # Statutory mode uses actual law through this year.
-law_coded_through: 2025
+law_coded_through: 2026
 
 # --- Before 1991: tax on capital gains, dividends and interest only ---
 # `capital_gains_rate` on gains less the exemption; in 1987-1988 a further

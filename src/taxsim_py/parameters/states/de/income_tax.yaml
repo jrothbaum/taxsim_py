@@ -5,7 +5,7 @@
 # `gov.states.de.tax.income`. The energy credit has no TAXSIM input.
 
 # Statutory mode uses actual law through this year.
-law_coded_through: 2025
+law_coded_through: 2026
 
 # Rate schedules, [start of bracket, rate]. Joint returns pay the lesser of
 # the joint tax and the tax on each earner's share.

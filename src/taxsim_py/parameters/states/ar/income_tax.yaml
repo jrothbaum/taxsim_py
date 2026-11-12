@@ -6,7 +6,7 @@
 # low_income_formula_table.csv (1991-2021) and low_income_step_table.csv (2022 on).
 
 # Statutory mode uses actual law through this year.
-law_coded_through: 2025
+law_coded_through: 2026
 
 # Joint returns may instead split income and deductions between spouses,
 # tax each half on the same schedule and pay the lesser total.

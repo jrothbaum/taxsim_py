@@ -5,7 +5,7 @@
 # the medical expense deduction have no TAXSIM input.
 
 # Statutory mode uses actual law through this year.
-law_coded_through: 2025
+law_coded_through: 2026
 
 # No tax on income at or below: through 1999 one amount (halved for married
 # separate; 1994-1996 strictly below); 2000 by status (other halved for
@@ -259,6 +259,7 @@ eitc_childless_maximum_age_applies: {1977: true, 2021: false}
 child_tax_credit:
   2022: [[0, 500], [30000, 400], [40000, 300], [50000, 200], [60000, 100], [80000, 0]]
   2023: [[0, 1000], [30000, 800], [40000, 600], [50000, 400], [60000, 200], [80000, 0]]
+  2026: [[0, 1250], [30000, 1000], [40000, 750], [50000, 500], [60000, 250], [80000, 0]]
 
 # --- The TAXSIM build's tables (njtax77 / njtax21) ---
 # No tax at or below one threshold, [first year, amount per return]; 2000 takes

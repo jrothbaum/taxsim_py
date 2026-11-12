@@ -5,7 +5,7 @@
 # and the medical care expense deduction have no TAXSIM input.
 
 # Statutory mode uses actual law through this year.
-law_coded_through: 2025
+law_coded_through: 2026
 
 # Through 1986: schedules of [start of bracket, rate in percent], rates times
 # `rate_factor` rounded to 0.1 point (bracket 14 at `bracket_14_rate_percent`

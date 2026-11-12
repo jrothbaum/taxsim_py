@@ -4,7 +4,7 @@
 # instructions and PolicyEngine-US `gov.states.ut.tax.income`.
 
 # Statutory mode uses actual law through this year.
-law_coded_through: 2025
+law_coded_through: 2026
 
 # --- Through 2007: graduated tax ---
 # [start of bracket, rate]: `single` for single and married-separate filers,

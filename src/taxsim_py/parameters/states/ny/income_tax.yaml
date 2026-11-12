@@ -6,7 +6,7 @@
 # TAXSIM input.
 
 # Statutory mode uses actual law through this year.
-law_coded_through: 2025
+law_coded_through: 2026
 
 # --- Rate schedules ---
 # [start of bracket, rate]: through 1986 one schedule for all filers; from 1987

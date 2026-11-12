@@ -5,7 +5,7 @@
 # `gov.states.va.tax.income`.
 
 # Statutory mode uses actual law through this year.
-law_coded_through: 2025
+law_coded_through: 2026
 
 # --- Tax ---
 # [start of bracket, rate]. Through 1999 joint returns pay the lesser of joint

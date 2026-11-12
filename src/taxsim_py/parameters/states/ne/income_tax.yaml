@@ -5,7 +5,7 @@
 # energy credit and blindness have no TAXSIM input.
 
 # Statutory mode uses actual law through this year.
-law_coded_through: 2025
+law_coded_through: 2026
 
 # Through 1986 the tax is this share of federal income tax.
 federal_tax_share:

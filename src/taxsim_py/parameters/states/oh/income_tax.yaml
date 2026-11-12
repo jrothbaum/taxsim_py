@@ -5,7 +5,7 @@
 # `gov.states.oh.tax.income`.
 
 # Statutory mode uses actual law through this year.
-law_coded_through: 2025
+law_coded_through: 2026
 
 # --- Rate schedule ---
 # [start of bracket, rate]. From 2017 `zero_bracket` removes all tax at or below
@@ -357,6 +357,10 @@ taxsim_tax_table:
     kind: minus
     no_tax_at_or_below: 0
     rows: [[26050, 0, 0], [100000, 2.75, 374.37], [1.0e+20, 3.125, 730.68]]
+  2026:
+    kind: minus
+    no_tax_at_or_below: 0
+    rows: [[26050, 0, 0], [1.0e+20, 2.75, 384.38]]
 # The TAXSIM build interpolates the exemption between these ([AGI up to, amount]) instead of stepping it.
 taxsim_exemption_table:
   2021: [[40000, 2400], [80000, 2150], [750000, 1900], [1.0e+20, 1900]]
@@ -365,7 +369,7 @@ exemption_middle_income_agi: 80000.0
 # From 2025: no personal exemption, and no joint filing credit, above this Ohio
 # AGI. Source: PolicyEngine-US gov.states.oh.tax.income.exemptions.personal and
 # credits.joint_filing.
-high_income_limit: {2025: 750000.0}
+high_income_limit: {2025: 750000.0, 2026: 500000.0}
 # 1983-1988: a deduction per exemption instead of the exemption credit, when
 # that gives less tax.
 exemption_deduction_alternative: {1983: 350.0, 1989: null}

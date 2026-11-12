@@ -4,7 +4,7 @@
 # PolicyEngine-US `gov.states.nh.tax.income`. Repealed from 2025.
 
 # Statutory mode uses actual law through this year.
-law_coded_through: 2025
+law_coded_through: 2026
 
 rate: {1977: 0.05, 2023: 0.04, 2024: 0.03, 2025: 0.0}
 exemption_per_taxpayer: {1977: 600, 1981: 1200, 1995: 2400}

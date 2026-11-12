@@ -6,7 +6,7 @@
 # no TAXSIM input are not modeled.
 
 # Statutory mode uses actual law through this year.
-law_coded_through: 2025
+law_coded_through: 2026
 
 # Rate schedule, [start of bracket, rate]. From 1982 joint returns are taxed
 # on half their income and the tax doubled.

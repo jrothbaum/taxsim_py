@@ -6,7 +6,7 @@
 # charitable additions.
 
 # Statutory mode uses actual law through this year.
-law_coded_through: 2025
+law_coded_through: 2026
 
 # Rate schedules, [start of bracket, rate]. Joint returns are taxed on half
 # their income on the `single` schedule and the tax doubled; heads of
@@ -67,10 +67,10 @@ personal_exemption_phaseout:
   2009: {base: 119963, step: 2500, multiplier_hoh: 1.25, multiplier_married: 1.5, share_per_step: 0.02}
   2016: null
 standard_deduction:
-  single: {1977: 1000, 1982: 800, 1987: 1000, 1989: 1500, 2007: 2000, 2013: 2200, 2024: 4400}
-  married_joint: {1977: 1000, 1987: 1700, 1989: 1900, 2007: 4000, 2013: 4400, 2024: 8800}
-  married_separate: {1977: 500, 1987: 850, 1989: 950, 2007: 2000, 2013: 2200, 2024: 4400}
-  head_of_household: {1977: 1000, 1982: 800, 1987: 1500, 1989: 1650, 2007: 2920, 2013: 3212, 2024: 6424}
+  single: {1977: 1000, 1982: 800, 1987: 1000, 1989: 1500, 2007: 2000, 2013: 2200, 2024: 4400, 2026: 8000}
+  married_joint: {1977: 1000, 1987: 1700, 1989: 1900, 2007: 4000, 2013: 4400, 2024: 8800, 2026: 16000}
+  married_separate: {1977: 500, 1987: 850, 1989: 950, 2007: 2000, 2013: 2200, 2024: 4400, 2026: 8000}
+  head_of_household: {1977: 1000, 1982: 800, 1987: 1500, 1989: 1650, 2007: 2920, 2013: 3212, 2024: 6424, 2026: 12000}
 # 1980: the standard deduction is at most this share of AGI.
 standard_deduction_agi_share: {1980: 0.1, 1981: null}
 # From 2011 the state tax deduction is removed above these federal AGI

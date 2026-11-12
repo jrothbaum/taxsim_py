@@ -4,7 +4,7 @@
 # IN-111 instructions and PolicyEngine-US `gov.states.vt.tax.income`.
 
 # Statutory mode uses actual law through this year.
-law_coded_through: 2025
+law_coded_through: 2026
 
 # --- Tax ---
 # Through 2000: a share of federal tax (regular tax plus minimum tax, less the
