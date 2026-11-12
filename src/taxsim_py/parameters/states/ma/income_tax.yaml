@@ -310,6 +310,8 @@ circuit_breaker_income_limit:
 
 # Interest exclusion per taxpayer.
 interest_exclusion_per_taxpayer: 100
+# TAXSIM drops the exclusion from 2024.
+taxsim_interest_exclusion_per_taxpayer: {2024: 0}
 # Capital losses offset Part A interest and dividend income up to this amount.
 capital_loss_offset_limit: 1000
 # Federal net capital loss limit (halved for separate returns) and the

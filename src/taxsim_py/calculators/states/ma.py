@@ -31,7 +31,11 @@ def compute_ma_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     df = df.with_columns(ma_c183=own_fica, ma_c183_spouse=own_fica_spouse, ma_setax=pl.col("payroll_setax"))
     # Federal Schedule E income: other property income, plus S corporation
     # income from 1987.
-    schede = pl.col("otherprop") + (pl.col("scorp") if y >= 1987 else 0.0)
+    other_property = pl.col("otherprop")
+    if y >= 2024 and not behavior.count_massachusetts_other_property_income_from_2024_per_statute:
+        # TAXSIM's 2024 on routine leaves other property income out of Massachusetts income.
+        other_property = pl.lit(0.0)
+    schede = other_property + (pl.col("scorp") if y >= 1987 else 0.0)
     df = df.with_columns(ma_schede=schede)
 
     df = deflate_for_extrapolation(df, flate, extra=("ma_untax", "ma_schede"))
@@ -59,10 +63,14 @@ def compute_ma_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     business_h = pl.col("pbusinc") + pl.col("pprofinc")
     business_w = pl.col("sbusinc") + pl.col("sprofinc")
     d17 = semp + business_h + business_w
-    if not behavior.count_business_and_professional_inputs_as_income:
-        # TAXSIM's net business income (`d(17)`) is self-employment only.
+    if y < 2024 and not behavior.count_business_and_professional_inputs_as_income:
+        # TAXSIM's net business income (`d(17)`) is self-employment only until 2024.
         d17 = semp
     ui_total = unemployment_total()
+    interest_exclusion = p.num("interest_exclusion_per_taxpayer")
+    if p.in_effect("taxsim_interest_exclusion_per_taxpayer") and not behavior.exclude_massachusetts_bank_interest_from_2024_per_statute:
+        # TAXSIM's 2024 on routine drops the bank interest exclusion.
+        interest_exclusion = p.num("taxsim_interest_exclusion_per_taxpayer")
 
     # --- Exemptions ---
     xmps = p.num("personal_exemption")
@@ -102,7 +110,7 @@ def compute_ma_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             ).otherwise(0.0)
             binc = pl.when(ui_total > 0).then(binc + ui_total - untax - unded).otherwise(binc)
         if y >= 1999:
-            binc = binc + (pl.col("intrec") - p["interest_exclusion_per_taxpayer"] * n_tp).clip(0, None)
+            binc = binc + (pl.col("intrec") - interest_exclusion * n_tp).clip(0, None)
 
     # --- Part B deductions ---
     # Each spouse's employee payroll tax, up to the cap.
@@ -318,7 +326,7 @@ def compute_ma_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             ).clip(0, None)
 
     # --- Massachusetts AGI and No Tax Status / Limited Income Credit ---
-    ma_agi = (binc_for_agi + binc1 + stcg + ltcg + pl.min_horizontal(intrec, p["interest_exclusion_per_taxpayer"] * n_tp)).clip(0, None)
+    ma_agi = (binc_for_agi + binc1 + stcg + ltcg + pl.min_horizontal(intrec, p.num("interest_exclusion_per_taxpayer") * n_tp)).clip(0, None)
     df = df.with_columns(_ma_pretax=pretax, _ma_agi=ma_agi)
     pretax = pl.col("_ma_pretax")
     ma_agi = pl.col("_ma_agi")
