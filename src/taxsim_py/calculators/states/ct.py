@@ -474,6 +474,9 @@ def compute_ct_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             if effective_year >= 2022:
                 # Each started increment reduces the credit.
                 steps = phaseout_steps((agix - phse).clip(0, None) / width, behavior)
+                if effective_year >= 2024 and not behavior.round_connecticut_property_credit_steps_continuously_per_statute:
+                    # TAXSIM's 2024 on routine rounds the steps up.
+                    steps = ((agix - phse).clip(0, None) / width).ceil()
                 pct = (float(p["property_credit_phaseout_rate"]) * steps).clip(0, 1)
                 pcred = pcred * (1.0 - pct)
             else:
@@ -482,7 +485,7 @@ def compute_ct_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
                 pct = interpolate_table(agix - phse, rows)
                 pcred = pcred - pct * pcred
         if p.value("property_credit_requires_dependent_or_elderly") or (
-            effective_year >= 2017 and not behavior.allow_connecticut_property_credit_to_all_from_2022
+            2017 <= effective_year <= 2023 and not behavior.allow_connecticut_property_credit_to_all_from_2022
         ):
             no_dep_or_elderly = (pl.col("depx") < 1) & (aged_count() < 1)
             pcred = pl.when(no_dep_or_elderly).then(0.0).otherwise(pcred)

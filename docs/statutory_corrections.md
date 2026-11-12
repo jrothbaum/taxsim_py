@@ -660,3 +660,4 @@ Taxsim mode now follows the statutory rule for these (they remain in
 | AL, MO | 2026 | | Payroll taxes deducted are deflated in a projected year; Alabama deducts the deflated federal tax | Alabama: `deduct_alabama_federal_tax_components_per_statute` |
 | OR | 2025 on | | The property tax in the itemized deduction is capped at $40,000 (no phase-down) | Statutory: $10,000. `cap_oregon_property_tax_deduction_per_statute` |
 | IN | 2023 on | | The earned income credit is 10% of the federal credit | Both modes |
+| CT | 2024 on | | The property tax credit is available to everyone and its phase-out steps round up | Statutory: continuous steps. `round_connecticut_property_credit_steps_continuously_per_statute` |
