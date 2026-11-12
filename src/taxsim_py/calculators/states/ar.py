@@ -98,9 +98,10 @@ def compute_ar_tax(
 
     # Business income is not deflated in projected years; Schedule E income is.
     df = df.with_columns(
-        ar_business=pl.col("pbusinc") + pl.col("pprofinc") + pl.col("sbusinc") + pl.col("sprofinc") + pl.col("scorp"),
+        ar_business=pl.col("pbusinc") + pl.col("pprofinc") + pl.col("sbusinc") + pl.col("sprofinc")
+        + (pl.col("scorp") if effective_year < 2024 and not behavior.count_arkansas_s_corporation_income_once else 0.0),
         # Federal Schedule E income.
-        ar_schede=pl.col("otherprop") + (pl.col("scorp") if effective_year >= 1987 else 0.0),
+        ar_schede=(pl.lit(0.0) if effective_year >= 2024 and not behavior.count_other_property_income_from_2024 else pl.col("otherprop")) + (pl.col("scorp") if effective_year >= 1987 else 0.0),
     )
     df = deflate_for_extrapolation(df, flate, extra=("ar_schede",))
 
@@ -170,7 +171,7 @@ def compute_ar_tax(
                 basis = "return"
             count = {"return": pl.lit(1.0), "taxpayer": pl.col("ar_taxpayers"), "aged": aged_count()}[basis]
             df = df.with_columns(ar_agi=pl.col("ar_agi") - pl.min_horizontal(pl.col("pensions"), amount * count))
-    if 2018 <= effective_year <= 2019:
+    if 2018 <= effective_year <= 2019 or (effective_year >= 2024 and not behavior.exempt_arkansas_unemployment_from_2024_per_statute):
         df = df.with_columns(ar_agi=pl.col("ar_agi") + pl.col("ui"))
     df = df.with_columns(ar_ag=pl.col("ar_agi").clip(0, None))
 

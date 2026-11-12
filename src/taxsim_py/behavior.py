@@ -133,8 +133,9 @@ class BehaviorProfile:
     use_south_carolina_published_tax_table: bool = True
     allow_qbi_deduction_in_south_carolina: bool = True
     count_colorado_credit_children_per_statute: bool = True
+    count_arkansas_s_corporation_income_once: bool = True
+    exempt_arkansas_unemployment_from_2024_per_statute: bool = True
     omit_georgia_itemizer_credit_per_statute: bool = True
-    count_massachusetts_other_property_income_from_2024_per_statute: bool = True
     exclude_massachusetts_bank_interest_from_2024_per_statute: bool = True
     cap_virginia_state_tax_deduction_per_statute: bool = True
     allow_virginia_standard_deduction_when_itemizing_federally_per_statute: bool = True

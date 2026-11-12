@@ -21,7 +21,7 @@ def compute_pa_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     dividend_adjustment = dividend_input_adjustment()
     # Federal Schedule E income: other property income, plus S corporation
     # income from 1987.
-    df = df.with_columns(pa_schede=pl.col("otherprop") + (pl.col("scorp") if year >= 1987 else 0.0))
+    df = df.with_columns(pa_schede=(pl.lit(0.0) if year >= 2024 and not behavior.count_other_property_income_from_2024 else pl.col("otherprop")) + (pl.col("scorp") if year >= 1987 else 0.0))
     df = deflate_for_extrapolation(df, flate, extra=("pa_schede",))
 
     # Positive income classes only; negative wages and capital losses do not

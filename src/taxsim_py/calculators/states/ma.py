@@ -32,7 +32,7 @@ def compute_ma_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     # Federal Schedule E income: other property income, plus S corporation
     # income from 1987.
     other_property = pl.col("otherprop")
-    if y >= 2024 and not behavior.count_massachusetts_other_property_income_from_2024_per_statute:
+    if y >= 2024 and not behavior.count_other_property_income_from_2024:
         # TAXSIM's 2024 on routine leaves other property income out of Massachusetts income.
         other_property = pl.lit(0.0)
     schede = other_property + (pl.col("scorp") if y >= 1987 else 0.0)

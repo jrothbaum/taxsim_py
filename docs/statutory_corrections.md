@@ -640,6 +640,9 @@ Taxsim mode now follows the statutory rule for these (they remain in
 | VA | 2022 on | | The standard deduction is zero when the federal return itemizes | Statutory: the larger of the two. `allow_virginia_standard_deduction_when_itemizing_federally_per_statute` |
 | VA | 2025 on | | The state and local tax within the itemized deduction is capped at $40,000 without the federal phase-down | Statutory: $10,000. `cap_virginia_state_tax_deduction_per_statute` |
 | MA | 2024 on | | The bank interest exclusion is dropped from the tax (not from the reported AGI) | Statutory: $100 per taxpayer. `exclude_massachusetts_bank_interest_from_2024_per_statute` |
-| MA | 2024 on | | Business, professional and S corporation inputs count as income (they did not before 2024); other property income does not | Statutory: other property income counts. `count_massachusetts_other_property_income_from_2024_per_statute` |
+| MA | 2024 on | | Business, professional and S corporation inputs count as income (they did not before 2024); other property income does not | Statutory: other property income counts. `count_other_property_income_from_2024` |
 | GA | 2024 on | | Itemizers get a $300 credit per taxpayer, limited to the tax | Statutory: none. `omit_georgia_itemizer_credit_per_statute` |
 | VT | 2024 on | | Child care contribution of 0.055% (2024) / 0.11% (2025 on) of net self-employment earnings | Both modes (Act 76 of 2023) |
+| AR | 1987-2023 | | S corporation income is counted twice (once with Schedule E, once with business income) | Statutory: once. `count_arkansas_s_corporation_income_once` |
+| AR | 2024 on | | Unemployment compensation is taxed | Statutory: exempt. `exempt_arkansas_unemployment_from_2024_per_statute` |
+| PA, AR, NJ, MA | 2024 on | | Other property income is left out of state income | Statutory: counted. `count_other_property_income_from_2024` |

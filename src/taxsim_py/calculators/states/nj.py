@@ -96,7 +96,7 @@ def compute_nj_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         nj_household_income_undeflated=household_income(behavior),
         # Federal Schedule E income: other property income, plus S
         # corporation income from 1987.
-        nj_schede=pl.col("otherprop") + (pl.col("scorp") if year >= 1987 else 0.0),
+        nj_schede=(pl.lit(0.0) if year >= 2024 and not behavior.count_other_property_income_from_2024 else pl.col("otherprop")) + (pl.col("scorp") if year >= 1987 else 0.0),
     )
     df = deflate_for_extrapolation(df, flate, extra=("nj_dividends", "nj_schede"))
 
