@@ -674,7 +674,7 @@ def compute_ny_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             limit = pl.when(children >= count).then(float(amount)).otherwise(limit)
         earned = pl.when(is_joint).then(pl.min_horizontal(pl.col("pwages"), pl.col("swages"))).otherwise(pl.col("wages"))
         expense = pl.min_horizontal(limit, earned, pl.col("childcare")).clip(0, None)
-        rate = child_care_credit_rate(pl.col("agi"), YearParams(FEDERAL_CREDITS_PARAMS["child_care_credit"], y).value("rate"))
+        rate = child_care_credit_rate(pl.col("agi"), YearParams(FEDERAL_CREDITS_PARAMS["child_care_credit"], y).value("rate"), round_up=y >= 2024)
         chcr = rate * expense * percentage
         statax = statax - chcr
     elif not isinstance(c, dict):
