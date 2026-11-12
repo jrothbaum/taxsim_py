@@ -53,6 +53,9 @@ def compute_ks_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         # Self-employment, S corporation and other property income removed.
         se_income = pl.col("psemp") + pl.col("ssemp")
         schedule_e = pl.col("otherprop") + pl.col("scorp")
+        if not behavior.tax_kansas_other_nonproperty_income_per_statute:
+            # TAXSIM removes other non-property income along with the business income.
+            schedule_e = schedule_e + pl.col("nonprop")
         df = df.with_columns(ks_agi=pl.col("ks_agi") + 0.5 * pl.col("ks_setax") - se_income - schedule_e)
 
     fedtax = pl.col("fiitax").clip(0, None)
@@ -198,6 +201,9 @@ def compute_ks_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     if p.in_effect("zero_tax_agi"):
         zero = p.value("zero_tax_agi")
         zero_agi = pl.when(is_joint).then(float(zero["joint"])).otherwise(float(zero["other"]))
+        if not behavior.scale_kansas_zero_tax_income_by_taxpayers_per_statute:
+            # TAXSIM multiplies the amount by the number of taxpayers, which is zero for a dependent filer.
+            zero_agi = pl.when(is_dependent_filer()).then(0.0).otherwise(zero_agi)
         df = df.with_columns(
             ks_statax=pl.when((pl.col("ks_taxinc") <= 0) | (pl.col("ks_agi") <= zero_agi)).then(0.0).otherwise(pl.col("ks_statax"))
         )

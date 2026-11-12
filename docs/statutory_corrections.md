@@ -722,3 +722,5 @@ Taxsim mode now follows the statutory rule for these (they remain in
 | New Jersey | projected years | | The property tax deduction uses the deflated property tax on the itemizing pass and the original on the standard pass | Statutory: n/a. |
 | Connecticut | 1993 on | | The state minimum tax starts from the federal alternative minimum tax income TAXSIM computed on that pass | Statutory: reconstructed from AGI and the separate-return add-back. `reconstruct_connecticut_minimum_tax_income_per_statute` |
 | Connecticut | 2024 on | | Transfers are part of Connecticut income | Statutory: excluded. `exclude_transfers_from_connecticut_income_per_statute` |
+| Kansas | 2013-2016 | | Other non-property income is removed from income with the business income | Statutory: taxed. `tax_kansas_other_nonproperty_income_per_statute` |
+| Kansas | 2024 on | | A dependent filer's zero-tax income limit is zero (the amount is multiplied by the taxpayer count) | Statutory: the limit applies. `scale_kansas_zero_tax_income_by_taxpayers_per_statute` |
