@@ -241,6 +241,42 @@ def _property_refund_renter(hhy: pl.Expr, y: int) -> pl.Expr:
     return refund
 
 
+def _taxsim_property_refund_2024(p: YearParams, fed_agi: pl.Expr, depx: pl.Expr, aged: pl.Expr) -> pl.Expr:
+    """TAXSIM's 2024 on property tax refund: the larger of the homeowner and renter worksheet results."""
+
+    def column(table: list[list[float]], index: int) -> list[list[float]]:
+        return [[row[0], row[index]] for row in table]
+
+    homestead = p.value("taxsim_homestead_table")
+    income = (
+        fed_agi
+        - depx.clip(None, 5) * p.num("taxsim_homestead_dependent_subtraction")
+        - aged * p.num("taxsim_homestead_aged_subtraction")
+    ).clip(0, None)
+    index = p.num("taxsim_homestead_inflation_index") / float(resolve_year(MN_PARAMS["taxsim_homestead_inflation_index"], 2024))
+    owner_threshold = interpolate_table(income / index, column(homestead, 1)) * income
+    owner = pl.min_horizontal(
+        (pl.col("proptax") - owner_threshold).clip(0, None) * interpolate_table(income, column(homestead, 2)),
+        interpolate_table(income, column(homestead, 3)),
+    )
+    owner = pl.when(pl.col("proptax") > 0).then(owner).otherwise(0.0)
+
+    renter_table = p.value("taxsim_renter_table")
+    dependents = p.value("taxsim_renter_dependent_subtraction")
+    dependent_amount = pl.lit(0.0)
+    for count, amount in enumerate(dependents):
+        dependent_amount = pl.when(depx.clip(None, 5).floor() == count).then(float(amount)).otherwise(dependent_amount)
+    renter_income = fed_agi.clip(0, None) - dependent_amount - pl.when(aged > 0).then(p.num("taxsim_renter_aged_subtraction")).otherwise(0.0)
+    renter_rent = p.num("taxsim_renter_rent_share") * pl.col("rentpaid")
+    renter = pl.min_horizontal(
+        (renter_rent - renter_income * interpolate_table(renter_income, column(renter_table, 1))).clip(0, None)
+        * interpolate_table(renter_income, column(renter_table, 2)),
+        interpolate_table(renter_income, column(renter_table, 3)),
+    )
+    renter = pl.when(pl.col("rentpaid") > 0).then(renter).otherwise(0.0)
+    return pl.max_horizontal(owner, renter)
+
+
 def _property_credit_pre1989(hh: pl.Expr, y: int) -> pl.Expr:
     """Property tax credit before 1989, based on household income."""
     p = YearParams(MN_PARAMS, y)
@@ -357,11 +393,17 @@ def _status_value(values: dict, status: pl.Expr) -> pl.Expr:
     return expr
 
 
-def _deduction_after_reduction_2022plus(amount: pl.Expr, agi: pl.Expr, status: pl.Expr, y: int) -> pl.Expr:
+def _deduction_after_reduction_2022plus(
+    amount: pl.Expr, agi: pl.Expr, status: pl.Expr, y: int, halve_separate: bool = True
+) -> pl.Expr:
     """Standard or itemized deduction after Minnesota's AGI reduction."""
     d = _phaseout_2022plus(y)
     low = _status_value(d["low"], status)
     high = _status_value(d["high"], status)
+    if not halve_separate:
+        # TAXSIM applies the single thresholds to separate returns too.
+        low = pl.when(status == "married_separate").then(float(d["low"]["single"])).otherwise(low)
+        high = pl.when(status == "married_separate").then(float(d["high"]["single"])).otherwise(high)
     alternate = float(d["alternate_rate"]) * amount
     if d["alternate_applies"]:
         main = float(d["low_rate"]) * pl.min_horizontal((agi - low).clip(0, None), high - low) + float(
@@ -755,7 +797,10 @@ def compute_mn_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         if y >= 2019:
             stded = (stded - pl.min_horizontal(0.03 * (fed_agi - reduction_start).clip(0, None), 0.8 * stded)).clip(0, None)
     elif y >= 2022:
-        stded = _deduction_after_reduction_2022plus(stded, fed_agi, pl.col("filing_status"), y)
+        stded = _deduction_after_reduction_2022plus(
+            stded, fed_agi, pl.col("filing_status"), y,
+            halve_separate=y < 2024 or behavior.halve_minnesota_deduction_reduction_for_separate_returns_per_statute,
+        )
     if y >= 2018:
         dependent_limit = pl.max_horizontal(
             pl.lit(p.num("dependent_standard_deduction_floor")),
@@ -815,7 +860,7 @@ def compute_mn_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         # TAXSIM's 2024 on routine: the federal total less property and other taxes over the federal SALT limit (the
         # state tax estimate stays in), cut by 3% and 10% of AGI over two tiers, or 80% above a top level.
         t24 = p.value("taxsim_itemized_deduction")
-        over_limit = (pl.col("proptax") + pl.col("otheritem") - float(t24["salt_limit"])).clip(0, None)
+        over_limit = (pl.col("proptax") - float(t24["salt_limit"])).clip(0, None)
         base = pl.col("itemized_before_limit") - over_limit
         first = (fed_agi - float(t24["start"])).clip(0, float(t24["range"]))
         second = (fed_agi - float(t24["start"]) - float(t24["range"])).clip(0, None)
@@ -1128,10 +1173,13 @@ def compute_mn_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             pcred = pl.when(renter).then(renter_refund).otherwise(_property_refund_1989plus(hhy, y))
     else:
         pcred = _property_credit_pre1989(hh, y)
+    if effective_year >= 2024 and not behavior.compute_minnesota_property_tax_refund_per_statute:
+        pcred = _taxsim_property_refund_2024(p, fed_agi, depx, aged)
     if effective_year <= 2023 and not behavior.pay_minnesota_property_tax_refund_through_2023:
         # The 2026 build dropped the property tax refund through 2023 ("it isn't on the M1 form").
         pcred = pl.lit(0.0)
-    pcred = pl.when(dependent_filer).then(0.0).otherwise(pcred)
+    if not (effective_year >= 2024 and not behavior.compute_minnesota_property_tax_refund_per_statute):
+        pcred = pl.when(dependent_filer).then(0.0).otherwise(pcred)
     df, (chcr, pcred) = checkpoint(df, mn_chcr=chcr, mn_pcred=pcred.clip(0, None))
 
     # --- 2009 motor fuels credit ---
