@@ -655,3 +655,6 @@ Taxsim mode now follows the statutory rule for these (they remain in
 | MI | 2023 on | | The senior deduction follows the birth-year tiers (no Worksheet 2 reduction by exemptions) | Same as 2021-22 TAXSIM tiers |
 | MI | 2021 on | | The homestead credit's household income is not reduced by self-employment tax; the renter alternative for age 65+ is capped at $1,500 | Statutory: reduced; capped at the year's maximum. `cap_michigan_senior_renter_credit_at_statute_amount` |
 | MI, WI | 2026 | | Household income for credits is the deflated copy in a projected year | Both modes (projection only) |
+| Federal/state | 2024 on | | The federal zero bracket amount that states read (`c(3)`) is not zeroed on the pass that forces itemizing | Engine rule for the TAXSIM build, no statutory counterpart |
+| MO | 2024 on | | Social Security is exempt only for a spouse 62 or older, with no income phase-out | Statutory: all benefits under the income limits. `exempt_missouri_social_security_at_any_age_per_statute` |
+| AL, MO | 2026 | | Payroll taxes deducted are deflated in a projected year; Alabama deducts the deflated federal tax | Alabama: `deduct_alabama_federal_tax_components_per_statute` |

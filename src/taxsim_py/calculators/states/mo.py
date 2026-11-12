@@ -38,7 +38,7 @@ def compute_mo_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         mo_setax=setax,
         mo_household_income=household_income(behavior),
     )
-    df = deflate_for_extrapolation(df, flate, extra=("mo_household_income",))
+    df = deflate_for_extrapolation(df, flate, extra=("mo_household_income", "tfica", "addmed"))
 
     is_joint = files_joint()
     is_sep = files_separate()
@@ -105,6 +105,13 @@ def compute_mo_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             share_62 = 0.5 * (pl.col("page") >= 62).cast(pl.Float64) + 0.5 * (pl.col("sage") >= 62).cast(pl.Float64)
             ssaxmp = share_62 * ssaxmp
             extra_taxsim_subtraction = ssaxmp
+        if y >= 2024 and not behavior.exempt_missouri_social_security_at_any_age_per_statute:
+            # TAXSIM's 2024 on routine exempts the taxable benefits of each spouse 62 or older, split equally
+            # between spouses (all to a lone filer), without the income phase-out.
+            benefits = pl.col("taxable_social_security")
+            older_primary = (pl.col("page") >= 62).cast(pl.Float64)
+            older_spouse = (pl.col("sage") >= 62).cast(pl.Float64)
+            ssaxmp = pl.when(is_joint).then(0.5 * benefits * (older_primary + older_spouse)).otherwise(benefits * older_primary)
         exemp = exemp + ssaxmp
 
     # Public pension exemption for taxpayers 65 or older (1990+).

@@ -133,6 +133,7 @@ class BehaviorProfile:
     use_south_carolina_published_tax_table: bool = True
     allow_qbi_deduction_in_south_carolina: bool = True
     count_colorado_credit_children_per_statute: bool = True
+    exempt_missouri_social_security_at_any_age_per_statute: bool = True
     deduct_alabama_federal_tax_components_per_statute: bool = True
     cap_michigan_senior_renter_credit_at_statute_amount: bool = True
     give_michigan_dependent_filers_exemption_per_statute: bool = True
