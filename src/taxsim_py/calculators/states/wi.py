@@ -150,6 +150,10 @@ def compute_wi_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             # TAXSIM measures the head of household third tier from where the second ends.
             tables = {key: [list(row) for row in rows] for key, rows in tables.items()}
             tables["head_of_household"][2][3] = tables["head_of_household"][1][0]
+            if y >= 2023:
+                # From 2023 it is the single schedule, measured from the head of household's own first bound.
+                third = tables["head_of_household"][2]
+                third[1] = tables["single"][0][1] - third[2] * (third[3] - tables["head_of_household"][0][0])
         if not behavior.use_wisconsin_form_standard_deduction and p.in_effect("taxsim_standard_deduction"):
             tables = dict(p.value("taxsim_standard_deduction"))
             index = p.num("taxsim_standard_deduction_index")
@@ -216,7 +220,7 @@ def compute_wi_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         people = depx + txp
         if flate != 1.0 and y >= 2023 and not behavior.deflate_wisconsin_exemption_count_per_statute:
             # TAXSIM's exemption is the personal amount times the deflated federal exemption count.
-            people = (federal_exemption_count(y) / flate - aged).clip(0, None)
+            people = federal_exemption_count(y) / flate
         exemp = pl.when(dependent_filer).then(0.0).otherwise(
             p.num("exemption") * people + p.num("exemption_aged") * aged
         )
@@ -244,6 +248,9 @@ def compute_wi_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         separate = schedules["married_separate"]
         if separate is None and behavior.tax_wisconsin_1986_separate_returns:
             # Separate returns use the joint schedule at half the bounds.
+            separate = [[b[0] / 2.0, b[1]] for b in schedules["married_joint"]]
+        if y == 2022 and not behavior.use_wisconsin_published_2022_separate_brackets_per_statute:
+            # TAXSIM taxes a separate return on the joint schedule at twice the income, then halves the tax.
             separate = [[b[0] / 2.0, b[1]] for b in schedules["married_joint"]]
         statax = pl.when(single_like).then(bracket_tax(taxinc, single)).when(is_joint).then(bracket_tax(taxinc, joint))
         rate = pl.when(single_like).then(bracket_rate(taxinc, single)).when(is_joint).then(bracket_rate(taxinc, joint))

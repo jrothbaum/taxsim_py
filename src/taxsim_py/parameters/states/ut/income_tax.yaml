@@ -104,10 +104,25 @@ taxpayer_credit_phaseout_threshold:
   2023: {single: 16742, married_joint: 33484, married_separate: 16742, head_of_household: 25114}
   2024: {single: 17652, married_joint: 35304, married_separate: 17652, head_of_household: 26478}
   2025: {single: 18213, married_joint: 36426, married_separate: 18213, head_of_household: 27320}
-# TAXSIM's 2022 thresholds use an index of 1.299 (the statute's amounts are 15,548 and so on).
+# TAXSIM's 2022 thresholds use an index of 1.299 (the statute's amounts are 15,548 and so on); its 2025 thresholds are the
+# 2008 amounts times 1.5177 (the statute's amounts are rounded up).
 taxsim_taxpayer_credit_phaseout_threshold:
   2022: {single: 15588, married_joint: 31176, married_separate: 15588, head_of_household: 23382}
   2023: null
+  2025: {single: 18212.4, married_joint: 36424.8, married_separate: 18212.4, head_of_household: 27318.6}
+# Federal AGI below which a return owes no tax (the qualified exempt taxpayer worksheet): the federal standard deduction.
+exempt_taxpayer_agi_floor:
+  2021: {single: 12550, married_joint: 25100, married_separate: 12550, head_of_household: 18800}
+  2022: {single: 12950, married_joint: 25900, married_separate: 12950, head_of_household: 19400}
+  2023: {single: 13850, married_joint: 27700, married_separate: 13850, head_of_household: 20800}
+  2024: {single: 14600, married_joint: 29200, married_separate: 14600, head_of_household: 21900}
+  2025: {single: 15750, married_joint: 31500, married_separate: 15750, head_of_household: 23625}
+# TAXSIM's table has 12,500 for 2021 singles and 21,923 for 2024 heads of household.
+taxsim_exempt_taxpayer_agi_floor:
+  2021: {single: 12500, married_joint: 25100, married_separate: 12550, head_of_household: 18800}
+  2022: null
+  2024: {single: 14600, married_joint: 29200, married_separate: 14600, head_of_household: 21923}
+  2025: null
 taxpayer_credit_index:
   2008: 1.0
   2009: 1.0426

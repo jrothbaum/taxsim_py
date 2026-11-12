@@ -671,3 +671,8 @@ Taxsim mode now follows the statutory rule for these (they remain in
 | Federal | 2024 | | The dependent standard deduction minimum is $1,350 | Statutory: $1,300 |
 | Federal | 2026 | | With child ages given, the EITC counts no children for its rates but sizes the maximum and phase-out by the children under 19 | Statutory: counts the children. `count_eitc_children_from_ages_per_statute` |
 | Federal | 2026 | | The qualified business income phase-in starts at $201,800 (single) | Statutory: $201,775 |
+| Utah | 2025 | | The taxpayer credit phase-out start is the 2008 amount times 1.5177 (HoH 27,318.60), not the published 27,320 | Statutory: published amounts. `use_utah_2022_credit_threshold_per_statute` |
+| Utah | 2021 on | | A dependent filer's taxpayer credit phases out from zero income (the start is multiplied by the taxpayer count, which is 0) | Statutory: normal start. `start_utah_dependent_filer_credit_phaseout_per_statute` |
+| Utah | 2021, 2024 | | The no-tax income floor (qualified exempt taxpayer worksheet) is 12,500 for 2021 singles and 21,923 for 2024 heads of household | Statutory: the federal standard deduction. `use_utah_statute_exempt_taxpayer_floor_per_statute` |
+| Wisconsin | 2022 | | A separate return is taxed on the joint schedule at twice the income, then halved (the published separate brackets are not exact halves) | Statutory: published separate brackets. `use_wisconsin_published_2022_separate_brackets_per_statute` |
+| Wisconsin | 2023 on, head of household | | The third standard deduction tier is the single schedule measured from the head of household's first bound, not the form's rounded 9,041.40 | Statutory: form amounts. `start_wisconsin_head_of_household_third_tier_per_statute` |

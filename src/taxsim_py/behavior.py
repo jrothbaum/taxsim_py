@@ -321,6 +321,9 @@ class BehaviorProfile:
     exclude_utah_state_income_tax_from_taxpayer_credit_before_2018: bool = True
     pay_utah_retirement_credit_per_statute: bool = True
     use_utah_2022_credit_threshold_per_statute: bool = True
+    start_utah_dependent_filer_credit_phaseout_per_statute: bool = True
+    use_wisconsin_published_2022_separate_brackets_per_statute: bool = True
+    use_utah_statute_exempt_taxpayer_floor_per_statute: bool = True
     deny_new_york_2021_earned_income_credit_to_separate_returns: bool = True
     pick_new_york_worksheet_by_filing_status: bool = True
     exclude_arkansas_pensions_per_taxpayer: bool = True

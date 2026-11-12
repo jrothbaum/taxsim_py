@@ -5,7 +5,7 @@ from __future__ import annotations
 import polars as pl
 
 from taxsim_py.engine.brackets import bracket_rate, bracket_tax
-from taxsim_py.engine.inputs import aged_count, federal_exemption_count, files_head_of_household, files_joint, files_separate, files_single, taxpayer_count
+from taxsim_py.engine.inputs import aged_count, is_dependent_filer, federal_exemption_count, files_head_of_household, files_joint, files_separate, files_single, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml
 from taxsim_py.engine.state import by_filing_status, checkpoint, pre1987_federal_itemizing, with_state_detail
 from taxsim_py.behavior import BehaviorProfile, TAXSIM_BEHAVIOR
@@ -144,6 +144,9 @@ def compute_ut_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             threshold = by_filing_status(t) * index
             if p.in_effect("taxsim_taxpayer_credit_phaseout_threshold") and not behavior.use_utah_2022_credit_threshold_per_statute:
                 threshold = by_filing_status(p.value("taxsim_taxpayer_credit_phaseout_threshold")) * index
+        if not behavior.start_utah_dependent_filer_credit_phaseout_per_statute:
+            # TAXSIM multiplies the phase-out start by the count of taxpayers, which is zero for a dependent filer.
+            threshold = pl.when(is_dependent_filer()).then(0.0).otherwise(threshold)
         if p.in_effect("taxpayer_credit_personal_exemption"):
             credit_base = deduc + p.num("taxpayer_credit_personal_exemption") * pl.col("depx")
         else:
@@ -232,6 +235,9 @@ def compute_ut_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             )
 
         statax = (statax - credit - retcrd - ctc - earned_income_credit).clip(0, None)
+        if p.in_effect("exempt_taxpayer_agi_floor"):
+            floor_key = "taxsim_exempt_taxpayer_agi_floor" if not behavior.use_utah_statute_exempt_taxpayer_floor_per_statute and p.in_effect("taxsim_exempt_taxpayer_agi_floor") else "exempt_taxpayer_agi_floor"
+            statax = pl.when(agi < by_filing_status(p.value(floor_key))).then(0.0).otherwise(statax)
         credits = credit + retcrd + ctc + earned_income_credit
 
     df = df.with_columns(siitax=statax * flate)
