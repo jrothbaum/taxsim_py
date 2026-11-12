@@ -212,6 +212,17 @@ def compute_ut_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
                 k["amount"] * ctc_children
                 - k["reduction_rate"] * (taxinc - by_filing_status(k["phaseout_start"])).clip(0, None)
             ).clip(0, None)
+            if not behavior.compute_utah_child_tax_credit_per_statute:
+                # TAXSIM counts the children under 13, reduces by federal AGI above $54,000 (joint), $43,000 (head of
+                # household) or $27,000 (everyone else, singles included).
+                threshold = (
+                    pl.when(files_joint()).then(float(k["phaseout_start"]["married_joint"]))
+                    .when(files_head_of_household()).then(float(k["phaseout_start"]["head_of_household"]))
+                    .otherwise(float(k["phaseout_start"]["married_separate"]))
+                )
+                ctc = (
+                    k["amount"] * pl.col("dep13") - k["reduction_rate"] * (pl.col("agi") - threshold).clip(0, None)
+                ).clip(0, None)
         earned_income_credit = pl.lit(0.0)
         if p.in_effect("earned_income_credit_rate"):
             earned_income_credit = pl.min_horizontal(
