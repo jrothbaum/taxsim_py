@@ -702,3 +702,4 @@ Taxsim mode now follows the statutory rule for these (they remain in
 | Montana | 2022 | | The elderly homeowner/renter credit maximum is 1,150 | (Statutory: same.) |
 | Missouri | 1993-2017 | | The itemized deduction's state-tax limit total includes other itemized deductions | Statutory: excluded. `exclude_other_itemized_from_missouri_state_tax_limit_per_statute` |
 | Missouri | all | | A joint return's income is split between spouses after the capital gains subtraction | Statutory: before. `split_missouri_income_before_capital_gains_subtraction_per_statute` |
+| New York | 2020-2021 | | The state earned income credit has no age test (only dependent filers are shut out) and uses federal AGI for the phase-out | Statutory: age test and New York AGI. `apply_new_york_earned_income_credit_age_test_per_statute`, `use_new_york_agi_for_earned_income_credit_per_statute` |

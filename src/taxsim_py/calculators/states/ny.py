@@ -765,22 +765,34 @@ def compute_ny_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             credit = federal_eitc(pl.col("earned_income"), agi_value, disqy, credit_status, nkids, params, dylim)
             childless = nkids == 0
             age_law = law if eligibility_year is None else eligibility_year
-            eligible = eitc_filer_eligible(childless, age_law) & eitc_age_eligible(childless, age_law)
+            if behavior.apply_new_york_earned_income_credit_age_test_per_statute or y >= 2022:
+                eligible = eitc_filer_eligible(childless, age_law) & eitc_age_eligible(childless, age_law)
+            else:
+                # TAXSIM's credit routine has no age test; only dependent filers are shut out.
+                eligible = ~is_dependent_filer()
             return pl.when(eligible).then(credit).otherwise(0.0)
 
         if y >= 2024 and not behavior.compute_new_york_earned_income_credit_base_per_statute:
             # TAXSIM's 2024 on routine reads the federal credit as the federal pass computed it (deflated).
             df, (eitc,) = checkpoint(df, ny_eitc=pl.col("eitc"))
         else:
-            df, (eitc,) = checkpoint(df, ny_eitc=eitc_for(y, agieic))
+            df, (eitc,) = checkpoint(df, ny_eitc=eitc_for(y, agieic if behavior.use_new_york_agi_for_earned_income_credit_per_statute else pl.col("agi")))
         if p.in_effect("eitc_childless_prior_schedule"):
             # The prior year's schedule, keeping the state's upper age
             # exclusion for taxpayers 65 or older.
             prior = p.value("eitc_childless_prior_schedule")
             aged_single_childless = is_single & (pl.col("dep17") < 1) & (aged >= taxpayer_count())
             childless_single = is_single & (pl.col("dep17") < 1) & (aged < taxpayer_count())
+            if not behavior.apply_new_york_earned_income_credit_age_test_per_statute:
+                # TAXSIM has no upper age exclusion for the prior schedule.
+                childless_single = is_single & (pl.col("dep17") < 1)
+                aged_single_childless = pl.lit(False)
             eitc = pl.when(childless_single).then(
-                prior["credit_factor"] * eitc_for(y - 1, agieic * prior["agi_factor"], eligibility_year=y)
+                prior["credit_factor"] * eitc_for(
+                    y - 1,
+                    agieic * prior["agi_factor"] if behavior.use_new_york_agi_for_earned_income_credit_per_statute else pl.col("agi"),
+                    eligibility_year=y,
+                )
             ).when(aged_single_childless).then(0.0).otherwise(eitc)
         earncr = (p.num("eitc_match_rate") * eitc - pl.min_horizontal(hcred, taxbc)).clip(0, None)
 

@@ -141,6 +141,8 @@ class BehaviorProfile:
     limit_virginia_2021_child_care_deduction_per_statute: bool = True
     add_back_other_itemized_in_california_minimum_tax_per_statute: bool = True
     use_indiana_elderly_credit_steps_per_statute: bool = True
+    apply_new_york_earned_income_credit_age_test_per_statute: bool = True
+    use_new_york_agi_for_earned_income_credit_per_statute: bool = True
     exclude_other_itemized_from_missouri_state_tax_limit_per_statute: bool = True
     split_missouri_income_before_capital_gains_subtraction_per_statute: bool = True
     lift_maryland_childless_refundable_credit_limit_per_statute: bool = True
