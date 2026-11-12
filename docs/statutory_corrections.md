@@ -636,3 +636,6 @@ Taxsim mode now follows the statutory rule for these (they remain in
 | DC | 2025 on | | The itemized deduction adds back the state and local tax above the phased-down federal cap | Statutory: `cap_district_of_columbia_state_tax_deduction_from_2024` |
 | HI | 2025 on | | The state and local tax over the federal cap (including its phase-down) is added back to the itemized deduction | Both modes |
 | DE | 2024 on | | The property tax deduction is not capped at $10,000 | Statutory: capped. `cap_delaware_property_tax_deduction_per_statute` |
+| WI | 2024 on | | Child care credit is a rate falling with AGI (steps rounded up) on the expenses of up to two children under 13, not half the federal credit | Statutory: `pay_wisconsin_child_care_credit_per_statute` |
+| VA | 2022 on | | The standard deduction is zero when the federal return itemizes | Statutory: the larger of the two. `allow_virginia_standard_deduction_when_itemizing_federally_per_statute` |
+| VA | 2025 on | | The state and local tax within the itemized deduction is capped at $40,000 without the federal phase-down | Statutory: $10,000. `cap_virginia_state_tax_deduction_per_statute` |

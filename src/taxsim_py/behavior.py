@@ -133,6 +133,8 @@ class BehaviorProfile:
     use_south_carolina_published_tax_table: bool = True
     allow_qbi_deduction_in_south_carolina: bool = True
     count_colorado_credit_children_per_statute: bool = True
+    cap_virginia_state_tax_deduction_per_statute: bool = True
+    allow_virginia_standard_deduction_when_itemizing_federally_per_statute: bool = True
     cap_delaware_property_tax_deduction_per_statute: bool = True
     halve_minnesota_deduction_reduction_for_separate_returns_per_statute: bool = True
     compute_minnesota_property_tax_refund_per_statute: bool = True

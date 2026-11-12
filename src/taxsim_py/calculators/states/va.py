@@ -115,6 +115,11 @@ def compute_va_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         agi = agi - elder
     df, (agi, elder) = checkpoint(df, va_agi_after_age=agi, va_elder=elder)
 
+    # TAXSIM keeps applying the federal cap it reads for the year (unphased) after the 2025 increase.
+    salt_cap = p.num("salt_cap") if p.in_effect("salt_cap") else 0.0
+    if p.in_effect("taxsim_salt_cap") and not behavior.cap_virginia_state_tax_deduction_per_statute:
+        salt_cap = p.num("taxsim_salt_cap")
+
     # --- Standard deduction ---
     if p.in_effect("standard_deduction_share"):
         c = p.value("standard_deduction_share")
@@ -154,7 +159,7 @@ def compute_va_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             xitded = pl.when(fed_itemizes & (ag >= phas92) & (ag > phas92) & (xtot > 0)).then(limited).otherwise(xitded)
     elif y == 2018:
         other = pl.col("proptax") + (pl.col("otheritem") if behavior.limit_virginia_itemized_deductions_without_other_items else 0.0)
-        stt = pl.min_horizontal(salt, pl.min_horizontal(p.num("salt_cap") / sep, other + salt) - other)
+        stt = pl.min_horizontal(salt, pl.min_horizontal(salt_cap / sep, other + salt) - other)
         xitded = pl.when(fed_itemizes).then(pl.col("itemized_before_limit") - stt).otherwise(0.0)
     else:
         deduc1 = pl.col("charity_cash") + salt + pl.col("proptax") + pl.col("otheritem") + pl.col("mortgage")
@@ -162,7 +167,7 @@ def compute_va_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         if behavior.scale_virginia_itemized_limit_threshold:
             # TAXSIM scales the threshold only in the test below.
             threshold = threshold * p.num("itemized_limit_test_index")
-        sttax = pl.min_horizontal(p.num("salt_cap") / sep, salt)
+        sttax = pl.min_horizontal(salt_cap / sep, salt)
         dedphs = pl.min_horizontal(
             p["itemized_limit_rate"] * (fed_agi - threshold),
             p["itemized_limit_share"] * (deduc1 - salt + sttax).clip(0, None),
@@ -174,7 +179,7 @@ def compute_va_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         xitded = pl.when(fed_itemizes).then(pl.when(over).then(limited).otherwise(deduc1 - salt)).otherwise(0.0)
         if not behavior.limit_virginia_itemized_deductions_without_other_items:
             # TAXSIM: the capped state tax is added to the other items, and below the limit the whole state tax comes off again.
-            stx = pl.min_horizontal(salt, (p.num("salt_cap") / sep - pl.col("proptax")).clip(0, None))
+            stx = pl.min_horizontal(salt, (salt_cap / sep - pl.col("proptax")).clip(0, None))
             xlin1 = stx + pl.col("proptax") + pl.col("mortgage") + pl.col("otheritem") + pl.col("charity_cash")
             limit_start = by_filing_status(p.value("itemized_limit_threshold")) * p.num("taxsim_itemized_limit_index")
             if p.in_effect("taxsim_itemized_limit_override"):
@@ -191,6 +196,9 @@ def compute_va_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         # TAXSIM's year ranges skip 2003.
         child = pl.lit(0.0)
     child = pl.min_horizontal(pl.col("childcare"), child)
+    if y >= 2022 and not behavior.allow_virginia_standard_deduction_when_itemizing_federally_per_statute:
+        # TAXSIM's 2022 on routine zeroes the standard deduction when the federal return itemizes.
+        stded = pl.when(fed_itemizes).then(0.0).otherwise(stded)
     deduc = pl.max_horizontal(stded, xitded) + child
     if not p.in_effect("aged_exemption"):
         exemp = (txp + depx + aged) * p.num("exemption")

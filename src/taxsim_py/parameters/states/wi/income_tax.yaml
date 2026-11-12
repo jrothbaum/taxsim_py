@@ -497,6 +497,9 @@ school_property_credit_owner_divisor: 10
 child_care_credit_share: {1984: 0.3, 1986: null}
 # TAXSIM also pays this share of the federal credit from 2022.
 taxsim_child_care_credit_share: {2022: 0.5}
+# From 2024 TAXSIM computes its own credit on expenses: the rate falls a point for each step of AGI above the start.
+taxsim_child_care_credit_expense_based:
+  2024: {expense_per_child: 10000, rate_top: 0.35, rate_floor: 0.20, rate_decrement: 0.01, rate_step_start: 15000, rate_step: 2000}
 # Working families credit from 1998: the whole tax up to an income limit per
 # taxpayer, then (intercept - slope * AGI) times tax after other credits.
 working_families_credit:

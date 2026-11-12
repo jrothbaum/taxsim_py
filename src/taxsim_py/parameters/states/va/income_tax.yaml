@@ -117,6 +117,8 @@ itemized_limit_test_index: {2019: 1.0, 2021: 1.25}
 itemized_limit_share: 0.8
 itemized_limit_rate: 0.03
 salt_cap: {2018: 10000.0}
+# TAXSIM's cap on the state and local tax within the itemized deduction rises with the federal cap in 2025.
+taxsim_salt_cap: {2025: 40000.0}
 # Child care expense deduction per child (at most two); the federal expense
 # limit from 2003 (TAXSIM has none in 2003).
 child_care_deduction_per_child: {1979: 2000.0, 1983: 2400.0, 2003: 3000.0}

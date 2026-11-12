@@ -13,6 +13,7 @@ from taxsim_py.engine.state import (
     forced_standard,
     household_income,
     interpolate_table,
+    net_earnings_by_spouse,
     pre1987_federal_itemizing,
     tier_values,
     unemployment_total,
@@ -319,6 +320,16 @@ def compute_wi_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     if y >= 2022 and p.in_effect("taxsim_child_care_credit_share") and not behavior.pay_wisconsin_child_care_credit_per_statute:
         # TAXSIM pays half the federal credit from 2022 (the statute's credit is not in the table).
         chcr = p.num("taxsim_child_care_credit_share") * pl.col("ccc_uncapped")
+    if y >= 2024 and p.in_effect("taxsim_child_care_credit_expense_based") and not behavior.pay_wisconsin_child_care_credit_per_statute:
+        # TAXSIM from 2024: a rate falling with AGI (steps rounded up) on the expenses of up to two children under 13,
+        # limited to the lower spouse's earnings.
+        c24 = p.value("taxsim_child_care_credit_expense_based")
+        earn_primary, earn_spouse = net_earnings_by_spouse(behavior)
+        earnings = pl.when(files_joint()).then(pl.min_horizontal(earn_primary, earn_spouse)).otherwise(earn_primary)
+        children = pl.col("dep13").clip(None, 2).floor()
+        child = pl.min_horizontal(earnings.clip(0, None), float(c24["expense_per_child"]) * children, pl.col("childcare"))
+        steps = ((agi - float(c24["rate_step_start"])).clip(0, None) / float(c24["rate_step"])).ceil()
+        chcr = pl.max_horizontal(pl.lit(float(c24["rate_floor"])), float(c24["rate_top"]) - float(c24["rate_decrement"]) * steps) * child
     if y < 2022 and not behavior.pay_wisconsin_child_care_credit_per_statute:
         # TAXSIM multiplies the share by a federal variable that is never set (always zero).
         chcr = pl.lit(0.0)
