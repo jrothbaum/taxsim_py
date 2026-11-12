@@ -799,7 +799,7 @@ def compute_mn_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     elif y >= 2022:
         stded = _deduction_after_reduction_2022plus(
             stded, fed_agi, pl.col("filing_status"), y,
-            halve_separate=y < 2024 or behavior.halve_minnesota_deduction_reduction_for_separate_returns_per_statute,
+            halve_separate=y < 2023 or behavior.halve_minnesota_deduction_reduction_for_separate_returns_per_statute,
         )
     if y >= 2018:
         dependent_limit = pl.max_horizontal(
