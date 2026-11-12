@@ -329,6 +329,24 @@ exemption phaseout rate stays 25% (the law: 50% from 2026). TAXSIM mode keeps th
 (`index_salt_cap_from_2026`, `phase_out_amt_exemption_at_half_rate_from_2026`). Its 0% capital gains threshold is the 2023
 amount carried by its price index (about $450 above the published one in 2026).
 
+## 2026 state law not yet modeled or not confirmed
+
+See `docs/state_2026_parameters.md` for the full verification table. Open items:
+
+- Hawaii's higher personal income tax on income over $1 million (enacted July 2026) and Arizona's HB 4168 items beyond the
+  dependent credit (SALT cap on itemizers, adoption subtraction, charitable standard deduction) are not modeled.
+- Colorado: the Family Affordability Credit is off for 2026, but whether the separate child tax credit still applies at the
+  same amounts is unconfirmed, and the 2026 federal-deduction addback cap ($1,000 / $2,000) comes from PolicyEngine only.
+- District of Columbia: the new $1,000 child tax credit is in the model; its survival after the congressional
+  disapproval of DC's tax decoupling is unconfirmed.
+- New Jersey's $1,250 child credit rests on one secondary source.
+- Minnesota's Social Security subtraction thresholds were left at the 2023 amounts for 2024 and 2025 before this
+  update; they now follow the published indexed amounts (2024 from House Research, 2025 and 2026 from the Revenue
+  Department).
+- Amounts marked Derived in the table (Rhode Island brackets, North Dakota, New Mexico, Maine and Utah indexed amounts, New
+  York supplemental tax tables, the Arkansas 2026 rate table and low-income tables) should be replaced when the states
+  publish their 2026 schedules.
+
 ## Tracing the oracle
 
 `scripts/trace_failures.py <VALIDATE_OUT dir> state=MT year=2025 min=5 limit=5` traces only the worst disagreeing cases of a validation run, one file each (console shows one line per case). `scripts/trace_oracle.py year=2025 state=27 mstat=1 pwages=60000 ...` prints every nonzero federal result `c(i)` and input `d(i)` the NBER code hands a state routine for one household (the patch is in `scripts/build_oracle.sh`; it runs only when `opt1=30, opt1v=999`). Use it before reading a state routine, to see hidden inputs such as `c(201)` or `c(215)`.

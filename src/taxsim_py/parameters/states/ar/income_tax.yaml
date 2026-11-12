@@ -316,6 +316,45 @@ rate_table:
     - [97801, 3.9, 99]
     - [97901, 3.9, 89]
     - [1.0e+20, 3.9, 91.0]
+  # 2026: top rate 3.7% (Acts 1 and 2 of the 2026 first extraordinary session).
+  # Rows rebuilt from PolicyEngine-US gov.states.ar.tax.income.rates.main; the
+  # official 2026 DFA table is not available, so the constants are unverified.
+  2026:
+    - [5600, 0, 0]
+    - [11200, 2, 112]
+    - [16000, 3, 224]
+    - [26400, 3.4, 288]
+    - [94701, 3.7, 367.2]
+    - [94801, 3.7, 369.9]
+    - [94901, 3.7, 359.9]
+    - [95001, 3.7, 349.9]
+    - [95101, 3.7, 339.9]
+    - [95201, 3.7, 329.9]
+    - [95301, 3.7, 319.9]
+    - [95401, 3.7, 309.9]
+    - [95501, 3.7, 299.9]
+    - [95601, 3.7, 289.9]
+    - [95701, 3.7, 279.9]
+    - [95801, 3.7, 269.9]
+    - [95901, 3.7, 259.9]
+    - [96001, 3.7, 249.9]
+    - [96101, 3.7, 239.9]
+    - [96201, 3.7, 229.9]
+    - [96301, 3.7, 219.9]
+    - [96401, 3.7, 209.9]
+    - [96501, 3.7, 199.9]
+    - [96601, 3.7, 189.9]
+    - [96701, 3.7, 179.9]
+    - [96801, 3.7, 169.9]
+    - [96901, 3.7, 159.9]
+    - [97001, 3.7, 149.9]
+    - [97101, 3.7, 139.9]
+    - [97201, 3.7, 129.9]
+    - [97301, 3.7, 119.9]
+    - [97401, 3.7, 109.9]
+    - [97501, 3.7, 99.9]
+    - [97601, 3.7, 89.9]
+    - [1.0e+20, 3.7, 79.9]
 
 # TAXSIM's 2025 table: the form's tops less one and constants a few cents different.
 taxsim_rate_table:
@@ -388,7 +427,7 @@ standard_deduction_percent:
   1987: {rate: 0.10, cap_per_taxpayer: 2000}
   1998: null
 # From 1998: a flat amount per taxpayer.
-standard_deduction: {1998: 2000, 2015: 2200, 2022: 2270, 2023: 2340, 2024: 2410, 2025: 2470}
+standard_deduction: {1998: 2000, 2015: 2200, 2022: 2270, 2023: 2340, 2024: 2410, 2025: 2470, 2026: 2570}
 # Itemized deduction limitation, 1991-2017 (suspended 2010-2012): `rate` of
 # AGI above the threshold, at most `cap_rate` of itemized deductions. The
 # threshold is indexed (state_adjustments.yaml itemized_phaseout_inflation);

@@ -89,7 +89,7 @@ retirement_phaseout_start: {single: 25000, other: 32000}
 
 # --- From 2008: flat tax with credits ---
 # Source from 2022: PolicyEngine-US gov.states.ut.tax.income.rate.
-flat_rate: {2008: 0.05, 2018: 0.0495, 2022: 0.0485, 2023: 0.0465, 2024: 0.0455, 2025: 0.045}
+flat_rate: {2008: 0.05, 2018: 0.0495, 2022: 0.0485, 2023: 0.0465, 2024: 0.0455, 2025: 0.045, 2026: 0.0445}
 salt_cap: {2018: 10000.0}
 # Taxpayer credit: a share of deductions and exemptions (from 2022 the
 # deduction plus the personal exemption per dependent), less a share of income
@@ -104,6 +104,7 @@ taxpayer_credit_phaseout_threshold:
   2023: {single: 16742, married_joint: 33484, married_separate: 16742, head_of_household: 25114}
   2024: {single: 17652, married_joint: 35304, married_separate: 17652, head_of_household: 26478}
   2025: {single: 18213, married_joint: 36426, married_separate: 18213, head_of_household: 27320}
+  2026: {single: 18626, married_joint: 37252, married_separate: 18626, head_of_household: 27940}
 # TAXSIM's 2022 thresholds use an index of 1.299 (the statute's amounts are 15,548 and so on); its 2025 thresholds are the
 # 2008 amounts times 1.5177 (the statute's amounts are rounded up).
 taxsim_taxpayer_credit_phaseout_threshold:
@@ -117,6 +118,7 @@ exempt_taxpayer_agi_floor:
   2023: {single: 13850, married_joint: 27700, married_separate: 13850, head_of_household: 20800}
   2024: {single: 14600, married_joint: 29200, married_separate: 14600, head_of_household: 21900}
   2025: {single: 15750, married_joint: 31500, married_separate: 15750, head_of_household: 23625}
+  2026: {single: 16100, married_joint: 32200, married_separate: 16100, head_of_household: 24150}
 # TAXSIM's table has 12,500 for 2021 singles and 21,923 for 2024 heads of household.
 taxsim_exempt_taxpayer_agi_floor:
   2021: {single: 12500, married_joint: 25100, married_separate: 12550, head_of_household: 18800}
@@ -139,7 +141,7 @@ taxpayer_credit_index:
   2020: 1.2399
   2021: 1.258
   2022: 1.0
-taxpayer_credit_personal_exemption: {2022: 1802, 2023: 1941, 2024: 2046, 2025: 2111}
+taxpayer_credit_personal_exemption: {2022: 1802, 2023: 1941, 2024: 2046, 2025: 2111, 2026: 2159}
 # Retirement credit per qualifying taxpayer (2008-2021 65 or older; from 2022 at
 # least `retirement_credit_age`), less a share of AGI over the phaseout start.
 # 2008-2021 plus a share of taxable Social Security up to an amount per taxpayer
@@ -180,4 +182,9 @@ child_tax_credit:
     amount: 1000
     reduction_rate: 0.1
     phaseout_start: {single: 43000, married_joint: 54000, married_separate: 27000, head_of_household: 43000}
+    child_age_limit: 6
+  2026:
+    amount: 1000
+    reduction_rate: 0.1
+    phaseout_start: {single: 49000, married_joint: 61000, married_separate: 30500, head_of_household: 49000}
     child_age_limit: 6

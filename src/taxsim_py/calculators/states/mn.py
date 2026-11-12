@@ -454,7 +454,7 @@ def _statutory_working_family_credit(
     if not unknown_ages_eligible:
         # TAXSIM (`m1cwfc`): no age or separate-return test, but nothing for a childless return with a taxpayer 65 or older;
         # children are those under 18.
-        taxsim_base = float(c["child_amount"]) * pl.col("dep18") + float(c["phase_in_rate"]) * earned.clip(0, float(d["phase_in_end"]))
+        taxsim_base = float(d.get("child_amount", c["child_amount"])) * pl.col("dep18") + float(c["phase_in_rate"]) * earned.clip(0, float(d["phase_in_end"]))
         taxsim_d = resolve_year(c["taxsim_by_year"], y) if y >= 2024 and "taxsim_by_year" in c else d
         taxsim_threshold = pl.when(is_joint).then(float(taxsim_d["phase_out_joint"])).otherwise(float(taxsim_d["phase_out_other"]))
         taxsim_credit = (taxsim_base - float(c["phase_out_rate"]) * (income - taxsim_threshold).clip(0, None)).clip(0, None)
@@ -462,7 +462,7 @@ def _statutory_working_family_credit(
             # The 2024 on routine pays a childless return only with a reported taxpayer age 19 to 64.
             return pl.when((pl.col("depx") > 0) | _childless_age_eligible(is_joint, False)).then(taxsim_credit).otherwise(0.0)
         return pl.when((pl.col("depx") > 0) | (aged_count() == 0)).then(taxsim_credit).otherwise(0.0)
-    base = float(c["child_amount"]) * pl.col("dep17") + float(c["phase_in_rate"]) * earned.clip(0, float(d["phase_in_end"]))
+    base = float(d.get("child_amount", c["child_amount"])) * pl.col("dep17") + float(c["phase_in_rate"]) * earned.clip(0, float(d["phase_in_end"]))
     threshold = pl.when(is_joint).then(float(d["phase_out_joint"])).otherwise(float(d["phase_out_other"]))
     reduction = (income - threshold).clip(0, None) * float(c["phase_out_rate"])
     return pl.when(eligible).then((base - reduction).clip(0, None)).otherwise(0.0)

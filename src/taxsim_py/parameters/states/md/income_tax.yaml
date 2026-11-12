@@ -39,7 +39,7 @@ capital_gains_surtax:
 # --- Income ---
 # Pension exclusion per taxpayer 65 or older, less Social Security benefits.
 # Source for 2022 on: PolicyEngine-US gov.states.md.tax.income.agi.subtractions.pension.
-pension_exclusion: {1977: 3200, 1978: 5200, 1979: 5700, 1980: 6400, 1981: 7400, 1982: 8700, 1983: 8500, 1986: 8600, 1987: 9100, 1988: 9500, 1989: 10100, 1990: 10800, 1991: 11800, 1992: 12300, 1993: 13100, 1994: 13600, 1995: 13800, 1996: 14400, 1997: 15000, 1998: 15900, 1999: 16100, 2000: 16500, 2001: 17300, 2002: 18500, 2003: 19900, 2004: 20700, 2005: 21500, 2006: 22600, 2007: 23600, 2008: 24000, 2009: 24500, 2010: 26100, 2011: 26300, 2012: 27100, 2013: 27800, 2014: 29000, 2015: 29200, 2016: 29400, 2017: 29900, 2018: 30600, 2019: 31100, 2020: 33100, 2021: 34300, 2022: 34300, 2023: 36200, 2024: 39500, 2025: 41200}
+pension_exclusion: {1977: 3200, 1978: 5200, 1979: 5700, 1980: 6400, 1981: 7400, 1982: 8700, 1983: 8500, 1986: 8600, 1987: 9100, 1988: 9500, 1989: 10100, 1990: 10800, 1991: 11800, 1992: 12300, 1993: 13100, 1994: 13600, 1995: 13800, 1996: 14400, 1997: 15000, 1998: 15900, 1999: 16100, 2000: 16500, 2001: 17300, 2002: 18500, 2003: 19900, 2004: 20700, 2005: 21500, 2006: 22600, 2007: 23600, 2008: 24000, 2009: 24500, 2010: 26100, 2011: 26300, 2012: 27100, 2013: 27800, 2014: 29000, 2015: 29200, 2016: 29400, 2017: 29900, 2018: 30600, 2019: 31100, 2020: 33100, 2021: 34300, 2022: 34300, 2023: 36200, 2024: 39500, 2025: 41200, 2026: 40600}
 # Child care expense subtraction per child (up to two).
 child_care_subtraction_per_child: {1977: 0, 1978: 2400, 2003: 3000}
 child_care_subtraction_max_children: 2
@@ -104,6 +104,7 @@ standard_deduction_limits:
   2025: null
 standard_deduction_flat:
   2025: {single: 3350, married_separate: 3350, married_joint: 6700, head_of_household: 6700}
+  2026: {single: 3400, married_separate: 3400, married_joint: 6850, head_of_household: 6850}
 # 1987-1989: additional standard deduction per taxpayer 65 or older.
 aged_standard_deduction: {1987: 800, 1990: null}
 # Itemized deductions over the 1991-2017 federal limitation threshold

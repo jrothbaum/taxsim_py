@@ -70,8 +70,9 @@ additional_exemption: {2022: 1000, 2025: null}
 # From 2025: a standard deduction by filing status replaces them.
 standard_deduction:
   2025: {single: 12500, married_joint: 25000, head_of_household: 25000, married_separate: 12500}
-  # Adjusted for inflation from 2026 (R.S. 47:294); PolicyEngine's index, not confirmed against the Department's 2026 table.
-  2026: {single: 13070, married_joint: 26140, head_of_household: 26140, married_separate: 13070}
+  # Adjusted for inflation from 2026 (R.S. 47:294(B)); 2026 amounts from the Department of Revenue's
+  # 2026 withholding emergency rule (LAC 61.I.1501).
+  2026: {single: 12875, married_joint: 25750, head_of_household: 25750, married_separate: 12875}
 
 # --- Credits ---
 # Through 2021, tax is reduced by `dependent_credit_rate` of this amount per

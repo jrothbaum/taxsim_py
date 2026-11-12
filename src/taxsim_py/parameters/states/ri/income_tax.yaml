@@ -42,6 +42,7 @@ brackets:
   2023: [[0, 0.0375], [73450, 0.0475], [166950, 0.0599]]
   2024: [[0, 0.0375], [77450, 0.0475], [176050, 0.0599]]
   2025: [[0, 0.0375], [79900, 0.0475], [181650, 0.0599]]
+  2026: [[0, 0.0375], [82050, 0.0475], [186450, 0.0599]]
 # TAXSIM's own factors for the 2011 schedule, 2012 on.
 taxsim_bracket_index: {2011: 1.0, 2012: 1.039, 2013: 1.066, 2014: 1.084, 2015: 1.101, 2016: 1.1016, 2017: 1.115, 2018: 1.1408, 2019: 1.1648, 2020: 1.186, 2021: 1.2044, 2022: 1.2404, 2023: 1.3356, 2024: 1.4084, 2025: 1.4532}
 # TAXSIM's deduction and exemption phaseout (2012 on), in place of the published steps.
@@ -113,6 +114,7 @@ standard_deduction:
     2023: 10000.0
     2024: 10550.0
     2025: 10900
+    2026: 11200
   head_of_household:
     2003: 7000.0
     2004: 7150.0
@@ -137,6 +139,7 @@ standard_deduction:
     2023: 15050.0
     2024: 15850.0
     2025: 16350
+    2026: 16800
   married:
     2003: 7950.0
     2004: 8150.0
@@ -161,6 +164,7 @@ standard_deduction:
     2023: 20050.0
     2024: 21150.0
     2025: 21800
+    2026: 22400
 # 2003-2010 additional standard deduction per taxpayer 65 or older, and the
 # dependent filer standard deduction (at least earned income plus the addition).
 standard_deduction_aged_addition:
@@ -184,6 +188,7 @@ exemption_amount:
   2023: 4700.0
   2024: 4950.0
   2025: 5100
+  2026: 5250
 # 2011-2021: the standard deduction and exemptions phase out in steps (shares
 # kept) per step of AGI between the start and end (times the bracket index),
 # then also by a smooth rate per step.
@@ -200,6 +205,7 @@ deduction_phaseout:
   2023: {start: 233750, increment: 6700, share_per_step: 0.2}
   2024: {start: 246450, increment: 7050, share_per_step: 0.2}
   2025: {start: 254250, increment: 7250, share_per_step: 0.2}
+  2026: {start: 261000, increment: 7450, share_per_step: 0.2}
 
 # --- Income ---
 # From 2016: taxable Social Security of returns with a taxpayer 65 or older is
@@ -218,6 +224,7 @@ social_security_index:
   2023: 1.2625
   2024: 1.3025
   2025: 1.3375
+  2026: 1.3675
 retirement_exclusion_per_aged_taxpayer: {2017: 15000, 2023: 20000, 2025: 50000}
 retirement_exclusion_agi_limit: {single: 80000, married: 100000}
 retirement_exclusion_index:
@@ -230,6 +237,7 @@ retirement_exclusion_index:
   2023: 1.2625
   2024: 1.3025
   2025: 1.3375
+  2026: 1.3675
 
 # --- Minimum tax ---
 # 2001-2002: a share of the federal minimum tax.
@@ -293,6 +301,7 @@ property_relief_max:
   2023: 650
   2024: 675
   2025: 700
+  2026: 715
 property_relief:
   1977:
     single:

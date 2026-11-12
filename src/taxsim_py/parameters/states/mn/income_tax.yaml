@@ -157,6 +157,10 @@ brackets:
     single: [[0, 0.0535], [32570, 0.068], [106990, 0.0785], [198630, 0.0985]]
     joint: [[0, 0.0535], [47620, 0.068], [189180, 0.0785], [330410, 0.0985]]
     head_of_household: [[0, 0.0535], [40100, 0.068], [161130, 0.0785], [264050, 0.0985]]
+  2026:
+    single: [[0, 0.0535], [33310, 0.068], [109430, 0.0785], [203150, 0.0985]]
+    joint: [[0, 0.0535], [48700, 0.068], [193480, 0.0785], [337930, 0.0985]]
+    head_of_household: [[0, 0.0535], [41010, 0.068], [164800, 0.0785], [270060, 0.0985]]
 # TAXSIM scales its 2021 table instead of using the published 2022 on tables.
 taxsim_brackets:
   2022:
@@ -257,9 +261,10 @@ social_security_subtraction_max:
   single: {2017: 3500, 2019: 4020, 2020: 4090, 2021: 4130, 2022: 4260, 2023: 4560}
   married: {2017: 4500, 2019: 5150, 2020: 5240, 2021: 5290, 2022: 5450, 2023: 5840}
 # From 2023 the benefit is fully subtracted below this income, then less 10% per $4,000 of income over it.
+# Indexed: 2024 (House Research), 2025 and 2026 (Minnesota Revenue, inflation-adjusted amounts).
 social_security_full_subtraction_threshold:
-  single: {2023: 78000}
-  married: {2023: 100000}
+  single: {2023: 78000, 2024: 82190, 2025: 84490, 2026: 86410}
+  married: {2023: 100000, 2024: 105380, 2025: 108320, 2026: 110780}
 social_security_subtraction_benefit_share: 0.5
 social_security_subtraction_phaseout_rate: 0.2
 
@@ -319,6 +324,7 @@ standard_deduction_table:
     2023: 13825
     2024: 14575
     2025: 14950
+    2026: 15300
   married_joint:
     1988: 5000
     1989: 5200
@@ -356,6 +362,7 @@ standard_deduction_table:
     2023: 27650
     2024: 29150
     2025: 29900
+    2026: 30600
   head_of_household:
     1988: 4400
     1989: 4550
@@ -394,6 +401,7 @@ standard_deduction_table:
     2023: 20800
     2024: 21900
     2025: 22500
+    2026: 23000
 standard_deduction_aged_addition:
   single:
     1988: 750
@@ -494,6 +502,7 @@ exemption_amount:
   2023: 4800
   2024: 5050
   2025: 5200
+  2026: 5300
 # The federal joint standard deduction (read by the marriage credit through 2017).
 federal_joint_standard_deduction:
   1987: 3760
@@ -604,11 +613,22 @@ phaseout_schedule:
     high_rate: 0.1
     alternate_rate: 0.8
     alternate_applies: true
-    alternate_income: 1083150
+    alternate_income: 1107750
     step_fraction: 0.02
     low: {single: 238950, married_joint: 238950, married_separate: 119475, head_of_household: 238950}
     high: {single: 330300, married_joint: 330300, married_separate: 165150, head_of_household: 330300}
     exemption_start: {single: 239050, married_joint: 358550, married_separate: 179275, head_of_household: 298800}
+    exemption_step: {single: 2500, married_joint: 2500, married_separate: 1250, head_of_household: 2500}
+  2026:
+    low_rate: 0.03
+    high_rate: 0.1
+    alternate_rate: 0.8
+    alternate_applies: true
+    alternate_income: 1083150
+    step_fraction: 0.02
+    low: {single: 244400, married_joint: 244400, married_separate: 122200, head_of_household: 244400}
+    high: {single: 337800, married_joint: 337800, married_separate: 168900, head_of_household: 337800}
+    exemption_start: {single: 244500, married_joint: 366700, married_separate: 183350, head_of_household: 305600}
     exemption_step: {single: 2500, married_joint: 2500, married_separate: 1250, head_of_household: 2500}
     itemized_low_equals_standard: true
 # 2011-2013 Schedule M1M addbacks of the itemized deductions and exemptions
@@ -1205,6 +1225,7 @@ child_and_working_family_credit:
     2023: {phase_in_end: 8750, phase_out_joint: 35000, phase_out_other: 29500}
     2024: {phase_in_end: 9220, phase_out_joint: 36880, phase_out_other: 31090}
     2025: {phase_in_end: 9480, phase_out_joint: 37910, phase_out_other: 31950}
+    2026: {phase_in_end: 9690, phase_out_joint: 38770, phase_out_other: 32680, child_amount: 1800}
   # TAXSIM scales the 2023 amounts by its index without rounding.
   taxsim_by_year:
     2024: {phase_out_joint: 36879.5, phase_out_other: 31084.15}
@@ -1325,6 +1346,7 @@ child_care_phaseout_start:
   2023: 59210
   2024: 62410
   2025: 64150
+  2026: 65610
 child_care_credit_max:
   one: {1977: 150, 1981: 400, 1983: 480, 1984: 720, 2017: 600}
   two_or_more: {1977: 300, 1981: 800, 1983: 960, 1984: 1440, 2017: 1200}

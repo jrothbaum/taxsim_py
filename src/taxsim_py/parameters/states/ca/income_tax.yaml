@@ -52,6 +52,12 @@ brackets:
   2025:
     single: [[11079, 0.01], [26264, 0.02], [41452, 0.04], [57542, 0.06], [72724, 0.08], [371479, 0.093], [445771, 0.103], [742953, 0.113], [1.0e+20, 0.123]]
     head_of_household: [[22173, 0.01], [52530, 0.02], [67716, 0.04], [83805, 0.06], [98990, 0.08], [505208, 0.093], [606251, 0.103], [1010417, 0.113], [1.0e+20, 0.123]]
+  # 2026: 2025 amounts times the Franchise Tax Board's 3.4% CCPI factor (FTB Tax News,
+  # October 2026: standard deduction 5,900/11,800 and exemption credits 158/491 confirmed).
+  # The bracket tops are computed; the FTB posts its schedules in late December.
+  2026:
+    single: [[11456, 0.01], [27157, 0.02], [42861, 0.04], [59498, 0.06], [75197, 0.08], [384109, 0.093], [460927, 0.103], [768213, 0.113], [1.0e+20, 0.123]]
+    head_of_household: [[22927, 0.01], [54316, 0.02], [70018, 0.04], [86654, 0.06], [102356, 0.08], [522385, 0.093], [626864, 0.103], [1044771, 0.113], [1.0e+20, 0.123]]
 # TAXSIM's 2025 table has 371,749 (not 371,479) and 505,209 as the tops of the 9.3% bracket.
 taxsim_brackets:
   2025:
@@ -61,7 +67,7 @@ bracket_inflation: {1977: 1.0, 1978: 1.052, 1979: 1.1, 1980: 1.319, 1981: 1.43, 
 
 # Index for the standard deduction, the pre-1987 exemption credits and the
 # pre-1984 low-income credit (from 1979; the standard deduction from 1979).
-indexing_factor: {1977: 1.0, 1978: 1.052, 1979: 1.10, 1980: 1.290, 1981: 1.40, 1982: 1.53, 1983: 1.510, 1984: 1.580, 1985: 1.650, 1986: 1.710, 1987: 1.880, 1988: 1.996, 1989: 2.07, 1990: 2.169, 1991: 2.262, 1992: 2.343, 1993: 2.402, 1994: 2.431, 1995: 2.487, 1996: 2.527, 1997: 2.583, 1998: 2.642, 1999: 2.711, 2000: 2.811, 2001: 2.960, 2002: 3.004, 2003: 3.070, 2004: 3.165, 2005: 3.254, 2006: 3.410, 2007: 3.516, 2008: 3.692, 2009: 3.637, 2010: 3.670, 2011: 3.769, 2012: 3.841, 2013: 3.906, 2014: 3.992, 2015: 4.044, 2016: 4.129, 2017: 4.236, 2018: 4.401, 2019: 4.537, 2020: 4.601, 2021: 4.803, 2022: 5.202, 2023: 5.363, 2024: 5.540, 2025: 5.706}
+indexing_factor: {1977: 1.0, 1978: 1.052, 1979: 1.10, 1980: 1.290, 1981: 1.40, 1982: 1.53, 1983: 1.510, 1984: 1.580, 1985: 1.650, 1986: 1.710, 1987: 1.880, 1988: 1.996, 1989: 2.07, 1990: 2.169, 1991: 2.262, 1992: 2.343, 1993: 2.402, 1994: 2.431, 1995: 2.487, 1996: 2.527, 1997: 2.583, 1998: 2.642, 1999: 2.711, 2000: 2.811, 2001: 2.960, 2002: 3.004, 2003: 3.070, 2004: 3.165, 2005: 3.254, 2006: 3.410, 2007: 3.516, 2008: 3.692, 2009: 3.637, 2010: 3.670, 2011: 3.769, 2012: 3.841, 2013: 3.906, 2014: 3.992, 2015: 4.044, 2016: 4.129, 2017: 4.236, 2018: 4.401, 2019: 4.537, 2020: 4.601, 2021: 4.803, 2022: 5.202, 2023: 5.363, 2024: 5.540, 2025: 5.706, 2026: 5.900}
 
 # --- Income ---
 # Through 1986 California builds its own income: this share of long-term
@@ -88,7 +94,7 @@ standard_deduction_per_taxpayer: 1000
 # AGI threshold for the itemized deduction limitation and (through 2021) the
 # exemption credit phaseout, times `phaseout_index` from 1992.
 phaseout_threshold: {single: 100000, married_joint: 200000, head_of_household: 150000, married_separate: 100000}
-phaseout_index: {1991: 1.0, 1992: 1.036, 1993: 1.0619, 1994: 1.07464, 1995: 1.09936, 1996: 1.11695, 1997: 1.14152, 1998: 1.16777, 1999: 1.19813, 2000: 1.24246, 2001: 1.30831, 2002: 1.32793, 2003: 1.35714, 2004: 1.39921, 2005: 1.43839, 2006: 1.50743, 2007: 1.55416, 2008: 1.63187, 2009: 1.60739, 2010: 1.62185, 2011: 1.66565, 2012: 1.6973, 2013: 1.72615, 2014: 1.76413, 2015: 1.78706, 2016: 1.82459, 2017: 1.87203, 2018: 1.94504, 2019: 2.00534, 2020: 2.03341, 2021: 2.12288, 2022: 2.29908, 2023: 2.37035, 2024: 2.44857, 2025: 2.52203}
+phaseout_index: {1991: 1.0, 1992: 1.036, 1993: 1.0619, 1994: 1.07464, 1995: 1.09936, 1996: 1.11695, 1997: 1.14152, 1998: 1.16777, 1999: 1.19813, 2000: 1.24246, 2001: 1.30831, 2002: 1.32793, 2003: 1.35714, 2004: 1.39921, 2005: 1.43839, 2006: 1.50743, 2007: 1.55416, 2008: 1.63187, 2009: 1.60739, 2010: 1.62185, 2011: 1.66565, 2012: 1.6973, 2013: 1.72615, 2014: 1.76413, 2015: 1.78706, 2016: 1.82459, 2017: 1.87203, 2018: 1.94504, 2019: 2.00534, 2020: 2.03341, 2021: 2.12288, 2022: 2.29908, 2023: 2.37035, 2024: 2.44857, 2025: 2.52203, 2026: 2.60778}
 # Itemized deduction limitation from 1991: `rate` of federal AGI above the
 # threshold, at most `cap_rate` of itemized deductions.
 itemized_limitation:
@@ -108,9 +114,9 @@ exemption_credit_amounts:
 exemption_credit_base: 50
 exemption_credit_index: {1987: 1.020, 1988: 1.040, 1989: 1.10, 1990: 1.160, 1991: 1.20, 1992: 1.240, 1993: 1.280, 1994: 1.30, 1995: 1.320, 1996: 1.340, 1997: 1.360, 1998: 1.40, 1999: 1.440, 2000: 1.50, 2001: 1.580, 2002: 1.60, 2003: 1.640, 2004: 1.70, 2005: 1.740, 2006: 1.820, 2007: 1.880, 2008: 1.98, 2009: 1.960, 2010: 1.980, 2011: 2.040, 2012: 2.08, 2013: 2.12, 2014: 2.160, 2015: 2.180, 2016: 2.22, 2017: 2.28, 2018: 2.36, 2019: 2.44, 2020: 2.48, 2021: 2.58, 2022: null}
 # From 2022: the credit per taxpayer and taxpayer 65 or older.
-exemption_credit_personal: {2022: 140, 2023: 144, 2024: 149, 2025: 153}
+exemption_credit_personal: {2022: 140, 2023: 144, 2024: 149, 2025: 153, 2026: 158}
 # Credit per dependent from 1998.
-exemption_credit_per_dependent: {1998: 253, 1999: 227, 2000: 235, 2001: 247, 2002: 251, 2003: 257, 2004: 265, 2005: 272, 2006: 285, 2007: 294, 2008: 309, 2009: 98, 2010: 99, 2011: 315, 2012: 321, 2013: 326, 2014: 333, 2015: 337, 2016: 344, 2017: 353, 2018: 367, 2019: 378, 2020: 383, 2021: 400, 2022: 433, 2023: 446, 2024: 461, 2025: 475}
+exemption_credit_per_dependent: {1998: 253, 1999: 227, 2000: 235, 2001: 247, 2002: 251, 2003: 257, 2004: 265, 2005: 272, 2006: 285, 2007: 294, 2008: 309, 2009: 98, 2010: 99, 2011: 315, 2012: 321, 2013: 326, 2014: 333, 2015: 337, 2016: 344, 2017: 353, 2018: 367, 2019: 378, 2020: 383, 2021: 400, 2022: 433, 2023: 446, 2024: 461, 2025: 475, 2026: 491}
 # From 1991 each credit falls by `per_credit` for each `step` of AGI above
 # the threshold (step halved on separate returns). Before 1998 the
 # reduction is proportional and the credits end `upper` (times
@@ -124,6 +130,7 @@ exemption_credit_phaseout_start:
   2023: {single: 237035, married_joint: 474075, head_of_household: 355558, married_separate: 237035}
   2024: {single: 244857, married_joint: 489719, head_of_household: 367291, married_separate: 244857}
   2025: {single: 252203, married_joint: 504411, head_of_household: 378310, married_separate: 252203}
+  2026: {single: 260778, married_joint: 521561, head_of_household: 391173, married_separate: 260778}
 
 # 1994-1998 limit on the credits, with income floors times `floor_index`
 # and the upper thresholds times `exemption_credit_upper_index`. TAXSIM's
@@ -188,7 +195,7 @@ renter_credit:
   1991: {single: 60, other: 120, agi_limit: {single: 20000, other: 40000}, half_band: {single: 500, other: 1000}}
   1993: null
   1998: {per_taxpayer: 60, agi_limit_per_taxpayer: 25000}
-renter_credit_index: {1991: 1.0, 1992: 1.036, 1993: null, 1998: 1.0, 1999: 1.026, 2000: 1.06396, 2001: 1.12036, 2002: 1.13716, 2003: 1.16216, 2004: 1.1982, 2005: 1.23176, 2006: 1.29088, 2007: 1.33088, 2008: 1.35744, 2009: 1.37648, 2010: 1.38888, 2011: 1.42636, 2013: 1.4782, 2014: 1.51072, 2015: 1.53036, 2016: 1.56248, 2017: 1.60312, 2018: 1.66564, 2019: 1.71728, 2020: 1.74132, 2022: 1.9688, 2023: 2.02984, 2024: 2.09684, 2025: 2.15976}
+renter_credit_index: {1991: 1.0, 1992: 1.036, 1993: null, 1998: 1.0, 1999: 1.026, 2000: 1.06396, 2001: 1.12036, 2002: 1.13716, 2003: 1.16216, 2004: 1.1982, 2005: 1.23176, 2006: 1.29088, 2007: 1.33088, 2008: 1.35744, 2009: 1.37648, 2010: 1.38888, 2011: 1.42636, 2013: 1.4782, 2014: 1.51072, 2015: 1.53036, 2016: 1.56248, 2017: 1.60312, 2018: 1.66564, 2019: 1.71728, 2020: 1.74132, 2022: 1.9688, 2023: 2.02984, 2024: 2.09684, 2025: 2.15976, 2026: 2.23319}
 
 # --- Alternative minimum tax (from 1987) ---
 # Tentative minimum tax is `amt_rate` of income above the exemption, which
@@ -227,6 +234,7 @@ amt_exemption:
   2023: {single: 87171, married_joint: 116229, head_of_household: 87171, married_separate: 58111}
   2024: {single: 90048, married_joint: 120065, head_of_household: 90048, married_separate: 60029}
   2025: {single: 92749, married_joint: 123667, head_of_household: 92749, married_separate: 61830}
+  2026: {single: 95902, married_joint: 127872, head_of_household: 95902, married_separate: 63932}
 # TAXSIM keeps the 2024 exemption and phase-out start for 2025.
 taxsim_amt_exemption:
   2025: {single: 90048, married_joint: 120065, head_of_household: 90048, married_separate: 60029}
@@ -260,6 +268,7 @@ amt_phaseout_start:
   2023: {single: 326891, married_joint: 435855, head_of_household: 326891, married_separate: 217924}
   2024: {single: 337678, married_joint: 450238, head_of_household: 337678, married_separate: 225115}
   2025: {single: 347808, married_joint: 463745, head_of_household: 347808, married_separate: 231868}
+  2026: {single: 359633, married_joint: 479512, head_of_household: 359633, married_separate: 239752}
 taxsim_amt_phaseout_start:
   2025: {single: 337678, married_joint: 450238, head_of_household: 337678, married_separate: 225115}
 
@@ -272,7 +281,7 @@ mental_health_tax:
 # No credit when investment income reaches this limit.
 # TAXSIM adds back the state and local tax above this amount (the federal limit) to the itemized deduction.
 taxsim_salt_addback_limit: {2018: 10000}
-eitc_disqualified_income_limit: {2015: 3400, 2016: 3471, 2017: 3561, 2018: 3699, 2019: 3828, 2020: 3882, 2021: 4053, 2022: 4389, 2023: 4525, 2024: 4674, 2025: 4814}
+eitc_disqualified_income_limit: {2015: 3400, 2016: 3471, 2017: 3561, 2018: 3699, 2019: 3828, 2020: 3882, 2021: 4053, 2022: 4389, 2023: 4525, 2024: 4674, 2025: 4814, 2026: 4978}
 # Minimum age for filers without children (R&TC 17052), statutory mode.
 eitc_childless_minimum_age: {2018: 18}
 # 2015-2021 CalEITC as TAXSIM computes it, lists by EITC children 0, 1, 2,
@@ -346,6 +355,12 @@ caleitc_schedule:
     earned_income_amount: [4661, 6998, 9823, 9823]
     final_start: [251, 635, 635, 635]
     final_end: 32901
+  2026:
+    phase_in_rate: [0.0765, 0.34, 0.4, 0.45]
+    adjustment_factor: 0.85
+    earned_income_amount: [4819, 7236, 10157, 10157]
+    final_start: [260, 657, 657, 657]
+    final_end: 34020
 # Young Child Tax Credit from 2019: `amount` (statutory mode: per return;
 # TAXSIM: per child under 6), reduced by `phaseout_rate` of earnings above
 # `earnings_threshold`. From 2022 filers with earned income up to
@@ -356,3 +371,4 @@ young_child_credit:
   2023: {amount: 1117, earnings_threshold: 25775, phaseout_rate: 0.2166, loss_threshold: 33497}
   2024: {amount: 1154, earnings_threshold: 26626, phaseout_rate: 0.2167, loss_threshold: 34602}
   2025: {amount: 1189, earnings_threshold: 27425, phaseout_rate: 0.2171, loss_threshold: 35640}
+  2026: {amount: 1229, earnings_threshold: 28357, phaseout_rate: 0.2171, loss_threshold: 36852}

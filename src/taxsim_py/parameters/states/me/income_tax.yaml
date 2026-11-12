@@ -32,6 +32,7 @@ brackets:
   2023: [[0, 0.058], [24500, 0.0675], [58050, 0.0715]]
   2024: [[0, 0.058], [26050, 0.0675], [61600, 0.0715]]
   2025: [[0, 0.058], [26800, 0.0675], [63450, 0.0715]]
+  2026: [[0, 0.058], [27400, 0.0675], [64850, 0.0715]]
 bracket_income_divisor: {married_joint: 2, head_of_household: 1.5, other: 1}
 bracket_inflation: {1977: 1.0, 1993: 1.0375, 2002: 1.05, 2003: 1.0625, 2004: 1.0875, 2005: 1.125, 2006: 1.1375, 2007: 1.1875, 2008: 1.2125, 2009: 1.2625, 2010: 1.2375, 2011: 1.25, 2012: 1.275, 2013: 1.0, 2017: 1.0, 2018: 1.015, 2019: 1.035, 2020: 1.052, 2021: 1.063, 2022: 1.0}
 # 1997-2002: no tax at taxable income up to this amount.
@@ -50,10 +51,13 @@ dividend_exclusion_per_taxpayer: {1981: 100, 1982: null}
 # from 2025 phased out above `start` over `width` of federal AGI (36 M.R.S.
 # 5122(2)(M-3)). Source for 2022 on: PolicyEngine-US
 # gov.states.me.tax.income.agi.subtractions.pension_exclusion.
-pension_deduction_per_taxpayer: {2000: 6000, 2014: 10000, 2022: 25000, 2023: 30000, 2024: 45864, 2025: 48216}
+pension_deduction_per_taxpayer: {2000: 6000, 2014: 10000, 2022: 25000, 2023: 30000, 2024: 45864, 2025: 48216, 2026: 48216}
 pension_deduction_phaseout:
   2025:
     start: {single: 125000, married_joint: 250000, head_of_household: 187500, married_separate: 125000}
+    width: {single: 100000, married_joint: 100000, head_of_household: 100000, married_separate: 50000}
+  2026:
+    start: {single: 127800, married_joint: 255650, head_of_household: 191700, married_separate: 127800}
     width: {single: 100000, married_joint: 100000, head_of_household: 100000, married_separate: 50000}
 
 # --- Deductions ---
@@ -96,7 +100,7 @@ taxsim_itemizing_standard_deduction:
 taxsim_itemized_deduction_cap: {2021: 30400, 2022: 31150, 2023: 33200, 2024: 35000, 2025: 36300}
 # From 2013 itemized deductions (less the state tax share) are capped.
 # Source for 2022 on: PolicyEngine-US gov.states.me.tax.income.deductions.itemized.cap.
-itemized_deduction_cap: {2013: 27500, 2014: 27950, 2015: 28350, 2016: 28450, 2017: 28600, 2018: 29050, 2019: 29550, 2020: 30050, 2021: 30400, 2022: 31150, 2023: 33200, 2024: 35250, 2025: 36300}
+itemized_deduction_cap: {2013: 27500, 2014: 27950, 2015: 28350, 2016: 28450, 2017: 28600, 2018: 29050, 2019: 29550, 2020: 30050, 2021: 30400, 2022: 31150, 2023: 33200, 2024: 35250, 2025: 36300, 2026: 37100}
 # 2016-2017: deductions fall in proportion to AGI above `phased` over
 # `threshold` (per taxpayer, except for heads of household).
 deduction_phaseout_proportional:
@@ -112,6 +116,7 @@ deduction_phaseout_start:
   2023: {single: 91500, married_joint: 183050, married_separate: 91500, head_of_household: 137300}
   2024: {single: 97150, married_joint: 194300, married_separate: 97150, head_of_household: 145750}
   2025: {single: 100000, married_joint: 200050, married_separate: 100000, head_of_household: 150000}
+  2026: {single: 102250, married_joint: 204550, married_separate: 102250, head_of_household: 153400}
 deduction_phaseout_range: {single: 75000, married_joint: 150000, head_of_household: 112500, married_separate: 75000}
 # The TAXSIM build's own bracket tops: the 2018 tops times a factor for 2022-23, typed values after.
 taxsim_bracket_inflation: {2018: 1.0155, 2019: 1.052, 2020: 1.052, 2021: 1.0635, 2022: null}
@@ -134,13 +139,14 @@ phaseout_index: {2018: 1.0, 2019: 1.018, 2020: 1.03625, 2021: 1.048125, 2022: 1.
 # on separate returns) above the start (times `phaseout_index`), none for
 # dependent filers. Source for 2022 on: PolicyEngine-US
 # gov.states.me.tax.income.deductions.personal_exemption.
-personal_exemption: {1977: 1000, 1978: 1200, 1979: 1000, 1988: 0, 1989: 2000, 1993: 2100, 1997: 2150, 1998: 2400, 1999: 2750, 2000: 2850, 2013: null, 2018: 4150, 2019: 4200, 2020: 4300, 2022: 4450, 2023: 4700, 2024: 5000, 2025: 5150}
+personal_exemption: {1977: 1000, 1978: 1200, 1979: 1000, 1988: 0, 1989: 2000, 1993: 2100, 1997: 2150, 1998: 2400, 1999: 2750, 2000: 2850, 2013: null, 2018: 4150, 2019: 4200, 2020: 4300, 2022: 4450, 2023: 4700, 2024: 5000, 2025: 5150, 2026: 5250}
 exemption_phaseout_start:
   2018: {single: 266700, married_joint: 320000, head_of_household: 293350, married_separate: 160000}
   2022: {single: 286200, married_joint: 343400, married_separate: 171700, head_of_household: 314800}
   2023: {single: 305150, married_joint: 366100, married_separate: 183050, head_of_household: 335650}
   2024: {single: 323900, married_joint: 388650, married_separate: 194325, head_of_household: 356300}
   2025: {single: 333450, married_joint: 400100, married_separate: 200050, head_of_household: 366750}
+  2026: {single: 341000, married_joint: 409150, married_separate: 204575, head_of_household: 375050}
 exemption_phaseout_range: 125000
 
 # --- Credits ---
@@ -157,6 +163,7 @@ dependent_credit_per_child: {2018: 300, 2022: null}
 dependent_exemption_credit:
   2022: {amount: 300, young_multiplier: 1, start_joint: 400000, start_other: 200000, increment: 1000, step: 7.5}
   2025: {amount: 305, young_multiplier: 2, start_joint: 150000, start_hoh: 125000, start_single: 100000, start_separate: 75000, increment: 500, step: 20}
+  2026: {amount: 310, young_multiplier: 2, start_joint: 153400, start_hoh: 127850, start_single: 102250, start_separate: 76700, increment: 500, step: 20}
 
 # Credit for the elderly 1987-2016: a share of the federal credit.
 elderly_credit_share: {1987: 0.2, 2017: null}
@@ -252,6 +259,7 @@ property_tax_fairness_credit_schedule:
   2023: {single: 2300, hoh_one_child: 3000, joint_or_multi: 3700, senior: 0, cap: 1000, cap_senior: 1500, income_rate: 0.04, rent_share: 0.15}
   2024: {single: 2450, hoh_one_child: 3200, joint_or_multi: 3900, senior: 4000, cap: 1000, cap_senior: 2000, income_rate: 0.04, rent_share: 0.15}
   2025: {single: 2550, hoh_one_child: 3300, joint_or_multi: 4050, senior: 4100, cap: 1000, cap_senior: 2000, income_rate: 0.04, rent_share: 0.15}
+  2026: {single: 2600, hoh_one_child: 3350, joint_or_multi: 4100, senior: 4150, cap: 1500, cap_senior: 2000, income_rate: 0.04, rent_share: 0.15}
 
 # Sales tax fairness credit from 2016 (refundable): the amount by exemptions
 # (1-4), less $1 per `stfc_phaseout_step` of income above the threshold.
@@ -292,6 +300,12 @@ sales_tax_fairness_credit_schedule:
     married_separate: {base: 0, start: 0, increment: 0, step: 0}
     head_of_household: {base: 215, start: 38200, increment: 750, step: 15}
     additional: {joint: [[0, 0], [1, 35], [2, 65]], head_of_household: [[0, 0], [2, 35], [3, 65]]}
+  2026:
+    single: {base: 155, start: 26000, increment: 500, step: 10}
+    married_joint: {base: 215, start: 52100, increment: 1000, step: 20}
+    married_separate: {base: 0, start: 0, increment: 0, step: 0}
+    head_of_household: {base: 215, start: 39050, increment: 750, step: 15}
+    additional: {joint: [[0, 0], [1, 35], [2, 65]], head_of_household: [[0, 0], [2, 35], [3, 65]]}
 # TAXSIM's 2024 table (starts and the second tier differ from the schedule above).
 taxsim_sales_tax_fairness_credit_schedule:
   2024:
@@ -301,3 +315,10 @@ taxsim_sales_tax_fairness_credit_schedule:
     head_of_household: {base: 210, start: 36837, increment: 750, step: 15}
     additional: {joint: [[0, 0], [1, 27], [2, 60]], head_of_household: [[0, 0], [2, 27], [3, 60]]}
   2025: null
+
+# From 2026: surcharge on Maine taxable income above the threshold (L.D. 2212,
+# approved 2026-04-09, retroactive to January 1, 2026).
+surcharge:
+  2026:
+    rate: 0.02
+    threshold: {single: 1000000, head_of_household: 1500000, married_joint: 1500000, married_separate: 750000}

@@ -106,6 +106,7 @@ aged_marriage_subtraction: {2001: 900, 2003: null}
 high_income_addback:
   2022: {agi_threshold: 400000, limit_joint: 60000, limit_other: 30000, itemized_only: true, qbi_agi_limit_joint: 1000000, qbi_agi_limit_other: 500000, taxsim_limit_joint: 16000, taxsim_limit_other: 12000}
   2023: {agi_threshold: 300000, limit_joint: 16000, limit_other: 12000, itemized_only: false, qbi_agi_limit_joint: 1000000, qbi_agi_limit_other: 500000, taxsim_limit_joint: 16000, taxsim_limit_other: 12000}
+  2026: {agi_threshold: 300000, limit_joint: 2000, limit_other: 1000, itemized_only: false, qbi_agi_limit_joint: 1000000, qbi_agi_limit_other: 500000, taxsim_limit_joint: 16000, taxsim_limit_other: 12000}
 
 # --- Credits ---
 # Through 1986, property tax and heating credits for taxpayers 65 or older,
@@ -190,7 +191,7 @@ child_care_credit_dependent_offset: {2000: 300, 2002: null}
 
 # Earned income credit: a share of the federal credit. Source for 2022 on:
 # PolicyEngine-US gov.states.co.tax.income.credits.eitc.match.
-eitc_federal_share: {1977: 0, 1999: 0.085, 2000: 0.10, 2002: 0, 2015: 0.10, 2022: 0.20, 2023: 0.50}
+eitc_federal_share: {1977: 0, 1999: 0.085, 2000: 0.10, 2002: 0, 2015: 0.10, 2022: 0.20, 2023: 0.50, 2026: 0.25}
 # From 2022 childless filers qualify from this age instead of 25 (the
 # homeless and foster-youth exception at 18 has no input).
 eitc_minimum_age: {2022: 19}
@@ -230,6 +231,9 @@ family_affordability_credit:
     reduction_rate: 0.06875
     reduction_increment: 5000
     reduction_threshold: {single: 15000, head_of_household: 15000, married_separate: 15000, married_joint: 26000}
+  # Not available for 2026 (turned off by the TABOR revenue trigger; Governor's office
+  # announcement, 2025-09), and the EITC match falls back to 25%.
+  2026: null
 
 # TAXSIM reads the 2024 on child tax credit and family affordability credit
 # from published tables (the DR 0104CN worksheets) and interpolates between

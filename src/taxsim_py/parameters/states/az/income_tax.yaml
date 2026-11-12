@@ -71,7 +71,7 @@ standard_deduction_percent:
 # 1990-2018: per exemption.
 standard_deduction_per_exemption: {1990: 3500, 1995: 3600, 2001: 4050, 2005: 4125, 2006: 4247, 2007: 4373, 2008: 4521, 2009: 4677, 2011: 4703, 2012: 4833, 2013: 4945, 2014: 5009, 2015: 5091, 2016: 5099, 2017: 5183, 2018: 5312, 2019: null}
 # From 2019: a flat amount times the filing-status multiple.
-standard_deduction: {2019: 12200, 2020: 12400, 2021: 12550, 2022: 12950, 2023: 13850, 2024: 14600, 2025: 15750}
+standard_deduction: {2019: 12200, 2020: 12400, 2021: 12550, 2022: 12950, 2023: 13850, 2024: 14600, 2025: 15750, 2026: 16100}
 standard_deduction_multiple: {married_joint: 2, head_of_household: 1.5, other: 1}
 
 # --- Itemized deductions ---
@@ -119,6 +119,7 @@ family_income_credit:
 # above `phaseout_start` per taxpayer.
 dependent_tax_credit:
   2019: {per_child: 100, per_other_dependent: 25, phaseout_start: 200000, reduction_per_1000: 50}
+  2026: {per_child: 125, per_other_dependent: 25, phaseout_start: 200000, reduction_per_1000: 50}
 # Credit for increased excise taxes from 2001 (refundable): `amount` per
 # taxpayer and dependent, up to `cap`, when federal AGI is at most
 # `agi_limit` per taxpayer (heads of household count as two).

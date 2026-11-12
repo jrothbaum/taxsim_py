@@ -240,6 +240,11 @@ def compute_me_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     tinc = pl.col("me_taxinc") / me_texp
     stat = bracket_tax(tinc / aif, table) * aif
     df = df.with_columns(me_statax=stat * me_texp)
+    if p.in_effect("surcharge"):
+        sc = p.value("surcharge")
+        df = df.with_columns(
+            me_statax=pl.col("me_statax") + float(sc["rate"]) * (pl.col("me_taxinc") - by_filing_status(sc["threshold"])).clip(0, None)
+        )
 
     if p.in_effect("low_income_taxable_income_limit"):
         ceiling = p.num("low_income_taxable_income_limit")
