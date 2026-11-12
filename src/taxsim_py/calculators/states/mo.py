@@ -176,6 +176,9 @@ def compute_mo_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         else:
             threshold = p.num("itemized_limit_threshold_base") * p.num("itemized_limit_inflation") / sep
         xtot = salt_ded + pl.col("proptax") + pl.col("mortgage") + pl.col("charity_cash")
+        if y <= 2017 and not behavior.exclude_other_itemized_from_missouri_state_tax_limit_per_statute:
+            # TAXSIM's total of itemized deductions includes the other items.
+            xtot = xtot + pl.col("otheritem")
         over = agi - threshold
         xconst = pl.min_horizontal(p.num("itemized_limit_max_share") * xtot, p.num("itemized_limit_rate") * over)
         stax = pl.when((xtot > 0) & (over > 0)).then((xtot - xconst) / xtot * salt_ded).otherwise(salt_ded)
@@ -257,9 +260,11 @@ def compute_mo_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         brackets = p.value("taxsim_brackets")
     df, (taxh, taxw) = checkpoint(df, mo_taxinc_h=taxinc * agih / agi, mo_taxinc_w=taxinc * agiw / agi)
     if not behavior.split_missouri_joint_income_by_earner_only:
-        agit, agis = split_agi(agi)
+        # TAXSIM splits the income that is left after the capital gains subtraction.
+        split_base = agi - cg_subtraction if not behavior.split_missouri_income_before_capital_gains_subtraction_per_statute else agi
+        agit, agis = split_agi(split_base)
         total = (agit + agis)
-        deductions = (agi - taxinc).clip(0, None)
+        deductions = (split_base - taxinc).clip(0, None)
         df, (taxh, taxw) = checkpoint(
             df,
             mo_taxinc_h=(agit - deductions * agit / total).clip(0, None),

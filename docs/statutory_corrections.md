@@ -700,3 +700,5 @@ Taxsim mode now follows the statutory rule for these (they remain in
 | Maryland | 2025 | | The single tax table's constants are off by +0.50 (100,000 to 125,000) and -40 (500,000 to 1,000,000) | Statutory: the published rates. `use_maryland_published_2025_tax_table_per_statute` |
 | Montana | 2014-2017 | | On a joint return filed as two separate returns, each spouse takes the itemized deductions only when that gives the lower combined tax | Statutory: itemize when the deduction is larger. `split_montana_joint_returns_per_statute` |
 | Montana | 2022 | | The elderly homeowner/renter credit maximum is 1,150 | (Statutory: same.) |
+| Missouri | 1993-2017 | | The itemized deduction's state-tax limit total includes other itemized deductions | Statutory: excluded. `exclude_other_itemized_from_missouri_state_tax_limit_per_statute` |
+| Missouri | all | | A joint return's income is split between spouses after the capital gains subtraction | Statutory: before. `split_missouri_income_before_capital_gains_subtraction_per_statute` |
