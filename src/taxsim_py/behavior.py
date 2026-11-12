@@ -133,6 +133,7 @@ class BehaviorProfile:
     use_south_carolina_published_tax_table: bool = True
     allow_qbi_deduction_in_south_carolina: bool = True
     count_colorado_credit_children_per_statute: bool = True
+    offset_massachusetts_dividends_only_by_losses_per_statute: bool = True
     count_maine_fairness_credit_children_before_deflation_per_statute: bool = True
     count_arkansas_other_itemized_deductions_per_statute: bool = True
     limit_kansas_child_care_credit_by_federal_tax_per_statute: bool = True

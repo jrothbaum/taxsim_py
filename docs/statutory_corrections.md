@@ -664,3 +664,4 @@ Taxsim mode now follows the statutory rule for these (they remain in
 | PA, IA, DC, OH, NE, WI, MN, CA | 2026 | | The federal child care credit the states copy is deflated with the other federal figures in a projected year | Both modes (projection only) |
 | AR | 2018-2021 | | The other itemized deductions input is left out of the itemized deduction | Statutory: counted. `count_arkansas_other_itemized_deductions_per_statute` |
 | ME | 2026 | | The sales tax fairness credit counts children as the deflated exemption count less taxpayers, truncated (loses a child) | Statutory: children. `count_maine_fairness_credit_children_before_deflation_per_statute` |
+| MA | 2022 on | | Business, professional and S corporation inputs count and other property income does not; dividends are offset against a net gain as if it were a loss | Statutory: no offset against gains. `offset_massachusetts_dividends_only_by_losses_per_statute` |

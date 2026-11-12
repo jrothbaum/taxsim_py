@@ -39,7 +39,14 @@ result = subprocess.run([str(TAXSIM_EXE)], input=text, capture_output=True, text
 if dump is not None:
     # Namelist blocks go to standard output: show the last one (the final record's last pass).
     blocks = result.stdout.split("&")[1:]
-    print("&" + blocks[-1].split("/")[0].strip() + "\n/" if blocks else "(no dump: this routine has none for that code)")
+    # A routine can print several namelists; show the last pass of each.
+    last = {}
+    for block in blocks:
+        last[block.split()[0]] = block.split("/")[0].strip()
+    for text_block in last.values():
+        print("&" + text_block + "\n/")
+    if not blocks:
+        print("(no dump: this routine has none for that code)")
     sys.exit(0)
 lines = [line for line in result.stderr.splitlines() if "TRACE" in line]
 starts = [i for i, line in enumerate(lines) if "TRACE state" in line]

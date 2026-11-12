@@ -32,7 +32,7 @@ def compute_ma_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     # Federal Schedule E income: other property income, plus S corporation
     # income from 1987.
     other_property = pl.col("otherprop")
-    if y >= 2024 and not behavior.count_other_property_income_from_2024:
+    if y >= 2022 and not behavior.count_other_property_income_from_2024:
         # TAXSIM's 2024 on routine leaves other property income out of Massachusetts income.
         other_property = pl.lit(0.0)
     schede = other_property + (pl.col("scorp") if y >= 1987 else 0.0)
@@ -63,7 +63,7 @@ def compute_ma_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     business_h = pl.col("pbusinc") + pl.col("pprofinc")
     business_w = pl.col("sbusinc") + pl.col("sprofinc")
     d17 = semp + business_h + business_w
-    if y < 2024 and not behavior.count_business_and_professional_inputs_as_income:
+    if y < 2022 and not behavior.count_business_and_professional_inputs_as_income:
         # TAXSIM's net business income (`d(17)`) is self-employment only until 2024.
         d17 = semp
     ui_total = unemployment_total()
@@ -250,6 +250,9 @@ def compute_ma_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         schedule_b_limit = pl.lit(float(p["schedule_b_offset_limit"]))
         xlin4 = (pl.min_horizontal(divrec, schedule_b_limit) - (-stcg.clip(None, 0))).clip(0, None)
         binc1 = pl.when(capgn >= 0).then(divrec).otherwise(divrec - pl.min_horizontal(xlin4, capgn.abs()))
+        if y >= 2022 and not behavior.offset_massachusetts_dividends_only_by_losses_per_statute:
+            # TAXSIM's 2022 on routine applies the Schedule B offset to a net gain as well.
+            binc1 = divrec - pl.min_horizontal(xlin4, capgn.abs())
         excxmp = pl.when((binc - bded < exemp) & not_sep).then(exemp - (binc - bded).clip(0, None)).otherwise(0.0)
 
         # MA Schedule B (Part 1-4) and Schedule D worksheet, as transcribed.
