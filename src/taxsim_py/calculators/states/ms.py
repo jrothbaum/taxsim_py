@@ -71,7 +71,7 @@ def compute_ms_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     else:
         agi = agi - pl.col("pensions")
     # Through 1979 other non-property income is excluded.
-    if y <= 1979:
+    if y <= 1979 and behavior.count_nonproperty_income_once:
         agi = agi - pl.col("nonprop")
     if 1982 <= y <= 1986:
         agi = agi + pl.col("pre1987_twoded")
