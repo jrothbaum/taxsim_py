@@ -156,8 +156,11 @@ def compute_dc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
                 dc_xitded=pl.col("itemized_before_limit") - pl.min_horizontal(pl.col("state_sales_or_income_tax_ded"), room_t)
             )
             if effective_year >= 2024 and not behavior.cap_district_of_columbia_state_tax_deduction_from_2024:
-                # TAXSIM's 2024 on routine adds the whole state tax estimate back to the federal itemized total.
-                df = df.with_columns(dc_xitded=pl.col("dc_xitded") + pl.col("state_sales_or_income_tax_ded"))
+                # TAXSIM's 2024 on routine adds back the state and local tax above the federal cap.
+                over_cap = (
+                    pl.col("proptax") + pl.col("state_sales_or_income_tax_ded") - (pl.col("salt_capped") - pl.col("otheritem"))
+                ).clip(0, None)
+                df = df.with_columns(dc_xitded=pl.col("itemized_deduction") + over_cap)
         else:
             sttax = pl.min_horizontal(
                 sttax_cap, pl.col("proptax") + pl.col("state_sales_or_income_tax_ded") + pl.col("otheritem")

@@ -55,8 +55,6 @@ capital_gains_floor_per_taxpayer: 24000
 capital_gains_floor_hoh: 36000
 capital_gains_rate: 0.0725
 
-# The federal cap on state and local taxes, which Hawaii does not apply (2018 on).
-federal_salt_cap: {2018: 10000}
 
 # --- Exemptions and deductions ---
 # Per taxpayer, dependent and taxpayer 65 or older; none for dependent

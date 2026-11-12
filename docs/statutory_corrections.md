@@ -633,3 +633,6 @@ Taxsim mode now follows the statutory rule for these (they remain in
 | MN | 2024 on | | The property tax over the federal SALT limit is removed from the itemized deduction before the reduction; other itemized taxes stay | Statutory: reduced in `limit_minnesota_itemized_deduction_from_2024_per_statute` |
 | MN | 2024 on | | The standard deduction reduction starts at the single thresholds on separate returns | Statutory: halved thresholds. `halve_minnesota_deduction_reduction_for_separate_returns_per_statute` |
 | MN | 2025 | | Child care credit phase-out starts at $64,150 | Both modes |
+| DC | 2025 on | | The itemized deduction adds back the state and local tax above the phased-down federal cap | Statutory: `cap_district_of_columbia_state_tax_deduction_from_2024` |
+| HI | 2025 on | | The state and local tax over the federal cap (including its phase-down) is added back to the itemized deduction | Both modes |
+| DE | 2024 on | | The property tax deduction is not capped at $10,000 | Statutory: capped. `cap_delaware_property_tax_deduction_per_statute` |

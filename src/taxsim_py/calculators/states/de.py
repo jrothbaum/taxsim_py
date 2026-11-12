@@ -136,10 +136,11 @@ def compute_de_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     elif effective_year >= 2019:
         # Property tax up to $10,000, mortgage interest and charity; no state income tax
         # and no other itemized deductions.
+        property_tax = pl.col("proptax")
+        if effective_year < 2024 or behavior.cap_delaware_property_tax_deduction_per_statute:
+            property_tax = pl.min_horizontal(property_tax, pl.lit(10000.0))
         df = df.with_columns(
-            de_xitded_base=pl.min_horizontal(pl.col("proptax"), pl.lit(10000.0))
-            + pl.col("mortgage")
-            + pl.col("charity_cash")
+            de_xitded_base=property_tax + pl.col("mortgage") + pl.col("charity_cash")
         )
     elif p.in_effect("state_tax_deduction_cap"):
         # The federal itemized total less the state income tax inside its capped state and local part.
