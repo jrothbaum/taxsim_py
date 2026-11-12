@@ -22,13 +22,25 @@ import polars as pl  # noqa: E402
 from oracle import TAXSIM_EXE  # noqa: E402
 
 record = {"taxsimid": 1, "year": 2025, "state": 0, "mstat": 1, "idtl": 2, "opt1": 30, "opt1v": 999}
+dump = None
 for argument in sys.argv[1:]:
     key, value = argument.split("=")
+    if key == "dump":
+        # A state routine's own debug dump (`write(*,nml)` when extnd(30) equals this code, e.g. Maine 120).
+        dump = int(value)
+        continue
     record[key] = float(value) if "." in value else int(value)
+if dump is not None:
+    record.update(opt1=30, opt1v=dump)
 # A throwaway first record, as scripts/oracle.py does, so the real one runs in the same state as in batches.
 warmup = {**record, "taxsimid": 999_999_999, "year": 2000, "state": 0}
 text = pl.DataFrame([warmup, record]).write_csv()
 result = subprocess.run([str(TAXSIM_EXE)], input=text, capture_output=True, text=True, check=False)
+if dump is not None:
+    # Namelist blocks go to standard output: show the last one (the final record's last pass).
+    blocks = result.stdout.split("&")[1:]
+    print("&" + blocks[-1].split("/")[0].strip() + "\n/" if blocks else "(no dump: this routine has none for that code)")
+    sys.exit(0)
 lines = [line for line in result.stderr.splitlines() if "TRACE" in line]
 starts = [i for i, line in enumerate(lines) if "TRACE state" in line]
 for line in lines[starts[-1] :] if starts else []:

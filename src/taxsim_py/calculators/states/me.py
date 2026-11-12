@@ -503,6 +503,9 @@ def compute_me_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     elif p.in_effect("sales_tax_fairness_credit_schedule"):
         d = p.value("sales_tax_fairness_credit_schedule")
         children = pl.col("dep17") if behavior.count_maine_fairness_credit_children_by_dep17 else pl.col("depx")
+        if flate != 1.0 and not behavior.count_maine_fairness_credit_children_before_deflation_per_statute:
+            # TAXSIM counts the children as the deflated exemption count less the taxpayers, truncated.
+            children = (exemps_count / flate - taxpayer_count()).clip(0, None).floor()
         extra_joint = pl.lit(0.0)
         for threshold, amount in d["additional"]["joint"]:
             extra_joint = pl.when(children >= threshold).then(float(amount)).otherwise(extra_joint)

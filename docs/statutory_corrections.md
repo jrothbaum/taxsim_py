@@ -663,3 +663,4 @@ Taxsim mode now follows the statutory rule for these (they remain in
 | CT | 2024 on | | The property tax credit is available to everyone and its phase-out steps round up | Statutory: continuous steps. `round_connecticut_property_credit_steps_continuously_per_statute` |
 | PA, IA, DC, OH, NE, WI, MN, CA | 2026 | | The federal child care credit the states copy is deflated with the other federal figures in a projected year | Both modes (projection only) |
 | AR | 2018-2021 | | The other itemized deductions input is left out of the itemized deduction | Statutory: counted. `count_arkansas_other_itemized_deductions_per_statute` |
+| ME | 2026 | | The sales tax fairness credit counts children as the deflated exemption count less taxpayers, truncated (loses a child) | Statutory: children. `count_maine_fairness_credit_children_before_deflation_per_statute` |
