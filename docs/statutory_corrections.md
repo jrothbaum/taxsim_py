@@ -646,3 +646,5 @@ Taxsim mode now follows the statutory rule for these (they remain in
 | AR | 1987-2023 | | S corporation income is counted twice (once with Schedule E, once with business income) | Statutory: once. `count_arkansas_s_corporation_income_once` |
 | AR | 2024 on | | Unemployment compensation is taxed | Statutory: exempt. `exempt_arkansas_unemployment_from_2024_per_statute` |
 | PA, AR, NJ, MA | 2024 on | | Other property income is left out of state income | Statutory: counted. `count_other_property_income_from_2024` |
+| RI | 2024 on | | Brackets scale TAXSIM's 2011 schedule by its own index (1.4084, 1.4532) | Statutory: the published brackets |
+| RI | 2021 on | | Child care credit is a quarter of the federal credit before the federal tax limit | Statutory: limited by federal tax. `limit_rhode_island_child_care_credit_by_federal_tax_per_statute` |

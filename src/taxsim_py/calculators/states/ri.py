@@ -171,12 +171,12 @@ def compute_ri_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         exemp = exemps * p.num("exemption_amount")
         index = p.num("bracket_index")
         base_table = p.value("brackets")
-        taxsim_index = not behavior.use_rhode_island_published_brackets and 2011 <= y <= 2023
+        taxsim_index = not behavior.use_rhode_island_published_brackets and 2011 <= y <= 2025
         if taxsim_index:
             # TAXSIM scales the 2011 schedule by its own factor every year.
             index = p.num("taxsim_bracket_index")
             base_table = RI_PARAMS["brackets"][2011]
-        if taxsim_index:
+        if taxsim_index and y <= 2021:
             # TAXSIM: a straight line from the start (scaled by its factor) to full loss; 2021 has a fixed start and width.
             tp = p.value("taxsim_deduction_phaseout")
             if "start" in tp and y == 2021:
@@ -255,7 +255,11 @@ def compute_ri_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     earncr = pl.lit(0.0)
     if p.in_effect("child_care_share"):
         share = p.num("child_care_share")
-        chcr = share * pl.min_horizontal(fed_ccc, taxbc.clip(0, None))
+        if y >= 2021 and not behavior.limit_rhode_island_child_care_credit_by_federal_tax_per_statute:
+            # TAXSIM takes a quarter of the federal credit before the federal tax limit; only the state tax limits it.
+            chcr = share * pl.col("ccc_uncapped") / flate
+        else:
+            chcr = share * pl.min_horizontal(fed_ccc, taxbc.clip(0, None))
         statax = (statax - chcr).clip(0, None)
     if p.in_effect("federal_tax_share"):
         statax = (statax - pcred).clip(0, None)
