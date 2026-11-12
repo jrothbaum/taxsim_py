@@ -51,6 +51,10 @@ def compute_mi_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     elif p.in_effect("self_employment_tax_agi_addback_rate") and (y < 2021 or behavior.add_back_michigan_self_employment_tax_from_2021_per_statute):
         agi = agi + p.num("self_employment_tax_agi_addback_rate") * pl.col("mi_setax")
 
+    if y >= 2017 and not behavior.leave_out_michigan_schedule_r_income_subtraction_per_statute:
+        # TAXSIM subtracts the income behind the federal credit for the elderly (the credit over its 15% rate).
+        agi = agi - pl.col("federal_elder") / 0.15
+
     # --- Retirement subtraction for taxpayers 65 or older ---
     pensions = pl.col("pensions")
     if p.in_effect("pension_exclusion_by_return"):

@@ -141,6 +141,7 @@ class BehaviorProfile:
     limit_virginia_2021_child_care_deduction_per_statute: bool = True
     add_back_other_itemized_in_california_minimum_tax_per_statute: bool = True
     use_indiana_elderly_credit_steps_per_statute: bool = True
+    leave_out_michigan_schedule_r_income_subtraction_per_statute: bool = True
     split_delaware_income_before_pension_exclusion_per_statute: bool = True
     deny_delaware_personal_credit_to_dependent_filers_per_statute: bool = True
     tax_kansas_other_nonproperty_income_per_statute: bool = True
