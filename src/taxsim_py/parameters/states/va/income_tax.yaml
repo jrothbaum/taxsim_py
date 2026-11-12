@@ -44,13 +44,17 @@ retirement_subtraction:
 # return), up to federal AGI; from 2004 reduced dollar for dollar by federal AGI
 # less taxable Social Security over the income limit.
 # TAXSIM gives a taxpayer 82 or older this flat deduction.
-taxsim_age_deduction_oldest: {1990: 12000}
+taxsim_age_deduction_oldest: {1989: 12000}
+taxsim_age_deduction_with_retirement_subtraction: {1989: 12000, 1990: null}
 age_deduction: {1990: 12000, 1992: 12472, 1993: 12944, 1995: 10000, 1996: 12000}
 age_deduction_income_limit:
   2004: {single: 50000, married_joint: 75000}
 # TAXSIM applies the income limit from the first year of the age deduction.
 taxsim_age_deduction_income_limit:
-  1990: {single: 50000, married_joint: 75000}
+  1989: {single: 50000, married_joint: 75000}
+# TAXSIM's 2021 worksheet counts taxpayers aged from `low` through `high`, and adds a second amount per such taxpayer to the
+# deduction of a joint return with two aged.
+taxsim_age_deduction_worksheet_ages: {2021: {low: 64, high: 82}, 2022: null}
 
 # --- Deductions and exemptions ---
 # Standard deduction through 1986: a share of AGI between `low` and `high`
@@ -122,6 +126,8 @@ taxsim_salt_cap: {2025: 40000.0}
 # Child care expense deduction per child (at most two); the federal expense
 # limit from 2003 (TAXSIM has none in 2003).
 child_care_deduction_per_child: {1979: 2000.0, 1983: 2400.0, 2003: 3000.0}
+# TAXSIM uses the 2021 federal expense limit (8,000 per child) for 2021.
+taxsim_child_care_deduction_per_child: {2021: 8000.0, 2022: null}
 # Exemption per taxpayer and dependent (through 2004 also per taxpayer 65 or
 # older).
 exemption: {1977: 600.0, 1987: 700.0, 1988: 800.0, 2005: 900.0, 2008: 930.0}

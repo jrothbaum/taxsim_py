@@ -77,6 +77,17 @@ def compute_va_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             .otherwise(0.0)
         )
         agi = agi - pl.when(aged >= 1).then(subtraction).otherwise(0.0)
+        if not behavior.deduct_virginia_age_deduction_per_statute and p.in_effect("taxsim_age_deduction_with_retirement_subtraction"):
+            # TAXSIM goes on to the age deduction in 1989 as well (with the 12,000 it uses from 1990).
+            amount = p.num("taxsim_age_deduction_with_retirement_subtraction")
+            limits = p.value("taxsim_age_deduction_income_limit")
+            ylimit = pl.when(txp > 1).then(float(limits["married_joint"])).otherwise(float(limits["single"]))
+            over = (fed_agi - pl.col("taxable_social_security") - ylimit).clip(0, None)
+            oldest = float(p.value("taxsim_age_deduction_oldest"))
+            elder = pl.when(pl.col("page") >= 82).then(oldest).when(aged == 1).then(0.0).otherwise((aged * amount - over).clip(0, None))
+            elder = elder + pl.when((txp > 1) & (pl.col("sage") >= 82)).then(oldest).otherwise(0.0)
+            elder = pl.when(aged >= 1).then(elder).otherwise(0.0)
+            agi = agi - elder
     elif p.in_effect("age_deduction") and not behavior.deduct_virginia_age_deduction_per_statute and y >= 2022:
         # TAXSIM's 2022 routine: $12,000 per aged taxpayer, cut by income over the limit (each spouse's income less
         # their own benefit on a joint return), whatever the ages.
@@ -91,7 +102,7 @@ def compute_va_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         per_return = pl.when(txp > 1).then(aged * amount).otherwise(float(amount))
         elder = pl.when(aged > 0).then((per_return - over).clip(0, None)).otherwise(0.0)
         agi = agi - elder
-    elif p.in_effect("age_deduction") and not behavior.deduct_virginia_age_deduction_per_statute and y != 2021:
+    elif p.in_effect("age_deduction") and not behavior.deduct_virginia_age_deduction_per_statute and not p.in_effect("taxsim_age_deduction_worksheet_ages"):
         # TAXSIM sets the deduction from a variable it never fills for a lone aged taxpayer (so nothing), keeps the income
         # limited amount only for two aged taxpayers, and gives $12,000 to each taxpayer 82 or older.
         amount = p.num("age_deduction")
@@ -102,6 +113,34 @@ def compute_va_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         oldest = float(p.value("taxsim_age_deduction_oldest"))
         elder = pl.when(pl.col("page") >= 82).then(oldest).when(aged == 1).then(0.0).otherwise(limited)
         elder = elder + pl.when((txp > 1) & (pl.col("sage") >= 82)).then(oldest).otherwise(0.0)
+        agi = agi - elder
+    elif p.in_effect("age_deduction") and not behavior.deduct_virginia_age_deduction_per_statute:
+        # TAXSIM's 2021 worksheet: the deduction per aged taxpayer is what is left of the amount after the worksheet income
+        # (taken net of Social Security twice) passes the limit; it replaces the lone taxpayer's deduction and is added
+        # to a joint return's with two aged.
+        amount = p.num("age_deduction")
+        limits = p.value("taxsim_age_deduction_income_limit")
+        ages = p.value("taxsim_age_deduction_worksheet_ages")
+        spouse_age = pl.when(pl.col("sage") == 0).then(40.0).otherwise(pl.col("sage").cast(pl.Float64))
+        older = pl.max_horizontal(pl.col("page"), pl.when(txp > 1).then(spouse_age).otherwise(0.0))
+        younger = pl.when(txp > 1).then(pl.min_horizontal(pl.col("page"), spouse_age)).otherwise(0.0)
+
+        def in_range(age: pl.Expr) -> pl.Expr:
+            return ((age >= float(ages["low"])) & (age <= float(ages["high"]))).cast(pl.Float64)
+
+        counted = in_range(older) + in_range(younger)
+        worksheet_income = agi - pl.col("taxable_social_security")
+        limit = pl.when(txp > 1).then(float(limits["married_joint"])).otherwise(float(limits["single"]))
+        over = (worksheet_income - limit).clip(0, None)
+        allowance = counted * amount
+        per_taxpayer = pl.when(over >= allowance).then(0.0).otherwise((allowance - over) / counted)
+        penagi = fed_agi - pl.col("taxable_social_security")
+        base = pl.when(aged >= 1).then((aged * amount - (penagi - limit).clip(0, None)).clip(0, None)).otherwise(0.0)
+        oldest = float(p.value("taxsim_age_deduction_oldest"))
+        elder = pl.when(older >= 82).then(oldest).when(aged == 1).then(per_taxpayer).otherwise(base)
+        elder = elder + pl.when(txp > 1).then(
+            pl.when(younger >= 82).then(oldest).when(aged == 2).then(per_taxpayer).otherwise(0.0)
+        ).otherwise(0.0)
         agi = agi - elder
     elif p.in_effect("age_deduction"):
         amount = p.num("age_deduction")
@@ -191,7 +230,10 @@ def compute_va_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
                 pl.when(fed_agi > limit_start).then(limited_xitded).otherwise(xlin1 - salt)
             ).otherwise(0.0)
 
-    child = depx.clip(None, 2) * p.num("child_care_deduction_per_child") if p.in_effect("child_care_deduction_per_child") else pl.lit(0.0)
+    child_limit = p.num("child_care_deduction_per_child") if p.in_effect("child_care_deduction_per_child") else 0.0
+    if p.in_effect("taxsim_child_care_deduction_per_child") and not behavior.limit_virginia_2021_child_care_deduction_per_statute:
+        child_limit = p.num("taxsim_child_care_deduction_per_child")
+    child = depx.clip(None, 2) * child_limit
     if y == 2003 and not behavior.allow_virginia_child_care_deduction_2003:
         # TAXSIM's year ranges skip 2003.
         child = pl.lit(0.0)
@@ -219,6 +261,9 @@ def compute_va_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         pw = pl.col("pwages")
         sw = pl.col("swages")
         agiw = 0.5 * (agi - pw - sw) + sw
+        if not behavior.split_virginia_age_deduction_between_spouses_per_statute:
+            # TAXSIM gives the wife half the age deduction as income.
+            agiw = agiw + elder / 2
         share_w = agiw / agi
         dedw = pl.when(xitded > stded).then(xitded * share_w).otherwise(stded * share_w)
         taxyw = (agiw - dedw - exemp * share_w).clip(0, None)

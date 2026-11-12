@@ -154,7 +154,15 @@ eitc_nonrefundable_share: {1987: 0.5}
 # only; from 2020 childless filers instead get the federal credit up to the
 # floor). Source for 2022 on: PolicyEngine-US gov.states.md.tax.income.credits.eitc.
 refundable_eitc_rate: {1998: 0.1, 2000: 0.15, 2001: 0.16, 2003: 0.18, 2004: 0.2, 2008: 0.25, 2015: 0.255, 2016: 0.26, 2017: 0.27, 2018: 0.28, 2020: 0.45}
+# TAXSIM's single table adds 0.50 to the tax on taxable income from 100,000 up to 125,000 and takes 40 off from 500,000 up to
+# 1,000,000 (constants that do not match the rates).
+taxsim_tax_offset:
+  2025:
+    - {from: 100000, to: 125000, amount: 0.5}
+    - {from: 500000, to: 1000000, amount: -40.0}
 refundable_eitc_childless_floor: {2020: 530, 2023: 1.0e+9}
+# TAXSIM keeps the 2020 limit of 530 for unmarried childless filers.
+taxsim_refundable_eitc_childless_floor: {2023: 530}
 # Child and dependent care credit: a share of the federal credit (up to
 # federal tax), the share falling with federal AGI; 2019 on refundable up to
 # `refundable_agi_limit`.

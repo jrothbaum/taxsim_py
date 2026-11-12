@@ -250,6 +250,11 @@ def compute_md_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         rate_expr = pl.when(is_single_or_separate).then(
             bracket_rate(pl.col("md_taxinc"), table_ss)
         ).otherwise(bracket_rate(pl.col("md_taxinc"), table_jh))
+    if p.in_effect("taxsim_tax_offset") and not behavior.use_maryland_published_2025_tax_table_per_statute:
+        # TAXSIM's 2025 single table has constants that do not match its rates in two bands.
+        for offset in p.value("taxsim_tax_offset"):
+            in_band = is_single_or_separate & (pl.col("md_taxinc") >= float(offset["from"])) & (pl.col("md_taxinc") < float(offset["to"]))
+            statax = statax + pl.when(in_band).then(float(offset["amount"])).otherwise(0.0)
     if p.in_effect("capital_gains_surtax"):
         sur = p.value("capital_gains_surtax")
         net_gain = (pl.col("stcg") + pl.col("ltcg")).clip(0, None)
@@ -258,14 +263,21 @@ def compute_md_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     df = df.with_columns(md_taxbc=statax)
 
     # --- Credits ---
+    eitc = pl.col("eitc")
+    if effective_year >= 2022 and not behavior.apply_maryland_earned_income_credit_age_test_per_statute:
+        # TAXSIM skips the age test for childless joint returns whose older taxpayer is 25 or younger (or has no age)
+        # or 65 or older, and gives dependent filers nothing.
+        older = pl.max_horizontal(pl.col("page"), pl.col("sage"))
+        eitc = pl.when(is_joint & (pl.col("depx") == 0) & ((older <= 25) | (older >= 65))).then(pl.col("eitc_before_filer_test") / flate).otherwise(eitc)
+        eitc = pl.when(is_dependent_filer()).then(0.0).otherwise(eitc)
     earncr = pl.lit(0.0)
     if p.in_effect("eitc_nonrefundable_share"):
-        earncr = p.num("eitc_nonrefundable_share") * pl.col("eitc")
+        earncr = p.num("eitc_nonrefundable_share") * eitc
         if effective_year >= 2022:
             # Unmarried childless filers get the whole federal credit
             # (nonrefundable part first), parents and couples half.
             unmarried_childless = (pl.col("depx") < 1) & ~is_joint
-            earncr = pl.when(unmarried_childless).then(pl.col("eitc")).otherwise(earncr)
+            earncr = pl.when(unmarried_childless).then(eitc).otherwise(earncr)
     earncr = pl.min_horizontal(pl.col("md_taxbc"), earncr)
     df = df.with_columns(md_pretax=(pl.col("md_taxbc") - earncr).clip(0, None))
     df = df.with_columns(md_statax=pl.col("md_pretax"))
@@ -274,10 +286,10 @@ def compute_md_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     refcr = pl.lit(0.0)
     if p.in_effect("refundable_eitc_rate"):
         eicr = p.num("refundable_eitc_rate")
-        base_refcr = (eicr * pl.col("eitc") - pl.col("md_taxbc")).clip(0, None)
+        base_refcr = (eicr * eitc - pl.col("md_taxbc")).clip(0, None)
         if effective_year <= 2019 and not behavior.pay_maryland_refundable_eitc_only_above_tax:
             # Through 2019 TAXSIM pays the refundable share in full, on top of the nonrefundable credit.
-            base_refcr = eicr * pl.col("eitc")
+            base_refcr = eicr * eitc
         if effective_year <= 2008:
             refcr = pl.when(pl.col("depx") > 0).then(base_refcr).otherwise(0.0)
         elif effective_year <= 2019:
@@ -288,7 +300,9 @@ def compute_md_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             parent_like = (pl.col("depx") > 0) | ((effective_year >= 2022) & is_joint)
             refcr = pl.when(parent_like).then(base_refcr).otherwise(0.0)
             childless_floor = p.num("refundable_eitc_childless_floor")
-            wl2 = pl.min_horizontal(childless_floor, pl.col("eitc"))
+            if p.in_effect("taxsim_refundable_eitc_childless_floor") and not behavior.lift_maryland_childless_refundable_credit_limit_per_statute:
+                childless_floor = p.num("taxsim_refundable_eitc_childless_floor")
+            wl2 = pl.min_horizontal(childless_floor, eitc)
             childless_gate = (pl.col("md_pretax") < 1.0) & ~parent_like
             childless_refcr = pl.when(pl.col("md_taxbc") < wl2).then(wl2 - pl.col("md_taxbc")).otherwise(0.0)
             refcr = pl.when(childless_gate).then(childless_refcr).otherwise(refcr)

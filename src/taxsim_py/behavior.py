@@ -137,8 +137,13 @@ class BehaviorProfile:
     use_south_carolina_published_tax_table: bool = True
     allow_qbi_deduction_in_south_carolina: bool = True
     count_colorado_credit_children_per_statute: bool = True
+    split_virginia_age_deduction_between_spouses_per_statute: bool = True
+    limit_virginia_2021_child_care_deduction_per_statute: bool = True
     add_back_other_itemized_in_california_minimum_tax_per_statute: bool = True
     use_indiana_elderly_credit_steps_per_statute: bool = True
+    lift_maryland_childless_refundable_credit_limit_per_statute: bool = True
+    apply_maryland_earned_income_credit_age_test_per_statute: bool = True
+    use_maryland_published_2025_tax_table_per_statute: bool = True
     require_indiana_federal_credit_for_decoupled_credit_per_statute: bool = True
     use_california_published_2025_brackets_per_statute: bool = True
     use_california_2025_minimum_tax_exemption_per_statute: bool = True
