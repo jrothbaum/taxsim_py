@@ -724,3 +724,4 @@ Taxsim mode now follows the statutory rule for these (they remain in
 | Connecticut | 2024 on | | Transfers are part of Connecticut income | Statutory: excluded. `exclude_transfers_from_connecticut_income_per_statute` |
 | Kansas | 2013-2016 | | Other non-property income is removed from income with the business income | Statutory: taxed. `tax_kansas_other_nonproperty_income_per_statute` |
 | Kansas | 2024 on | | A dependent filer's zero-tax income limit is zero (the amount is multiplied by the taxpayer count) | Statutory: the limit applies. `scale_kansas_zero_tax_income_by_taxpayers_per_statute` |
+| Delaware | 2024 on | | A couple's income is split between spouses before each takes the pension exclusion; a dependent filer still gets one personal credit | Statutory: split after the exclusion; no credit. `split_delaware_income_before_pension_exclusion_per_statute`, `deny_delaware_personal_credit_to_dependent_filers_per_statute` |

@@ -211,11 +211,18 @@ def compute_de_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         seis = pl.col("ssemp") + pl.col("sbusinc") + pl.col("sprofinc")
         secah = pl.col("payroll_setax_primary") / 2
         secas = pl.col("payroll_setax_secondary") / 2
-        tinc = pl.col("pwages") + seih + pui_part - pl.col("de_retdedt") + pent_s
-        sinc = pl.col("swages") + seis + sui_part - pl.col("de_retdeds") + pens_s
+        split_after_exclusion = effective_year >= 2024 and not behavior.split_delaware_income_before_pension_exclusion_per_statute
+        exclusion_h = pl.lit(0.0) if split_after_exclusion else pl.col("de_retdedt")
+        exclusion_w = pl.lit(0.0) if split_after_exclusion else pl.col("de_retdeds")
+        tinc = pl.col("pwages") + seih + pui_part - exclusion_h + pent_s
+        sinc = pl.col("swages") + seis + sui_part - exclusion_w + pens_s
         cinc = 0.5 * (pl.col("de_agi_pre") - tinc - sinc + secah + secas)
         agit = tinc + cinc - secah
         agis = sinc + cinc - secas
+        if split_after_exclusion:
+            # TAXSIM splits the income first, then takes each spouse's pension exclusion.
+            agit = agit - pl.col("de_retdedt")
+            agis = agis - pl.col("de_retdeds")
         std_each = float(p.num("standard_deduction_per_taxpayer")) if p.in_effect("standard_deduction_per_taxpayer") else 0.0
         if not p.in_effect("standard_deduction_per_taxpayer") and not behavior.compute_delaware_before_1996_per_statute:
             std_each = float(p.num("taxsim_split_standard_deduction"))
@@ -273,7 +280,11 @@ def compute_de_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         per_unit = p.num("personal_exemption_credit")
         # The extra credit is for each taxpayer 60 or older (the 2024 build used 65).
         aged_60 = (pl.col("page") >= 60).cast(pl.Float64) + (pl.col("sage") >= 60).cast(pl.Float64)
-        df = df.with_columns(de_pecred=(pl.col("de_num") + aged_60) * per_unit)
+        credit_people = pl.col("de_num")
+        if effective_year >= 2024 and not behavior.deny_delaware_personal_credit_to_dependent_filers_per_statute:
+            # TAXSIM counts one taxpayer even for a dependent filer.
+            credit_people = pl.when(is_dependent_filer()).then(1.0 + pl.col("depx")).otherwise(credit_people)
+        df = df.with_columns(de_pecred=(credit_people + aged_60) * per_unit)
     else:
         df = df.with_columns(de_pecred=pl.lit(0.0))
 
@@ -286,7 +297,10 @@ def compute_de_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         dep_unit = unit if behavior.compute_delaware_before_1996_per_statute else p.num("taxsim_dependent_credit")
         h_aged60 = (pl.col("page") >= 60) | (aged >= 1)
         w_aged60 = (pl.col("sage") >= 60) | (aged >= 2)
-        credit_total = unit * (pl.col("de_taxpayers") + pl.col("depx")) + unit * h_aged60.cast(pl.Float64) + unit * w_aged60.cast(pl.Float64)
+        credit_taxpayers = pl.col("de_taxpayers")
+        if effective_year >= 2024 and not behavior.deny_delaware_personal_credit_to_dependent_filers_per_statute:
+            credit_taxpayers = pl.when(is_dependent_filer()).then(1.0).otherwise(credit_taxpayers)
+        credit_total = unit * (credit_taxpayers + pl.col("depx")) + unit * h_aged60.cast(pl.Float64) + unit * w_aged60.cast(pl.Float64)
         sepcmb = is_joint_relief & (stat >= stat_h + stat_w)
         cred_h = unit + unit * h_aged60.cast(pl.Float64)
         cred_w = unit + unit * w_aged60.cast(pl.Float64)
