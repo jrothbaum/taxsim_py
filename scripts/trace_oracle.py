@@ -21,7 +21,7 @@ import polars as pl  # noqa: E402
 
 from oracle import TAXSIM_EXE  # noqa: E402
 
-record = {"taxsimid": 1, "year": 2025, "state": 0, "mstat": 1, "idtl": 2, "opt1": 30, "opt1v": 999}
+record = {"taxsimid": 1, "year": 2025, "state": 0, "mstat": 1, "idtl": 2, "opt1": 99, "opt1v": 999}
 dump = None
 for argument in sys.argv[1:]:
     key, value = argument.split("=")
@@ -54,7 +54,21 @@ CALC_NAMES = (
     "hy rent agi exemp stded xitded taxinc pcred chcr earncr credit rt taxbc rebate solcrd ctc gcred amt fedtax "
     "rcred refcrd taxinh taxinw stath statw"
 ).split()
-for line in lines[starts[-1] :] if starts else []:
+# The oracle calls the state routine once per pass and iteration (itemizing forced on and off); show the last call whose
+# tax is the one the oracle reported.
+reported = None
+rows = [row for row in result.stdout.strip().splitlines() if row]
+if len(rows) >= 3:
+    header, last_row = rows[0].split(","), rows[-1].split(",")
+    reported = float(last_row[header.index("siitax")])
+chosen = starts[-1] if starts else None
+for start in starts:
+    fields = lines[start].replace("TRACE", "").replace("state", "").split()
+    if reported is not None and len(fields) >= 4 and abs(float(fields[3]) - reported) < 0.011:
+        chosen = start
+if chosen is not None:
+    print(f"(oracle reported siitax {reported}; showing the matching state call)")
+for line in lines[chosen:] if chosen is not None else []:
     text_line = line.replace("TRACE", "").strip()
     if text_line.startswith("calcv"):
         # The state routine's /calc/ block, by name (this is where the routine leaves its AGI, deductions, tax, credits).

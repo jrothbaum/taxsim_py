@@ -40,7 +40,7 @@ inputs = [c for c in cases.columns if c not in {"description", "oracle_divergent
 for row in failures.iter_rows(named=True):
     case = cases.filter(pl.col("taxsimid") == row["taxsimid"]).select(inputs).row(0, named=True)
     record = {k: v for k, v in case.items() if v is not None}
-    record.update(idtl=2, opt1=30, opt1v=999)
+    record.update(idtl=2, opt1=99, opt1v=999)
     warmup = {**record, "taxsimid": 999_999_999, "year": 2000, "state": 0}
     text = pl.DataFrame([warmup, record]).write_csv()
     result = subprocess.run([str(TAXSIM_EXE)], input=text, capture_output=True, text=True, check=False)

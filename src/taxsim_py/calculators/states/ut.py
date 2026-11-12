@@ -69,7 +69,8 @@ def compute_ut_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         if p.in_effect("itemized_limit_threshold"):
             fed_agi = agi
             phas92 = p.num("itemized_limit_threshold") * p.num("itemized_limit_index") / sep
-            xtot = salt + pl.col("proptax") + pl.col("mortgage") + pl.col("charity_cash")
+            other_items = pl.col("otheritem") if not behavior.exclude_utah_other_itemized_from_state_tax_limit_per_statute else 0.0
+            xtot = salt + pl.col("proptax") + pl.col("mortgage") + pl.col("charity_cash") + other_items
             over = fed_agi - phas92
             xconst = pl.min_horizontal(p["itemized_limit_share"] * xtot, p["itemized_limit_rate"] * over)
             lost = xconst / xtot * salt

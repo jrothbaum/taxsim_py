@@ -107,7 +107,7 @@ old = "82.89d9"
 assert text.count(old) == 1, "wisconsin 2023 separate bracket patch did not apply"
 open(path, "w").write(text.replace(old, "82.89d0"))
 PY
-# Tracing (not a fix): with extnd(30)=999 (inputs opt1=30, opt1v=999) the state dispatcher prints every
+# Tracing (not a fix): with extnd(99)=999 (inputs opt1=99, opt1v=999) the state dispatcher prints every
 # nonzero federal result c(i) and input d(i) it hands the state routine, to stderr (scripts/trace_oracle.py).
 python3 - "$PATCHED" <<'PY'
 import sys
@@ -116,8 +116,8 @@ text = open(path).read()
 old = "      c(74) = stax*flate\n"
 assert text.count(old) == 1, "trace patch did not apply"
 trace = (
-    "      if(int(extnd(30)).eq.999) then\n"
-    "        write(0,*) 'TRACE state id, law, flate, stax', id, law, flate, stax\n"
+    "      if(int(extnd(99)).eq.999) then\n"
+    "        write(0,*) 'TRACE state', id, law, flate, c(74)\n"
     "        write(0,*) 'TRACE calcv', (s(i),i=1,25)\n"
     "        do i=1,255\n"
     "          if(coms(i).ne.0d0) write(0,*) 'TRACE c', i, coms(i)\n"
@@ -127,9 +127,9 @@ trace = (
     "        enddo\n"
     "      endif\n"
 )
-open(path, "w").write(text.replace(old, trace + old))
+open(path, "w").write(text.replace(old, old + trace))
 PY
-for pattern in 'isgn=1,int(extnd(54))' 'povert(1,2016)+isize' 'gcred+xmp(law)' 'chld=min(statax,chld)' 'tab22(1,1,mq)' 'TRACE state id' 'rtmaxt=rtmax(law)' 'exemp=xmp23(2,law)+d(8)' 'xl14 = 0d0' '82.89d0'; do
+for pattern in 'isgn=1,int(extnd(54))' 'povert(1,2016)+isize' 'gcred+xmp(law)' 'chld=min(statax,chld)' 'tab22(1,1,mq)' 'TRACE state' 'rtmaxt=rtmax(law)' 'exemp=xmp23(2,law)+d(8)' 'xl14 = 0d0' '82.89d0'; do
   grep -q "$pattern" "$PATCHED" || { echo "patch did not apply: $pattern" >&2; exit 1; }
 done
 gfortran -O2 -std=legacy -o taxsim2026_mtr.exe "$PATCHED"
