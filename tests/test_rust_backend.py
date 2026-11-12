@@ -9,7 +9,9 @@ over every state and year. Skipped without the compiled calculator.
 
 import importlib
 import os
+import sys
 import tempfile
+from pathlib import Path
 import unittest
 from unittest.mock import patch
 
@@ -47,25 +49,18 @@ def _implemented(error: Exception) -> bool:
 
 @unittest.skipIf(rust_backend._plugin_path() is None, "the compiled calculator is not installed")
 class CompiledCalculatorTests(unittest.TestCase):
-    def test_every_state_matches_python(self):
-        compared = {}
-        for state in sorted(STATE_CALCULATOR_PATHS):
-            for year in SAMPLE_YEARS:
-                with self.subTest(state=state, year=year):
-                    frame = _frame(state, year)
-                    try:
-                        found = calculate_taxes(frame, mtr=11, engine="rust")
-                    except RuntimeError as error:
-                        # Only a state-year the compiled calculator has no law for may be refused.
-                        self.assertFalse(_implemented(error), error)
-                        continue
-                    try:
-                        expected = calculate_taxes(frame, mtr=11, engine="python")
-                    except Exception:  # Python has no law for it either
-                        continue
-                    compared[state] = compared.get(state, 0) + 1
-                    assert_engines_match(expected, found)
-        self.assertEqual(sorted(compared), sorted(STATE_CALCULATOR_PATHS), "a state was never compared")
+    def test_every_state_and_year_matches_python(self):
+        """Statutory mode must agree exactly: every state in every year since 1960 (federal alone before state
+        law begins in 1977), on stacked random households and each state's own cases."""
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+        import validate_rust
+
+        selected = {code: module for code, (module, _) in STATE_CALCULATOR_PATHS.items()}
+        years = list(range(validate_rust.FIRST_YEAR, validate_rust.LAST_SUPPORTED_YEAR + 1))
+        matched, failed, skipped = validate_rust.validate(selected, years, rows=ROWS)
+        self.assertEqual(failed, [])
+        self.assertEqual(dict(skipped), {})
+        self.assertEqual(sorted(matched), sorted(selected), "a state was never compared")
 
     def test_federal_only_years_before_1977_match_python(self):
         """No state tax is coded before 1977, so these years are federal and payroll tax only (state 0)."""

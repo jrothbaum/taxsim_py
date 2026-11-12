@@ -32,8 +32,10 @@ from taxsim_py import calculate_taxes  # noqa: E402
 from taxsim_py.api import LAST_SUPPORTED_YEAR  # noqa: E402
 from taxsim_py.calculators.states import STATE_CALCULATOR_PATHS  # noqa: E402
 from taxsim_py.engine import rust_backend  # noqa: E402
+from taxsim_py.engine.schema import PARAMETERS_ROOT, load_yaml  # noqa: E402
 
 FIRST_YEAR = 1960
+FIRST_STATE_YEAR = 1977  # no state return before this year
 MARGINAL_INPUT = 11  # primary and spouse wages together
 MODE = "statutory"
 
@@ -76,11 +78,88 @@ def describe_mismatch(expected: pl.DataFrame, found: pl.DataFrame) -> str:
     return ", ".join(worst[:4]) or "frames differ"
 
 
+def supported_years(module: str) -> range:
+    """Every year both engines code for the module: federal law from 1960, state law from 1977 through the year
+    the state's parameter file is coded to. Years before a state's law are compared as federal-only returns."""
+    if module == "no_income_tax":
+        return range(FIRST_YEAR, LAST_SUPPORTED_YEAR + 1)
+    doc = load_yaml(PARAMETERS_ROOT / "states" / module.rstrip("_") / "income_tax.yaml")
+    return range(FIRST_YEAR, min(int(doc.get("law_coded_through", LAST_SUPPORTED_YEAR)), LAST_SUPPORTED_YEAR) + 1)
+
+
+def validate(
+    selected: dict[int, str], years: list[int], rows: int, batch_rows: int = 300_000
+) -> tuple[dict[int, list[int]], list[tuple[int, int, str]], dict[str, int]]:
+    """Compare the engines on stacked households for every selected state and year; returns the matched years by
+    state, the mismatches and the (state, year) combinations neither engine could calculate."""
+    matched: dict[int, list[int]] = defaultdict(list)
+    failed: list[tuple[int, int, str]] = []
+    skipped: dict[str, int] = defaultdict(int)
+
+    def compare_one(code: int, year: int, expected: pl.DataFrame, found: pl.DataFrame) -> None:
+        try:
+            assert_engines_match(expected, found)
+        except AssertionError:
+            failed.append((code, year, describe_mismatch(expected, found)))
+        else:
+            matched[code].append(year)
+
+    def compare_alone(code: int, year: int, frame: pl.DataFrame) -> None:
+        """One supported state and year on its own, to say which engine fails; a failure is a failure."""
+        for engine in ("rust", "python"):
+            try:
+                outputs[engine] = run(engine, frame)
+            except Exception as error:
+                failed.append((code, year, f"{engine} raised: {_reason(error)}"))
+                return
+        compare_one(code, year, outputs["python"], outputs["rust"])
+
+    outputs: dict[str, pl.DataFrame] = {}
+
+    # Stack many states and years into one frame per engine, and compare the groups afterwards. A batch
+    # either engine refuses falls back to one state and year at a time.
+    combos = [(code, year) for code in selected for year in years if year in supported_years(selected[code])]
+    batch: list[tuple[int, int, pl.DataFrame]] = []
+    stacked_rows = 0
+
+    def flush() -> None:
+        nonlocal batch, stacked_rows
+        if not batch:
+            return
+        stacked = pl.concat([frame for _, _, frame in batch], how="diagonal_relaxed").with_row_index("taxsim_id", offset=1)
+        sizes = [frame.height for _, _, frame in batch]
+        try:
+            found_all, expected_all = run("rust", stacked), run("python", stacked)
+        except Exception as error:
+            print(f"stacked batch of {len(batch)} state-years failed ({_reason(error)}); retrying one at a time", file=sys.stderr)
+            for code, year, frame in batch:
+                compare_alone(code, year, frame.with_row_index("taxsim_id", offset=1))
+        else:
+            start = 0
+            for (code, year, _), size in zip(batch, sizes):
+                compare_one(code, year, expected_all.slice(start, size), found_all.slice(start, size))
+                start += size
+        batch, stacked_rows = [], 0
+
+    for code, year in combos:
+        frame = test_frame(selected[code], code, year, rows).drop("taxsim_id")
+        if year < FIRST_STATE_YEAR:
+            # No state law yet: the federal return alone, on this state's mix of households.
+            frame = frame.with_columns(state=pl.lit(0, dtype=frame["state"].dtype))
+        batch.append((code, year, frame))
+        stacked_rows += frame.height
+        if stacked_rows >= batch_rows:
+            flush()
+    flush()
+    return matched, failed, skipped
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--states", nargs="*", help="state modules to compare, e.g. wv (default: every state)")
     parser.add_argument("--years", nargs="*", type=int, help="law years (default: all coded years)")
     parser.add_argument("--rows", type=int, default=3000, help="random households per state and year")
+    parser.add_argument("--batch-rows", type=int, default=300_000, help="households stacked into one call per engine")
     args = parser.parse_args()
 
     if rust_backend._plugin_path() is None:
@@ -92,29 +171,7 @@ def main() -> int:
         selected = {code: module for code, module in selected.items() if module.rstrip("_") in wanted}
     years = args.years or list(range(FIRST_YEAR, LAST_SUPPORTED_YEAR + 1))
 
-    matched: dict[int, list[int]] = defaultdict(list)
-    failed: list[tuple[int, int, str]] = []
-    skipped: dict[str, int] = defaultdict(int)
-    for code, module in selected.items():
-        for year in years:
-            try:
-                run("rust", random_households(code, year, 1))  # cheap probe
-                frame = test_frame(module, code, year, args.rows)
-                found = run("rust", frame)
-            except Exception as error:  # the compiled calculator has no law for this combination
-                skipped[_reason(error)] += 1
-                continue
-            try:
-                expected = run("python", frame)
-            except Exception as error:  # Python has no law for this state and year either
-                skipped[f"Python cannot calculate it: {_reason(error)}"] += 1
-                continue
-            try:
-                assert_engines_match(expected, found)
-            except AssertionError:
-                failed.append((code, year, describe_mismatch(expected, found)))
-                continue
-            matched[code].append(year)
+    matched, failed, skipped = validate(selected, years, args.rows, args.batch_rows)
 
     print(f"\nmatched: {sum(len(y) for y in matched.values())} state-year combinations")
     for code, matched_years in sorted(matched.items()):
