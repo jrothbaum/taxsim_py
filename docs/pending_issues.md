@@ -338,3 +338,7 @@ Its SALT cap stays $40,000 with the phaseout starting at $500,000 (the law: $40,
 exemption phaseout rate stays 25% (the law: 50% from 2026). TAXSIM mode keeps them
 (`index_salt_cap_from_2026`, `phase_out_amt_exemption_at_half_rate_from_2026`). Its 0% capital gains threshold is the 2023
 amount carried by its price index (about $450 above the published one in 2026).
+
+## Tracing the oracle
+
+`scripts/trace_oracle.py year=2025 state=27 mstat=1 pwages=60000 ...` prints every nonzero federal result `c(i)` and input `d(i)` the NBER code hands a state routine for one household (the patch is in `scripts/build_oracle.sh`; it runs only when `opt1=30, opt1v=999`). Use it before reading a state routine, to see hidden inputs such as `c(201)` or `c(215)`.

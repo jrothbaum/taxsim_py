@@ -65,7 +65,28 @@ for name in ("tab22", "wkst22", "tab24", "wkst24"):
     text = text.replace(call, name + "(1,1,mq)")
 open(path, "w").write(text)
 PY
-for pattern in 'isgn=1,int(extnd(54))' 'povert(1,2016)+isize' 'gcred+xmp(law)' 'chld=min(statax,chld)' 'tab22(1,1,mq)'; do
+# Tracing (not a fix): with extnd(30)=999 (inputs opt1=30, opt1v=999) the state dispatcher prints every
+# nonzero federal result c(i) and input d(i) it hands the state routine, to stderr (scripts/trace_oracle.py).
+python3 - "$PATCHED" <<'PY'
+import sys
+path = sys.argv[1]
+text = open(path).read()
+old = "      c(74) = stax*flate\n"
+assert text.count(old) == 1, "trace patch did not apply"
+trace = (
+    "      if(int(extnd(30)).eq.999) then\n"
+    "        write(0,*) 'TRACE state id, law, flate, stax', id, law, flate, stax\n"
+    "        do i=1,255\n"
+    "          if(coms(i).ne.0d0) write(0,*) 'TRACE c', i, coms(i)\n"
+    "        enddo\n"
+    "        do i=1,255\n"
+    "          if(ds(i).ne.0d0) write(0,*) 'TRACE d', i, ds(i)\n"
+    "        enddo\n"
+    "      endif\n"
+)
+open(path, "w").write(text.replace(old, trace + old))
+PY
+for pattern in 'isgn=1,int(extnd(54))' 'povert(1,2016)+isize' 'gcred+xmp(law)' 'chld=min(statax,chld)' 'tab22(1,1,mq)' 'TRACE state id'; do
   grep -q "$pattern" "$PATCHED" || { echo "patch did not apply: $pattern" >&2; exit 1; }
 done
 gfortran -O2 -std=legacy -o taxsim2026_mtr.exe "$PATCHED"
