@@ -456,6 +456,9 @@ def compute_ny_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         phase = (
             pl.when(is_single).then(p.num("itemized_limit_threshold", "single"))
             .when(is_hoh).then(p.num("itemized_limit_threshold", "head_of_household"))
+            .when(is_sep & pl.lit(y >= 2022 and not behavior.halve_new_york_married_itemized_limit_for_separate_per_statute)).then(
+                p.num("itemized_limit_threshold", "single") / sep
+            )
             .otherwise(p.num("itemized_limit_threshold", "married") / sep)
         )
         dedphs = pl.min_horizontal(

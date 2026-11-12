@@ -133,6 +133,7 @@ class BehaviorProfile:
     use_south_carolina_published_tax_table: bool = True
     allow_qbi_deduction_in_south_carolina: bool = True
     count_colorado_credit_children_per_statute: bool = True
+    halve_new_york_married_itemized_limit_for_separate_per_statute: bool = True
     compute_new_york_property_credit_per_statute: bool = True
     compute_new_york_earned_income_credit_base_per_statute: bool = True
     offset_massachusetts_dividends_only_by_losses_per_statute: bool = True
