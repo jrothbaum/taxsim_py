@@ -728,3 +728,5 @@ Taxsim mode now follows the statutory rule for these (they remain in
 | Michigan | 2017 on | | The income behind the federal credit for the elderly (credit / 0.15) is subtracted from Michigan income | Statutory: not subtracted. `leave_out_michigan_schedule_r_income_subtraction_per_statute` |
 | New Mexico | 2025 on | | A dependent filer's standard deduction is the full federal amount | Statutory: the limited amount. `limit_new_mexico_dependent_filer_standard_deduction_per_statute` |
 | Vermont | 2025 | | The Social Security exemption starts at 80,000 joint / 65,000 other | Statutory: 70,000 / 55,000. `use_vermont_social_security_exemption_starts_per_statute` |
+| Ohio | 2024 on | | Other property income is not business income for the business deduction; S corporation income is deflated in a projected year | Statutory: counted. `count_other_property_income_from_2024` |
+| Alabama | projected years | | The self-employment tax added back to AGI is the deflated figure | Statutory: n/a. |

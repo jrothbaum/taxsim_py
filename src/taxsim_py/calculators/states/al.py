@@ -31,15 +31,17 @@ def compute_al_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
 
     # --- AGI ---
     # The federal deduction for half of self-employment tax is added back.
+    # (the federal AGI it is added back to is in deflated dollars in a projected year).
+    deflated_setax = pl.col("al_setax") / flate
     if p.in_effect("se_deduction_holiday"):
         holiday = p.value("se_deduction_holiday")
         df = df.with_columns(
-            al_setax_addback=pl.when(pl.col("al_setax") <= holiday["threshold"])
-            .then(holiday["rate"] * pl.col("al_setax"))
-            .otherwise(0.5 * pl.col("al_setax") + holiday["flat"])
+            al_setax_addback=pl.when(deflated_setax <= holiday["threshold"])
+            .then(holiday["rate"] * deflated_setax)
+            .otherwise(0.5 * deflated_setax + holiday["flat"])
         )
     else:
-        df = df.with_columns(al_setax_addback=0.5 * pl.col("al_setax"))
+        df = df.with_columns(al_setax_addback=0.5 * deflated_setax)
     # The federal dividend exclusion (through 1986) is added back.
     if effective_year <= 1986:
         df = df.with_columns(al_dividend_addback=dividend_exclusion_addback(effective_year, behavior))

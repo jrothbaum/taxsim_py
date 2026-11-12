@@ -83,8 +83,9 @@ def compute_oh_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         if y >= 2021:
             # TAXSIM's business income also takes in S corporation, other property and other
             # non-property income, and cannot exceed income.
+            other_property = pl.col("otherprop") if y < 2024 or behavior.count_other_property_income_from_2024 else 0.0
             business = pl.min_horizontal(
-                (pl.col("psemp") + pl.col("ssemp") + pl.col("scorp") + pl.col("otherprop") + pl.col("nonprop")).clip(0, None),
+                (pl.col("psemp") + pl.col("ssemp") + pl.col("scorp") / flate + other_property + pl.col("nonprop")).clip(0, None),
                 agi.clip(0, None),
             )
         busded = pl.min_horizontal(float(c["share"]) * business, float(c["cap"]) / sep)
