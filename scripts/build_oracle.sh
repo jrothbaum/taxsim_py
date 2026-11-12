@@ -97,6 +97,16 @@ old = "               xl15 = max(0.0d0,xl13)\n"
 assert text.count(old) == 1, "utah xl14 patch did not apply"
 open(path, "w").write(text.replace(old, old + "               xl14 = 0d0\n"))
 PY
+# Wisconsin 2023, married separate: the second bracket's constant is typed 82.89d9 (82.89 billion), not 82.89d0, so the
+# tax is hugely negative and the state tax comes out 0 for incomes in that bracket.
+python3 - "$PATCHED" <<'PY'
+import sys
+path = sys.argv[1]
+text = open(path).read()
+old = "82.89d9"
+assert text.count(old) == 1, "wisconsin 2023 separate bracket patch did not apply"
+open(path, "w").write(text.replace(old, "82.89d0"))
+PY
 # Tracing (not a fix): with extnd(30)=999 (inputs opt1=30, opt1v=999) the state dispatcher prints every
 # nonzero federal result c(i) and input d(i) it hands the state routine, to stderr (scripts/trace_oracle.py).
 python3 - "$PATCHED" <<'PY'
@@ -119,7 +129,7 @@ trace = (
 )
 open(path, "w").write(text.replace(old, trace + old))
 PY
-for pattern in 'isgn=1,int(extnd(54))' 'povert(1,2016)+isize' 'gcred+xmp(law)' 'chld=min(statax,chld)' 'tab22(1,1,mq)' 'TRACE state id' 'rtmaxt=rtmax(law)' 'exemp=xmp23(2,law)+d(8)' 'xl14 = 0d0'; do
+for pattern in 'isgn=1,int(extnd(54))' 'povert(1,2016)+isize' 'gcred+xmp(law)' 'chld=min(statax,chld)' 'tab22(1,1,mq)' 'TRACE state id' 'rtmaxt=rtmax(law)' 'exemp=xmp23(2,law)+d(8)' 'xl14 = 0d0' '82.89d0'; do
   grep -q "$pattern" "$PATCHED" || { echo "patch did not apply: $pattern" >&2; exit 1; }
 done
 gfortran -O2 -std=legacy -o taxsim2026_mtr.exe "$PATCHED"
