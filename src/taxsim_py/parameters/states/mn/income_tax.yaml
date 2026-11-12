@@ -439,10 +439,16 @@ standard_deduction_aged_addition:
     2023: 1450
     2024: 1550
     2025: 1600
+# TAXSIM's married aged addition for 2025 (the 2024 amount).
+taxsim_standard_deduction_aged_addition_married: {2025: 1550}
 # From 2018 a dependent filer's standard deduction is at most the larger of this
 # and earned income plus the addition.
 dependent_standard_deduction_floor: {2018: 1050}
 dependent_standard_deduction_earned_addition: {2018: 350}
+# TAXSIM's limits for a dependent filer from 2024.
+taxsim_dependent_standard_deduction:
+  2024: {floor: 1300, earned_addition: 400}
+  2025: {floor: 1250, earned_addition: 350}
 # From 2018 state and local taxes are deductible up to this amount (halved on
 # separate returns).
 salt_cap: {2018: 10000}
@@ -1199,6 +1205,10 @@ child_and_working_family_credit:
     2023: {phase_in_end: 8750, phase_out_joint: 35000, phase_out_other: 29500}
     2024: {phase_in_end: 9220, phase_out_joint: 36880, phase_out_other: 31090}
     2025: {phase_in_end: 9480, phase_out_joint: 37910, phase_out_other: 31950}
+  # TAXSIM scales the 2023 amounts by its index without rounding.
+  taxsim_by_year:
+    2024: {phase_out_joint: 36879.5, phase_out_other: 31084.15}
+    2025: {phase_out_joint: 37906.75, phase_out_other: 31949.975}
 # Child and dependent care credit: a share of the federal credit before its
 # liability limit (capped through 2016), less the phase-out rate (per dependent
 # from 1983 through 2016) above the start; none above the income limit.

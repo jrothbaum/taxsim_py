@@ -455,7 +455,8 @@ def _statutory_working_family_credit(
         # TAXSIM (`m1cwfc`): no age or separate-return test, but nothing for a childless return with a taxpayer 65 or older;
         # children are those under 18.
         taxsim_base = float(c["child_amount"]) * pl.col("dep18") + float(c["phase_in_rate"]) * earned.clip(0, float(d["phase_in_end"]))
-        taxsim_threshold = pl.when(is_joint).then(float(d["phase_out_joint"])).otherwise(float(d["phase_out_other"]))
+        taxsim_d = resolve_year(c["taxsim_by_year"], y) if y >= 2024 and "taxsim_by_year" in c else d
+        taxsim_threshold = pl.when(is_joint).then(float(taxsim_d["phase_out_joint"])).otherwise(float(taxsim_d["phase_out_other"]))
         taxsim_credit = (taxsim_base - float(c["phase_out_rate"]) * (income - taxsim_threshold).clip(0, None)).clip(0, None)
         if y >= 2024:
             # The 2024 on routine pays a childless return only with a reported taxpayer age 19 to 64.
@@ -795,6 +796,11 @@ def compute_mn_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             )
             + by_filer(_sub(aged_add, "single", y), _sub(aged_add, "married", y), _sub(aged_add, "single", y)) * aged
         ) / sep
+        if p.in_effect("taxsim_standard_deduction_aged_addition_married") and not behavior.use_published_minnesota_2025_aged_addition_per_statute:
+            # TAXSIM keeps the 2024 amount for married returns.
+            stded = stded - pl.when(is_joint).then(
+                (_sub(aged_add, "married", y) - float(p.num("taxsim_standard_deduction_aged_addition_married"))) * aged / sep
+            ).otherwise(0.0)
     taxsim_reduction = not behavior.reduce_minnesota_deductions_per_statute and p.in_effect("taxsim_deduction_reduction_start")
     if taxsim_reduction:
         # TAXSIM (2019-2022): 3% of federal AGI above its own start, at most 80% of the standard deduction.
@@ -807,10 +813,12 @@ def compute_mn_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             halve_separate=y < 2023 or behavior.halve_minnesota_deduction_reduction_for_separate_returns_per_statute,
         )
     if y >= 2018:
-        dependent_limit = pl.max_horizontal(
-            pl.lit(p.num("dependent_standard_deduction_floor")),
-            pl.col("earned_income") + p.num("dependent_standard_deduction_earned_addition"),
-        )
+        dependent_floor = p.num("dependent_standard_deduction_floor")
+        dependent_addition = p.num("dependent_standard_deduction_earned_addition")
+        if p.in_effect("taxsim_dependent_standard_deduction") and not behavior.use_published_minnesota_dependent_standard_deduction_per_statute:
+            taxsim_dependent = p.value("taxsim_dependent_standard_deduction")
+            dependent_floor, dependent_addition = float(taxsim_dependent["floor"]), float(taxsim_dependent["earned_addition"])
+        dependent_limit = pl.max_horizontal(pl.lit(dependent_floor), pl.col("earned_income") + dependent_addition)
         stded = pl.when(dependent_filer).then(pl.min_horizontal(stded, dependent_limit)).otherwise(stded)
 
     # --- Itemized deductions ---
@@ -1192,8 +1200,9 @@ def compute_mn_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     if p.in_effect("motor_fuels_credit"):
         fuel = p.value("motor_fuels_credit")
         limits = fuel["taxable_income_limit"]
-        limit = by_filer(limits["single"], limits["married"], limits["head_of_household"]) / sep
-        crfuel = pl.when(taxinc <= limit).then(fuel["amount"] / sep).otherwise(0.0)
+        fuel_sep = sep if behavior.halve_minnesota_motor_fuels_credit_for_separate_returns_per_statute else 1.0
+        limit = _by_filer(limits["single"], limits["married"], limits["head_of_household"]) / fuel_sep
+        crfuel = pl.when(taxinc <= limit).then(fuel["amount"] / fuel_sep).otherwise(0.0)
 
     statax = (statax - credit).clip(0, None) - chcr - work - pcred - crfuel
     rate_expr = _schedule_rate(

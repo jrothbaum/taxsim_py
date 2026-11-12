@@ -141,6 +141,9 @@ class BehaviorProfile:
     limit_virginia_2021_child_care_deduction_per_statute: bool = True
     add_back_other_itemized_in_california_minimum_tax_per_statute: bool = True
     use_indiana_elderly_credit_steps_per_statute: bool = True
+    use_published_minnesota_2025_aged_addition_per_statute: bool = True
+    halve_minnesota_motor_fuels_credit_for_separate_returns_per_statute: bool = True
+    use_published_minnesota_dependent_standard_deduction_per_statute: bool = True
     add_earnings_to_district_of_columbia_dependent_standard_deduction_per_statute: bool = True
     apply_illinois_earned_income_credit_age_test_per_statute: bool = True
     add_idaho_aged_standard_deduction_in_projected_years_per_statute: bool = True
