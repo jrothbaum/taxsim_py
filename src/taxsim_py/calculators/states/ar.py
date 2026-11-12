@@ -99,7 +99,7 @@ def compute_ar_tax(
     # Business income is not deflated in projected years; Schedule E income is.
     df = df.with_columns(
         ar_business=pl.col("pbusinc") + pl.col("pprofinc") + pl.col("sbusinc") + pl.col("sprofinc")
-        + (pl.col("scorp") if effective_year < 2024 and not behavior.count_arkansas_s_corporation_income_once else 0.0),
+        + (pl.col("scorp") if effective_year < 2021 and not behavior.count_arkansas_s_corporation_income_once else 0.0),
         # Federal Schedule E income.
         ar_schede=(pl.lit(0.0) if effective_year >= 2024 and not behavior.count_other_property_income_from_2024 else pl.col("otherprop")) + (pl.col("scorp") if effective_year >= 1987 else 0.0),
     )
@@ -171,7 +171,7 @@ def compute_ar_tax(
                 basis = "return"
             count = {"return": pl.lit(1.0), "taxpayer": pl.col("ar_taxpayers"), "aged": aged_count()}[basis]
             df = df.with_columns(ar_agi=pl.col("ar_agi") - pl.min_horizontal(pl.col("pensions"), amount * count))
-    if 2018 <= effective_year <= 2019 or (effective_year >= 2024 and not behavior.exempt_arkansas_unemployment_from_2024_per_statute):
+    if 2018 <= effective_year <= 2019 or (effective_year >= 2022 and not behavior.exempt_arkansas_unemployment_from_2024_per_statute):
         df = df.with_columns(ar_agi=pl.col("ar_agi") + pl.col("ui"))
     df = df.with_columns(ar_ag=pl.col("ar_agi").clip(0, None))
 
@@ -186,7 +186,11 @@ def compute_ar_tax(
 
     # --- Itemized deduction: the itemized inputs, with Arkansas's own
     # limitation 1991-2017. ---
-    df = df.with_columns(ar_xitded_base=pl.col("proptax") + pl.col("otheritem") + pl.col("mortgage"))
+    other_items = pl.col("otheritem")
+    if 2018 <= effective_year <= 2021 and not behavior.count_arkansas_other_itemized_deductions_per_statute:
+        # TAXSIM's 2018-2021 routines leave the other itemized deductions input out.
+        other_items = pl.lit(0.0)
+    df = df.with_columns(ar_xitded_base=pl.col("proptax") + other_items + pl.col("mortgage"))
     if 1991 <= effective_year <= 2017:
         if p.in_effect("itemized_limitation"):
             lim = p.value("itemized_limitation")

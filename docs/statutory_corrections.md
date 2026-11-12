@@ -643,8 +643,8 @@ Taxsim mode now follows the statutory rule for these (they remain in
 | MA | 2024 on | | Business, professional and S corporation inputs count as income (they did not before 2024); other property income does not | Statutory: other property income counts. `count_other_property_income_from_2024` |
 | GA | 2024 on | | Itemizers get a $300 credit per taxpayer, limited to the tax | Statutory: none. `omit_georgia_itemizer_credit_per_statute` |
 | VT | 2024 on | | Child care contribution of 0.055% (2024) / 0.11% (2025 on) of net self-employment earnings | Both modes (Act 76 of 2023) |
-| AR | 1987-2023 | | S corporation income is counted twice (once with Schedule E, once with business income) | Statutory: once. `count_arkansas_s_corporation_income_once` |
-| AR | 2024 on | | Unemployment compensation is taxed | Statutory: exempt. `exempt_arkansas_unemployment_from_2024_per_statute` |
+| AR | 1987-2020 | | S corporation income is counted twice (once with Schedule E, once with business income) | Statutory: once. `count_arkansas_s_corporation_income_once` |
+| AR | 2022 on | | Unemployment compensation is taxed | Statutory: exempt. `exempt_arkansas_unemployment_from_2024_per_statute` |
 | PA, AR, NJ, MA | 2024 on | | Other property income is left out of state income | Statutory: counted. `count_other_property_income_from_2024` |
 | RI | 2024 on | | Brackets scale TAXSIM's 2011 schedule by its own index (1.4084, 1.4532) | Statutory: the published brackets |
 | RI | 2021 on | | Child care credit is a quarter of the federal credit before the federal tax limit | Statutory: limited by federal tax. `limit_rhode_island_child_care_credit_by_federal_tax_per_statute` |
@@ -662,3 +662,4 @@ Taxsim mode now follows the statutory rule for these (they remain in
 | IN | 2023 on | | The earned income credit is 10% of the federal credit | Both modes |
 | CT | 2024 on | | The property tax credit is available to everyone and its phase-out steps round up | Statutory: continuous steps. `round_connecticut_property_credit_steps_continuously_per_statute` |
 | PA, IA, DC, OH, NE, WI, MN, CA | 2026 | | The federal child care credit the states copy is deflated with the other federal figures in a projected year | Both modes (projection only) |
+| AR | 2018-2021 | | The other itemized deductions input is left out of the itemized deduction | Statutory: counted. `count_arkansas_other_itemized_deductions_per_statute` |
