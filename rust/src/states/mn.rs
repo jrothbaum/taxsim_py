@@ -220,6 +220,9 @@ pub struct MnParams {
     m1m: Option<(f64, f64)>,
     elderly: Option<([Vec<f64>; 3], f64)>,
     charity_subtraction: Option<(f64, f64)>,
+    /// From 2023 benefits are subtracted in full below these federal AGI levels (single class, married),
+    /// then fall by a tenth for each $4,000 step.
+    ss_full: Option<(f64, f64)>,
     ss_subtraction: Option<(f64, f64, f64, f64, f64, f64)>,
     amt: Option<(f64, f64, [f64; 3], [f64; 3], f64)>,
     personal_credit: f64,
@@ -323,6 +326,12 @@ impl MnParams {
         } else {
             None
         };
+        let ss_full = if y >= 2023 {
+            let t = get(&doc, "social_security_full_subtraction_threshold")?;
+            Some((num(resolve_year(get(t, "single")?, y)?)?, num(resolve_year(get(t, "married")?, y)?)?))
+        } else {
+            None
+        };
         let amt = if y >= 2001 {
             let ph = get(&doc, "amt_phaseout_start")?;
             Some((
@@ -373,7 +382,7 @@ impl MnParams {
             } else {
                 let d = resolve_year(get(c, "by_year")?, y)?;
                 Working::Statutory {
-                    child_amount: num(get(c, "child_amount")?)?,
+                    child_amount: num(d.get("child_amount").unwrap_or(get(c, "child_amount")?))?,
                     phase_in_rate: num(get(c, "phase_in_rate")?)?,
                     phase_out_rate: num(get(c, "phase_out_rate")?)?,
                     phase_in_end: num(get(d, "phase_in_end")?)?,
@@ -572,6 +581,7 @@ impl MnParams {
             elderly,
             charity_subtraction: if y >= 1999 { Some((p.f("charity_subtraction_rate")?, p.f("charity_subtraction_floor")?)) } else { None },
             ss_subtraction,
+            ss_full,
             amt,
             personal_credit: if y <= 1986 { p.f("personal_credit")? } else { 0.0 },
             personal_credit_aged: match p.opt("personal_credit_aged")? {
@@ -800,7 +810,8 @@ fn working_family_credit(p: &MnParams, base_earned: f64, base_agi: f64, fed_agi:
         Working::Statutory2022 { earnings_maximum, phase_in_rate, threshold_joint, threshold_other, phase_out_rate } => {
             let earned = f.earned_income;
             let agi = f.agi;
-            let ages = (i.page >= 19.0 && i.page <= 64.0) || (i.sage >= 19.0 && i.sage <= 64.0) || (i.page == 0.0 && i.sage == 0.0);
+            let spouse_age = if is_joint && i.sage == 0.0 { 40.0 } else { i.sage };
+            let ages = (i.page >= 19.0 && i.page <= 64.0) || (spouse_age >= 19.0 && spouse_age <= 64.0) || (i.page == 0.0 && i.sage == 0.0);
             let eligible = (i.depx > 0.0 || ages) && i.fs() != Fs::Separate;
             let income = earned.max(agi);
             let count = i.dep18.clamp(0.0, 3.0) as usize;
@@ -811,7 +822,8 @@ fn working_family_credit(p: &MnParams, base_earned: f64, base_agi: f64, fed_agi:
         }
         Working::Statutory { child_amount, phase_in_rate, phase_out_rate, phase_in_end, phase_out_joint, phase_out_other } => {
             let earned = f.earned_income;
-            let ages = (i.page >= 19.0 && i.page <= 64.0) || (i.sage >= 19.0 && i.sage <= 64.0) || (i.page == 0.0 && i.sage == 0.0);
+            let spouse_age = if is_joint && i.sage == 0.0 { 40.0 } else { i.sage };
+            let ages = (i.page >= 19.0 && i.page <= 64.0) || (spouse_age >= 19.0 && spouse_age <= 64.0) || (i.page == 0.0 && i.sage == 0.0);
             let eligible = (i.depx > 0.0 || ages) && i.fs() != Fs::Separate;
             let income = earned.max(f.agi);
             let base = child_amount * i.dep17 + phase_in_rate * earned.max(0.0).min(*phase_in_end);
@@ -946,7 +958,7 @@ pub fn tax(i: &Inp, f: &Fed, p: &MnParams) -> f64 {
     } else {
         fed_deduc = f.itemized_deduction;
         fed_itemizes = f.itemizes;
-        fed_zbr = if fed_itemizes { 0.0 } else { f.standard_deduction };
+        fed_zbr = super::federal_zero_bracket(y, fed_itemizes, f);
     }
     let agix = f.agi.max(0.0);
     let alim50 = if y == 2020 || y == 2021 { 1.0e20 } else { 0.5 * agix };
@@ -1073,7 +1085,7 @@ pub fn tax(i: &Inp, f: &Fed, p: &MnParams) -> f64 {
         xitded -= disalt + disagi;
     } else {
         let sttax = (p.salt_cap / sep).min(i.proptax + salt_ded + i.otheritem);
-        let stt = salt_ded.min(sttax - (i.proptax + i.otheritem));
+        let stt = salt_ded.min((sttax - (i.proptax + i.otheritem)).max(0.0));
         xitded = fed_deduc - stt;
         let dedphs = (p.itemized_max_share * fed_deduc).min(p.itemized_rate * (fed_agi - phded));
         xitded -= if fed_agi - phded > 0.0 { dedphs } else { 0.0 };
@@ -1123,8 +1135,15 @@ pub fn tax(i: &Inp, f: &Fed, p: &MnParams) -> f64 {
         let threshold = if single_class { thr_single } else { thr_married / sep };
         let maximum = if single_class { max_single } else { max_married / sep };
         let allowed = (maximum - phaseout_rate * (provisional - threshold).max(0.0)).max(0.0);
+        let mut subtraction = ss_taxable.min(allowed);
+        if let Some((full_single, full_married)) = p.ss_full {
+            let full_threshold = if single_class { full_single } else { full_married };
+            let steps = ((fed_agi - full_threshold) / (4000.0 / sep)).max(0.0).ceil();
+            let full = (ss_taxable * (1.0 - 0.1 * steps)).max(0.0);
+            subtraction = subtraction.max(full);
+        }
         if ss_taxable > 0.0 {
-            subrac += ss_taxable.min(allowed);
+            subrac += subtraction;
         }
     }
     taxinc = taxinc - subrac + add;

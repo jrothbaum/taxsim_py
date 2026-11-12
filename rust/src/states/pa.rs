@@ -23,6 +23,9 @@ pub struct PaParams {
     phaseout: f64,
     step: Option<(f64, f64)>,
     eitc_share: Option<f64>,
+    /// From 2023 a share of the federal child care credit, capped per child by income: (limit, low, high).
+    care_share: Option<f64>,
+    care_cap: Option<(f64, f64, f64)>,
     dividend_adjustment: f64,
 }
 
@@ -50,6 +53,11 @@ impl PaParams {
             phaseout: p.f("forgiveness_phaseout")?,
             step,
             eitc_share: if p.in_effect("eitc_federal_share")? { Some(p.f("eitc_federal_share")?) } else { None },
+            care_share: if p.in_effect("child_care_credit_share")? { Some(p.f("child_care_credit_share")?) } else { None },
+            care_cap: match p.opt("child_care_credit_per_child_cap")? {
+                Some(c) => Some((num(get(c, "income_limit")?)?, num(get(c, "low_income")?)?, num(get(c, "high_income")?)?)),
+                None => None,
+            },
             dividend_adjustment: dividend_adjustment(root)?,
         })
     }
@@ -113,6 +121,14 @@ pub fn tax(i: &Inp, f: &Fed, p: &PaParams) -> f64 {
         None => (1.0 - 0.1 * (remain / (p.phaseout / 10.0)).ceil()).max(0.0),
     };
     statax -= statax * forgiven_share;
+    if let Some(share) = p.care_share {
+        let mut care = share * f.ccc_uncapped.max(0.0);
+        if let Some((limit, low, high)) = p.care_cap {
+            let per_child = if f.agi <= limit { low } else { high };
+            care = care.min(per_child * i.depx.max(0.0).min(2.0));
+        }
+        statax -= care;
+    }
     if let Some(share) = p.eitc_share {
         statax -= share * f.eitc;
     }

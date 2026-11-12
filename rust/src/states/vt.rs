@@ -68,6 +68,8 @@ pub struct VtParams {
     child_care_refundable: Option<(f64, f64, f64)>,
     charity_credit: Option<(f64, f64)>,
     eitc_rate: Option<f64>,
+    /// Child care contribution on net self-employment earnings.
+    care_contribution_rate: Option<f64>,
     eitc_childless_rate: Option<f64>,
     telephone: Option<(f64, f64, Option<f64>)>,
     property_rebate: Option<PropertyRebate>,
@@ -197,6 +199,7 @@ impl VtParams {
             child_care_refundable,
             charity_credit,
             eitc_rate: opt("eitc_rate")?,
+            care_contribution_rate: opt("child_care_contribution_rate")?,
             eitc_childless_rate: opt("eitc_childless_rate")?,
             telephone,
             property_rebate,
@@ -321,6 +324,12 @@ pub fn tax(i: &Inp, f: &Fed, p: &VtParams) -> f64 {
     }
     let contr = p.charity_credit.map_or(0.0, |(rate, cap)| rate * i.charity_cash.min(cap));
     statax = (statax - lowcr - studcr - chcr - contr).max(0.0);
+    if let Some(rate) = p.care_contribution_rate {
+        // 92.35% of positive self-employment income.
+        let net_se = 0.9235
+            * [i.psemp, i.pbusinc, i.pprofinc, i.ssemp, i.sbusinc, i.sprofinc].iter().map(|x| x.max(0.0)).sum::<f64>();
+        statax += rate * net_se;
+    }
 
     // ---- refundable credits ----
     let mut earncr = p.eitc_rate.map_or(0.0, |rate| rate * f.eitc);

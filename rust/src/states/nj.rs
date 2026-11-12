@@ -284,9 +284,6 @@ pub fn tax(i: &Inp, f: &Fed, p: &NjParams) -> f64 {
     let semp = i.psemp + i.ssemp + i.pwages.min(0.0) + i.swages.min(0.0);
     let business = semp + i.pbusinc + i.pprofinc + i.sbusinc + i.sprofinc;
     let mut agi = wages + dividends + i.intrec + business.max(0.0) + capgn.max(0.0) + schede.max(0.0) + i.pensions;
-    if y < 1992 {
-        agi += f.taxable_unemployment + f.taxable_social_security;
-    }
     // Pension exclusion for taxpayers 65 or older; unused exclusion covers other income when earnings are small.
     let mut deduct = p.pension_exclusion[fs as usize];
     if let Some(rows) = &p.pension_phaseout {

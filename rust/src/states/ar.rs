@@ -106,6 +106,8 @@ pub struct ArParams {
     cg_rate: f64,
     cg_cap: Option<f64>,
     pension: Option<(f64, String)>,
+    /// From 2021 pensions are allocated to the spouse aged at least this much.
+    pension_allocation_age: f64,
     standard_percent: Option<StandardPercent>,
     standard: f64,
     itemized_limit: Option<ItemizedLimit>,
@@ -284,6 +286,7 @@ impl ArParams {
             cg_rate: if year >= 1999 { 1.0 - p.f("capital_gains_exclusion")? } else { 1.0 },
             cg_cap: if year >= 1999 { opt("capital_gains_cap")? } else { None },
             pension,
+            pension_allocation_age: if p.in_effect("pension_allocation_age")? { p.f("pension_allocation_age")? } else { 0.0 },
             standard_percent: match p.opt("standard_deduction_percent")? {
                 Some(s) => Some(StandardPercent { rate: num(get(s, "rate")?)?, cap_per_taxpayer: num(get(s, "cap_per_taxpayer")?)? }),
                 None => None,
@@ -353,7 +356,7 @@ pub fn tax(i: &Inp, f: &Fed, p: &ArParams) -> f64 {
     let aged = i.aged_count();
     let depx = i.depx;
     let wages = i.pwages + i.swages;
-    let business = i.pbusinc + i.pprofinc + i.sbusinc + i.sprofinc + i.scorp;
+    let business = i.pbusinc + i.pprofinc + i.sbusinc + i.sprofinc;
     let schede = i.otherprop + if y >= 1987 { i.scorp } else { 0.0 };
 
     // ---- capital gains ----
@@ -376,12 +379,31 @@ pub fn tax(i: &Inp, f: &Fed, p: &ArParams) -> f64 {
     // ---- AGI ----
     let mut agi = wages + (i.dividends + p.dividend_adjustment) + i.intrec + capgn + i.psemp + i.ssemp + i.pensions + schede + business;
     if let Some((amount, basis)) = &p.pension {
-        let count = match basis.as_str() {
-            "return" => 1.0,
-            "taxpayer" => txp,
-            _ => aged,
-        };
-        agi -= i.pensions.min(amount * count);
+        if basis == "allocated" {
+            let primary_old = i.page >= p.pension_allocation_age;
+            let spouse_old = i.sage >= p.pension_allocation_age;
+            let primary_share = if !is_joint {
+                1.0
+            } else if primary_old && !spouse_old {
+                1.0
+            } else if !primary_old && spouse_old {
+                0.0
+            } else {
+                0.5
+            };
+            let mut excluded = (i.pensions * primary_share).min(*amount);
+            if is_joint {
+                excluded += (i.pensions * (1.0 - primary_share)).min(*amount);
+            }
+            agi -= excluded.max(0.0);
+        } else {
+            let count = match basis.as_str() {
+                "return" => 1.0,
+                "taxpayer" => txp,
+                _ => aged,
+            };
+            agi -= i.pensions.min(amount * count);
+        }
     }
     if (2018..=2019).contains(&y) {
         agi += i.ui;

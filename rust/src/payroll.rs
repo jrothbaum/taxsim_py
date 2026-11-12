@@ -50,6 +50,9 @@ pub struct Payroll {
     pub own_wage_fica_primary: f64,
     pub own_fica_secondary: f64,
     pub own_wage_fica_secondary: f64,
+    /// Each earner's whole self-employment tax.
+    pub setax_primary: f64,
+    pub setax_secondary: f64,
 }
 
 /// Per-item tax with the cap applied to running factor-weighted earnings.
@@ -159,6 +162,8 @@ pub fn payroll(i: &PayrollInputs, p: &PayrollParams) -> (Payroll, f64) {
         own_wage_fica_primary: stream_taxes[0][0],
         own_fica_secondary: stream_taxes[1][0] + p.own_share * (stream_taxes[1][1] + stream_taxes[1][2] + stream_taxes[1][3]),
         own_wage_fica_secondary: stream_taxes[1][0],
+        setax_primary: stream_taxes[0][1] + stream_taxes[0][2] + stream_taxes[0][3],
+        setax_secondary: stream_taxes[1][1] + stream_taxes[1][2] + stream_taxes[1][3],
     };
     (payroll, wage_tax)
 }

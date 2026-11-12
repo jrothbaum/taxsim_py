@@ -26,6 +26,8 @@ enum Eitc {
 
 struct PropertyCredit {
     share_table: Interp,
+    /// The credit is lost above the last threshold of the share table.
+    share_limit: f64,
     rent_share: f64,
     cap: f64,
     flat_amount: f64,
@@ -111,6 +113,7 @@ impl InParams {
             (
                 Some(PropertyCredit {
                     share_table: Interp::new(&rows(get(pc, "share_table")?)?),
+                    share_limit: rows(get(pc, "share_table")?)?.last().map_or(0.0, |r| r[0]),
                     rent_share: num(get(pc, "rent_share")?)?,
                     cap: num(get(pc, "cap")?)?,
                     flat_amount: num(get(flat, "amount")?)?,
@@ -273,7 +276,7 @@ pub fn tax(i: &Inp, f: &Fed, p: &InParams) -> f64 {
                 earncr = rate * fed_eitc;
                 if let Some(d) = decoupled_2022 {
                     // 2022 is computed on its own formula: at most two children and no higher phase-out start for joint returns.
-                    let children = i.dep18.max(0.0).min(2.0) as usize;
+                    let children = i.dep18.max(0.0).min(3.0) as usize;
                     let decoupled = match d.single[children] {
                         Some(r) => {
                             let phase_in = (f.earned_income * r.rate_in).max(0.0).min(r.max_credit);
@@ -308,7 +311,7 @@ pub fn tax(i: &Inp, f: &Fed, p: &InParams) -> f64 {
     let (pcred, mut ecred) = match (&p.property, &p.elderly) {
         (Some(pc), _) => {
             let ptax = i.proptax + pc.rent_share * i.rentpaid;
-            let pcred = if aged > 0.0 { (pc.share_table.eval(hh) * ptax).max(0.0).min(pc.cap) } else { 0.0 };
+            let pcred = if aged > 0.0 && hh <= pc.share_limit { (pc.share_table.eval(hh) * ptax).max(0.0).min(pc.cap) } else { 0.0 };
             (pcred, if hh < pc.flat_limit { pc.flat_amount } else { 0.0 })
         }
         (None, Some(e)) => {

@@ -491,7 +491,15 @@ pub fn tax(i: &Inp, f: &Fed, p: &CoParams) -> f64 {
         t = t.max(0.0);
         // 1992+: the state income tax deducted federally is added back when itemizing.
         if y >= 1992 && f.itemizes {
-            t += salt.max(0.0).min(f.itemized_deduction);
+            let mut state_tax = salt.max(0.0);
+            if y >= 2018 {
+                // Only the state tax that fits under the federal cap on state and local taxes was deducted.
+                let capped_taxes = f.salt_capped - i.otheritem;
+                if state_tax + i.proptax > capped_taxes {
+                    state_tax = (capped_taxes - i.proptax).max(0.0);
+                }
+            }
+            t += state_tax.min(f.itemized_deduction);
         }
         if let Some(h) = &new.high_income {
             let limit = if is_joint { h.limit_joint } else { h.limit_other };

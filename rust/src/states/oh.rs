@@ -195,11 +195,11 @@ pub fn tax(i: &Inp, f: &Fed, p: &OhParams) -> f64 {
     if y >= 1984 {
         agi -= f.taxable_social_security;
     }
-    let (mut businc, mut statb) = (0.0, 0.0);
+    let (mut businc, mut statb, mut busded_total) = (0.0, 0.0, 0.0);
     if let Some(b) = &p.business {
         let business = (i.psemp + i.ssemp).max(0.0);
         let busded = (b.share * business).min(b.cap / sep);
-        agi -= busded;
+        busded_total = busded;
         businc = (business - busded).max(0.0);
         statb = b.brackets.tax(businc);
     }
@@ -230,7 +230,7 @@ pub fn tax(i: &Inp, f: &Fed, p: &OhParams) -> f64 {
     if i.is_dependent_filer() {
         exemp = 0.0;
     }
-    let taxinc = (agi - businc - exemp).max(0.0);
+    let taxinc = (agi - busded_total - businc - exemp).max(0.0);
 
     // ---- child care credit (share of the federal credit before its tax limit) ----
     let chcrbc = f.ccc_uncapped;
@@ -264,7 +264,7 @@ pub fn tax(i: &Inp, f: &Fed, p: &OhParams) -> f64 {
     if let Some(credit) = p.exemption_credit {
         excred = credit * exemptions;
         if let Some(limit) = p.exemption_credit_income_limit {
-            excred = if taxinc < limit { excred } else { 0.0 };
+            excred = if agi - exemp < limit { excred } else { 0.0 };
         }
     }
 

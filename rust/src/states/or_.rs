@@ -379,7 +379,7 @@ pub fn tax(i: &Inp, f: &Fed, p: &OrParams) -> f64 {
     fedtax = (fedtax - f.making_work_pay).max(0.0);
     fedtax = (fedtax - f.cares).max(0.0);
     if y == 2021 {
-        fedtax = (fedtax - f.actc).max(0.0);
+        fedtax = (fedtax - f.actc - f.federal_chcr).max(0.0);
     }
     let units = if is_joint || is_hoh { 2.0 } else { 1.0 };
     let fedlim = p
@@ -411,7 +411,7 @@ pub fn tax(i: &Inp, f: &Fed, p: &OrParams) -> f64 {
     let mut xtot = 0.0;
     if y >= 1991 {
         let xlin8 = match p.salt_cap {
-            Some(cap) => (cap / sep).min(i.proptax + i.otheritem),
+            Some(cap) => (cap / sep).min(i.proptax) + i.otheritem,
             None => tx + i.proptax + i.otheritem,
         };
         xtot = xlin8 + i.mortgage + i.charity_cash;

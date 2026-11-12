@@ -640,8 +640,16 @@ pub fn tax(i: &Inp, f: &Fed, p: &WiParams) -> f64 {
         }
         Eitc::Flat(share) => share * eitc,
     };
+    // ---- married couple credit ----
+    let mut twocrd = 0.0;
+    if let Some((rate, cap)) = p.married_couple {
+        let business = 0.5 * (i.psemp + i.ssemp);
+        let earh = (i.pwages + i.pbusinc + i.pprofinc + business).max(0.0);
+        let earw = (i.swages + i.sbusinc + i.sprofinc + business).max(0.0);
+        twocrd = if is_joint { rate * earh.min(earw).min(cap) } else { 0.0 };
+    }
     let credit = xcred + exempc + earncr + chcr + spcred + wcred;
-    statax = if y <= 1988 { (statax - credit).max(0.0) } else { (statax - exempc - xcred - spcred - wcred).max(0.0) };
+    statax = if y <= 1988 { (statax - credit - twocrd).max(0.0) } else { (statax - exempc - xcred - spcred - wcred - twocrd).max(0.0) };
 
     // ---- minimum tax ----
     match &p.minimum {
@@ -661,15 +669,6 @@ pub fn tax(i: &Inp, f: &Fed, p: &WiParams) -> f64 {
             let amt = (rate * alminy - statax).max(0.0);
             statax += amt;
         }
-    }
-
-    // ---- married couple credit ----
-    if let Some((rate, cap)) = p.married_couple {
-        let business = 0.5 * (i.psemp + i.ssemp);
-        let earh = (i.pwages + i.pbusinc + i.pprofinc + business).max(0.0);
-        let earw = (i.swages + i.sbusinc + i.sprofinc + business).max(0.0);
-        let twocrd = if is_joint { rate * earh.min(earw).min(cap) } else { 0.0 };
-        statax = (statax - twocrd).max(0.0);
     }
 
     // ---- homestead credit (refundable) ----

@@ -167,6 +167,8 @@ pub struct MeParams {
     child_rate: f64,
     refundable_cap: f64,
     dependent_per_child: Option<f64>,
+    /// From 2026 a surcharge rate on taxable income above a threshold by status (Single, Joint, Separate, Hoh).
+    surcharge: Option<(f64, [f64; 4])>,
     dependent_exemption: Option<DepExemption>,
     elderly_share: Option<f64>,
     credit_per_exemption: Option<f64>,
@@ -430,6 +432,10 @@ impl MeParams {
             child_rate: p.f("child_care_credit_rate")?,
             refundable_cap: num(get(&doc, "child_care_credit_refundable_cap")?)?,
             dependent_per_child: opt("dependent_credit_per_child")?,
+            surcharge: match p.opt("surcharge")? {
+                Some(sc) => Some((num(get(sc, "rate")?)?, status_direct(get(sc, "threshold")?)?)),
+                None => None,
+            },
             dependent_exemption,
             elderly_share: opt("elderly_credit_share")?,
             credit_per_exemption: opt("credit_per_exemption")?,
@@ -516,11 +522,6 @@ pub fn tax(i: &Inp, f: &Fed, p: &MeParams) -> f64 {
         stded = 0.0;
     } else {
         stded = if !f.itemizes { f.standard_deduction } else { 0.0 };
-        if y == 2023 {
-            // TAXSIM's 2023 aged addition is $100 below the statutory value used by the federal port.
-            let stale = if is_single || is_hoh { 100.0 * aged } else { 0.0 };
-            stded = (stded - stale).max(0.0);
-        }
         if let Some(o) = &p.married_override {
             if is_joint || is_sep {
                 stded = o.amount / sep + o.aged_addition * aged;
@@ -539,6 +540,10 @@ pub fn tax(i: &Inp, f: &Fed, p: &MeParams) -> f64 {
         let base = if is_single || is_sep { n.single } else if is_hoh { n.hoh } else { n.joint };
         let aged_amount = if is_single || is_hoh { n.aged_single } else { n.aged_married };
         stded = if f.itemizes { 0.0 } else { base + aged_amount * aged };
+        // A dependent filer keeps the federal (limited) amount.
+        if i.is_dependent_filer() && !f.itemizes {
+            stded = f.standard_deduction;
+        }
     }
 
     // ---- itemized deduction ---- (when the federal return itemizes a positive gross total)
@@ -594,6 +599,9 @@ pub fn tax(i: &Inp, f: &Fed, p: &MeParams) -> f64 {
     // ---- tax ----
     let tinc = me_taxinc / me_texp;
     let mut statax = p.table.tax(tinc / p.aif) * p.aif * me_texp;
+    if let Some((rate, thresholds)) = &p.surcharge {
+        statax += rate * (me_taxinc - thresholds[fs as usize]).max(0.0);
+    }
     if let Some(ceiling) = p.low_income_limit {
         if me_taxinc <= ceiling {
             statax = 0.0;
@@ -621,7 +629,10 @@ pub fn tax(i: &Inp, f: &Fed, p: &MeParams) -> f64 {
     let mut depcrd = 0.0;
     let mut dep_refundable = 0.0;
     if let Some(per_child) = p.dependent_per_child {
-        depcrd = (per_child * i.dep17).min(statax);
+        let txp = if is_joint { 2.0 } else { 1.0 };
+        let excess = (me_agi - 200000.0 * txp).max(0.0);
+        let full = (per_child * i.depx - (excess / 1000.0).ceil() * 7.5).max(0.0);
+        depcrd = full.min(statax);
     } else if let Some(d) = &p.dependent_exemption {
         let start = match &d.starts {
             DepStarts::ByStatus { joint, hoh, separate, single } => {
@@ -776,7 +787,7 @@ pub fn tax(i: &Inp, f: &Fed, p: &MeParams) -> f64 {
         let capgn = i.stcg + i.ltcg;
         let fair_income = f.agi + setax * 0.5 + i.gssi - f.taxable_social_security - capgn.min(0.0);
         let mut c = (base.min(countable) - d.income_rate * fair_income).max(0.0);
-        c = c.min(if senior { d.cap_senior } else { d.cap });
+        c = c.min(if i.aged_count() > 0.0 { d.cap_senior } else { d.cap });
         ptfc = if is_sep { 0.0 } else { c };
     }
 

@@ -157,7 +157,7 @@ pub fn tax(i: &Inp, f: &Fed, p: &MsParams) -> f64 {
     } else {
         f.itemized_deduction
     };
-    let mut xitded = if y < 1991 {
+    let mut xitded = if y < 1992 {
         deducp
     } else {
         let mut x = (deducp - salt_ded).max(0.0);

@@ -256,7 +256,7 @@ pub fn tax(i: &Inp, f: &Fed, p: &MaParams) -> f64 {
     }
 
     // ---- Part B deductions ----
-    let fica = c183.min(p.payroll_cap) + c183_spouse.min(p.payroll_cap) + i.gssi.max(0.0).min(p.payroll_cap);
+    let fica = c183.min(p.payroll_cap) + c183_spouse.min(p.payroll_cap);
     let ndep13 = i.dep13.min(2.0).floor();
     let d209 = depx - i.dep18;
     let ndep = (d209 + ndep13).min(2.0).floor();

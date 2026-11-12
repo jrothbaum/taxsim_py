@@ -64,6 +64,9 @@ pub struct IdParams {
     grocery_excludes_separate: bool,
     building_fund: Option<BuildingFund>,
     building_fund_limit_aged: f64,
+    /// From 2022 the limit is the federal filing requirement: single, single aged, head of household,
+    /// head of household aged, joint, joint aged.
+    filing_requirement: Option<[f64; 6]>,
     dividend_adjustment: f64,
 }
 
@@ -154,6 +157,20 @@ impl IdParams {
             grocery_excludes_separate: p.value("grocery_credit_excludes_separate_filers", &[])?.as_bool().ok_or("expected a boolean")?,
             building_fund,
             building_fund_limit_aged: num(get(&doc, "building_fund_limit_aged")?)?,
+            filing_requirement: match p.opt("building_fund_filing_requirement")? {
+                Some(v) => {
+                    let list = v.as_sequence().ok_or("building_fund_filing_requirement must be a list")?;
+                    if list.len() != 6 {
+                        return Err("building_fund_filing_requirement needs six values".into());
+                    }
+                    let mut r = [0.0; 6];
+                    for (k, x) in list.iter().enumerate() {
+                        r[k] = num(x)?;
+                    }
+                    Some(r)
+                }
+                None => None,
+            },
             dividend_adjustment: dividend_adjustment(root)?,
         })
     }
@@ -307,7 +324,15 @@ pub fn tax(i: &Inp, f: &Fed, p: &IdParams) -> f64 {
             Fs::Separate => b.married_separate,
         };
         limit += if fs != Fs::Separate { p.building_fund_limit_aged * aged } else { 0.0 };
-        if household > limit {
+        if let Some(r) = &p.filing_requirement {
+            let is_aged = aged > 0.0;
+            limit = match fs {
+                Fs::Joint => if is_aged { r[5] } else { r[4] },
+                Fs::Hoh => if is_aged { r[3] } else { r[2] },
+                _ => if is_aged { r[1] } else { r[0] },
+            };
+        }
+        if household - i.gssi + f.taxable_social_security > limit {
             statax += b.amount;
         }
     }

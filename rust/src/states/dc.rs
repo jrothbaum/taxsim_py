@@ -91,6 +91,9 @@ pub struct DcParams {
     standard: Standard,
     federal_2018: Option<Federal2018>,
     state_tax_cap: Option<f64>,
+    /// From 2026 a refundable credit per child under 18: amount, reduction per $1,000 of AGI over a
+    /// threshold by status (Single, Joint, Separate, Hoh).
+    child_credit: Option<(f64, f64, [f64; 4])>,
     reduction_threshold: f64,
     reduction_rate: f64,
     exemption: f64,
@@ -222,6 +225,18 @@ impl DcParams {
         };
         Ok(Self {
             year,
+            child_credit: match p.opt("child_tax_credit")? {
+                Some(k) => {
+                    let t = get(k, "threshold")?;
+                    let read = |status: &str| -> Result<f64, String> { num(get(t, status)?) };
+                    Some((
+                        num(get(k, "amount")?)?,
+                        num(get(k, "reduction_per_1000")?)?,
+                        [read("single")?, read("married_joint")?, read("married_separate")?, read("head_of_household")?],
+                    ))
+                }
+                None => None,
+            },
             standard,
             federal_2018,
             state_tax_cap: opt("state_tax_deduction_cap")?,
@@ -483,5 +498,10 @@ pub fn tax(i: &Inp, f: &Fed, p: &DcParams) -> f64 {
     };
     let stat2 = statax - earncr;
     // Taxpayer may not claim both the Low Income Credit and the EITC: whichever leaves a smaller final tax wins.
-    stat1.min(stat2) - pcred
+    let mut result = stat1.min(stat2) - pcred;
+    if let Some((amount, reduction, thresholds)) = &p.child_credit {
+        let steps = ((dc_agi - thresholds[fs as usize]).max(0.0) / 1000.0).ceil();
+        result -= (amount * i.dep17 - reduction * steps).max(0.0);
+    }
+    result
 }

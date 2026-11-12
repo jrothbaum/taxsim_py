@@ -62,6 +62,8 @@ struct Flat {
     index: f64,
     credit_rate: f64,
     credit_phaseout_rate: f64,
+    /// Federal AGI below which a return owes no tax (the exempt taxpayer worksheet).
+    exempt_floor: Option<[f64; 4]>,
     credit_personal_exemption: Option<f64>,
     retirement_phaseout_rate: f64,
     retirement_credit_max: f64,
@@ -175,6 +177,7 @@ impl UtParams {
                 index: p.f("taxpayer_credit_index")?,
                 credit_rate: num(get(&doc, "taxpayer_credit_rate")?)?,
                 credit_phaseout_rate: num(get(&doc, "taxpayer_credit_phaseout_rate")?)?,
+                exempt_floor: match p.opt("exempt_taxpayer_agi_floor")? { Some(v) => Some(status_direct(v)?), None => None },
                 credit_personal_exemption: opt("taxpayer_credit_personal_exemption")?,
                 retirement_phaseout_rate: num(get(&doc, "retirement_credit_phaseout_rate")?)?,
                 retirement_credit_max: p.f("retirement_credit_max")?,
@@ -348,7 +351,11 @@ pub fn tax(i: &Inp, f: &Fed, p: &UtParams) -> f64 {
                 Some(rate) => (rate * f.eitc).min((i.pwages + i.swages).max(0.0)),
                 None => 0.0,
             };
-            (statax - credit - retcrd - ctc - earned_income_credit).max(0.0) * 1.0
+            let after = (statax - credit - retcrd - ctc - earned_income_credit).max(0.0);
+            match g.exempt_floor {
+                Some(floor) if agi < floor[fs as usize] => 0.0,
+                _ => after,
+            }
         }
     }
 }

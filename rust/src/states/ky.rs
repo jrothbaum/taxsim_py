@@ -182,7 +182,7 @@ pub fn tax(i: &Inp, f: &Fed, p: &KyParams) -> f64 {
     let aged = i.aged_count();
     let is_joint = fs == Fs::Joint;
     let setax = f.payroll.setax;
-    let ky_ccc = f.ccc_uncapped;
+    let ky_ccc = f.federal_chcr;
 
     let phas92 = match p.threshold_index {
         Some(index) => p.threshold_base * index / sep,
@@ -323,10 +323,8 @@ pub fn tax(i: &Inp, f: &Fed, p: &KyParams) -> f64 {
             let lowcrd = statax * rate_lc;
             statax = (statax - chcr - lowcrd).max(0.0);
         } else if y >= 2005 {
-            // TAXSIM counts a taxpayer 65 or older twice; the statute's family size does not.
-            let aged_in_family = if y >= 2022 { 0.0 } else { aged };
-            let num_family = (taxpayers + i.depx + aged_in_family).min(4.0);
-            let modagi = ky_agi.max(f.agi);
+            let num_family = (taxpayers + i.depx).max(1.0).min(4.0);
+            let modagi = ky_agi.max(f.agi + i.transfers);
             let perc = match &p.family {
                 FamilyCredit::Poverty(g) => {
                     let poverty = g.first_person + g.additional_person * (num_family - 1.0);

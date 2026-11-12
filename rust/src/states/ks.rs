@@ -331,7 +331,7 @@ pub fn tax(i: &Inp, f: &Fed, p: &KsParams) -> f64 {
     } else {
         0.0
     };
-    if y == 2021 {
+    if y >= 2021 {
         xitded = i.proptax + i.otheritem + i.mortgage;
     }
     let deduc = stded.max(xitded);

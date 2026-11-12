@@ -59,6 +59,8 @@ pub struct NmParams {
     schedule: Schedule,
     cg_share: f64,
     cg_floor: f64,
+    /// From 2022 taxable Social Security is exempt below these federal AGI limits (Single, Joint, Separate, Hoh).
+    ss_limit: Option<[f64; 4]>,
     aged: Option<AgedDeduction>,
     standard: Option<[f64; 4]>,
     exemption_per_person: Option<f64>,
@@ -173,6 +175,7 @@ impl NmParams {
             schedule,
             cg_share: p.f("capital_gains_deduction_share")?,
             cg_floor: p.f("capital_gains_deduction_floor")?,
+            ss_limit: match p.opt("social_security_exemption_agi_limit")? { Some(v) => Some(status_direct(v)?), None => None },
             aged,
             standard: if p.in_effect("standard_deduction")? { Some(status_direct(p.value("standard_deduction", &[])?)?) } else { None },
             exemption_per_person: opt("exemption_per_person")?,
@@ -250,6 +253,11 @@ pub fn tax(i: &Inp, f: &Fed, p: &NmParams) -> f64 {
     if (1984..=1989).contains(&y) {
         // Benefits are exempt; TAXSIM adds them a second time instead.
         agi -= f.taxable_social_security;
+    }
+    if let Some(limit) = p.ss_limit {
+        if fed_agi < limit[fs as usize] {
+            agi -= f.taxable_social_security;
+        }
     }
 
     // ---- deduction for taxpayers 65 or older ----

@@ -1118,7 +1118,7 @@ pub fn federal(i: &Inp, ded: f64, itemizes: bool, p: &FedParams) -> Fed {
     // ---- alternative minimum tax -------------------------------------------
     let a = &p.amt;
     let older = i.page.max(i.sage);
-    let mut amt_income = agi - if itemizes { i.mortgage } else { 0.0 };
+    let mut amt_income = agi - if itemizes { i.mortgage + i.otheritem } else { 0.0 };
     let exemption_cap = match &a.young {
         Some(y) => {
             // The cap applies to children subject to the tax on unearned income.
@@ -1161,7 +1161,8 @@ pub fn federal(i: &Inp, ded: f64, itemizes: bool, p: &FedParams) -> Fed {
     // ---- credits ------------------------------------------------------------
     let c = &p.ccc;
     let ccc_rate = match &c.rate {
-        CareRate::OnePhase { top, floor, start, step } => (top - ((agi - start) / step).max(0.0) * 0.01).max(*floor),
+        // A started step lowers the rate a point.
+        CareRate::OnePhase { top, floor, start, step } => (top - ((agi - start) / step).max(0.0).ceil() * 0.01).max(*floor),
         CareRate::TwoPhase { top, mid, first_start, first_ceiling, first_step, second_start, second_ceiling, second_step } => {
             if agi <= *first_start {
                 *top
@@ -1184,7 +1185,9 @@ pub fn federal(i: &Inp, ded: f64, itemizes: bool, p: &FedParams) -> Fed {
     let ccc = if c.refundable { ccc_amount.max(0.0) } else { ccc_amount.min(tax_before_credits.max(0.0)) };
 
     // Earned income credit.
-    let row = p.eitc[fsi][num_children as usize];
+    // 2021 only: a separate return claims the credit with the single-filer parameters.
+    let eitc_fsi = if year == 2021 && fs == Fs::Separate { Fs::Single as usize } else { fsi };
+    let row = p.eitc[eitc_fsi][num_children as usize];
     let phaseout_income = if year <= 2002 {
         // Capital and Schedule E losses (and from 1997 part of a business loss) do not lower the phaseout income.
         let business = gross_se + i.scorp;
@@ -1293,7 +1296,7 @@ pub fn federal(i: &Inp, ded: f64, itemizes: bool, p: &FedParams) -> Fed {
     let n = &p.niit;
     let nii = (i.intrec + div_f + capgn + i.otherprop).max(0.0);
     let investment_share = if agi > 0.0 { clip(nii / agi, 0.0, 1.0) } else { 0.0 };
-    let expense = clip(ded, 0.0, n.expense_cap) * investment_share;
+    let expense = if itemizes { clip(ded, 0.0, n.expense_cap) * investment_share } else { 0.0 };
     let net_after = (nii - expense).max(0.0);
     let excess = (agi - n.threshold[fsi]).max(0.0);
     let niit = if agi > n.threshold[fsi] { n.rate * net_after.min(excess) } else { 0.0 };

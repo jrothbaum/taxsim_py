@@ -72,6 +72,10 @@ pub struct ScParams {
     child_care_cap: Option<f64>,
     two_earner: Option<TwoEarner>,
     eitc_rate: Option<f64>,
+    /// From 2026 the state's own deduction replaces the federal deductions: amount, phase-out start
+    /// and width by status (Single, Joint, Separate, Hoh).
+    state_deduction: Option<[[f64; 3]; 4]>,
+    eitc_maximum: Option<f64>,
     dividend_adjustment: f64,
 }
 
@@ -192,6 +196,18 @@ impl ScParams {
                 None
             },
             eitc_rate: if year > 1984 { opt("eitc_rate")? } else { None },
+            state_deduction: match p.opt("state_deduction")? {
+                Some(k) => {
+                    let read = |field: &str, status: &str| -> Result<f64, String> { num(get(get(k, field)?, status)?) };
+                    let mut table = [[0.0; 3]; 4];
+                    for (slot, status) in [(0usize, "single"), (1, "married_joint"), (2, "married_separate"), (3, "head_of_household")] {
+                        table[slot] = [read("amount", status)?, read("phase_out_start", status)?, read("phase_out_width", status)?];
+                    }
+                    Some(table)
+                }
+                None => None,
+            },
+            eitc_maximum: opt("eitc_maximum")?,
             dividend_adjustment: dividend_adjustment(root)?,
         })
     }
@@ -225,6 +241,9 @@ pub fn tax(i: &Inp, f: &Fed, p: &ScParams) -> f64 {
         // Federal taxable income is net of the zero bracket before 1987.
         fed_itemizes = f.pre87.itemizes;
         agi = (f.taxable_income - f.pre87.zbr).max(0.0);
+    } else if p.state_deduction.is_some() {
+        // From 2026 South Carolina starts from federal AGI and takes its own deduction (H.4216).
+        agi = fed_agi;
     } else {
         agi = f.taxable_income;
     }
@@ -321,7 +340,7 @@ pub fn tax(i: &Inp, f: &Fed, p: &ScParams) -> f64 {
             Some(cap) => cap / sep,
             None => f.salt_capped,
         };
-        let room = (cap - i.proptax - i.otheritem).max(0.0);
+        let room = (cap - i.proptax).max(0.0);
         tx = salt.min(itemized.max(0.0).min(room));
     }
     if !fed_itemizes {
@@ -329,7 +348,11 @@ pub fn tax(i: &Inp, f: &Fed, p: &ScParams) -> f64 {
     }
 
     // ---- long-term capital gain deduction ----
-    let dedgan = p.capital_gain_deduction.map_or(0.0, |rate| rate * i.ltcg.max(0.0));
+    // Net of a short-term loss; 1993-94 net of any short-term gain too.
+    let dedgan = p.capital_gain_deduction.map_or(0.0, |rate| {
+        let base = if y == 1993 || y == 1994 { i.ltcg - i.stcg } else { i.ltcg - (-i.stcg).max(0.0) };
+        rate * base.max(0.0)
+    });
 
     let mut add = 0.0;
     if let Some(amount) = p.married_addback {
@@ -350,7 +373,14 @@ pub fn tax(i: &Inp, f: &Fed, p: &ScParams) -> f64 {
         add += (if fed_itemizes { 0.0 } else { increase[fs as usize] }) + f.senior_deduction;
     }
     let exemp = p.dependent_exemption.map_or(0.0, |amount| amount * (depx + i.dep6));
-    let taxinc = (agi + tx - dedgan + add - exemp - adjust).max(0.0);
+    let taxinc = match &p.state_deduction {
+        Some(table) => {
+            let [amount, start, width] = table[fs as usize];
+            let deduction = amount * (1.0 - ((agi - start).max(0.0) / width).min(1.0));
+            (agi - dedgan - deduction - exemp).max(0.0)
+        }
+        None => (agi + tx - dedgan + add - exemp - adjust).max(0.0),
+    };
 
     // ---- tax ----
     let mut statax = match p.schedule.as_ref().expect("schedule from 1985") {
@@ -363,8 +393,8 @@ pub fn tax(i: &Inp, f: &Fed, p: &ScParams) -> f64 {
     };
 
     // ---- credits (nonrefundable) ----
-    let nccp = depx.min(2.0).floor();
-    let expenses = (p.child_care_expense * nccp).min(i.childcare);
+    let nccp = i.dep13.min(2.0).floor();
+    let expenses = (p.child_care_expense * nccp).min(i.childcare).min(super::earned_minimum(y, i)).max(0.0);
     let mut chcr = p.child_care_rate * expenses;
     if let Some(cap) = p.child_care_cap {
         chcr = (cap * nccp).min(chcr);
@@ -374,19 +404,21 @@ pub fn tax(i: &Inp, f: &Fed, p: &ScParams) -> f64 {
     }
     let twocrd = match &p.two_earner {
         Some(t) => {
-            let busnes = (i.psemp + i.ssemp).max(0.0) - 0.5 * f.payroll.setax;
-            let mut husb = i.pwages.max(0.0) + 0.5 * busnes;
-            let mut wife = i.swages.max(0.0) + 0.5 * busnes;
-            if y >= 2018 {
-                husb += i.pbusinc + i.pprofinc;
-                wife += i.sbusinc + i.sprofinc;
-            }
+            let mut husb = i.pwages + i.psemp - f.payroll.setax_primary / 2.0;
+            let mut wife = i.swages + i.ssemp - f.payroll.setax_secondary / 2.0;
+            // The 2026 build hands the husband both spouses' business incomes (and the wife both
+            // professional incomes); statute assigns each to its own earner.
+            husb += i.pbusinc + i.pprofinc;
+            wife += i.sbusinc + i.sprofinc;
             let earnls = husb.min(wife).max(0.0).min(t.maximum);
             if is_joint { t.rate * earnls } else { 0.0 }
         }
         None => 0.0,
     };
-    let earncr = p.eitc_rate.map_or(0.0, |rate| rate * f.eitc);
+    let mut earncr = p.eitc_rate.map_or(0.0, |rate| rate * f.eitc);
+    if let Some(maximum) = p.eitc_maximum {
+        earncr = earncr.min(maximum);
+    }
     statax = (statax - chcr - twocrd - earncr).max(0.0);
     statax * 1.0
 }

@@ -58,6 +58,8 @@ fn output_type(_: &[Field]) -> PolarsResult<Field> {
 struct Context {
     federal: Federal,
     sales: SalesTax,
+    /// From 2018 the first pass already deducts the estimated sales tax.
+    sales_first: bool,
     /// The distinct state codes in the batch for this law year, sorted.
     codes: Vec<i64>,
     /// One calculator for each of `codes`.
@@ -76,6 +78,7 @@ impl Context {
         Ok(Self {
             federal: Federal::load(root, year)?,
             sales: SalesTax::load(root, year)?,
+            sales_first: year >= 2018,
             states: codes.iter().map(|code| StateCalc::load(root, year, *code)).collect::<Result<_, _>>()?,
             codes,
         })
@@ -87,6 +90,11 @@ impl Context {
 fn variant(row: &Row, itemizes: bool, c: &Context) -> [f64; 12] {
     let i = &row.inp;
     let mut ded = 0.0;
+    if c.sales_first {
+        let f = c.federal.run(i, 0.0, itemizes);
+        let resources = f.agi + i.gssi - f.taxable_social_security + i.transfers;
+        ded = c.sales.deduction(resources, i.taxpayer_count() + i.depx, i.state);
+    }
     let mut result = [0.0; 12];
     for pass in 0..=FEEDBACK_PASSES {
         let f = c.federal.run(i, ded, itemizes);

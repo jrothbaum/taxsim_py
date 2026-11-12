@@ -76,6 +76,8 @@ pub struct GaParams {
     child_care: ChildCare,
     low_income: LowIncome,
     low_income_refundable: bool,
+    /// From 2026 a nonrefundable credit per child under 6.
+    under_six_credit: Option<f64>,
     dividend_adjustment: f64,
 }
 
@@ -176,6 +178,7 @@ impl GaParams {
         };
         Ok(Self {
             year,
+            under_six_credit: if p.in_effect("child_tax_credit_under_six")? { Some(p.f("child_tax_credit_under_six")?) } else { None },
             ira,
             two_earner,
             unemployment,
@@ -320,7 +323,7 @@ pub fn tax(i: &Inp, f: &Fed, p: &GaParams) -> f64 {
     };
 
     // ---- credits ----
-    let chcr = match &p.child_care {
+    let mut chcr = match &p.child_care {
         ChildCare::None => 0.0,
         ChildCare::Expenses { cap_per_dependent, cap_min, cap_max, rate } => {
             let chmax = (i.depx * cap_per_dependent).max(*cap_min).min(*cap_max);
@@ -329,6 +332,11 @@ pub fn tax(i: &Inp, f: &Fed, p: &GaParams) -> f64 {
         }
         ChildCare::FederalShare(rate) => rate * f.federal_chcr.max(0.0).min(f.tax_before_credits.max(0.0)),
     };
+    if let Some(per_child) = p.under_six_credit {
+        // After the other nonrefundable credits.
+        let after_other = (statax - chcr).max(0.0);
+        chcr += after_other.min(per_child * i.dep6);
+    }
     let mut ycred = match &p.low_income {
         LowIncome::Flat { per_taxpayer, threshold } => {
             // Heads of household count as two taxpayers.

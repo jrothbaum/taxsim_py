@@ -204,7 +204,7 @@ pub fn tax(i: &Inp, f: &Fed, p: &MoParams) -> f64 {
         dedphs = 0.0;
     } else {
         fed_itemizes = f.itemizes;
-        fed_zbr = if fed_itemizes { 0.0 } else { f.standard_deduction };
+        fed_zbr = super::federal_zero_bracket(y, fed_itemizes, f);
         let agix = agi.max(0.0);
         let alim50 = if y == 2020 || y == 2021 { 1.0e20 } else { 0.5 * agix };
         let fed_char = (if agi < 0.0 { 0.0 } else { i.charity_cash.min(alim50) }).max(0.0);

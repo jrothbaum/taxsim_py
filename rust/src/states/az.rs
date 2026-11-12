@@ -285,7 +285,9 @@ pub fn tax(i: &Inp, f: &Fed, p: &AzParams) -> f64 {
     };
     let exempt_ss = if y >= 1984 { f.taxable_social_security } else { 0.0 };
     // 2025 on: Arizona subtracts the federal senior deduction from its income.
-    let agi_1 = f.agi + div_addback + twoded_addback - exempt_ss - if y >= 2025 { f.senior_deduction } else { 0.0 };
+    let agi_1 = f.agi + div_addback + twoded_addback - exempt_ss - if y >= 2025 { f.senior_deduction } else { 0.0 }
+        // 25% of long-term gains from 2021.
+        - if y >= 2021 { 0.25 * i.ltcg.max(0.0) } else { 0.0 };
     // Through 1989 federal income tax, before the EITC and nonrefundable credits, is subtracted from AGI.
     let earncr = if let Some(t) = &p.eitc_pre87 {
         let earned = (i.pwages + i.swages + i.psemp.max(0.0) + i.ssemp.max(0.0)).max(0.0);
@@ -356,7 +358,7 @@ pub fn tax(i: &Inp, f: &Fed, p: &AzParams) -> f64 {
     let xitded = if let Some((limit, cap)) = p.child_care_deduction {
         let childcare_ded = if household < limit / sep { i.childcare.max(0.0).min(cap) } else { 0.0 };
         // TAXSIM counts other taxes twice.
-        (raw_itemized + i.otheritem + childcare_ded).max(0.0)
+        (raw_itemized + childcare_ded).max(0.0)
     } else {
         let base = f.salt_capped + i.mortgage;
         match &p.itemized_limit {

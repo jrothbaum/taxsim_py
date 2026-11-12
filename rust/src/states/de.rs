@@ -48,6 +48,8 @@ pub struct DeParams {
     low_income: Option<LowIncome>,
     standard: Standard,
     aged_standard: f64,
+    /// Standard deduction per taxpayer on a split return (0 when the year has none).
+    std_each: f64,
     itemized_multiplier: Option<f64>,
     state_tax_cap: Option<f64>,
     limitation: Option<Limitation>,
@@ -119,6 +121,7 @@ impl DeParams {
             chcr_share: p.f("child_care_credit_federal_share")?,
             chcr_cap: opt("child_care_credit_cap")?,
             pecred: opt("personal_exemption_credit")?,
+            std_each: opt("standard_deduction_per_taxpayer")?.unwrap_or(0.0),
             eitc,
             dividend_adjustment: dividend_adjustment(root)?,
         })
@@ -152,17 +155,44 @@ pub fn tax(i: &Inp, f: &Fed, p: &DeParams) -> f64 {
     }
     // Pension exclusion.
     let pensions = i.pensions;
-    let investment = i.intrec + i.dividends + p.dividend_adjustment + (i.stcg + i.ltcg).max(0.0);
-    let penexc = (if aged < 1.0 {
-        (p.pension_young_per_taxpayer * taxpayers).min(pensions)
-    } else if aged == 1.0 {
-        p.pension_aged.min(pensions + 0.5 * investment)
+    let is_joint = fs == Fs::Joint;
+    // TAXSIM assumes a joint spouse with no age is 40.
+    let sage = if is_joint && i.sage == 0.0 { 40.0 } else { i.sage };
+    let unified = y >= 1996;
+    let agi_pre = agi;
+    let (mut retdedt, mut retdeds) = (0.0, 0.0);
+    if unified {
+        // Taxpayers 60 or older exclude up to $12,500 of pensions, others $2,000; pensions go to
+        // the spouse aged 60 or over (half each when both or neither are).
+        let (h_old, w_old) = (i.page >= 60.0, sage >= 60.0);
+        let pent = if !is_joint || (h_old && !w_old) { pensions } else if !h_old && w_old { 0.0 } else { pensions / 2.0 };
+        let pens = if is_joint { pensions - pent } else { 0.0 };
+        let earned = |w: f64, a: f64, b: f64, c: f64| w + 0.9235 * (a.max(0.0) + b.max(0.0) + c.max(0.0));
+        let totn_h = earned(i.pwages.max(0.0), i.psemp, i.pbusinc, i.pprofinc);
+        let totn_w = earned(i.swages.max(0.0), i.ssemp, i.sbusinc, i.sprofinc);
+        let agilow = agi_pre < 10000.0 * taxpayers;
+        retdedt = if h_old {
+            pent.min(12500.0) + if totn_h < 2500.0 && agilow { 2000.0 } else { 0.0 }
+        } else {
+            pent.min(2000.0)
+        };
+        let retdeds_old = pens.min(12500.0);
+        retdeds = if is_joint { if w_old { retdeds_old } else { pens.min(2000.0) } } else { 0.0 };
+        retdeds += if is_joint && w_old && totn_w < 2500.0 && agilow { 2000.0 } else { 0.0 };
+        agi = (agi_pre - retdedt - retdeds).max(0.0);
     } else {
-        (2.0 * p.pension_aged).min(pensions + investment)
-    })
-    .max(0.0);
-    agi -= penexc;
-    if let Some(e) = &p.low_income {
+        let investment = i.intrec + i.dividends + p.dividend_adjustment + (i.stcg + i.ltcg).max(0.0);
+        let penexc = (if aged < 1.0 {
+            (p.pension_young_per_taxpayer * taxpayers).min(pensions)
+        } else if aged == 1.0 {
+            p.pension_aged.min(pensions + 0.5 * investment)
+        } else {
+            (2.0 * p.pension_aged).min(pensions + investment)
+        })
+        .max(0.0);
+        agi -= penexc;
+    }
+    if let (Some(e), true) = (&p.low_income, y < 2000) {
         let low = aged > 0.0 && f.earned_income < e.earned_limit * aged && agi <= e.agi_limit * aged;
         if low {
             agi -= e.exclusion * aged;
@@ -192,11 +222,15 @@ pub fn tax(i: &Inp, f: &Fed, p: &DeParams) -> f64 {
             b *= m;
         }
         b
+    } else if y >= 2019 {
+        // Property tax up to $10,000, mortgage interest and charity; no state income tax and no
+        // other itemized deductions.
+        i.proptax.min(10000.0) + i.mortgage + i.charity_cash
     } else if let Some(cap) = p.state_tax_cap {
-        // Only the state tax deduction's share of the cap is removed.
-        let sttax = (cap / sep).min(i.proptax + salt + i.otheritem);
-        let room = sttax - (i.proptax + i.otheritem);
-        (raw_itemized - salt.min(room)).max(0.0)
+        // The federal itemized total less the state income tax inside its capped state and local part.
+        let sttax = (cap / sep).min(i.proptax + salt);
+        let room = sttax - i.proptax;
+        f.itemized_before_limit - salt.min(room)
     } else {
         raw_itemized
     };
@@ -232,17 +266,50 @@ pub fn tax(i: &Inp, f: &Fed, p: &DeParams) -> f64 {
     let taxinc = (agi - deduc - exemp).max(0.0);
 
     // ---- joint returns: the lower of the joint tax and the tax on each earner's share ----
-    let is_joint_relief = fs == Fs::Joint && agi > 0.0;
-    let wages = i.pwages + i.swages;
-    let higher = i.pwages.max(i.swages) + (agi - wages) / 2.0;
-    let lower = agi - higher;
-    let dedh = if agi != 0.0 { deduc * higher / agi } else { 0.0 };
-    let dedw = deduc - dedh;
-    let taxinh = (higher - dedh - 0.5 * exemp).max(0.0);
-    let taxinw = (lower - dedw - 0.5 * exemp).max(0.0);
+    let is_joint_relief = is_joint && agi > 0.0;
+    let (taxinh, taxinw);
+    if unified {
+        // TAXSIM's `splitagi`: each spouse's own income, with the rest shared equally.
+        let ui_total = i.ui.max(i.pui + i.sui);
+        let pui_part = ui_total - i.sui;
+        let both_55 = i.page >= 55.0;
+        let wife_55 = sage >= 55.0;
+        let pension_ss = pensions + f.taxable_social_security;
+        let pent_s = if both_55 && !wife_55 { pension_ss } else if !both_55 && wife_55 { 0.0 } else { pension_ss / 2.0 };
+        let pens_s = pension_ss - pent_s;
+        let seih = i.psemp + i.pbusinc + i.pprofinc;
+        let seis = i.ssemp + i.sbusinc + i.sprofinc;
+        let secah = f.payroll.setax_primary / 2.0;
+        let secas = f.payroll.setax_secondary / 2.0;
+        let tinc = i.pwages + seih + pui_part - retdedt + pent_s;
+        let sinc = i.swages + seis + i.sui - retdeds + pens_s;
+        let cinc = 0.5 * (agi_pre - tinc - sinc + secah + secas);
+        let agit = tinc + cinc - secah;
+        let agis = sinc + cinc - secas;
+        let aged_h = if i.page > 0.0 { i.page >= 65.0 } else { aged >= 1.0 };
+        let aged_w = if i.page > 0.0 { sage >= 65.0 } else { aged >= 2.0 };
+        let std_h = agit.min(p.std_each + p.aged_standard * aged_h as u8 as f64);
+        let std_w = agis.min(p.std_each + p.aged_standard * aged_w as u8 as f64);
+        let itemizing_split = xitded > stded - p.aged_standard * aged;
+        let safe_agi = if agi != 0.0 { agi } else { 1.0 };
+        let deduch = if itemizing_split { xitded * agit / safe_agi } else { std_h };
+        let deducw = if itemizing_split { xitded * agis / safe_agi } else { std_w };
+        taxinh = (agit - deduch - 0.5 * exemp).max(0.0);
+        taxinw = (agis - deducw - 0.5 * exemp).max(0.0);
+    } else {
+        let wages = i.pwages + i.swages;
+        let higher = i.pwages.max(i.swages) + (agi - wages) / 2.0;
+        let lower = agi - higher;
+        let dedh = if agi != 0.0 { deduc * higher / agi } else { 0.0 };
+        let dedw = deduc - dedh;
+        taxinh = (higher - dedh - 0.5 * exemp).max(0.0);
+        taxinw = (lower - dedw - 0.5 * exemp).max(0.0);
+    }
 
     let stat = p.table.tax(taxinc);
-    let mut statax = if is_joint_relief { stat.min(p.table.tax(taxinh) + p.table.tax(taxinw)) } else { stat };
+    let stat_h = p.table.tax(taxinh);
+    let stat_w = p.table.tax(taxinw);
+    let mut statax = if is_joint_relief { stat.min(stat_h + stat_w) } else { stat };
 
     // ---- child/dependent care credit ----
     let mut chcr = f.federal_chcr.max(0.0) * p.chcr_share;
@@ -250,8 +317,33 @@ pub fn tax(i: &Inp, f: &Fed, p: &DeParams) -> f64 {
         chcr = chcr.min(cap);
     }
     // ---- personal exemption credit (1996+) ----
-    let pecred = p.pecred.map_or(0.0, |per_unit| (de_num + aged) * per_unit);
-    statax = (statax - (chcr + pecred)).max(0.0);
+    if unified {
+        // Combined separate returns: each spouse's tax is cut by that spouse's personal credits,
+        // dependents going first to the husband until his tax is used up.
+        let unit = p.pecred.unwrap_or(0.0);
+        let h_aged60 = i.page >= 60.0 || aged >= 1.0;
+        let w_aged60 = i.sage >= 60.0 || aged >= 2.0;
+        let credit_total = unit * (taxpayers + i.depx) + unit * (h_aged60 as u8 as f64) + unit * (w_aged60 as u8 as f64);
+        let sepcmb = is_joint_relief && stat >= stat_h + stat_w;
+        let cred_h = unit + unit * (h_aged60 as u8 as f64);
+        let cred_w = unit + unit * (w_aged60 as u8 as f64);
+        let dep_max_h = (((stat_h - cred_h) / unit) as i64) as f64;
+        let dep_h = i.depx.min(dep_max_h);
+        let dep_w = i.depx - dep_h;
+        let tax_h = (stat_h - cred_h - dep_h * unit).max(0.0);
+        let tax_w = (stat_w - cred_w - dep_w * unit).max(0.0);
+        let joint_after = (stat - credit_total).max(0.0);
+        let combined = if sepcmb { joint_after.min(tax_h + tax_w) } else { joint_after };
+        statax = if is_joint_relief { combined } else { joint_after };
+        let chcr_limited = if sepcmb { chcr.min(tax_h).min(tax_w) } else { chcr };
+        statax = (statax - chcr_limited).max(0.0);
+    } else {
+        let pecred = p.pecred.map_or(0.0, |per_unit| {
+            let aged_60 = (i.page >= 60.0) as u8 as f64 + (i.sage >= 60.0) as u8 as f64;
+            (de_num + aged_60) * per_unit
+        });
+        statax = (statax - (chcr + pecred)).max(0.0);
+    }
 
     // ---- EITC (2006+) ----
     match &p.eitc {

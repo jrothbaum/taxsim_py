@@ -232,7 +232,7 @@ pub fn tax(i: &Inp, f: &Fed, p: &HiParams) -> f64 {
             ph.multiplier_married * ph.base / sep
         };
         let ln6 = (1.0 + (hi_agi - phex) / (ph.step / sep)).floor();
-        let phased = exema - exema * ph.share_per_step * ln6;
+        let phased = (exema - exema * ph.share_per_step * ln6).max(0.0);
         if hi_agi > phex {
             hi_exemp = phased;
         }
@@ -249,7 +249,16 @@ pub fn tax(i: &Inp, f: &Fed, p: &HiParams) -> f64 {
     }
 
     // ---- itemized deduction ---- Before 1987 rebuilt from the inputs.
-    let raw_itemized = if y <= 1986 { i.proptax + i.otheritem + i.mortgage + f.ded } else { f.salt_capped + i.mortgage };
+    let raw_itemized = if y <= 1986 {
+        i.proptax + i.otheritem + i.mortgage + f.ded
+    } else {
+        let mut raw = f.salt_capped + i.mortgage;
+        if y >= 2018 {
+            // Hawaii does not cap the state and local tax deduction as the federal return does.
+            raw += (f.ded + i.proptax - (f.salt_capped - i.otheritem)).max(0.0);
+        }
+        raw
+    };
     let mut xitded = raw_itemized;
     if let Some(l) = &p.salt_limit {
         let salt_thr = if is_hoh {

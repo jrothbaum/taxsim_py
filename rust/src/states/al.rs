@@ -175,7 +175,7 @@ pub fn tax(i: &Inp, f: &Fed, p: &AlParams) -> f64 {
         }
     };
     // Itemized deductions: mortgage interest, plus from 1982 property and other taxes, half of wage FICA and self-employment tax.
-    let xitded_base = if y < 1982 { i.mortgage } else { i.mortgage + i.proptax + i.otheritem };
+    let xitded_base = if y < 1982 { i.mortgage + i.otheritem } else { i.mortgage + i.proptax + i.otheritem };
     let xitded = if y >= 1982 {
         // Additional Medicare tax is employee-only and already in `fica` once.
         let fica_addback = 0.5 * (f.payroll.fica - setax - f.payroll.addmed) + f.payroll.addmed;

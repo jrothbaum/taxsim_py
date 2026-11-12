@@ -230,10 +230,10 @@ pub fn tax(i: &Inp, f: &Fed, p: &WvParams) -> f64 {
         let idx = (nexemp.max(1.0) as usize - 1).min(fam.limits.len() - 1);
         let fcp = fam.limits[idx] / sep;
         let step = fam.step / sep;
-        let mut share = if agi <= fcp {
+        let mut share = if fed_agi <= fcp {
             fam.full_share
         } else {
-            (0.01 * (100.0 * fam.full_share - fam.points * (agi - fcp) / step)).max(0.0)
+            (0.01 * (100.0 * fam.full_share - fam.points * (fed_agi - fcp) / step)).max(0.0)
         };
         if let Some(s) = &fam.stepped {
             let steps = ((fed_agi - fcp).max(0.0) / step).floor();
@@ -247,7 +247,7 @@ pub fn tax(i: &Inp, f: &Fed, p: &WvParams) -> f64 {
     }
     if let Some(pr) = &p.property {
         let pagi = pr.base + depx * pr.per_person + if is_joint { pr.per_person } else { 0.0 };
-        let income = fed_agi + i.gssi - ss;
+        let income = (fed_agi + i.gssi - ss).max(0.0);
         let mut pcred = (i.proptax - pr.rate * income).max(0.0).min(pr.cap);
         if !(fed_agi < pagi) {
             pcred = 0.0;

@@ -429,6 +429,7 @@ pub fn tax(i: &Inp, f: &Fed, p: &CaParams) -> f64 {
     let stat_single = p.table_single.tax(taxinc / ajnt) * ajnt;
     let stat_hoh = p.table_hoh.tax(taxinc);
     let mut statax = if is_hoh { stat_hoh } else { stat_single };
+    let regtax = statax;
 
     // ---- exemption credits ----
     let dep_reduced = if y <= 1986 && is_hoh { (depx - 1.0).max(0.0) } else { depx };
@@ -448,13 +449,22 @@ pub fn tax(i: &Inp, f: &Fed, p: &CaParams) -> f64 {
         let excrd_over_agi = match ph.upper {
             Some(upper) => {
                 let excess_over = (f.agi - phaded2).max(0.0);
-                let reduction_full = (dep_reduced + ca_txp + aged) * ph.per_credit * (f.agi - phaded2) / ph.step / sep;
+                let reduction_full = (dep_reduced + txp_raw + aged) * ph.per_credit * (f.agi - phaded2) / ph.step / sep;
                 let upper_index = ph.upper_index.unwrap_or(1.0);
                 if excess_over > upper * upper_index / sep { 0.0 } else { (excrd - reduction_full).max(0.0) }
             }
             None => {
-                let num = 1.0 + ((f.agi - phaded2) / (ph.step / sep)).floor();
-                (excrd - (dep_reduced + ca_txp + aged) * ph.per_credit * num).max(0.0)
+                let num = ((f.agi - phaded2) / (ph.step / sep)).ceil();
+                match &p.exemption {
+                    // Each credit is cut by the reduction on its own: a personal credit wiped out does
+                    // not also take the dependent credits down.
+                    ExemptionCredit::Base { per_dependent: Some(per), .. } => {
+                        let dependents = dep_reduced * per;
+                        (excrd - dependents - (txp_raw + aged) * ph.per_credit * num).max(0.0)
+                            + (dependents - dep_reduced * ph.per_credit * num).max(0.0)
+                    }
+                    _ => (excrd - (dep_reduced + txp_raw + aged) * ph.per_credit * num).max(0.0),
+                }
             }
         };
         if f.agi > phaded2 {
@@ -525,7 +535,7 @@ pub fn tax(i: &Inp, f: &Fed, p: &CaParams) -> f64 {
         let phaout = p.amt_phaseout_rate * (alminy - p.amt_phaseout_start[fs as usize]).max(0.0);
         let exclnt = (p.amt_exemption[fs as usize] - phaout).max(0.0);
         let alminc = (alminy - exclnt).max(0.0);
-        amt = (alminc * amt_rate - statax).max(0.0);
+        amt = (alminc * amt_rate - regtax).max(0.0);
     }
     statax += amt;
 

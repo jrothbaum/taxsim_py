@@ -9,6 +9,7 @@ use std::path::Path;
 use serde_yaml::Value;
 
 use crate::federal::{Fed, Inp};
+use crate::params::Fs;
 use crate::params::{load, num};
 
 mod ak;
@@ -282,6 +283,16 @@ pub fn dividend_exclusion_addback(year: i64, i: &Inp, f: &Fed, dividend_adjustme
 }
 
 /// Unemployment compensation, preferring the spouse split when larger.
+/// TAXSIM `earnmin`: the lower earner's wages plus net business income on a joint return, else the
+/// taxpayer's; positive business items count at .9235 from 1990.
+pub fn earned_minimum(year: i64, i: &Inp) -> f64 {
+    let factor = if year >= 1990 { 0.9235 } else { 1.0 };
+    let net = |wages: f64, items: [f64; 3]| wages.max(0.0) + factor * items.iter().map(|x| x.max(0.0)).sum::<f64>();
+    let primary = net(i.pwages, [i.psemp, i.pbusinc, i.pprofinc]);
+    let secondary = net(i.swages, [i.ssemp, i.sbusinc, i.sprofinc]);
+    if i.fs() == Fs::Joint { primary.min(secondary) } else { primary }
+}
+
 pub fn unemployment_total(i: &Inp) -> f64 {
     i.ui.max(i.pui + i.sui)
 }
@@ -296,6 +307,12 @@ pub fn federal_exemption_count(year: i64, i: &Inp) -> f64 {
     } else {
         i.taxpayer_count() + i.depx
     }
+}
+
+/// The federal zero bracket amount states read: zero for an itemizing pass before 2024, otherwise the
+/// federal standard deduction.
+pub fn federal_zero_bracket(y: i64, itemizes: bool, f: &Fed) -> f64 {
+    if itemizes && y < 2024 { 0.0 } else { f.standard_deduction }
 }
 
 /// Gross federal itemized deductions through 1986, including the state tax deduction.

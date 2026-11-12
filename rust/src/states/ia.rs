@@ -61,6 +61,8 @@ pub struct IaParams {
     no_tax_single: f64,
     no_tax_other: f64,
     aged_single: f64,
+    /// Aged floor of the single-filer worksheet (`amt_aged_exempt_income`).
+    worksheet_aged_single: f64,
     aged_other: f64,
     alternate_rate: Option<f64>,
     alternate_aged_floor: Option<f64>,
@@ -154,6 +156,7 @@ impl IaParams {
             no_tax_single: p.num_at("no_tax_income_limit", &["single"])?,
             no_tax_other: p.num_at("no_tax_income_limit", &["other"])?,
             aged_single: num(get(aged, "single")?)?,
+            worksheet_aged_single: p.num_at("amt_aged_exempt_income", &["single"])?,
             aged_other: num(get(aged, "other")?)?,
             alternate_rate: opt("alternate_tax_rate")?,
             alternate_aged_floor: if year >= 2007 && p.in_effect("alternate_tax_rate")? { Some(p.f("alternate_tax_aged_floor")?) } else { None },
@@ -433,7 +436,18 @@ pub fn tax(i: &Inp, f: &Fed, p: &IaParams) -> f64 {
         statax = (statax - earncr).max(0.0) - chcr;
     }
     if is_single {
-        statax = (agi - p.no_tax_single).min(statax).max(0.0);
+        // The worksheet's income adds back excluded pensions and the Social Security Iowa does not tax;
+        // from 2017 the floor is the aged one for a taxpayer 65 or older.
+        let mut modified_income = agi;
+        let mut floor = p.no_tax_single;
+        if y >= 2017 {
+            let reported_benefits = 0.5 * i.gssi.min((f.agi - f.taxable_social_security - 25_000.0).max(0.0));
+            modified_income += penexc + if i.gssi > 0.0 { reported_benefits } else { 0.0 };
+            if i.page >= 65.0 {
+                floor = p.worksheet_aged_single;
+            }
+        }
+        statax = (modified_income - floor).min(statax).max(0.0);
     }
     if y >= 2007 {
         statax = statax - earncr - chcr;
