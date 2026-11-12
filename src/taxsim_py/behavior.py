@@ -121,6 +121,10 @@ class BehaviorProfile:
     initialize_arizona_short_term_loss: bool = True
     use_delaware_published_tax_brackets: bool = True
     use_maine_published_phaseout_starts: bool = True
+    use_maine_published_2024_sales_tax_credit_per_statute: bool = True
+    deflate_maine_earned_income_credit_per_statute: bool = True
+    limit_maine_child_care_credit_by_federal_tax_in_2021_per_statute: bool = True
+    limit_maine_dependent_filer_standard_deduction_per_statute: bool = True
     count_maine_fairness_credit_children_by_dep17: bool = True
     count_all_dependents_for_maine_dependent_credit: bool = True
     use_maine_year_standard_deduction: bool = True

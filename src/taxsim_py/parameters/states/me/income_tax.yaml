@@ -82,17 +82,18 @@ standard_deduction_aged_addition: {2003: 1000, 2007: 1050, 2009: 1100, 2011: 115
 standard_deduction_single_and_hoh:
   2016: {single: 11600, head_of_household: 17400, aged: 1550}
   2018: null
-# From 2025 Maine keeps the federal amounts before the 2025 federal increase,
+# TAXSIM uses these amounts from 2024 (statute: from 2025, Maine keeps the federal amounts before the 2025 federal increase),
 # plus an amount per taxpayer 65 or older.
 standard_deduction_nonconforming:
+  2024: {single: 14600, married_joint: 29200, head_of_household: 21900, married_separate: 14600, aged_single: 1950, aged_married: 1550}
   2025: {single: 15000, married_joint: 30000, head_of_household: 22500, married_separate: 15000, aged_single: 2000, aged_married: 1600}
-# The TAXSIM build, on a federal itemizing pass from 2022, uses the 2021 federal standard deduction
+# The TAXSIM build, on a federal itemizing pass from 2021, uses the 2021 federal standard deduction
 # (plus an amount per taxpayer 65 or older) and caps itemized property tax and mortgage interest here.
 taxsim_itemizing_standard_deduction:
-  2022:
+  2021:
     base: {single: 12550, married_joint: 25100, head_of_household: 18800, married_separate: 12550}
     aged: {single: 1700, married_joint: 1350, head_of_household: 1700, married_separate: 1350}
-taxsim_itemized_deduction_cap: {2022: 31150, 2023: 33200, 2024: 35000, 2025: 36300}
+taxsim_itemized_deduction_cap: {2021: 30400, 2022: 31150, 2023: 33200, 2024: 35000, 2025: 36300}
 # From 2013 itemized deductions (less the state tax share) are capped.
 # Source for 2022 on: PolicyEngine-US gov.states.me.tax.income.deductions.itemized.cap.
 itemized_deduction_cap: {2013: 27500, 2014: 27950, 2015: 28350, 2016: 28450, 2017: 28600, 2018: 29050, 2019: 29550, 2020: 30050, 2021: 30400, 2022: 31150, 2023: 33200, 2024: 35250, 2025: 36300}
@@ -229,6 +230,18 @@ property_tax_fairness_credit:
     cap: 750
     elderly_cap: 1200
     income_share: 0.06
+  2020:
+    base_cap: {single: 2100, two: 2750, more: 3400}
+    income_cap: {single: 42000, two: 55000, more: 68000}
+    cap: 750
+    elderly_cap: 1200
+    income_share: 0.05
+  2021:
+    base_cap: {single: 2100, two: 2750, more: 3400}
+    income_cap: {single: 42000, two: 55000, more: 68000}
+    cap: 1000
+    elderly_cap: 1500
+    income_share: 0.05
   2022: null
 # From 2022: the benefit base (by filing status and children, or 65 or
 # older) limited to property tax plus `rent_share` of rent, less
@@ -279,3 +292,12 @@ sales_tax_fairness_credit_schedule:
     married_separate: {base: 0, start: 0, increment: 0, step: 0}
     head_of_household: {base: 215, start: 38200, increment: 750, step: 15}
     additional: {joint: [[0, 0], [1, 35], [2, 65]], head_of_household: [[0, 0], [2, 35], [3, 65]]}
+# TAXSIM's 2024 table (starts and the second tier differ from the schedule above).
+taxsim_sales_tax_fairness_credit_schedule:
+  2024:
+    single: {base: 150, start: 24558, increment: 500, step: 10}
+    married_joint: {base: 210, start: 49116, increment: 1000, step: 20}
+    married_separate: {base: 0, start: 0, increment: 0, step: 0}
+    head_of_household: {base: 210, start: 36837, increment: 750, step: 15}
+    additional: {joint: [[0, 0], [1, 27], [2, 60]], head_of_household: [[0, 0], [2, 27], [3, 60]]}
+  2025: null

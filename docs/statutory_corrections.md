@@ -679,3 +679,8 @@ Taxsim mode now follows the statutory rule for these (they remain in
 | Massachusetts | 2020 | | Long-term capital gains are taxed at 5.05% (the 2019 rate) | Statutory: 5.0%. `use_massachusetts_2020_part_c_rate_per_statute` |
 | Massachusetts | 2001 | | The rent deduction cap is 2,500 (1,250 on separate returns), the 1997-2000 amounts | Statutory: 3,000. `use_massachusetts_2001_rent_cap_per_statute` |
 | Massachusetts | projected years | | The payroll tax deduction is computed on deflated payroll tax; S corporation income is not deflated | Statutory: n/a. `deflate_massachusetts_payroll_tax_deduction_per_statute` |
+| Maine | 2021 | | On the federal itemizing pass the state standard deduction is the 2021 federal amount plus senior additions, and itemized property tax is capped at 30,400 (same treatment as 2022 on) | Statutory: current-year deductions. `use_maine_current_deductions_when_itemizing` |
+| Maine | 2021 | | The child care credit is 25% of the federal credit before its limit by tax | Statutory: limited by federal tax. `limit_maine_child_care_credit_by_federal_tax_in_2021_per_statute` |
+| Maine | 2024 | | The sales tax fairness credit uses TAXSIM's table (starts 24,558 / 36,837 / 49,116; second tier 237) | Statutory: published schedule. `use_maine_published_2024_sales_tax_credit_per_statute` |
+| Maine | 2024 | | A dependent filer gets the full standard deduction (14,600 and so on) | Statutory: the federal (limited) amount. `limit_maine_dependent_filer_standard_deduction_per_statute` |
+| Maine | projected years | | The earned income credit before the age test is deflated | Statutory: n/a. `deflate_maine_earned_income_credit_per_statute` |

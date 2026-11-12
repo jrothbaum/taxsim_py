@@ -147,6 +147,9 @@ def compute_me_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         base = pl.when(files_single() | is_sep).then(float(sd["single"])).when(is_hoh).then(float(sd["head_of_household"])).otherwise(float(sd["married_joint"]))
         aged_amount = pl.when(files_single() | is_hoh).then(float(sd["aged_single"])).otherwise(float(sd["aged_married"]))
         stded = pl.when(pl.col("itemizes")).then(0.0).otherwise(base + aged_amount * aged_count())
+        if behavior.limit_maine_dependent_filer_standard_deduction_per_statute:
+            # A dependent filer keeps the federal (limited) amount; TAXSIM gives the full amount.
+            stded = pl.when(is_dependent_filer() & ~pl.col("itemizes")).then(pl.col("standard_deduction")).otherwise(stded)
     df = df.with_columns(me_stded=stded)
 
     # --- Itemized deduction --- (when the federal return itemizes a
@@ -268,6 +271,9 @@ def compute_me_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         comnew52 = pl.col("fiitax")
     else:
         comnew52 = pl.col("regular_tax")
+    if effective_year == 2021 and not behavior.limit_maine_child_care_credit_by_federal_tax_in_2021_per_statute:
+        # TAXSIM reads the federal credit before its limit by tax in 2021.
+        comnew52 = pl.lit(1.0e12)
     child_rate = p.num("child_care_credit_rate")
     chcr = child_rate * pl.min_horizontal(ccc_for_chcr, comnew52.clip(0, None))
     refundable_cap = float(p["child_care_credit_refundable_cap"])
@@ -404,8 +410,10 @@ def compute_me_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         rates = p.value("eitc_rates_by_children")
         older = pl.max_horizontal(pl.col("page"), pl.col("sage"))
         childless_ok = (older == 0) | (older >= 18)
+        # The federal credit before its age test is not deflated in projected years until TAXSIM reads it here.
+        before_age_test = pl.col("eitc_before_age_test") / flate if not behavior.deflate_maine_earned_income_credit_per_statute else pl.col("eitc_before_age_test")
         earncr = pl.when(pl.col("dep18") > 0).then(float(rates["with_child"]) * pl.col("eitc")).when(childless_ok).then(
-            float(rates["childless"]) * pl.col("eitc_before_age_test")
+            float(rates["childless"]) * before_age_test
         ).otherwise(0.0)
     df = df.with_columns(me_earncr=earncr)
     if p.in_effect("eitc_rate") and not p.value("eitc_refundable"):
@@ -502,6 +510,8 @@ def compute_me_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         ).otherwise(0.0)
     elif p.in_effect("sales_tax_fairness_credit_schedule"):
         d = p.value("sales_tax_fairness_credit_schedule")
+        if p.in_effect("taxsim_sales_tax_fairness_credit_schedule") and not behavior.use_maine_published_2024_sales_tax_credit_per_statute:
+            d = p.value("taxsim_sales_tax_fairness_credit_schedule")
         children = pl.col("dep17") if behavior.count_maine_fairness_credit_children_by_dep17 else pl.col("depx")
         if flate != 1.0 and not behavior.count_maine_fairness_credit_children_before_deflation_per_statute:
             # TAXSIM counts the children as the deflated exemption count less the taxpayers, truncated.
