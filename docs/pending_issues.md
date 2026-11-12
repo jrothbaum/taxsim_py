@@ -346,3 +346,8 @@ amount carried by its price index (about $450 above the published one in 2026).
 ## Wisconsin 2023, married separate
 
 The oracle's `witax23` returns a state tax of 0 for a married-separate return with $30,000 of wages in 2023 (`crednon` and the tax before credits are about -8.3e10, apparently an out-of-range table index for filing status 6). Other married-separate incomes in 2023 are fine. Python computes the real $706; left as a known disagreement.
+
+## Georgia oracle fixes (scripts/build_oracle.sh)
+
+- 1989-2020: `rtmaxt`/`rtmaxs` (retirement exclusion limits) were set only from 2021, so earlier years used leftovers from the previous record. Now set to the year's `rtmax(law)`.
+- 2023 married separate: no branch gave a personal exemption, so it was zero. Now one married-person exemption plus the dependents', as in 2013-2022.

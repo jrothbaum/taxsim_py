@@ -65,7 +65,7 @@ aged_standard_deduction: {1987: 700, 1998: 1300, 2024: 0}
 # retirement and investment income, split between spouses.
 retirement_exclusion_max: {1977: 0, 1982: 2000, 1986: 4000, 1989: 8000, 1993: 10000, 1994: 11000, 1995: 12000, 1999: 13000, 2000: 13500, 2001: 14000, 2002: 14500, 2003: 15000, 2006: 25000, 2007: 30000, 2008: 35000, 2012: 65000}
 retirement_exclusion_earned_limit: {1986: 1200, 1989: null}
-retirement_exclusion_earnings_cap: {1989: 4000}
+retirement_exclusion_earnings_cap: {1989: 4000, 2024: 5000}
 # The federal net capital loss limit (halved on separate returns) and the
 # share of losses counted for a spouse.
 retirement_exclusion_capital_loss_limit: 3000

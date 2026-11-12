@@ -649,3 +649,5 @@ Taxsim mode now follows the statutory rule for these (they remain in
 | RI | 2024 on | | Brackets scale TAXSIM's 2011 schedule by its own index (1.4084, 1.4532) | Statutory: the published brackets |
 | RI | 2021 on | | Child care credit is a quarter of the federal credit before the federal tax limit | Statutory: limited by federal tax. `limit_rhode_island_child_care_credit_by_federal_tax_per_statute` |
 | UT | 2024 on | | Child tax credit counts children under 13 and reduces by federal AGI over $27,000 for singles and separate filers ($43,000 head of household, $54,000 joint) | Statutory: children under 6, taxable income over $43,000 for singles. `compute_utah_child_tax_credit_per_statute` |
+| GA | 1982-1988 | | No retirement income exclusion (TAXSIM starts it in 1989) | Statutory: $2,000-$4,000. `allow_georgia_retirement_exclusion_before_1989_per_statute` |
+| GA | 2024 on | | Retirement exclusion earnings cap is $5,000 | Both modes |

@@ -65,6 +65,27 @@ for name in ("tab22", "wkst22", "tab24", "wkst24"):
     text = text.replace(call, name + "(1,1,mq)")
 open(path, "w").write(text)
 PY
+# Georgia (gatax77) 1989-2020: `rtmaxt` and `rtmaxs`, the retirement exclusion limits, are only set from 2021, so earlier
+# years use whatever the previous record left (the tax depends on the records before it). Use the year's `rtmax(law)`.
+python3 - "$PATCHED" <<'PY'
+import sys
+path = sys.argv[1]
+text = open(path).read()
+old = "      triex14=0\n      sriex14=0\n"
+assert text.count(old) == 1, "georgia retirement limit patch did not apply"
+open(path, "w").write(text.replace(old, old + "      rtmaxt=rtmax(law)\n      rtmaxs=rtmax(law)\n"))
+PY
+# Georgia 2023: a married-separate return (status 6) matches none of the personal exemption branches, so it gets no
+# personal exemption. Give it one married-person exemption plus the dependents', as the 2013-2022 code does.
+python3 - "$PATCHED" <<'PY'
+import sys
+path = sys.argv[1]
+text = open(path).read()
+old = "        if(mst.eq.1) then \n           exemp=xmp23(1,law)\n"
+assert text.count(old) == 1, "georgia 2023 married separate patch did not apply"
+new = "        if(mst.eq.6) then \n           exemp=xmp23(2,law)+d(8)*xmp23(3,law)\n        elseif(mst.eq.1) then \n           exemp=xmp23(1,law)\n"
+open(path, "w").write(text.replace(old, new))
+PY
 # Tracing (not a fix): with extnd(30)=999 (inputs opt1=30, opt1v=999) the state dispatcher prints every
 # nonzero federal result c(i) and input d(i) it hands the state routine, to stderr (scripts/trace_oracle.py).
 python3 - "$PATCHED" <<'PY'
@@ -86,7 +107,7 @@ trace = (
 )
 open(path, "w").write(text.replace(old, trace + old))
 PY
-for pattern in 'isgn=1,int(extnd(54))' 'povert(1,2016)+isize' 'gcred+xmp(law)' 'chld=min(statax,chld)' 'tab22(1,1,mq)' 'TRACE state id'; do
+for pattern in 'isgn=1,int(extnd(54))' 'povert(1,2016)+isize' 'gcred+xmp(law)' 'chld=min(statax,chld)' 'tab22(1,1,mq)' 'TRACE state id' 'rtmaxt=rtmax(law)' 'exemp=xmp23(2,law)+d(8)'; do
   grep -q "$pattern" "$PATCHED" || { echo "patch did not apply: $pattern" >&2; exit 1; }
 done
 gfortran -O2 -std=legacy -o taxsim2026_mtr.exe "$PATCHED"

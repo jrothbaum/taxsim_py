@@ -90,6 +90,9 @@ def compute_ga_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             .when(pl.col("ga_taxpayers") > 1).then(pl.when(aged < 2).then(couple_one).otherwise(couple_two))
             .otherwise(rtexc)
         )
+    if effective_year < 1989 and not behavior.allow_georgia_retirement_exclusion_before_1989_per_statute:
+        # TAXSIM's retirement exclusion starts in 1989.
+        rtexc = pl.lit(0.0)
     df = df.with_columns(ga_agi=pl.col("ga_agi") - pl.when(aged > 0).then(rtexc).otherwise(0.0))
     # Social Security benefits are exempt from 1988.
     if effective_year >= 1988:
@@ -207,6 +210,8 @@ def compute_ga_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         df = df.with_columns(ga_ycred=pl.lit(0.0))
     df = df.with_columns(ga_ycred=pl.when(is_dependent_filer()).then(0.0).otherwise(pl.col("ga_ycred")))
 
+    # The one-time rebate is limited by the tax before credits.
+    df = df.with_columns(state_tax_before_credits=pl.col("ga_statax") * flate)
     itemizer_credit = pl.lit(0.0)
     if p.in_effect("taxsim_itemizer_credit_per_taxpayer") and not behavior.omit_georgia_itemizer_credit_per_statute:
         # TAXSIM's 2024 on routine gives itemizers a credit per taxpayer, limited to the tax before credits.
