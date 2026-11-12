@@ -57,7 +57,12 @@ def compute_federal_income_tax_pre1987(
     if behavior.include_business_income_before_1987:
         gross_se_income = gross_se_income + pl.col("pbusinc") + pl.col("pprofinc") + pl.col("sbusinc") + pl.col("sprofinc")
     df = df.with_columns(sepret=sepret_expr, gross_se_income=gross_se_income)
-    df = df.with_columns(earned=(pl.col("wages") + pl.col("gross_se_income")).clip(0, None))
+    earned_se = pl.col("gross_se_income")
+    if not behavior.count_business_inputs_in_earned_income_before_1987_per_statute:
+        # TAXSIM's earned income (maximum tax, EITC) is wages and self-employment income; the business inputs count
+        # in income but not in earned income.
+        earned_se = pl.col("psemp") + pl.col("ssemp")
+    df = df.with_columns(earned=(pl.col("wages") + earned_se).clip(0, None))
 
     # Dividend exclusion (`divall`); 1981 also excludes interest.
     divexc_expr = federal_dividend_exclusion_limit(year, behavior)
@@ -246,12 +251,15 @@ def compute_federal_income_tax_pre1987(
 
     # --- Maximum tax on earned income (`etax`) ---
     if p.in_effect("max_tax_earned_income_floor"):
+        # TAXSIM counts other non-property income as personal service income in the maximum tax.
+        nonprop_personal_service = pl.lit(0.0) if behavior.exclude_nonproperty_income_from_maximum_tax_personal_service_income else pl.col("nonprop")
+        max_tax_earned = pl.col("earned")
         ebot_expr = by_filing_status(p.value("max_tax_earned_income_floor"))
         eacc_expr = by_filing_status(p.value("max_tax_earned_income_accumulated"))
         df = df.with_columns(
             ebot=ebot_expr,
             eacc=eacc_expr,
-            psinc=pl.when(pl.col("agi") != 0).then((pl.col("earned") + pl.col("pensions")).clip(0, pl.col("agi"))).otherwise((pl.col("earned") + pl.col("pensions"))),
+            psinc=pl.when(pl.col("agi") != 0).then((max_tax_earned + pl.col("pensions") + nonprop_personal_service).clip(0, pl.col("agi"))).otherwise((max_tax_earned + pl.col("pensions") + nonprop_personal_service)),
         )
         df = df.with_columns(
             eratio=pl.when(pl.col("agi") == 0).then(1.0).otherwise((pl.col("psinc") / pl.col("agi")).clip(None, 1.0))

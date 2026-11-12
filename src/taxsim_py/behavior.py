@@ -133,6 +133,10 @@ class BehaviorProfile:
     use_south_carolina_published_tax_table: bool = True
     allow_qbi_deduction_in_south_carolina: bool = True
     count_colorado_credit_children_per_statute: bool = True
+    start_child_tax_credit_phaseout_at_statutory_threshold_for_dependent_filers: bool = True
+    count_eitc_children_from_ages_per_statute: bool = True
+    count_business_inputs_in_earned_income_before_1987_per_statute: bool = True
+    exclude_nonproperty_income_from_maximum_tax_personal_service_income: bool = True
     start_minnesota_itemized_phaseout_without_status_multiplier_per_statute: bool = True
     add_back_minnesota_unemployment_exclusion_to_working_family_income_per_statute: bool = True
     apply_minnesota_pension_exclusion_through_1986_per_statute: bool = True

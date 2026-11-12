@@ -413,7 +413,7 @@ aged_standard_deduction:
 dependent_standard_deduction:
   # TAXSIM mode: the minimum TAXSIM uses where it differs from the published one
   # (1995-1996 and 2022-2023).
-  taxsim_minimum: {1995: 600, 1997: null, 2022: 1100, 2024: null}
+  taxsim_minimum: {1995: 600, 1997: null, 2022: 1100, 2024: 1350}
   minimum:
     1987: 500
     1991: 550
@@ -441,6 +441,9 @@ qbi_deduction_rate: {2018: 0.2}
 # Width of the phase-in above the threshold in TAXSIM's single-formula QBI deduction,
 # for every filing status (TAXSIM mode only).
 qbi_taxsim_phase_in_width: {2018: 50000}
+# 2026: the build's own indexed start of the phase-in (the published thresholds are 201,775 and 403,500).
+qbi_taxsim_phase_in_start:
+  2026: {unmarried: 201800, married_joint: 403600}
 qbi_phase_in_start:
   2018: {unmarried: 157500, married_joint: 315000}
   2019: {unmarried: 160700, married_joint: 321400, married_separate: 160725}

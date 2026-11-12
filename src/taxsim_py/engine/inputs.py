@@ -58,6 +58,7 @@ def child_counts_from_ages(year: pl.Expr) -> dict[str, pl.Expr]:
         "children_under_7": count(pl.lit(7.0)),
         "children_under_18": count(pl.lit(18.0)),
         "children_under_17": count(pl.lit(17.0)),
+        "children_under_19": count(pl.lit(19.0)),
     }
 
 
@@ -88,13 +89,18 @@ def with_input_defaults(frame: pl.DataFrame | pl.LazyFrame, year: pl.Expr) -> pl
     counts["dep6"] = pl.col("dep6")
     child_counts = {c: pl.col(c) for c in OPTIONAL_CHILD_COUNT_INPUTS}
     if row_uses_ages is None:
-        return frame.with_columns(**counts, **child_counts, children_under_18=counts["dep18"], children_under_17=counts["dep18"])
+        return frame.with_columns(
+            **counts, **child_counts, children_under_18=counts["dep18"], children_under_17=counts["dep18"],
+            children_under_19=counts["dep18"], child_ages_given=pl.lit(False),
+        )
     from_ages = child_counts_from_ages(year)
     return frame.with_columns(
         **{c: pl.when(pl.col("__uses_child_ages")).then(from_ages[c]).otherwise(counts[c]) for c in counts},
         **{c: pl.when(pl.col("__uses_child_ages")).then(from_ages[c]).otherwise(child_counts[c]) for c in OPTIONAL_CHILD_COUNT_INPUTS},
         children_under_18=pl.when(pl.col("__uses_child_ages")).then(from_ages["children_under_18"]).otherwise(counts["dep18"]),
         children_under_17=pl.when(pl.col("__uses_child_ages")).then(from_ages["children_under_17"]).otherwise(counts["dep18"]),
+        children_under_19=pl.when(pl.col("__uses_child_ages")).then(from_ages["children_under_19"]).otherwise(counts["dep18"]),
+        child_ages_given=pl.col("__uses_child_ages"),
     ).drop("__uses_child_ages")
 
 

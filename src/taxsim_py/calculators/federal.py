@@ -62,6 +62,9 @@ def _qbi_deduction_single_formula(year: int, dividends: pl.Expr) -> pl.Expr:
     p = YearParams(FEDERAL_INCOME_TAX_PARAMS, year)
     rate = p.num("qbi_deduction_rate")
     amounts = p.value("qbi_phase_in_start")
+    if p.in_effect("qbi_taxsim_phase_in_start"):
+        # The 2026 build indexes the 2025 threshold by its own factor.
+        amounts = p.value("qbi_taxsim_phase_in_start")
     start = pl.when(files_joint()).then(float(amounts["married_joint"])).otherwise(float(amounts["unmarried"]))
     if "married_separate" in amounts:
         start = pl.when(files_separate()).then(float(amounts["married_separate"])).otherwise(start)
@@ -780,6 +783,7 @@ def _regular_tax(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorP
     rate_15_ceiling_expr = _by_status_at(cg_p["rate_15_ceiling"], year)
     if year >= 2024 and not behavior.use_published_capital_gains_thresholds:
         rate_0_ceiling_expr = _by_status_at(cg_p["taxsim_rate_0_ceiling"], year)
+        rate_15_ceiling_expr = _by_status_at(cg_p["taxsim_rate_15_ceiling"], year)
     if not behavior.use_published_capital_gains_thresholds and cg_p.in_effect("taxsim_rate_15_ceiling_single"):
         # TAXSIM's regular-tax copy of the single threshold differs from its AMT copy.
         rate_15_ceiling_expr = pl.when(files_single()).then(cg_p.num("taxsim_rate_15_ceiling_single")).otherwise(
@@ -1080,6 +1084,29 @@ def _credits(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorProfi
         df = df.join(
             eitc_params_year.rename({"filing_status": "__eitc_status"}), on=["__eitc_status", "num_children"], how="left"
         ).drop("__eitc_status")
+    elif year >= 2026 and not behavior.count_eitc_children_from_ages_per_statute and "child_ages_given" in df.collect_schema().names():
+        # TAXSIM's 2026 age table has no EITC age limit, so with child ages given it counts no EITC children for the
+        # rates but still sizes the maximum and phase-out start by the children under 19.
+        limits = eitc_params_year.select(
+            "filing_status",
+            pl.col("num_children").alias("__limit_children"),
+            pl.col("max_credit").alias("__max_credit_limit"),
+            pl.col("phaseout_start").alias("__phaseout_start_limit"),
+        )
+        df = df.with_columns(
+            __rate_children=pl.when(pl.col("child_ages_given")).then(0).otherwise(pl.col("num_children")).cast(pl.Int64),
+            __limit_children=pl.when(pl.col("child_ages_given"))
+            .then(pl.col("children_under_19").clip(0, 3))
+            .otherwise(pl.col("num_children"))
+            .cast(pl.Int64),
+        )
+        df = df.join(
+            eitc_params_year.rename({"num_children": "__rate_children"}), on=["filing_status", "__rate_children"], how="left"
+        )
+        df = df.join(limits, on=["filing_status", "__limit_children"], how="left").with_columns(
+            max_credit=pl.coalesce("__max_credit_limit", "max_credit"),
+            phaseout_start=pl.coalesce("__phaseout_start_limit", "phaseout_start"),
+        ).drop("__rate_children", "__limit_children", "__max_credit_limit", "__phaseout_start_limit")
     else:
         df = df.join(eitc_params_year, on=["filing_status", "num_children"], how="left")
 
@@ -1165,6 +1192,10 @@ def _credits(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorProfi
         odc_base = pl.lit(0.0)
     odc_rate_per_1000 = ctc_p.num("phaseout_rate_per_1000")
     odc_threshold_expr = by_filing_status(ctc_p.value("phaseout_threshold"))
+    if year >= 2024 and not behavior.start_child_tax_credit_phaseout_at_statutory_threshold_for_dependent_filers:
+        # TAXSIM's 2024 on credit worksheet multiplies $200,000 by the number of taxpayers, which is 0 for a
+        # dependent filer, so the phase-out starts at zero.
+        odc_threshold_expr = pl.when(is_dependent_filer()).then(0.0).otherwise(odc_threshold_expr)
 
     enhanced = ctc_p.in_effect("enhanced")
     if enhanced:

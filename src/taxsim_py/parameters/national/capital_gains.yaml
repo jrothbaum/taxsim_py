@@ -201,6 +201,12 @@ taxsim_rate_0_ceiling:
   married_joint: {2024: 94069.5, 2025: 96891.28, 2026: 99798.62}
   head_of_household: {2024: 62976.5, 2025: 64865.59, 2026: 66811.96}
   married_separate: {2024: 47034.75, 2025: 48445.64, 2026: 49899.31}
+# TAXSIM mode from 2024: its start of the 20% rate is likewise the 2023 amount carried by its price index.
+taxsim_rate_15_ceiling:
+  single: {2024: 518884.2, 2025: 534449.04, 2026: 550485.83}
+  married_joint: {2024: 583757.9, 2025: 601268.74, 2026: 619310.54}
+  head_of_household: {2024: 551294.7, 2025: 567831.75, 2026: 584870.23}
+  married_separate: {2024: 291878.95, 2025: 300634.37, 2026: 309655.27}
 rate_15_ceiling:
   single:
     1987: 1000000000000000.0

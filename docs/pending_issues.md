@@ -320,17 +320,7 @@ the standard pass does not, TAXSIM keeps the itemize pass, so a filer with wages
 calculation runs one pass for federal-only returns and gives nothing. About 26 rows of `scripts/validate_federal.py` for 2008
 (plus a few in 2009-2010 through the same mechanism).
 
-## Federal capital gains at the top 2024-2025 (open)
 
-Rows with ordinary income plus gains above the 20% threshold differ by $1.5 (2024) to $14 (2025) from the oracle; the thresholds
-match the published ones, so the cause is somewhere in how the build splits taxable income at that bracket.
-
-## 2026 build: EITC with child ages (open)
-
-For tax year 2026 a record that gives child ages (`age1`-`age3`) gets an earned income credit of 7.65% of earnings with no
-maximum and a different phaseout (e.g. wages $30,000 and two children: $2,295; the dependent-count inputs give $7,316). The
-age-to-count tables run one year short for 2026, so the build treats the children as absent but keeps the dependent filer
-count. Not reproduced: three rows of `scripts/validate_federal.py` for 2026 ("child ages ...").
 
 ## Federal 2026 values the TAXSIM build does not index
 
