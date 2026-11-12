@@ -150,7 +150,7 @@ def compute_in_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             earncr = pl.when(fed_eitc > 0).then(rate_cr * fed_eitc).otherwise(0.0)
         if effective_year >= 2022 or (effective_year == 2021 and not behavior.use_indiana_decoupled_credit_schedule_in_2021):
             earncr = rate_cr * fed_eitc
-            if effective_year >= 2021:
+            if 2021 <= effective_year <= 2022:
                 # 2022 is computed on its own formula: at most two children and no
                 # higher phase-out start for joint returns.
                 rows = FEDERAL_EITC_PARAMS.filter((pl.col("year") == effective_year) & (pl.col("filing_status") == "single"))
