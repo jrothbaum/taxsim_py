@@ -372,7 +372,9 @@ def _taxsim_tax(df: pl.DataFrame, y: int, flate: float, p: YearParams, behavior:
     taxbc = statax
     taxinc = taxic
     # From 2021 TAXSIM remembers the property tax input on its standard-deduction pass.
-    ptax = (pl.col("original_proptax") if y >= 2021 else proptax) + 0.18 * rentpaid
+    # (undeflated: the pass that keeps the itemized inputs has the deflated figure).
+    remembered = pl.when(proptax > 0).then(proptax).otherwise(pl.col("original_proptax"))
+    ptax = (remembered if y >= 2021 else proptax) + 0.18 * rentpaid
 
     # Property tax relief credit.
     pcred = pl.lit(0.0)
@@ -472,6 +474,9 @@ def _taxsim_tax(df: pl.DataFrame, y: int, flate: float, p: YearParams, behavior:
             earncr = pl.when((agi <= 20000) & (depx > 0)).then(rate_eitc * eitc).otherwise(0.0)
         else:
             earncr = rate_eitc * (before_test if y >= 2024 else eitc)
+            if y >= 2024:
+                # The federal credit before the filer test would let a dependent filer claim it.
+                earncr = pl.when(is_dependent_filer()).then(0.0).otherwise(earncr)
             low, high = (19, 115) if y == 2021 else (25, 64)
             page, sage = pl.col("page"), pl.col("sage")
             in_range = ((page >= low) & (page <= high)) | ((sage >= low) & (sage <= high)) | ((page + sage) == 0)
