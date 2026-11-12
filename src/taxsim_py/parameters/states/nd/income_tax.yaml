@@ -155,6 +155,11 @@ energy_credit: {1981: 100.0, 1983: null}
 # lower earner's earnings (less the deduction) and the rest on the single
 # schedule, up to the maximum, above the earnings and taxable income minimums.
 # From 2022 pensions are shared between spouses.
+# TAXSIM's own marriage credit amounts: 297 for 2023 and different 2024 limits.
+taxsim_marriage_credit_deduction: {2024: 14598.0, 2025: 15750.0}
+taxsim_marriage_credit_max: {2023: 297.0, 2024: 303.0, 2025: 312.0}
+taxsim_marriage_credit_earnings_min: {2024: 46355.0, 2025: 47550.0}
+taxsim_marriage_credit_taxable_income_min: {2024: 78904.0, 2025: 81036.0}
 marriage_credit_max:
   2007: 300.0
   2008: 305.0

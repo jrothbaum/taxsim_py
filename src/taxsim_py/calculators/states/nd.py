@@ -8,6 +8,7 @@ from taxsim_py.engine.brackets import bracket_rate, bracket_tax
 from taxsim_py.engine.inputs import federal_exemption_count, files_head_of_household, files_joint, files_separate, files_single, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml
 from taxsim_py.engine.state import (
+    net_earnings_by_spouse,
     allocate_pensions,
     dividend_input_adjustment,
     checkpoint,
@@ -25,9 +26,13 @@ def _scaled(brackets: list[list[float]], factor: float) -> list[list[float]]:
     return [[float(start) * factor, float(rate)] for start, rate in brackets]
 
 
-def _single_schedule(y: int) -> list[list[float]]:
+def _single_schedule(y: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> list[list[float]]:
     """Single filers' schedule for 2001 on (the marriage credit reuses it)."""
     p = YearParams(ND_PARAMS, y)
+    if y >= 2024 and not behavior.use_published_north_dakota_brackets_from_2024:
+        # TAXSIM scales the 2023 brackets by its index ratio, unrounded.
+        base = YearParams(ND_PARAMS, 2023)
+        return _scaled(base.value("brackets")["single"], p.num("taxsim_index") / base.num("taxsim_index"))
     return _scaled(p.value("brackets")["single"], p.num("bracket_inflation"))
 
 
@@ -196,19 +201,24 @@ def compute_nd_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             half = pl.col("pensions") / 2.0
             lower = pl.min_horizontal(pw + half, sw + half)
         if not behavior.compute_north_dakota_marriage_credit_earnings_per_statute:
-            # TAXSIM: each spouse's net earnings (wages plus self-employment income less half its tax) plus a
+            # TAXSIM: each spouse's net earnings (wages plus 92.35% of self-employment income) plus a
             # share of pensions given to the spouse 55 or older (half each when both or neither are).
             pent, pens = allocate_pensions(pl.col("pensions"), 55)
-            earn_h = pl.col("pwages") + pl.col("psemp") + pl.col("pbusinc") + pl.col("pprofinc") - 0.5 * pl.col("payroll_setax_primary")
-            earn_w = pl.col("swages") + pl.col("ssemp") + pl.col("sbusinc") + pl.col("sprofinc") - 0.5 * pl.col("payroll_setax_secondary")
+            earn_h, earn_w = net_earnings_by_spouse(behavior)
             lower = pl.min_horizontal(earn_h + pent, earn_w + pens)
-        single = _single_schedule(y)
-        taxin3 = (lower - p.num("marriage_credit_deduction")).clip(0, None)
+        single = _single_schedule(y, behavior)
+
+        def credit_limit(name: str) -> float:
+            if p.in_effect("taxsim_" + name) and not behavior.use_north_dakota_published_marriage_credit_limits_per_statute:
+                return p.num("taxsim_" + name)
+            return p.num(name)
+
+        taxin3 = (lower - credit_limit("marriage_credit_deduction")).clip(0, None)
         taxin4 = (taxinc - taxin3).clip(0, None)
-        crdmar = (statax - bracket_tax(taxin3, single) - bracket_tax(taxin4, single)).clip(0, p.num("marriage_credit_max"))
+        crdmar = (statax - bracket_tax(taxin3, single) - bracket_tax(taxin4, single)).clip(0, credit_limit("marriage_credit_max"))
         eligible = (
-            is_joint & (taxinc > p.num("marriage_credit_taxable_income_min"))
-            & (lower > p.num("marriage_credit_earnings_min"))
+            is_joint & (taxinc > credit_limit("marriage_credit_taxable_income_min"))
+            & (lower > credit_limit("marriage_credit_earnings_min"))
         )
         crdmar = pl.when(eligible).then(crdmar).otherwise(0.0)
         statax = (statax - crdmar).clip(0, None)

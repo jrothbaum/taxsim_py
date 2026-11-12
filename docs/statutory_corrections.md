@@ -706,3 +706,5 @@ Taxsim mode now follows the statutory rule for these (they remain in
 | Arkansas | 1984 | | One pension exclusion per return | Statutory: per taxpayer. `exclude_arkansas_pensions_per_taxpayer` |
 | Arkansas | 2025 | | TAXSIM's rate table has constants a few cents off the published ones | Statutory: published table. `use_arkansas_published_2025_rate_table_per_statute` |
 | Arkansas | 2021 | | The low income tax table also covers separate returns (none below 13,054) | Statutory: none. `limit_arkansas_low_income_table_to_its_range` |
+| North Dakota | 2023-2025 | | The marriage credit uses TAXSIM's own maximum (297 for 2023), earnings and taxable income minimums and deduction for 2024-25, and the 2023 single schedule scaled by TAXSIM's index | Statutory: published amounts. `use_north_dakota_published_marriage_credit_limits_per_statute`, `use_published_north_dakota_brackets_from_2024` |
+| North Dakota | 2007 on | | The lower earner's earnings for the marriage credit are wages plus 92.35% of self-employment income | Statutory: less half the self-employment tax. `compute_north_dakota_marriage_credit_earnings_per_statute` |
