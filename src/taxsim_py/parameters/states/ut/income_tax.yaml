@@ -104,7 +104,7 @@ taxpayer_credit_phaseout_threshold:
   2023: {single: 16742, married_joint: 33484, married_separate: 16742, head_of_household: 25114}
   2024: {single: 17652, married_joint: 35304, married_separate: 17652, head_of_household: 26478}
   2025: {single: 18213, married_joint: 36426, married_separate: 18213, head_of_household: 27320}
-  2026: {single: 18626, married_joint: 37252, married_separate: 18626, head_of_household: 27940}
+  2026: {single: 18696, married_joint: 37392, married_separate: 18696, head_of_household: 28045}
 # TAXSIM's 2022 thresholds use an index of 1.299 (the statute's amounts are 15,548 and so on); its 2025 thresholds are the
 # 2008 amounts times 1.5177 (the statute's amounts are rounded up).
 taxsim_taxpayer_credit_phaseout_threshold:
@@ -141,7 +141,7 @@ taxpayer_credit_index:
   2020: 1.2399
   2021: 1.258
   2022: 1.0
-taxpayer_credit_personal_exemption: {2022: 1802, 2023: 1941, 2024: 2046, 2025: 2111, 2026: 2159}
+taxpayer_credit_personal_exemption: {2022: 1802, 2023: 1941, 2024: 2046, 2025: 2111, 2026: 2167}
 # Retirement credit per qualifying taxpayer (2008-2021 65 or older; from 2022 at
 # least `retirement_credit_age`), less a share of AGI over the phaseout start.
 # 2008-2021 plus a share of taxable Social Security up to an amount per taxpayer

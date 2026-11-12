@@ -91,6 +91,10 @@ standard_deduction_single_and_hoh:
 standard_deduction_nonconforming:
   2024: {single: 14600, married_joint: 29200, head_of_household: 21900, married_separate: 14600, aged_single: 1950, aged_married: 1550}
   2025: {single: 15000, married_joint: 30000, head_of_household: 22500, married_separate: 15000, aged_single: 2000, aged_married: 1600}
+  # 2026: halfway to the federal amount (MRS revised 2026 withholding tables, August 2026:
+  # $15,700 single, $31,400 joint). Head of household is the midpoint of the 2025 Maine
+  # and 2026 federal amounts; not stated in the sources found.
+  2026: {single: 15700, married_joint: 31400, head_of_household: 23550, married_separate: 15700, aged_single: 2050, aged_married: 1650}
 # The TAXSIM build, on a federal itemizing pass from 2021, uses the 2021 federal standard deduction
 # (plus an amount per taxpayer 65 or older) and caps itemized property tax and mortgage interest here.
 taxsim_itemizing_standard_deduction:
@@ -139,7 +143,7 @@ phaseout_index: {2018: 1.0, 2019: 1.018, 2020: 1.03625, 2021: 1.048125, 2022: 1.
 # on separate returns) above the start (times `phaseout_index`), none for
 # dependent filers. Source for 2022 on: PolicyEngine-US
 # gov.states.me.tax.income.deductions.personal_exemption.
-personal_exemption: {1977: 1000, 1978: 1200, 1979: 1000, 1988: 0, 1989: 2000, 1993: 2100, 1997: 2150, 1998: 2400, 1999: 2750, 2000: 2850, 2013: null, 2018: 4150, 2019: 4200, 2020: 4300, 2022: 4450, 2023: 4700, 2024: 5000, 2025: 5150, 2026: 5250}
+personal_exemption: {1977: 1000, 1978: 1200, 1979: 1000, 1988: 0, 1989: 2000, 1993: 2100, 1997: 2150, 1998: 2400, 1999: 2750, 2000: 2850, 2013: null, 2018: 4150, 2019: 4200, 2020: 4300, 2022: 4450, 2023: 4700, 2024: 5000, 2025: 5150, 2026: 5300}
 exemption_phaseout_start:
   2018: {single: 266700, married_joint: 320000, head_of_household: 293350, married_separate: 160000}
   2022: {single: 286200, married_joint: 343400, married_separate: 171700, head_of_household: 314800}

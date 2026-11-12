@@ -343,7 +343,7 @@ See `docs/state_2026_parameters.md` for the full verification table. Open items:
 - Minnesota's Social Security subtraction thresholds were left at the 2023 amounts for 2024 and 2025 before this
   update; they now follow the published indexed amounts (2024 from House Research, 2025 and 2026 from the Revenue
   Department).
-- Amounts marked Derived in the table (Rhode Island property credit maximum, New Mexico, Maine and Utah indexed amounts, New
+- Amounts marked Derived in the table (Rhode Island property credit maximum, New Mexico indexed amounts (the state publishes them in January 2027), the Maine head-of-household standard deduction, New
   York supplemental tax tables, the Arkansas 2026 low-income tables) should be replaced when the states
   publish their 2026 schedules.
 
