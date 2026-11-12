@@ -720,3 +720,5 @@ Taxsim mode now follows the statutory rule for these (they remain in
 | Minnesota | 2009 | | The motor fuels credit on a separate return uses the married limit and the full 25 | Statutory: halved. `halve_minnesota_motor_fuels_credit_for_separate_returns_per_statute` |
 | New Jersey | 2024 on | | A dependent filer gets no state earned income credit | Statutory: federal credit before the filer test. (TAXSIM) |
 | New Jersey | projected years | | The property tax deduction uses the deflated property tax on the itemizing pass and the original on the standard pass | Statutory: n/a. |
+| Connecticut | 1993 on | | The state minimum tax starts from the federal alternative minimum tax income TAXSIM computed on that pass | Statutory: reconstructed from AGI and the separate-return add-back. `reconstruct_connecticut_minimum_tax_income_per_statute` |
+| Connecticut | 2024 on | | Transfers are part of Connecticut income | Statutory: excluded. `exclude_transfers_from_connecticut_income_per_statute` |

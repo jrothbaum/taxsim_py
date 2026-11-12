@@ -163,6 +163,9 @@ def compute_ct_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         agi = pl.when(taxable_ss > 0).then(
             agi - pl.when(agi < ssbmax).then(taxable_ss).otherwise(partial)
         ).otherwise(agi)
+    if effective_year >= 2024 and not behavior.exclude_transfers_from_connecticut_income_per_statute:
+        # TAXSIM's 2024 on routine starts from household income, which includes transfers.
+        agi = agi + pl.col("transfers")
     df = df.with_columns(ct_agi=agi)
 
     # --- Exemption ---
@@ -406,9 +409,11 @@ def compute_ct_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             sep_addback_cap,
             fed_amt.num("separate_return_addback_rate") * (xprefs_base - sep_addback_threshold).clip(0, None),
         )
-        df, (xprefs_raw,) = checkpoint(
-            df, ct_xprefs_raw=pl.when(is_sep).then(xprefs_base + sep_addback).otherwise(xprefs_base)
-        )
+        xprefs_value = pl.when(is_sep).then(xprefs_base + sep_addback).otherwise(xprefs_base)
+        if not behavior.reconstruct_connecticut_minimum_tax_income_per_statute:
+            # TAXSIM reads the federal alternative minimum tax income itself.
+            xprefs_value = pl.col("amt_income")
+        df, (xprefs_raw,) = checkpoint(df, ct_xprefs_raw=xprefs_value)
         a = p["amt"]
         df, (xprefs,) = checkpoint(
             df,
