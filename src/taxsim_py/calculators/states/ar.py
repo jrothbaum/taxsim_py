@@ -166,7 +166,7 @@ def compute_ar_tax(
             ).otherwise(0.0)
             df = df.with_columns(ar_agi=pl.col("ar_agi") - excluded.clip(0, None))
         else:
-            if 1985 <= effective_year <= 2020 and not behavior.exclude_arkansas_pensions_per_taxpayer:
+            if 1984 <= effective_year <= 2020 and not behavior.exclude_arkansas_pensions_per_taxpayer:
                 # TAXSIM excludes one amount per return, whatever the ages.
                 basis = "return"
             count = {"return": pl.lit(1.0), "taxpayer": pl.col("ar_taxpayers"), "aged": aged_count()}[basis]
@@ -290,7 +290,8 @@ def compute_ar_tax(
             bracket_rate(pl.col("ar_taxinc"), brackets)
         )
     else:
-        rows = [[float(t), float(r), float(s)] for t, r, s in p.value("rate_table")]
+        table = p.value("taxsim_rate_table") if p.in_effect("taxsim_rate_table") and not behavior.use_arkansas_published_2025_rate_table_per_statute else p.value("rate_table")
+        rows = [[float(t), float(r), float(s)] for t, r, s in table]
         lookup = _rate_lookup_brackets(rows)
         stat = lookup(pl.col("ar_taxinc"))
         stat_h = lookup(pl.col("ar_taxinh"))
@@ -374,6 +375,17 @@ def compute_ar_tax(
             df = df.with_columns(
                 ar_statax=pl.when(pl.col("ar_override").is_not_null()).then(pl.col("ar_override")).otherwise(pl.col("ar_statax"))
             )
+
+    if p.in_effect("taxsim_separate_low_income_tax") and not behavior.limit_arkansas_low_income_table_to_its_range:
+        # TAXSIM's 2021 low income table also covers separate returns.
+        sep_table = p.value("taxsim_separate_low_income_tax")
+        agi_value = pl.col("ar_agi")
+        low_tax = pl.when(agi_value < float(sep_table["zero_below"])).then(0.0).when(agi_value <= float(sep_table["upper"])).then(
+            float(sep_table["base"]) + float(sep_table["rate"]) * (agi_value - float(sep_table["zero_below"]))
+        ).otherwise(None)
+        df = df.with_columns(
+            ar_statax=pl.when(files_separate() & low_tax.is_not_null()).then(pl.min_horizontal(pl.col("ar_statax"), low_tax)).otherwise(pl.col("ar_statax"))
+        )
 
     if not behavior.limit_arkansas_low_income_table_to_its_range and p.in_effect("taxsim_proportional_low_income_tax"):
         proportional = p.value("taxsim_proportional_low_income_tax")
