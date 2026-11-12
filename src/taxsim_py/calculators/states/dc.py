@@ -104,8 +104,8 @@ def compute_dc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             s: resolve_year(FEDERAL_INCOME_TAX_PARAMS["aged_standard_deduction"][s], effective_year) for s in _PRE1987_STATUSES
         })
         dep_p = YearParams(FEDERAL_INCOME_TAX_PARAMS["dependent_standard_deduction"], effective_year)
-        earnkd = pl.col("wages") + (pl.col("psemp") + pl.col("ssemp")).clip(0, None) + float(
-            dep_p.value("earned_income_addition")
+        earnkd = pl.col("wages") + (pl.col("psemp") + pl.col("ssemp")).clip(0, None) + (
+            float(dep_p.value("earned_income_addition")) if behavior.add_earnings_to_district_of_columbia_dependent_standard_deduction_per_statute else 0.0
         )
         std = pl.col("dc_stded") + aged_std * aged_count()
         std = pl.when(is_dependent_filer()).then(

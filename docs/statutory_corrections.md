@@ -713,3 +713,6 @@ Taxsim mode now follows the statutory rule for these (they remain in
 | Illinois | 2024 on | | The state earned income credit has no upper age limit; dependent filers get none | Statutory: the age test. `apply_illinois_earned_income_credit_age_test_per_statute` |
 | Illinois | 2022 | | A property tax rebate of the property tax credit up to 300 (AGI under 250,000 per taxpayer), on top of the per-person rebate | Statutory: n/a (one-time rebate). `leave_out_one_time_state_rebates` |
 | All | projected years | | The federal qualified business income deduction and senior deduction are deflated when a state reads them | Statutory: n/a. |
+| District of Columbia | 2018 on | | A dependent filer's standard deduction limit adds nothing to earnings (the variable is never set) | Statutory: earnings plus the federal addition. `add_earnings_to_district_of_columbia_dependent_standard_deduction_per_statute` |
+| Mississippi | 1977-1979 | | Other non-property income is taxed | Statutory: excluded. `count_nonproperty_income_once` |
+| Federal | before 2024 | | Business and professional inputs count in the earned income of the federal credits but not in the earned income states read (`comnew(37)`) | Statutory: both count (the inputs are income). `count_business_and_professional_inputs_as_income` |

@@ -198,7 +198,7 @@ def _law87_analytic_rate(
 
     # EITC slope (`reic`), set before TAXSIM's eligibility tests, so it
     # applies whether or not the credit survives them.
-    earned = pl.col("earned_income")
+    earned = pl.col("federal_earned_income")
     income = pl.max_horizontal(pl.col("analytic_eitc_income"), earned)
     rtbs, crm, ym, rtlw = pl.col("rate_in"), pl.col("max_credit"), pl.col("phaseout_start"), pl.col("rate_out")
     phase_in_credit = pl.min_horizontal(rtbs * earned, crm)
@@ -442,7 +442,7 @@ def _income(
     else:
         se_agi_deduction = 0.5 * setax_total
 
-    # TAXSIM's earned income (EITC, additional child tax credit, making work pay) counts the business and professional
+    # TAXSIM's federal earned income (EITC, additional child tax credit, making work pay) counts the business and professional
     # inputs even though its income does not, and they count in its self-employment tax.
     earned_business_inputs = pl.lit(0.0)
     if not behavior.count_business_and_professional_inputs_as_income and year < 2024:
@@ -452,7 +452,8 @@ def _income(
         setax=setax_total,
         setax_qbi=payroll["setax_qbi"],
         setax_sstb=payroll["setax_sstb"],
-        earned_income=(pl.col("wages") + gross_se_income + earned_business_inputs - se_agi_deduction).clip(0, None),
+        earned_income=(pl.col("wages") + gross_se_income - se_agi_deduction).clip(0, None),
+        federal_earned_income=(pl.col("wages") + gross_se_income + earned_business_inputs - se_agi_deduction).clip(0, None),
     )
 
     # The AGI deduction for self-employment tax begins in 1990.
@@ -695,7 +696,7 @@ def _deductions(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorPr
         pl.when(pl.col("itemizes")).then(pl.col("itemized_deduction")).otherwise(0.0),
         pl.min_horizontal(
             dependent_standard,
-            pl.max_horizontal(pl.lit(dependent_minimum), pl.col("earned_income") + dependent_addition),
+            pl.max_horizontal(pl.lit(dependent_minimum), pl.col("federal_earned_income") + dependent_addition),
         ),
     )
     deduction = pl.when(dependent).then(dependent_deduction).otherwise(deduction)
@@ -968,7 +969,7 @@ def _alternative_minimum_tax(df: pl.DataFrame | pl.LazyFrame, year: int, behavio
             # The cap applies to children subject to the tax on unearned income.
             young = young & is_dependent_filer()
         addition = amt_p.num("young_filer_exemption_addition")
-        young_filer_cap = pl.when(young).then(pl.col("earned_income") + addition).otherwise(None)
+        young_filer_cap = pl.when(young).then(pl.col("federal_earned_income") + addition).otherwise(None)
     amt_income = amt_income.clip(0, None)
     if year >= 2018:
         amt_income = (amt_income - pl.col("qbi_deduction")).clip(0, None)
@@ -1128,7 +1129,7 @@ def _credits(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorProfi
         pl.when(pl.col("rate_in").is_not_null())
         .then(
             trapezoid_credit(
-                pl.col("earned_income"),  # phase-in base: wages + gross SE income - .5*SE tax
+                pl.col("federal_earned_income"),  # phase-in base: wages + gross SE income - .5*SE tax
                 phaseout_income,  # phaseout compares the greater of earned income or AGI
                 pl.col("rate_in"),
                 pl.col("max_credit"),
@@ -1248,7 +1249,7 @@ def _credits(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorProfi
         unused = (after_phaseout - pl.min_horizontal(after_phaseout, tax_room)).clip(0, None)
         capped = pl.min_horizontal(unused, pl.col("children_under_17") * ctc_p.num("actc_max_refundable_per_child"))
         earned_formula = pl.when(children > 0).then(
-            ctc_p.num("actc_rate") * (pl.col("earned_income").clip(0, None) - ctc_p.num("actc_earned_income_floor")).clip(0, None)
+            ctc_p.num("actc_rate") * (pl.col("federal_earned_income").clip(0, None) - ctc_p.num("actc_earned_income_floor")).clip(0, None)
         ).otherwise(0.0)
         employee_payroll_tax = 0.5 * (pl.col("__payroll_wage_tax") + pl.col("__payroll_setax"))
         actc = pl.when(children >= 3).then(
@@ -1271,7 +1272,7 @@ def _credits(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorProfi
             actc = pl.when(ideps >= 3).then(pl.min_horizontal(limit, reduction.clip(0, None))).otherwise(0.0)
         else:
             earned_formula = ctc_p.num("actc_rate") * (
-                pl.col("earned_income").clip(0, None) - ctc_p.num("actc_earned_income_floor")
+                pl.col("federal_earned_income").clip(0, None) - ctc_p.num("actc_earned_income_floor")
             ).clip(0, None)
             if ctc_p.in_effect("actc_max_refundable_per_child"):
                 actc_cap = pl.min_horizontal(unused_nonrefundable, ctc_p.num("actc_max_refundable_per_child") * ideps)
@@ -1300,7 +1301,7 @@ def _credits(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorProfi
 
         actc_earned_income_floor = ctc_p.num("actc_earned_income_floor")
         actc_rate = ctc_p.num("actc_rate")
-        actc_earned_formula = actc_rate * (pl.col("earned_income").clip(0, None) - actc_earned_income_floor).clip(0, None)
+        actc_earned_formula = actc_rate * (pl.col("federal_earned_income").clip(0, None) - actc_earned_income_floor).clip(0, None)
         if ctc_p.in_effect("actc_max_refundable_per_child"):
             actc_max_per_child = ctc_p.num("actc_max_refundable_per_child")
             actc_cap = pl.min_horizontal(unused_nonrefundable, actc_max_per_child * ideps)
@@ -1442,10 +1443,10 @@ def _net_tax(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorProfi
         mwp_max_credit = mwp["max_credit"] * num_filers_expr
         mwp_phaseout_start = mwp["phaseout_start"] * num_filers_expr
         mwp_hard_ceiling = mwp["income_ceiling"] * num_filers_expr
-        mwp_phase_in = pl.min_horizontal(mwp_max_credit, mwp["rate"] * pl.col("earned_income"))
+        mwp_phase_in = pl.min_horizontal(mwp_max_credit, mwp["rate"] * pl.col("federal_earned_income"))
         mwp_reduction = mwp["phaseout_rate"] * (agi - mwp_phaseout_start).clip(0, None)
         making_work_pay = pl.when(
-            (pl.col("earned_income") > 0) & (agi < mwp_hard_ceiling) & ~is_dependent_filer()
+            (pl.col("federal_earned_income") > 0) & (agi < mwp_hard_ceiling) & ~is_dependent_filer()
         ).then((mwp_phase_in - mwp_reduction).clip(0, None)).otherwise(0.0)
         benefit_offset = pl.min_horizontal(pl.col("gssi"), mwp["benefit_offset"] * num_filers_expr)
         making_work_pay = pl.when(pl.col("gssi") > 0).then(
