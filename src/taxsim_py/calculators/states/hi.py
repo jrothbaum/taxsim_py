@@ -87,7 +87,7 @@ def compute_hi_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         if effective_year >= 2018:
             # Hawaii does not cap the state and local tax deduction as the federal return does.
             over_cap = (
-                pl.col("state_sales_or_income_tax_ded") + pl.col("original_proptax") - (pl.col("salt_capped") - pl.col("otheritem"))
+                pl.col("state_sales_or_income_tax_ded") + pl.col("proptax") - (pl.col("salt_capped") - pl.col("otheritem"))
             ).clip(0, None)
             raw = raw + over_cap
         df = df.with_columns(hi_raw_itemized=raw)
