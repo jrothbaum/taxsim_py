@@ -1266,7 +1266,7 @@ def _credits(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorProfi
         earned_formula = pl.when(children > 0).then(
             ctc_p.num("actc_rate") * (pl.col("federal_earned_income").clip(0, None) - ctc_p.num("actc_earned_income_floor")).clip(0, None)
         ).otherwise(0.0)
-        employee_payroll_tax = (_employee_payroll_tax(behavior) - pl.col("eitc")).clip(0, None)
+        employee_payroll_tax = _employee_payroll_tax(behavior)
         actc = pl.when(children >= 3).then(
             pl.min_horizontal(capped, pl.max_horizontal(earned_formula, employee_payroll_tax))
         ).otherwise(pl.min_horizontal(capped, earned_formula))

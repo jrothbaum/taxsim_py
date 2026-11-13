@@ -202,6 +202,8 @@ class BehaviorProfile:
     exempt_pennsylvania_pensions_from_age_65_per_statute: bool = True
     keep_oregon_state_tax_deduction_for_aged_per_statute: bool = True
     apply_iowa_personal_credits_before_amt_per_statute: bool = True
+    leave_pre_1987_earned_income_credit_out_of_oklahoma_property_credit_income_per_statute: bool = True
+    read_oklahoma_federal_credit_income_per_statute: bool = True
     use_nebraska_published_social_security_limit_per_statute: bool = True
     leave_unreported_spouse_age_out_of_eitc_age_test_per_statute: bool = True
     pay_nebraska_child_tax_credit_per_statute: bool = True

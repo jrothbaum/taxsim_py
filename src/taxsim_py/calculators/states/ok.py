@@ -82,7 +82,7 @@ def compute_ok_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     if not behavior.compute_oklahoma_pension_exclusion_per_statute:
         # TAXSIM: up to the amount for each spouse regardless of age (the age only decides who holds the
         # pension), below an income limit per taxpayer that ends in 2010.
-        pent, pens = allocate_pensions(pensions, 62)
+        pent, pens = allocate_pensions(pensions, 55 if y >= 2022 else 62)
         excluded = pl.min_horizontal(amount, pent) + pl.min_horizontal(amount, pens)
         limit = p.num("taxsim_pension_exclusion_agi_limit_per_taxpayer") * txp
         agi = pl.when((pensions > 0) & (agi_before < limit)).then((agi_before - excluded).clip(0, None)).otherwise(agi_before)
@@ -236,6 +236,9 @@ def compute_ok_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
                 # TAXSIM's phase-out reads the federal AGI before any deflation in a projected year.
                 credit_agi = credit_agi * flate
             disqy = (pl.col("stcg") + pl.col("ltcg")).clip(0, None) + pl.col("dividends") + pl.col("intrec") + pl.col("otherprop").clip(0, None)
+            if y >= 2024 and not behavior.read_oklahoma_federal_credit_income_per_statute:
+                # TAXSIM's investment income test leaves out other property income from 2024.
+                disqy = (pl.col("stcg") + pl.col("ltcg")).clip(0, None) + pl.col("dividends") + pl.col("intrec")
             childless = nkids == 0
             eligible = eitc_filer_eligible(childless, law) & eitc_age_eligible(childless, law, behavior)
             if y >= 2021 and not behavior.test_oklahoma_earned_income_credit_age_per_statute:
@@ -248,9 +251,16 @@ def compute_ok_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
                 )
             ).otherwise(0.0)
         earncr = pl.when(fed_agi > 0).then(p.num("eitc_rate") * eitc_base * agi / fed_agi).otherwise(0.0)
+        if y >= 2022 and not behavior.read_oklahoma_federal_credit_income_per_statute:
+            # TAXSIM's 2022 on routine does not scale the credit by Oklahoma AGI over federal AGI, and its `eiccr`
+            # drops the whole credit when investment income passes the limit.
+            over_limit = disqy > float(resolve_year(FEDERAL_EITC_MISC["dylim"], law))
+            earncr = pl.when(over_limit).then(0.0).otherwise(p.num("eitc_rate") * eitc_base)
 
     # Property tax credit for taxpayers 65 or older.
     hhy_prop = pl.col("ok_household_income_undeflated") + pl.col("eitc")
+    if y <= 1986 and not behavior.leave_pre_1987_earned_income_credit_out_of_oklahoma_property_credit_income_per_statute:
+        hhy_prop = pl.col("ok_household_income_undeflated") + pl.col("pre1987_earncr")
     pcred = pl.when((aged > 0) & (hhy_prop < p.num("property_credit_income_limit"))).then(
         (pl.col("proptax") - float(p["property_credit_income_share"]) * hhy_prop).clip(0, float(p["property_credit_max"]))
     ).otherwise(0.0)
@@ -267,7 +277,7 @@ def compute_ok_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             gains = (pl.col("stcg") + pl.col("ltcg"))
             business = (
                 pl.col("psemp") + pl.col("ssemp") + pl.col("pbusinc") + pl.col("pprofinc")
-                + pl.col("sbusinc") + pl.col("sprofinc")
+                + pl.col("sbusinc") + pl.col("sprofinc") + pl.col("otherprop")
             )
             loss = -pl.min_horizontal(pl.lit(0.0), business + gains)
             hhy = (
