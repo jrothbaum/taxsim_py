@@ -88,4 +88,16 @@ def build_md_test_cases() -> list[dict[str, Any]]:
         rows.append(case(year, "MD unemployment, single", mstat=1, pwages=10000, ui=8000))
         rows.append(case(year, "MD unemployment, married_joint", mstat=2, pwages=15000, swages=5000, ui=8000, sui=4000))
 
+        # Worksheets the 2022+ routine runs for filers the standard cases do not reach: young or older childless
+        # singles near the credit limits, dependents who do not qualify for the earned income credit, a second earner
+        # with Social Security, and children under six at low incomes.
+        if year >= 2022:
+            for age in (18, 30, 66):
+                for wages in (2700, 9500, 12300):
+                    rows.append(case(year, f"MD childless single, age={age}, wages={wages}", mstat=1, page=age, pwages=wages))
+            rows.append(case(year, "MD single, dependent who does not qualify for the earned income credit", mstat=1, page=55, depx=1, dep18=0, pwages=60000, pensions=17000))
+            rows.append(case(year, "MD joint, second earner with Social Security", mstat=2, page=60, sage=60, pwages=60000, swages=5000, gssi=15000))
+            for income in (0, 5600, 14773):
+                rows.append(case(year, f"MD single parent of a child under six, income={income}", mstat=1, page=26, depx=1, dep6=1, dep13=1, dep17=1, dep18=1, psemp=income))
+
     return rows

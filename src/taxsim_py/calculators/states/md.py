@@ -106,7 +106,10 @@ def compute_md_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     agiw = pl.col("swages") + 0.5 * (pl.col("agi") - wages_total)
     if not behavior.split_maryland_joint_income_per_statute:
         # TAXSIM's `splitagi`: each spouse's own income (self-employment and benefits too), the rest shared.
-        agih, agiw = split_agi(pl.col("agi"), 0.0, 0.0)
+        # From 2022 TAXSIM splits the income that is already net of the pension exclusion, the child care expenses and the
+        # taxable Social Security, then takes half of those exclusions off each spouse's share again.
+        net = ((pl.col("agi") - chexp).clip(0, None) - penexc).clip(0, None) - pl.col("taxable_social_security")
+        agih, agiw = split_agi(net if effective_year >= 2022 else pl.col("agi"), 0.0, 0.0)
     # Exclusions are split evenly, except that one aged spouse's pension
     # exclusion comes from the spouse's share.
     ss_subtracted = pl.col("taxable_social_security") if effective_year >= 1985 else pl.lit(0.0)
@@ -297,6 +300,18 @@ def compute_md_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             # (nonrefundable part first), parents and couples half.
             unmarried_childless = (pl.col("depx") < 1) & ~is_joint
             earncr = pl.when(unmarried_childless).then(eitc).otherwise(earncr)
+    taxsim_single_childless = pl.lit(False)
+    taxsim_no_qualifying_child = pl.lit(False)
+    if effective_year >= 2022 and not behavior.apply_maryland_unmarried_childless_earned_income_credit_per_statute:
+        # TAXSIM's worksheet 18A.1 for an unmarried filer with no children takes no nonrefundable credit; it pays the
+        # federal credit (age-tested) as a refundable credit, or, when the tax is below the (age-untested) credit
+        # up to 530 (none at 65 or older), the credit less the tax on top of the tax.
+        taxsim_single_childless = ~is_joint & (pl.col("depx") == 0)
+        # With dependents that do not qualify for the earned income credit (no `dep18`), the same worksheet runs its
+        # branch for a childless filer's neighbours: the refundable credit is the tax less half the federal credit,
+        # which wipes out the tax.
+        taxsim_no_qualifying_child = ~is_joint & (pl.col("depx") > 0) & (pl.col("dep18") == 0)
+        earncr = pl.when(taxsim_single_childless | taxsim_no_qualifying_child).then(0.0).otherwise(earncr)
     earncr = pl.min_horizontal(pl.col("md_taxbc"), earncr)
     df = df.with_columns(md_pretax=(pl.col("md_taxbc") - earncr).clip(0, None))
     df = df.with_columns(md_statax=pl.col("md_pretax"))
@@ -325,6 +340,18 @@ def compute_md_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             childless_gate = (pl.col("md_pretax") < 1.0) & ~parent_like
             childless_refcr = pl.when(pl.col("md_taxbc") < wl2).then(wl2 - pl.col("md_taxbc")).otherwise(0.0)
             refcr = pl.when(childless_gate).then(childless_refcr).otherwise(refcr)
+
+    if effective_year >= 2022 and not behavior.apply_maryland_unmarried_childless_earned_income_credit_per_statute:
+        untested = (pl.col("eitc_before_filer_test") / flate)
+        untested = pl.when(is_dependent_filer()).then(0.0).otherwise(untested)
+        worksheet_credit = pl.when(pl.col("page") < 65).then(pl.min_horizontal(530.0, untested)).otherwise(0.0)
+        paid = pl.when(pl.col("md_taxbc") < worksheet_credit).then(worksheet_credit - pl.col("md_taxbc")).otherwise(
+            pl.min_horizontal(530.0, pl.col("eitc"))
+        )
+        refcr = pl.when(taxsim_single_childless).then(paid).otherwise(refcr)
+        refcr = pl.when(taxsim_no_qualifying_child & ~is_dependent_filer()).then(
+            (pl.col("md_taxbc") - 0.5 * pl.col("eitc")).clip(0, None)
+        ).otherwise(refcr)
 
     # Nonrefundable Child/Dependent Care Credit.
     sep = pl.col("md_sep")
@@ -370,6 +397,14 @@ def compute_md_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         xlin3 = pov1 + pov2 * (exemps_count - 1.0)
         xlin4 = pl.max_horizontal(pl.col("agi"), pl.col("earned_income"))
         ptcr = pl.when((xlin3 >= xlin4) & ~is_dependent_filer()).then(p["poverty_credit_rate"] * pl.col("earned_income")).otherwise(0.0)
+        if effective_year >= 2022 and not behavior.apply_maryland_poverty_level_credit_without_eligibility_worksheet_per_statute:
+            # TAXSIM pays the credit only where its worksheets 18A and 18A.1 set the flag `povelig`: a couple or a
+            # filer with children who still owes tax after the nonrefundable earned income credit, or an unmarried
+            # childless filer whose tax is below the (65 or older: no) earned income credit up to 530.
+            keeps_tax = (pl.col("md_taxbc") - p.num("eitc_nonrefundable_share") * pl.col("eitc")) > 0
+            single_childless_cap = pl.when(pl.col("page") < 65).then(pl.min_horizontal(530.0, pl.col("eitc_before_filer_test") / flate)).otherwise(0.0)
+            povelig = pl.when(is_joint | (pl.col("depx") > 0)).then(keeps_tax).otherwise(pl.col("md_taxbc") < single_childless_cap)
+            ptcr = pl.when(povelig).then(ptcr).otherwise(0.0)
         if not behavior.pay_maryland_poverty_level_credit_per_statute and effective_year <= 2021:
             # TAXSIM works the credit out but never takes it off the tax (its 2022 on routine does take it off).
             ptcr = pl.lit(0.0)
@@ -428,6 +463,11 @@ def compute_md_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             po = p.value("child_tax_credit_phaseout")
             steps = phaseout_steps((pl.col("agi") - float(po["threshold"])).clip(0, None) / float(po["increment"]), behavior)
             ctc = (float(credit["amount"]) * pl.col("dep6") - float(po["rate"]) * steps).clip(0, None)
+            if not behavior.start_maryland_child_tax_credit_phaseout_at_threshold_per_statute:
+                # TAXSIM applies the reduction to each child's credit and lets it run below the threshold, which
+                # raises the credit above its maximum for incomes under $15,000.
+                raw_steps = phaseout_steps((pl.col("agi") - float(po["threshold"])) / float(po["increment"]), behavior)
+                ctc = (pl.col("dep6") * (float(credit["amount"]) - float(po["rate"]) * raw_steps)).clip(0, None)
         df = df.with_columns(md_statax=pl.col("md_statax") - ctc)
 
     df = df.with_columns(siitax=pl.col("md_statax") * flate)
