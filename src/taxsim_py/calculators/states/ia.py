@@ -73,7 +73,11 @@ def compute_ia_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     df = df.with_columns(ia_agi=pl.col("ia_agi") - pl.col("taxable_social_security"), ia_addph=pl.lit(0.0))
     if effective_year <= 2013:
         half = 0.5 * pl.col("gssi")
-        ssb = pl.min_horizontal(0.5 * (half + pl.col("ia_agi").clip(0, None) - pha).clip(0, None), half)
+        income = pl.col("ia_agi")
+        if not behavior.add_back_half_self_employment_tax_before_iowa_social_security_per_statute:
+            # TAXSIM measures the benefits' taxable share on income before it adds back half the self-employment tax.
+            income = income - 0.5 * pl.col("ia_setax")
+        ssb = pl.min_horizontal(0.5 * (half + income.clip(0, None) - pha).clip(0, None), half)
         if p.in_effect("social_security_phaseout_share"):
             ssb = ssb * (1 - p.num("social_security_phaseout_share"))
         ssb = pl.when(pl.col("gssi") > 0).then(ssb).otherwise(0.0)
@@ -183,6 +187,9 @@ def compute_ia_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     xitdh = pl.when(pl.col("ia_agi") != 0).then(pl.col("ia_xitded") * agih / pl.col("ia_agi")).otherwise(0.0)
     xitdw = pl.col("ia_xitded") - xitdh
     dedh_general = pl.when(stded_h_general >= xitdw).then(stded_h_general).otherwise(xitdh)
+    if not behavior.split_iowa_joint_income_by_wages_only:
+        # The 2026 build takes each spouse's larger of the standard deduction and their share of the itemized deduction.
+        dedh_general = pl.max_horizontal(stded_h_general, xitdh)
     dedw_general = pl.max_horizontal(stded_h_general, xitdw)
     # The 2026 TAXSIM build splits the federal tax without the self-employment tax and adds that tax back
     # only through 1986.
@@ -358,6 +365,10 @@ def compute_ia_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
 
     # --- AMT --- (from 2021 it is part of the alternate tax step above)
     if effective_year < 2021 and (p.in_effect("amt_share_of_federal") or p.in_effect("amt_rate")):
+        credits_first = behavior.apply_iowa_personal_credits_before_amt_per_statute
+        if not credits_first:
+            # TAXSIM works out the AMT on the tax before the personal credits and takes the credits off the total.
+            df = df.with_columns(ia_statax=pl.col("ia_statax") + pl.col("ia_gcred"))
         if p.in_effect("amt_share_of_federal"):
             alty = pl.col("amt") * p.num("amt_share_of_federal")
         else:
@@ -385,6 +396,8 @@ def compute_ia_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         )
         alty = pl.when(low_income_amt_exempt).then(0.0).otherwise(alty)
         df = df.with_columns(ia_statax=pl.col("ia_statax") + alty)
+        if not credits_first:
+            df = df.with_columns(ia_statax=(pl.col("ia_statax") - pl.col("ia_gcred")).clip(0, None))
 
     # --- Child/Dependent Care Credit ---
     posagi = pl.col("ia_agi").clip(0, None)

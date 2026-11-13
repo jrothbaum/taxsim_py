@@ -1271,6 +1271,11 @@ def _credits(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorProfi
             signed_credit = signed_credit.clip(0, None)
         remaining_after_ccc = (pl.col("tax_before_credits") - pl.col("ccc") - pl.col("elderly_credit_raw")).clip(0, None)
         nonrefundable_credit = pl.min_horizontal(signed_credit, remaining_after_ccc)
+        if year in (2022, 2023) and ctc_p.in_effect("actc_max_refundable_per_child") and not (
+            behavior.cap_nonrefundable_child_credit_at_three_children_refundable_maximum_per_statute
+        ):
+            # In 2022 and 2023 TAXSIM caps the nonrefundable credit at three times the refundable maximum per child.
+            nonrefundable_credit = pl.min_horizontal(nonrefundable_credit, 3.0 * ctc_p.num("actc_max_refundable_per_child"))
         unused_nonrefundable = combined_base - nonrefundable_credit
         if not ctc_p.in_effect("actc_rate"):
             # 1998-2000: three or more children, limited by employee payroll tax over the EITC.
@@ -1284,6 +1289,15 @@ def _credits(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorProfi
                 actc_cap = pl.min_horizontal(unused_nonrefundable, ctc_p.num("actc_max_refundable_per_child") * ideps)
             else:
                 actc_cap = unused_nonrefundable
+            if year in (2022, 2023) and not behavior.cap_nonrefundable_child_credit_at_three_children_refundable_maximum_per_statute:
+                # With three or more children TAXSIM also allows the employee payroll tax in place of the earnings formula.
+                employee_payroll_tax = 0.5 * (pl.col("__payroll_wage_tax") + pl.col("__payroll_setax"))
+                earned_formula = pl.when(ideps >= 3).then(pl.max_horizontal(earned_formula, employee_payroll_tax)).otherwise(earned_formula)
+            if year <= 2017:
+                alternative = (0.5 * (pl.col("__payroll_wage_tax") + pl.col("__payroll_setax")) - pl.col("eitc")).clip(0, None)
+                earned_formula = pl.when((ideps >= 3) & (earned_formula < unused_nonrefundable)).then(
+                    pl.max_horizontal(earned_formula, alternative)
+                ).otherwise(earned_formula)
             actc = pl.min_horizontal(actc_cap, earned_formula).clip(0, None)
     elif not ctc_p.in_effect("actc_rate"):
         # TAXSIM's additional credit for three or more children before 2001 is
@@ -1308,6 +1322,13 @@ def _credits(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorProfi
         actc_earned_income_floor = ctc_p.num("actc_earned_income_floor")
         actc_rate = ctc_p.num("actc_rate")
         actc_earned_formula = actc_rate * (pl.col("federal_earned_income").clip(0, None) - actc_earned_income_floor).clip(0, None)
+        if year <= 2017:
+            # With three or more children the refundable credit is the greater of the earnings formula and the employee
+            # payroll tax over the EITC (Form 8812, alternative method).
+            alternative = (0.5 * (pl.col("__payroll_wage_tax") + pl.col("__payroll_setax")) - pl.col("eitc")).clip(0, None)
+            actc_earned_formula = pl.when((ideps >= 3) & (actc_earned_formula < unused_nonrefundable)).then(
+                pl.max_horizontal(actc_earned_formula, alternative)
+            ).otherwise(actc_earned_formula)
         if ctc_p.in_effect("actc_max_refundable_per_child"):
             actc_max_per_child = ctc_p.num("actc_max_refundable_per_child")
             actc_cap = pl.min_horizontal(unused_nonrefundable, actc_max_per_child * ideps)

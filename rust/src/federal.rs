@@ -1272,7 +1272,11 @@ pub fn federal(i: &Inp, ded: f64, itemizes: bool, p: &FedParams) -> Fed {
         let unused = combined_after - nonrefundable;
         let actc = match &t.actc {
             Some(ac) => {
-                let formula = ac.rate * (earned_income.max(0.0) - ac.floor).max(0.0);
+                let mut formula = ac.rate * (earned_income.max(0.0) - ac.floor).max(0.0);
+                if year <= 2017 && ideps >= 3.0 && formula < unused {
+                    // The greater of the earnings formula and the employee payroll tax over the EITC.
+                    formula = formula.max((0.5 * (wage_tax + pay.setax) - eitc).max(0.0));
+                }
                 let cap = match ac.max_per_child {
                     Some(max) => unused.min(max * ideps),
                     None => unused,
