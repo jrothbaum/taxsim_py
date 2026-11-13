@@ -703,6 +703,9 @@ def compute_ny_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
 
     # Real property tax credit (refundable).
     hy = pl.col("ny_household_income_undeflated")
+    if not behavior.allow_negative_new_york_property_credit_income_per_statute:
+        # TAXSIM floors household income at zero (a loss would otherwise raise the credit).
+        hy = hy.clip(0, None)
     rentpaid = pl.col("rentpaid")
     ptax = p.num("property_tax_share") * pl.col("proptax") + float(p["property_credit_rent_share"]) * rentpaid
     is_aged = aged > 0
@@ -729,7 +732,16 @@ def compute_ny_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         pcred = pl.when(hy <= c["income_limit"]).then((ptax - hy * share).clip(0, None).clip(None, pmax)).otherwise(0.0)
         if p.in_effect("real_property_deduction"):
             pcred = pl.when(is_aged & (pl.col("ny_reald") > 0)).then(0.0).otherwise(pcred)
-    if y >= 2025 and p.in_effect("taxsim_property_credit") and not behavior.compute_new_york_property_credit_per_statute:
+    if 2022 <= y <= 2024 and "homeowner_share" in c and not behavior.compute_new_york_property_credit_per_statute:
+        # TAXSIM tests federal AGI against the income limit, measures household income as federal AGI plus untaxed
+        # Social Security and transfers, counts rent (a quarter) only below $5,400 a year, and pays half the excess.
+        fagi = pl.col("agi")
+        hy_f = (fagi + pl.col("gssi") - pl.col("taxable_social_security") + pl.col("transfers")).clip(0, None)
+        pmax_f = pl.when(is_aged).then(interpolate_table(fagi, c["aged_maximum"])).otherwise(interpolate_table(fagi, c["maximum"]))
+        ptax_f = pl.col("proptax") + pl.when(rentpaid < 12 * 450).then(0.25 * rentpaid).otherwise(0.0)
+        excess = (ptax_f - (hy_f * interpolate_table(fagi, c["threshold"])).clip(0, None)).clip(0, None)
+        pcred = pl.when(fagi <= float(c["income_limit"])).then(pl.min_horizontal(0.5 * excess, pmax_f)).otherwise(0.0)
+    elif y >= 2025 and p.in_effect("taxsim_property_credit") and not behavior.compute_new_york_property_credit_per_statute:
         # TAXSIM's 2025 on credit: rent counts at a quarter, the rate and maximum come from federal AGI tables,
         # and it has no rent limit.
         t = p.value("taxsim_property_credit")
@@ -798,6 +810,8 @@ def compute_ny_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
 
     # Empire State child credit.
     eschcr = pl.lit(0.0)
+    # TAXSIM reads the federal earned income (`comnew(37)`), which counts other non-property income.
+    taxsim_earned = pl.col("earned_income") if behavior.exclude_nonproperty_income_from_federal_earned_income_per_statute else pl.col("federal_earned_income")
     e = p.value("empire_child_credit") if p.in_effect("empire_child_credit") else {}
     t = p.value("taxsim_empire_child_credit") if p.in_effect("taxsim_empire_child_credit") else None
     if t is not None and not behavior.pay_new_york_empire_child_credit_per_statute:
@@ -812,7 +826,7 @@ def compute_ny_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         if "per_child" in t:
             reduction = t["phaseout_rate"] * (1000.0 * phaseout_steps((fed_agi - thr).clip(0, None) / 1000.0, behavior))
             available = (t["per_child"] * dep17 - reduction).clip(0, None)
-            base = pl.min_horizontal(available, t["refundable_rate"] * (pl.col("earned_income") - t["earned_income_floor"]))
+            base = pl.min_horizontal(available, t["refundable_rate"] * (taxsim_earned - t["earned_income_floor"]))
         if t["share"]:
             eschcr = pl.when(gate).then(t["share"] * pl.max_horizontal(float(t["minimum_per_child"]) * dep17, base)).otherwise(0.0)
     if "income_limit" in e:
@@ -867,7 +881,7 @@ def compute_ny_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         )
         taxbca = pl.col("ny_taxbca")
         df, (ctcred,) = checkpoint(df, ny_ctcred=pl.min_horizontal(precrd, (taxbca - pl.col("ccc") - pl.col("federal_elder")).clip(0, None)))
-        earned = pl.col("earned_income")
+        earned = taxsim_earned if not behavior.pay_new_york_empire_child_credit_per_statute else pl.col("earned_income")
         fift = e["refundable_rate"] * (earned - e["earned_income_floor"]).clip(0, None)
         remaining = precrd - ctcred
         ssmtax = e["payroll_rate"] * pl.min_horizontal(pl.lit(p.num("payroll_wage_base")), earned.clip(0, None))
