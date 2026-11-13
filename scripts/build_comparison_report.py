@@ -102,51 +102,55 @@ def share(diff: pl.Expr, tolerance: float) -> pl.Expr:
 def compare_with_taxsim(units: pl.DataFrame, years: list[int], base_year: int) -> pl.DataFrame:
     """Per state and year: share of units whose tax is within tolerance of TAXSIM's, in both modes.
 
-    All years are stacked into one call per engine; the Python engine's fixed cost per call would otherwise
-    dominate.
+    Years run one after another (all states of one year per engine call) so memory stays small.
     """
     keep = [c for c in units.columns if c in TAXSIM_INPUTS or c in ("taxsimid",)]
-    started = time.time()
-    stacked = pl.concat([for_year(units, year, base_year).select(keep) for year in years])
-    cases = stacked.with_row_index("row", offset=1).with_columns(taxsimid=pl.col("row").cast(pl.Int64)).drop("row")
-    print(f"  {cases.height:,} unit-years built in {time.time() - started:.0f}s", flush=True)
-
-    started = time.time()
-    # TAXSIM's results for a record depend on the records that ran before it (variables left over from another
-    # state's routine), so each state and year runs on its own, as the validators do.
-    groups = cases.partition_by(["state", "year"], maintain_order=True)
-    oracle = pl.concat(
-        [run_oracle(group).select("taxsimid", pl.col("fiitax").alias("o_fi"), pl.col("siitax").alias("o_si")) for group in groups]
-    )
-    print(f"  TAXSIM executable: {time.time() - started:.0f}s for {len(groups):,} state-years", flush=True)
-    started = time.time()
-    # TAXSIM reads only its own inputs, so TAXSIM mode is run without the extension child counts (`children_under_3`...).
-    taxsim_mode = calculate_taxes(cases.drop([c for c in OPTIONAL_CHILD_COUNT_INPUTS if c in cases.columns]), calculation_mode="taxsim", engine="python").select(
-        "taxsimid", pl.col("fiitax").alias("t_fi"), pl.col("siitax").alias("t_si")
-    )
-    print(f"  taxsim-py, TAXSIM mode: {time.time() - started:.0f}s", flush=True)
-    started = time.time()
-    statutory = calculate_taxes(cases, calculation_mode="statutory", engine="rust").select(
-        "taxsimid", pl.col("fiitax").alias("s_fi"), pl.col("siitax").alias("s_si")
-    )
-    print(f"  taxsim-py, statutory mode: {time.time() - started:.0f}s", flush=True)
-
-    joined = cases.select("taxsimid", "state", "year").join(oracle, on="taxsimid").join(taxsim_mode, on="taxsimid").join(
-        statutory, on="taxsimid"
-    )
-    return (
-        joined.group_by("state", "year")
-        .agg(
-            pl.len().alias("n"),
-            share(pl.col("t_si") - pl.col("o_si"), EXACT).alias("taxsim_state_exact"),
-            share(pl.col("t_si") - pl.col("o_si"), TOLERANCE).alias("taxsim_state"),
-            share(pl.col("s_si") - pl.col("o_si"), TOLERANCE).alias("statutory_state"),
-            share(pl.col("t_fi") - pl.col("o_fi"), EXACT).alias("taxsim_federal_exact"),
-            share(pl.col("t_fi") - pl.col("o_fi"), TOLERANCE).alias("taxsim_federal"),
-            share(pl.col("s_fi") - pl.col("o_fi"), TOLERANCE).alias("statutory_federal"),
+    results = []
+    cache = Path(os.environ["COMPARISON_CACHE"]) if os.environ.get("COMPARISON_CACHE") else None
+    if cache is not None:
+        cache.mkdir(parents=True, exist_ok=True)
+    for year in years:
+        if cache is not None and (cache / f"taxsim_{year}.parquet").exists():
+            results.append(pl.read_parquet(cache / f"taxsim_{year}.parquet"))
+            continue
+        started = time.time()
+        cases = (
+            for_year(units, year, base_year).select(keep)
+            .with_row_index("row", offset=1).with_columns(taxsimid=pl.col("row").cast(pl.Int64)).drop("row")
         )
-        .sort("state", "year")
-    )
+        # TAXSIM's results for a record depend on the records that ran before it (variables left over from another
+        # state's routine), so each state runs on its own, as the validators do.
+        oracle = pl.concat(
+            [
+                run_oracle(group).select("taxsimid", pl.col("fiitax").alias("o_fi"), pl.col("siitax").alias("o_si"))
+                for group in cases.partition_by("state", maintain_order=True)
+            ]
+        )
+        # TAXSIM reads only its own inputs, so TAXSIM mode is run without the extension child counts (`children_under_3`...).
+        taxsim_mode = calculate_taxes(
+            cases.drop([c for c in OPTIONAL_CHILD_COUNT_INPUTS if c in cases.columns]), calculation_mode="taxsim", engine="python"
+        ).select("taxsimid", pl.col("fiitax").alias("t_fi"), pl.col("siitax").alias("t_si"))
+        statutory = calculate_taxes(cases, calculation_mode="statutory", engine="rust").select(
+            "taxsimid", pl.col("fiitax").alias("s_fi"), pl.col("siitax").alias("s_si")
+        )
+        joined = cases.select("taxsimid", "state", "year").join(oracle, on="taxsimid").join(taxsim_mode, on="taxsimid").join(
+            statutory, on="taxsimid"
+        )
+        results.append(
+            joined.group_by("state", "year").agg(
+                pl.len().alias("n"),
+                share(pl.col("t_si") - pl.col("o_si"), EXACT).alias("taxsim_state_exact"),
+                share(pl.col("t_si") - pl.col("o_si"), TOLERANCE).alias("taxsim_state"),
+                share(pl.col("s_si") - pl.col("o_si"), TOLERANCE).alias("statutory_state"),
+                share(pl.col("t_fi") - pl.col("o_fi"), EXACT).alias("taxsim_federal_exact"),
+                share(pl.col("t_fi") - pl.col("o_fi"), TOLERANCE).alias("taxsim_federal"),
+                share(pl.col("s_fi") - pl.col("o_fi"), TOLERANCE).alias("statutory_federal"),
+            )
+        )
+        if cache is not None:
+            results[-1].write_parquet(cache / f"taxsim_{year}.parquet")
+        print(f"  {year}: {time.time() - started:.0f}s", flush=True)
+    return pl.concat(results).sort("state", "year")
 
 
 def compare_with_policyengine(units: pl.DataFrame, years: list[int], base_year: int) -> pl.DataFrame:
