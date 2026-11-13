@@ -8,6 +8,8 @@ from taxsim_py.engine.brackets import bracket_rate, bracket_tax, scale_brackets
 from taxsim_py.engine.inputs import aged_count, federal_exemption_count, files_head_of_household, files_joint, files_separate, files_single, is_dependent_filer, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml, resolve_year
 from taxsim_py.engine.state import (
+    dividend_input_adjustment,
+    federal_capital_gain_in_agi,
     by_filing_status,
     checkpoint,
     forced_standard,
@@ -394,7 +396,19 @@ def compute_wi_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         business = 0.5 * (pl.col("psemp") + pl.col("ssemp"))
         earh = (pl.col("pwages") + pl.col("pbusinc") + pl.col("pprofinc") + business).clip(0, None)
         earw = (pl.col("swages") + pl.col("sbusinc") + pl.col("sprofinc") + business).clip(0, None)
+        if not behavior.split_wisconsin_self_employment_between_spouses_per_statute:
+            # TAXSIM credits each spouse with their own earnings: wages plus self-employment income (92.35% of it from 2023).
+            share = 0.9235 if y >= 2023 else 1.0
+            earh = (pl.col("pwages") + share * (pl.col("psemp") + pl.col("pbusinc") + pl.col("pprofinc"))).clip(0, None)
+            earw = (pl.col("swages") + share * (pl.col("ssemp") + pl.col("sbusinc") + pl.col("sprofinc"))).clip(0, None)
         twocrd = pl.when(is_joint).then(c["rate"] * pl.min_horizontal(pl.min_horizontal(earh, earw), pl.lit(float(c["cap"])))).otherwise(0.0)
+    if y in (2021, 2022) and not behavior.apply_federal_investment_income_limit_to_wisconsin_eitc_per_statute:
+        # TAXSIM applies its own lower investment income limit to the Wisconsin credit in 2021 and 2022.
+        investment = (
+            federal_capital_gain_in_agi(y).clip(0, None) + pl.col("dividends") + dividend_input_adjustment() + pl.col("intrec")
+            + pl.col("otherprop").clip(0, None)
+        )
+        earncr = pl.when(investment > (3650.0 if y == 2021 else 3800.0)).then(0.0).otherwise(earncr)
     credit = xcred + exempc + earncr + chcr + spcred + wcred
     if y <= 1988:
         statax = (statax - credit - twocrd).clip(0, None)
@@ -456,9 +470,21 @@ def compute_wi_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         .otherwise(homestead_rate * tableb)
     )
     pcred = pl.when(income_test <= c["income_limit"]).then(pcred).otherwise(0.0)
+    if 2020 <= y <= 2022 and not behavior.pay_wisconsin_homestead_credit_from_2023:
+        # TAXSIM's notch: nothing to a taxpayer under 19, nor to one under 62 with no wages or business income.
+        wage_business = pl.col("pwages") + pl.col("swages") + pl.col("pbusinc") + pl.col("pprofinc") + pl.col("scorp") + pl.col("sbusinc") + pl.col("sprofinc")
+        pcred = pl.when((pl.col("page") >= 1) & (pl.col("page") <= 18) | ((wage_business <= 0) & (pl.col("page") < 62))).then(0.0).otherwise(pcred)
     if y >= 2023 and not behavior.pay_wisconsin_homestead_credit_from_2023:
-        # TAXSIM's homestead credit goes only to a return with a taxpayer 65 or older from 2023.
-        pcred = pl.when(aged > 0).then(pcred).otherwise(0.0)
+        # TAXSIM's 2023 on routine: to a non-dependent return with a taxpayer 18 or older who is 62 or older or has earned
+        # income; property tax (plus a fifth of rent) up to $1,460, less 8.785% of household income over $8,060 (less $500
+        # per dependent), at 80%.
+        earned = pl.col("earned_income") + pl.col("nonprop")
+        if y < 2024:
+            earned = earned + pl.col("pbusinc") + pl.col("pprofinc") + pl.col("sbusinc") + pl.col("sprofinc")
+        eligible = (~is_dependent_filer()) & (pl.col("page") >= 18) & ((pl.col("page") >= 62) | (pl.col("sage") >= 62) | (earned > 0))
+        property_tax = pl.min_horizontal(pl.lit(1460.0), pl.col("proptax") + 0.2 * rentpaid)
+        reduction = 0.08785 * (hy - 500.0 * depx - 8060.0).clip(0, None)
+        pcred = pl.when(eligible).then((0.8 * (property_tax - reduction)).clip(0, None)).otherwise(0.0)
     statax = statax - pcred
     if y >= 1989:
         statax = statax - earncr

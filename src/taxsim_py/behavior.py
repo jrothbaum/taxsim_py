@@ -201,6 +201,12 @@ class BehaviorProfile:
     require_age_65_for_michigan_investment_deduction_per_statute: bool = True
     exempt_pennsylvania_pensions_from_age_65_per_statute: bool = True
     keep_oregon_state_tax_deduction_for_aged_per_statute: bool = True
+    apply_federal_investment_income_limit_to_wisconsin_eitc_per_statute: bool = True
+    split_wisconsin_self_employment_between_spouses_per_statute: bool = True
+    leave_massachusetts_part_b_deductions_uncapped_per_statute: bool = True
+    measure_massachusetts_circuit_breaker_income_per_statute: bool = True
+    exclude_nonproperty_income_from_federal_earned_income_per_statute: bool = True
+    count_other_property_income_in_eitc_disqualified_income_per_statute: bool = True
     exclude_maryland_pensions_per_taxpayer_per_statute: bool = True
     exclude_delaware_pensions_by_statute_from_2024: bool = True
     apply_colorado_pension_subtraction_by_statute_from_2021: bool = True

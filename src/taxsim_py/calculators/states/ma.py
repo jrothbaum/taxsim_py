@@ -183,6 +183,14 @@ def compute_ma_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
                 ).otherwise(rnt)
     # Non-property income enters as a negative deduction.
     bded = fica + ch + rnt - pl.col("nonprop")
+    if not behavior.leave_massachusetts_part_b_deductions_uncapped_per_statute:
+        # TAXSIM allows the deductions only against earned income, interest and pensions (and, from 2022, unemployment).
+        # (TAXSIM's earned income also counts the business inputs before 2024 and the non-property input.)
+        business_inputs = pl.col("pbusinc") + pl.col("pprofinc") + pl.col("sbusinc") + pl.col("sprofinc") if y < 2024 else pl.lit(0.0)
+        allowed = pl.col("earned_income") + business_inputs + pl.col("nonprop") + pl.col("intrec") + pl.col("pensions")
+        if y >= 2022:
+            allowed = allowed + ui_total
+        bded = pl.min_horizontal(fica + ch + rnt, allowed) - pl.col("nonprop")
     df = df.with_columns(
         _ma_binc=binc,
         _ma_bded=bded,
@@ -342,7 +350,7 @@ def compute_ma_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             ).clip(0, None)
 
     # --- Massachusetts AGI and No Tax Status / Limited Income Credit ---
-    ma_agi = (binc_for_agi + binc1 + stcg + ltcg + pl.min_horizontal(intrec, p.num("interest_exclusion_per_taxpayer") * n_tp)).clip(0, None)
+    ma_agi = (binc_for_agi + pl.col("nonprop") + binc1 + stcg + ltcg + pl.min_horizontal(intrec, p.num("interest_exclusion_per_taxpayer") * n_tp)).clip(0, None)
     df = df.with_columns(_ma_pretax=pretax, _ma_agi=ma_agi)
     pretax = pl.col("_ma_pretax")
     ma_agi = pl.col("_ma_agi")
@@ -408,6 +416,9 @@ def compute_ma_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         )
         ptax = pl.max_horizontal(pl.col("proptax"), float(MA_PARAMS["circuit_breaker_rent_share"]) * pl.col("rentpaid"))
         hycb = (ma_agi + pl.col("gssi") + pl.col("transfers") - ageex - depex).clip(0, None)
+        if not behavior.measure_massachusetts_circuit_breaker_income_per_statute:
+            # TAXSIM measures income as federal AGI plus untaxed Social Security and transfers (`hy`).
+            hycb = (pl.col("agi") + pl.col("gssi") - pl.col("taxable_social_security") + pl.col("transfers") - ageex - depex).clip(0, None)
         cbcred = pl.when(hycb <= hymax).then((ptax - float(MA_PARAMS["circuit_breaker_income_share"]) * hycb).clip(0, None)).otherwise(0.0)
         cbcred = pl.min_horizontal(cbcred, p.num("circuit_breaker_max"))
         cbcred = pl.when(not_sep & (aged_count() > 0)).then(cbcred).otherwise(0.0)

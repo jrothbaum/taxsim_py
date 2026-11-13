@@ -427,7 +427,7 @@ pub fn tax(i: &Inp, f: &Fed, p: &MaParams) -> f64 {
     };
 
     // ---- Massachusetts AGI and No Tax Status / Limited Income Credit ----
-    let ma_agi = (binc_for_agi + binc1 + stcg + ltcg + intrec.min(p.interest_exclusion * n_tp)).max(0.0);
+    let ma_agi = (binc_for_agi + i.nonprop + binc1 + stcg + ltcg + intrec.min(p.interest_exclusion * n_tp)).max(0.0);
     let (mut ntscr, mut txcr, mut scred) = (0.0, 0.0, 0.0);
     match &p.credits {
         Credits::Early(c) => {

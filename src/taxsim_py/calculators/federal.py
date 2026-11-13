@@ -447,6 +447,9 @@ def _income(
     earned_business_inputs = pl.lit(0.0)
     if not behavior.count_business_and_professional_inputs_as_income and year < 2024:
         earned_business_inputs = pl.col("pbusinc") + pl.col("pprofinc") + pl.col("sbusinc") + pl.col("sprofinc")
+    if not behavior.exclude_nonproperty_income_from_federal_earned_income_per_statute:
+        # TAXSIM counts the other non-property income input (`nonprop`) as earned income for the EITC and the child tax credit.
+        earned_business_inputs = earned_business_inputs + pl.col("nonprop")
     # EITC earned income always deducts the SE-tax share calculated above.
     df = df.with_columns(
         setax=setax_total,
@@ -1143,7 +1146,10 @@ def _credits(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorProfi
     eitc = eitc_ordinary
     if year >= 1996:
         dylim = float(resolve_year(FEDERAL_EITC_PARAMS_MISC["dylim"], year))
-        disqy = _capital_gain(year).clip(0, None) + _dividends() + pl.col("intrec") + pl.col("otherprop").clip(0, None)
+        disqy = _capital_gain(year).clip(0, None) + _dividends() + pl.col("intrec")
+        if behavior.count_other_property_income_in_eitc_disqualified_income_per_statute or year < 2024:
+            # The 2026 TAXSIM build leaves other property income out of the investment income test from 2024.
+            disqy = disqy + pl.col("otherprop").clip(0, None)
         if not behavior.count_business_and_professional_inputs_as_income:
             # The 2026 TAXSIM build counts these memo items and S corporation income here.
             disqy = disqy + pl.col("pbusinc") + pl.col("sbusinc") + pl.col("scorp").clip(0, None)
