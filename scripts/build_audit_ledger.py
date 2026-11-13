@@ -72,9 +72,15 @@ or its own source is evidently broken (a variable never set, a typo). Where TAXS
 the inputs cannot decide, statutory mode keeps TAXSIM's behavior (`KEEP_TAXSIM_BEHAVIOR` in `behavior.py`). Switches
 that still show "unverified" depart from TAXSIM without that proof yet; each is a candidate to be moved to the kept list.
 
+**Rule.** Statutory mode departs from TAXSIM only where TAXSIM is known to be wrong. The rows in
+`statutory_corrections.md` are the errors found by reading TAXSIM's source and testing it, so each one is a known
+bug unless this audit finds otherwise. The audit checks the statutory side of each row against the form or statute. Where the
+check shows TAXSIM's behavior is not actually wrong (a modelling choice, or a rule the inputs cannot decide), statutory mode is moved
+back to TAXSIM's behavior and the switch is listed under "keeps TAXSIM's behavior" (`KEEP_TAXSIM_BEHAVIOR` in `behavior.py`).
+
 Status: **verified** = the statutory rule matches a cited primary source; **corrected** = the check found the
 statutory side wrong and it was changed; **partial** = true by design or only part checked; **unverified** = nothing
-yet beyond the earlier porting work.
+yet beyond the source reading that logged it as a TAXSIM error.
 
 | Switch | States | Households changed | Average change ($) | Status | Statutory side | Source |
 |:--|:--:|:--:|--:|:--:|:--|:--|
