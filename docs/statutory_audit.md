@@ -4,8 +4,8 @@ Statutory mode is only useful if each place it departs from TAXSIM can be defend
 statutory switch (`src/taxsim_py/behavior.py`), ranked by how much is at stake, and says whether its statutory
 side has been checked against a form or statute.
 
-- Switches: 450. Verified against a primary source: 4. Corrected after checking: 1.
-  Partly checked: 1. Not yet checked: 444.
+- Switches: 450. Verified against a primary source: 8. Corrected after checking: 1.
+  Partly checked: 10. Not yet checked: 431.
 - Switches whose flip changes at least one household in the sample: 167. The rest change nobody in the sample
   (they apply to inputs or years the CPS sample does not reach) and are checked last.
 
@@ -23,28 +23,28 @@ yet beyond the earlier porting work.
 |:--|:--:|:--:|--:|:--:|:--|:--|
 | `floor_child_credit_phaseout_at_zero` | all | 100/2040 | 1941 | verified | floored. | IRC 24(b): the credit is reduced by $50 per $1,000 of income over the threshold and cannot go below zero (it is a reduction of the credit amount); checked 2026-11-13 |
 | `use_form_8995a_qbi_streams` | all | 62/2040 | 1736 | verified | Form 8995-A streams. | IRS Form 8995-A and its instructions (qualified business income by trade or business, separate W-2 wage and UBIA limits); checked 2026-11-13 |
-| `count_other_property_income_from_2024` | all | 22/2040 | 4581 | unverified | other property income counted; |  |
+| `count_other_property_income_from_2024` | all | 22/2040 | 4581 | verified | other property income counted; | IRC 32(i)(2) (same rule, applied to the 2024 on federal routine); checked 2026-11-13 |
 | `leave_out_one_time_state_rebates` | all | 98/2040 | 586 | partial | not paid. Taxsim mode: | Rebates are payments by the state, not tax liability, so statutory mode leaves them out by design; not a legal question |
-| `use_maine_year_standard_deduction` | ME | 60/200 | 823 | unverified | that year's amount. |  |
-| `limit_arkansas_low_income_table_to_its_range` | AR | 57/200 | 844 | unverified | step table. |  |
-| `tax_nebraska_before_1987_per_statute` | NE | 33/200 | 1069 | unverified | the share of federal tax. |  |
-| `exclude_hawaii_pensions` | HI | 30/200 | 1097 | unverified | excludes |  |
-| `keep_itemized_inputs_when_taking_standard_deduction` | all | 121/2040 | 183 | unverified | a forced standard deduction. |  |
+| `use_maine_year_standard_deduction` | ME | 60/200 | 823 | partial | that year's amount. | Maine 2012 1040ME booklet and conformity summary: Maine conformed its standard deduction to the federal amount from 2012; earlier years used Maine's own amounts (joint 9,800 against 15,000 under conformity in the fiscal summary). The amounts statutory mode uses for 1989-2011 are not yet compared with the Maine booklets; checked 2026-11-13 |
+| `limit_arkansas_low_income_table_to_its_range` | AR | 57/200 | 844 | partial | step table. | Arkansas AR1000F instructions (2023): the low-income tax tables apply when total income from all sources is within the table's limits; the table range and the step table below it were not compared with the form; checked 2026-11-13 |
+| `tax_nebraska_before_1987_per_statute` | NE | 33/200 | 1069 | verified | the share of federal tax. | Nebraska Legislature, individual income tax chronology (nebraskalegislature.gov/app_rev/source/chrono_incometax.htm): through 1986 the tax was a percentage of federal liability, 18/16/18/15/15/18/20/19/20/19% for 1977-86, identical to federal_tax_share in ne/income_tax.yaml; checked 2026-11-13 |
+| `exclude_hawaii_pensions` | HI | 30/200 | 1097 | partial | excludes | Hawaii Schedule J instructions: pension distributions after 1997 are exempt to the extent attributable to employer contributions; the part traceable to the employee's own contributions is taxable. Statutory mode excludes all of the pension input, which overstates the exemption when part of the pension is employee-funded (the inputs cannot say); checked 2026-11-13 |
+| `keep_itemized_inputs_when_taking_standard_deduction` | all | 121/2040 | 183 | verified | a forced standard deduction. | IRC 63(b), (e): a taxpayer who elects the standard deduction takes no itemized deductions; checked 2026-11-13 |
 | `count_vermont_child_credit_by_statutory_age` | VT | 15/200 | 1330 | verified | under 6 (under 7 from 2025). | Vermont Dept of Taxes, 2025 tax changes and Act 71 of 2025: child credit up to $1,000 for a child under 6 before 2025 and age 6 or younger from 2025; checked 2026-11-13 |
 | `pay_kansas_credits_per_statute` | KS | 38/200 | 475 | unverified | refundable credits as published. |  |
-| `pay_minnesota_property_tax_refund_through_2023` | MN | 28/200 | 639 | unverified | paid. |  |
+| `pay_minnesota_property_tax_refund_through_2023` | MN | 28/200 | 639 | partial | paid. | Minnesota Form M-1PR (homestead credit refund, renter's property tax refund) is a real refundable credit in these years; the refund tables have not been compared line by line; checked 2026-11-13 |
 | `deduct_colorado_federal_tax_after_1977` | CO | 32/200 | 484 | unverified | both deducted. |  |
 | `exclude_transfers_from_provisional_income` | all | 17/2040 | 668 | verified | adds nothing; the law adds tax-exempt interest, which TAXSIM has no input for. The same applies to the Iowa (2014 on) and Montana worksheets. | IRC 86(b)(2): provisional income is modified AGI plus tax-exempt interest plus half of benefits; transfers are not in it; checked 2026-11-13 |
 | `exempt_pennsylvania_pensions_from_age_65_per_statute` | PA | 10/200 | 1040 | corrected | exempt when a taxpayer is 65 or older (the statute is not checked). | PA Dept of Revenue REV-636 (retirement distributions are not taxable once the plan's retirement age is reached and the owner has retired; 59 1/2 for IRAs). Statutory age was 65 and applied to a household with any aged member; now 60 (retirement age proxy), checked 2026-11-13 |
-| `subtract_state_tax_in_georgia_itemized_deduction` | GA | 17/200 | 534 | unverified | less the state tax. |  |
+| `subtract_state_tax_in_georgia_itemized_deduction` | GA | 17/200 | 534 | partial | less the state tax. | Georgia Form 500 and Schedule 1 (IT-511 booklet): state income tax claimed on federal Schedule A is added back, and Georgia keeps a 10,000 SALT limit; confirmed from Georgia DOR forms and Intuit/TurboTax expert answers, IT-511 text itself not read; checked 2026-11-13 |
 | `use_colorado_statutory_sales_tax_refund` | CO | 54/200 | 161 | unverified | none. |  |
-| `pay_new_york_empire_child_credit_per_statute` | NY | 18/200 | 481 | unverified | children 4-16. |  |
+| `pay_new_york_empire_child_credit_per_statute` | NY | 18/200 | 481 | partial | children 4-16. | NY Tax Dept Empire State child credit page and IT-213 instructions: 330 per child at least 4 and under 17, with children under 4 added at 330 before 2025 and 1,000 from 2025; phase-out over 75,000 / 110,000. The pre-2018 statutory rules (which years counted children under 4 and 4-16) were not compared line by line; checked 2026-11-13 |
 | `remove_state_tax_from_west_virginia_itemized_deductions` | WV | 9/200 | 905 | unverified | removed. |  |
-| `double_kentucky_standard_deduction_for_joint_returns` | KY | 57/200 | 135 | unverified | a standard deduction per taxpayer and the higher earner's wages plus half the other income. |  |
-| `count_colorado_credit_children_per_statute` | CO | 4/200 | 1543 | unverified | children under 6 and 6-16 with the flat formula. |  |
-| `count_other_property_income_in_eitc_disqualified_income_per_statute` | all | 1/2040 | 6015 | unverified | counted in every year. |  |
+| `double_kentucky_standard_deduction_for_joint_returns` | KY | 57/200 | 135 | partial | a standard deduction per taxpayer and the higher earner's wages plus half the other income. | Kentucky Form 740 instructions list one standard deduction by year ($2,650 in 2020) that does not vary by filing status; whether each spouse takes one on a combined return was not settled from the results (a married couple filing separately on a combined return each uses their own); checked 2026-11-13 |
+| `count_colorado_credit_children_per_statute` | CO | 4/200 | 1543 | partial | children under 6 and 6-16 with the flat formula. | Colorado DOR child tax credit page and Family Affordability Tax Credit coverage: FATC up to 3,200 per child under 6 and 2,400 per child 6-16 in 2024 and 2025, phase-out 85,000 single / 95,000 joint; CTC AGI limits 75,000/85,000 (2024) and 77,000/87,000 (2025); numbers from news and agency summaries, not the DR 0104CN text; checked 2026-11-13 |
+| `count_other_property_income_in_eitc_disqualified_income_per_statute` | all | 1/2040 | 6015 | verified | counted in every year. | IRC 32(i)(2): disqualified income includes interest, dividends, net rent and royalty income, capital gain net income and passive activity income, so other property income counts in every year; checked 2026-11-13 |
 | `split_montana_joint_returns_per_statute` | MT | 24/200 | 250 | unverified | higher earner plus a share. |  |
-| `file_kentucky_combined_returns_per_statute` | KY | 45/200 | 131 | unverified | a standard deduction per taxpayer and the higher earner's wages plus half the other income. |  |
+| `file_kentucky_combined_returns_per_statute` | KY | 45/200 | 131 | partial | a standard deduction per taxpayer and the higher earner's wages plus half the other income. | Allocation of non-wage income between spouses on a combined return is a modelling convention because the inputs give each spouse's wages but not other income; Kentucky Form 740 lets spouses file separately on a combined return; checked 2026-11-13 |
 | `pay_kansas_homestead_refund_from_2007_per_statute` | KS | 11/200 | 502 | unverified | the refund. |  |
 | `compute_missouri_itemized_deduction_before_2018` | MO | 11/200 | 452 | unverified | itemized. |  |
 | `leave_missouri_federal_tax_deduction_uncapped_before_1994` | MO | 14/200 | 343 | unverified | published. |  |
