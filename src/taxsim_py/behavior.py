@@ -202,6 +202,7 @@ class BehaviorProfile:
     exempt_pennsylvania_pensions_from_age_65_per_statute: bool = True
     keep_oregon_state_tax_deduction_for_aged_per_statute: bool = True
     apply_iowa_personal_credits_before_amt_per_statute: bool = True
+    allocate_delaware_credits_freely_between_spouses_per_statute: bool = True
     step_connecticut_pension_deduction_per_statute: bool = True
     limit_connecticut_social_security_exclusion_to_base_amount_per_statute: bool = True
     leave_pre_1987_earned_income_credit_out_of_oklahoma_property_credit_income_per_statute: bool = True

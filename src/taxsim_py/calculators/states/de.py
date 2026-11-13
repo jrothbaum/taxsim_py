@@ -90,7 +90,8 @@ def compute_de_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             .otherwise(pl.min_horizontal(pl.lit(2 * aged_cap), pensions + investment))
         ).clip(0, None)
         df = df.with_columns(de_agi=pl.col("de_agi") - penexc)
-    if p.in_effect("aged_low_income_exclusion") and effective_year < 2000:
+    if p.in_effect("aged_low_income_exclusion") and effective_year < 2000 and behavior.compute_delaware_before_1996_per_statute:
+        # TAXSIM already adds this inside the pension exclusion lines.
         ex = p.value("aged_low_income_exclusion")
         low_income = (
             (aged > 0)
@@ -122,9 +123,9 @@ def compute_de_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         aged_std = p.num("aged_standard_deduction")
         df = df.with_columns(de_stded=pl.col("de_stded") + aged_std * aged)
     elif not behavior.compute_delaware_before_1996_per_statute:
-        # TAXSIM never sets the aged addition before 1987; the compiled code adds twice the personal
-        # exemption to a single return with a taxpayer 65 or older.
-        extra = 2.0 * p.num("personal_exemption") * (aged >= 1).cast(pl.Float64)
+        # TAXSIM never sets the aged addition before 1987; the compiled code adds the personal exemption
+        # times the exemption count (including the aged one) to a single return with a taxpayer 65 or older.
+        extra = p.num("personal_exemption") * (pl.col("de_taxpayers") + pl.col("depx") + aged) * (aged >= 1).cast(pl.Float64)
         df = df.with_columns(de_stded=pl.col("de_stded") + pl.when(files_joint()).then(0.0).otherwise(extra))
 
     # --- Itemized deduction --- Through 1986 the itemized inputs.
@@ -306,6 +307,10 @@ def compute_de_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         dep_unit = unit if behavior.compute_delaware_before_1996_per_statute else p.num("taxsim_dependent_credit")
         h_aged60 = (pl.col("page") >= 60) | (aged >= 1)
         w_aged60 = (pl.col("sage") >= 60) | (aged >= 2)
+        if effective_year >= 2024 and not behavior.allocate_delaware_credits_freely_between_spouses_per_statute:
+            # From 2024 TAXSIM reads the ages themselves; the aged count only stands in when an age is missing.
+            h_aged60 = (pl.col("page") >= 60) | ((pl.col("page") == 0) & (aged >= 1))
+            w_aged60 = (pl.col("sage") >= 60) | ((pl.col("sage") == 0) & (aged >= 2))
         credit_taxpayers = pl.col("de_taxpayers")
         if effective_year >= 2024 and not behavior.deny_delaware_personal_credit_to_dependent_filers_per_statute:
             credit_taxpayers = pl.when(is_dependent_filer()).then(1.0).otherwise(credit_taxpayers)
@@ -320,6 +325,26 @@ def compute_de_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         tax_w = (stat_w - cred_w - dep_w * dep_unit).clip(0, None)
         joint_after = (stat - credit_total).clip(0, None)
         statax = pl.when(sepcmb).then(pl.min_horizontal(joint_after, tax_h + tax_w)).otherwise(joint_after)
+        if effective_year >= 2024 and not behavior.allocate_delaware_credits_freely_between_spouses_per_statute:
+            # TAXSIM gives the taxpayer at least the credits for the taxpayer (and the aged one) and lets only the
+            # dependents' credits move to the spouse, trying each split and keeping the lowest tax.
+            numt = 1.0 + (pl.col("page") >= 60).cast(pl.Float64)
+            nums = 1.0 + (pl.col("sage") >= 60).cast(pl.Float64)
+            numd = pl.col("depx").cast(pl.Float64)
+            best = (stat_h - unit * (numt + numd)).clip(0, None) + (stat_w - unit * nums).clip(0, None)
+            for extra in range(1, 11):
+                moved = pl.lit(float(extra))
+                candidate = (stat_h - unit * (numt + (numd - moved).clip(0, None))).clip(0, None) + (
+                    stat_w - unit * (nums + pl.min_horizontal(moved, numd))
+                ).clip(0, None)
+                best = pl.when(moved <= numd).then(pl.min_horizontal(best, candidate)).otherwise(best)
+            best = pl.min_horizontal(best, (stat_h - unit * numt).clip(0, None) + (stat_w - unit * (nums + numd)).clip(0, None))
+            separate_chcr = pl.min_horizontal(pl.col("de_chcr"), stat_h, stat_w)
+            separate_after = best - separate_chcr
+            joint_final = stat - pl.min_horizontal(stat, credit_total) - pl.col("de_chcr")
+            statax = pl.when(is_joint_relief & (separate_after < joint_final)).then(separate_after).otherwise(joint_final)
+            joint_after = ((stat - credit_total).clip(0, None) - pl.col("de_chcr")).clip(0, None)
+            df = df.with_columns(de_chcr=pl.lit(0.0))
         df = df.with_columns(de_statax=pl.when(is_joint_relief).then(statax).otherwise(joint_after))
         chcr_limit = pl.when(sepcmb).then(pl.min_horizontal(pl.col("de_chcr"), tax_h, tax_w)).otherwise(pl.col("de_chcr"))
         df = df.with_columns(de_chcr=chcr_limit)
