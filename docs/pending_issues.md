@@ -301,7 +301,6 @@ investment deduction has no age test, Pennsylvania exempts pensions from 60, Ore
 | CT | 2026 | one joint household aged 71 with Social Security of $92,000 and wages (about $10) |
 | DE | 1979 | one household whose state difference comes from the federal 1977-81 gap (see above) |
 | NY | 1978-86 | refundable property tax credit for filers 65 or older and small differences in the 1990s-2010s: 1-5 of 1,000 households per year, $2-$200 (1981: 17; 1985-86: 14-15) |
-| NY | various | not traced yet (7-11 of 1,200 households each): mostly retirees (CT) |
 
 ## The state validator prints `staxbc` as 0
 
