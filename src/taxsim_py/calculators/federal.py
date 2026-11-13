@@ -1136,6 +1136,9 @@ def _credits(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorProfi
         phaseout_income = phaseout_income - _capital_gain(year).clip(None, 0) - _schedule_e(behavior, year).clip(None, 0)
         loss_share = eitc_p.num("loss_addback_share") if year >= 1997 else 0.0
         business = _gross_se_income(behavior, year) + pl.col("scorp")
+        if not behavior.add_back_self_employment_loss_to_earned_income_credit_phaseout_per_statute:
+            # TAXSIM's credit routine reads the business income variable before it is set, so adds nothing back.
+            business = pl.lit(0.0)
         phaseout_income = phaseout_income - loss_share * business.clip(None, 0)
     eitc_ordinary = (
         pl.when(pl.col("rate_in").is_not_null())

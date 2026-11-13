@@ -333,7 +333,11 @@ def _recapture_tiers(
 
 def compute_ny_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame:
     """Calculate New York income tax for each row."""
+    # TAXSIM reads the federal earned income (`comnew(37)`), which counts other non-property income.
+    taxsim_earned = pl.col("earned_income") if behavior.exclude_nonproperty_income_from_federal_earned_income_per_statute else pl.col("federal_earned_income")
+    # The child credit worksheet reads that earned income before the deduction for half the self-employment tax.
     effective_year, flate = resolve_state_year(year, behavior, NY_PARAMS)
+    taxsim_child_earned = taxsim_earned + (pl.col("se_adjustment") if effective_year <= 2023 else 0.0)
     y = effective_year
     p = YearParams(NY_PARAMS, effective_year)
     dividend_adjustment = dividend_input_adjustment()
@@ -704,13 +708,21 @@ def compute_ny_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     # Real property tax credit (refundable).
     hy = pl.col("ny_household_income_undeflated")
     if not behavior.allow_negative_new_york_property_credit_income_per_statute:
-        # TAXSIM floors household income at zero (a loss would otherwise raise the credit).
-        hy = hy.clip(0, None)
+        # TAXSIM's credit income is federal AGI plus untaxed Social Security and transfers (unemployment pay and
+        # other taxable-or-not items do not enter), floored at zero so a loss does not raise the credit.
+        hy = (pl.col("agi") + pl.col("gssi") - pl.col("taxable_social_security") + pl.col("transfers")).clip(0, None)
     rentpaid = pl.col("rentpaid")
     ptax = p.num("property_tax_share") * pl.col("proptax") + float(p["property_credit_rent_share"]) * rentpaid
     is_aged = aged > 0
     pcred = pl.lit(0.0)
     c = p.value("property_credit") if p.in_effect("property_credit") else {}
+    if c and not behavior.end_new_york_property_credit_maximum_tables_at_last_row_per_statute:
+        # TAXSIM's maximum tables carry a closing row (zero at any income), so the maximum is interpolated down to the
+        # last threshold instead of stopping at the last row's value.
+        c = {
+            key: (value + [[1.0e20, 0.0]] if key in ("maximum", "aged_maximum") and isinstance(value, list) else value)
+            for key, value in c.items()
+        }
     if "homeowner_share" in c:
         pmax = pl.when(is_aged).then(interpolate_table(hy, c["aged_maximum"])).otherwise(interpolate_table(hy, c["maximum"]))
         base = (ptax - hy * interpolate_table(hy, c["threshold"])).clip(0, None)
@@ -774,7 +786,7 @@ def compute_ny_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             if y == 2021 and not behavior.deny_new_york_2021_earned_income_credit_to_separate_returns:
                 # TAXSIM's federal credit routine pays separate returns in 2021, on the single schedule.
                 credit_status = pl.when(status == "married_separate").then(pl.lit("single")).otherwise(status)
-            credit = federal_eitc(pl.col("earned_income"), agi_value, disqy, credit_status, nkids, params, dylim)
+            credit = federal_eitc(taxsim_earned, agi_value, disqy, credit_status, nkids, params, dylim)
             childless = nkids == 0
             age_law = law if eligibility_year is None else eligibility_year
             if behavior.apply_new_york_earned_income_credit_age_test_per_statute or y >= 2022:
@@ -810,8 +822,6 @@ def compute_ny_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
 
     # Empire State child credit.
     eschcr = pl.lit(0.0)
-    # TAXSIM reads the federal earned income (`comnew(37)`), which counts other non-property income.
-    taxsim_earned = pl.col("earned_income") if behavior.exclude_nonproperty_income_from_federal_earned_income_per_statute else pl.col("federal_earned_income")
     e = p.value("empire_child_credit") if p.in_effect("empire_child_credit") else {}
     t = p.value("taxsim_empire_child_credit") if p.in_effect("taxsim_empire_child_credit") else None
     if t is not None and not behavior.pay_new_york_empire_child_credit_per_statute:
@@ -826,7 +836,7 @@ def compute_ny_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         if "per_child" in t:
             reduction = t["phaseout_rate"] * (1000.0 * phaseout_steps((fed_agi - thr).clip(0, None) / 1000.0, behavior))
             available = (t["per_child"] * dep17 - reduction).clip(0, None)
-            base = pl.min_horizontal(available, t["refundable_rate"] * (taxsim_earned - t["earned_income_floor"]))
+            base = pl.min_horizontal(available, t["refundable_rate"] * (taxsim_child_earned - t["earned_income_floor"]))
         if t["share"]:
             eschcr = pl.when(gate).then(t["share"] * pl.max_horizontal(float(t["minimum_per_child"]) * dep17, base)).otherwise(0.0)
     if "income_limit" in e:
@@ -881,7 +891,7 @@ def compute_ny_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         )
         taxbca = pl.col("ny_taxbca")
         df, (ctcred,) = checkpoint(df, ny_ctcred=pl.min_horizontal(precrd, (taxbca - pl.col("ccc") - pl.col("federal_elder")).clip(0, None)))
-        earned = taxsim_earned if not behavior.pay_new_york_empire_child_credit_per_statute else pl.col("earned_income")
+        earned = taxsim_child_earned if not behavior.pay_new_york_empire_child_credit_per_statute else pl.col("earned_income")
         fift = e["refundable_rate"] * (earned - e["earned_income_floor"]).clip(0, None)
         remaining = precrd - ctcred
         ssmtax = e["payroll_rate"] * pl.min_horizontal(pl.lit(p.num("payroll_wage_base")), earned.clip(0, None))

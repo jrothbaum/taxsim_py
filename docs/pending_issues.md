@@ -300,7 +300,7 @@ investment deduction has no age test, Pennsylvania exempts pensions from 60, Ore
 | KS | 2010 | two households with wages of exactly $35,000: TAXSIM's first AGI is $34,999.999, ours $35,000.011 (the one-cent AGI difference), which flips the earned income credit tier ($180) |
 | CT | 2026 | one joint household aged 71 with Social Security of $92,000 and wages (about $10) |
 | DE | 1979 | one household whose state difference comes from the federal 1977-81 gap (see above) |
-| NY | 1978-86 | refundable property tax credit for filers 65 or older and small differences in the 1990s-2010s: 1-5 of 1,000 households per year, $2-$200 (1981: 17; 1985-86: 14-15) |
+| NY | 1981, 2025 | one household each: 1981 federal tie (itemized pass chosen on state tax alone) and a $3.47 difference in 2025 |
 
 ## The state validator prints `staxbc` as 0
 
