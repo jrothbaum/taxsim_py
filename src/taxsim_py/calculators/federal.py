@@ -948,6 +948,15 @@ def _regular_tax(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorP
     return df
 
 
+def _employee_payroll_tax(behavior: BehaviorProfile) -> pl.Expr:
+    """Payroll tax counted by the alternative refundable child credit: half the wage tax plus self-employment tax.
+
+    Form 8812 counts half the self-employment tax; TAXSIM counts all of it (its `tfica`, c(190)).
+    """
+    se_share = 0.5 if behavior.count_half_self_employment_tax_in_refundable_child_credit_per_statute else 1.0
+    return 0.5 * pl.col("__payroll_wage_tax") + se_share * pl.col("__payroll_setax")
+
+
 def _alternative_minimum_tax(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.DataFrame | pl.LazyFrame:
     """Alternative minimum tax and tax before credits."""
     # AMT income: AGI, minus mortgage interest and other itemized deductions if
@@ -1257,7 +1266,7 @@ def _credits(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorProfi
         earned_formula = pl.when(children > 0).then(
             ctc_p.num("actc_rate") * (pl.col("federal_earned_income").clip(0, None) - ctc_p.num("actc_earned_income_floor")).clip(0, None)
         ).otherwise(0.0)
-        employee_payroll_tax = 0.5 * (pl.col("__payroll_wage_tax") + pl.col("__payroll_setax"))
+        employee_payroll_tax = (_employee_payroll_tax(behavior) - pl.col("eitc")).clip(0, None)
         actc = pl.when(children >= 3).then(
             pl.min_horizontal(capped, pl.max_horizontal(earned_formula, employee_payroll_tax))
         ).otherwise(pl.min_horizontal(capped, earned_formula))
@@ -1279,7 +1288,7 @@ def _credits(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorProfi
         unused_nonrefundable = combined_base - nonrefundable_credit
         if not ctc_p.in_effect("actc_rate"):
             # 1998-2000: three or more children, limited by employee payroll tax over the EITC.
-            limit = (0.5 * (pl.col("__payroll_wage_tax") + pl.col("__payroll_setax")) - pl.col("eitc")).clip(0, None)
+            limit = (_employee_payroll_tax(behavior) - pl.col("eitc")).clip(0, None)
             actc = pl.when(ideps >= 3).then(pl.min_horizontal(limit, reduction.clip(0, None))).otherwise(0.0)
         else:
             earned_formula = ctc_p.num("actc_rate") * (
@@ -1291,10 +1300,10 @@ def _credits(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorProfi
                 actc_cap = unused_nonrefundable
             if year in (2022, 2023) and not behavior.cap_nonrefundable_child_credit_at_three_children_refundable_maximum_per_statute:
                 # With three or more children TAXSIM also allows the employee payroll tax in place of the earnings formula.
-                employee_payroll_tax = 0.5 * (pl.col("__payroll_wage_tax") + pl.col("__payroll_setax"))
+                employee_payroll_tax = (_employee_payroll_tax(behavior) - pl.col("eitc")).clip(0, None)
                 earned_formula = pl.when(ideps >= 3).then(pl.max_horizontal(earned_formula, employee_payroll_tax)).otherwise(earned_formula)
             if year <= 2017:
-                alternative = (0.5 * (pl.col("__payroll_wage_tax") + pl.col("__payroll_setax")) - pl.col("eitc")).clip(0, None)
+                alternative = (_employee_payroll_tax(behavior) - pl.col("eitc")).clip(0, None)
                 earned_formula = pl.when((ideps >= 3) & (earned_formula < unused_nonrefundable)).then(
                     pl.max_horizontal(earned_formula, alternative)
                 ).otherwise(earned_formula)
@@ -1308,7 +1317,7 @@ def _credits(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorProfi
         if behavior.allow_additional_child_credit_before_2001 and ctc_p.in_effect("refundable_minimum_children"):
             # With three or more children, the unused credit is refundable up to
             # the employee share of payroll tax in excess of the EITC.
-            employee_payroll_tax = 0.5 * (pl.col("__payroll_wage_tax") + pl.col("__payroll_setax"))
+            employee_payroll_tax = _employee_payroll_tax(behavior)
             limit = (employee_payroll_tax - pl.col("eitc")).clip(0, None)
             minimum_children = ctc_p.num("refundable_minimum_children")
             actc = pl.when(ideps >= minimum_children).then(
@@ -1325,7 +1334,7 @@ def _credits(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorProfi
         if year <= 2017:
             # With three or more children the refundable credit is the greater of the earnings formula and the employee
             # payroll tax over the EITC (Form 8812, alternative method).
-            alternative = (0.5 * (pl.col("__payroll_wage_tax") + pl.col("__payroll_setax")) - pl.col("eitc")).clip(0, None)
+            alternative = (_employee_payroll_tax(behavior) - pl.col("eitc")).clip(0, None)
             actc_earned_formula = pl.when((ideps >= 3) & (actc_earned_formula < unused_nonrefundable)).then(
                 pl.max_horizontal(actc_earned_formula, alternative)
             ).otherwise(actc_earned_formula)

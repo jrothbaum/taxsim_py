@@ -265,13 +265,6 @@ The shipped source stops the whole run, with no output, on two kinds of record.
 | NJ | 1977-2020 | Dependent filer (`mstat=8`) | `mstat=8` sets the taxpayer count `d(7)=0` on purpose, and NJ's pension exclusion table `penpoa(2,4,2)` is read at that index, before the array, so `tablki` stops (229). The source defines no answer | An error in TAXSIM. `scripts/oracle.py` leaves these records out and prints `TAXSIM ERROR` for each |
 | WV | before 2016 | Taxpayer 65 or older with a property tax credit | The senior credit calls `povertf`, which stops for years before 2016. Its result only feeds an `if` whose body is commented out | `scripts/build_oracle.sh` makes `povertf` return the 2016 line; no effect on the tax |
 
-## Iowa 1981 (open)
-
-6 of 1000 CPS households differ in 1981 only (all aged 56-78 with pensions or Social Security; the gap is $4-$8 of Iowa
-tax and federal tax matches). Iowa 1977-80, 1985 and every sampled year from 1990 through 2026 are at 0 of 1000. The
-1981 age-related pension / Social Security treatment has not been traced yet. Reproduce with
-`scripts/find_cps_gaps.py <cps dir> --states 16 --years 1981 --units 1000`.
-
 ## Uninitialised variables in the shipped source
 
 | State | Years | Cause | Handling |

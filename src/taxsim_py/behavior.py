@@ -202,6 +202,7 @@ class BehaviorProfile:
     exempt_pennsylvania_pensions_from_age_65_per_statute: bool = True
     keep_oregon_state_tax_deduction_for_aged_per_statute: bool = True
     apply_iowa_personal_credits_before_amt_per_statute: bool = True
+    count_half_self_employment_tax_in_refundable_child_credit_per_statute: bool = True
     cap_nonrefundable_child_credit_at_three_children_refundable_maximum_per_statute: bool = True
     add_back_half_self_employment_tax_before_iowa_social_security_per_statute: bool = True
     credit_iowa_dependents_in_full_on_separate_spouse_returns_per_statute: bool = True

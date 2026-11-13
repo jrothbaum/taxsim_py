@@ -48,20 +48,6 @@ def compute_ia_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
 
     # --- AGI ---
     df = df.with_columns(ia_agi=pl.col("agi") + 0.5 * pl.col("ia_setax"))
-    if 1982 <= effective_year <= 1984:
-        p87 = YearParams(PRE1987_PARAMS, effective_year)
-        rate_2e = p87.num("two_earner_deduction_rate")
-        cap_2e = p87.num("two_earner_deduction_cap")
-        lesser_wage = pl.min_horizontal(pl.col("pwages"), pl.col("swages")).clip(0, None)
-        twoded = pl.when(files_joint()).then(
-            (rate_2e * lesser_wage).clip(0, cap_2e)
-        ).otherwise(0.0)
-        df = df.with_columns(ia_agi=pl.col("ia_agi") + twoded)
-    if p.in_effect("dividend_interest_exclusion_per_taxpayer"):
-        fed_excl = federal_dividend_exclusion_limit(effective_year, behavior)
-        divexc = pl.min_horizontal(pl.col("dividends") + pl.col("intrec"), fed_excl)
-        own_cap = (pl.col("dividends") + pl.col("intrec")).clip(0, p.num("dividend_interest_exclusion_per_taxpayer") * pl.col("ia_taxpayers"))
-        df = df.with_columns(ia_agi=pl.col("ia_agi") + divexc - own_cap)
     # Social Security: federal taxable benefits out; through 2013 Iowa's own
     # partial taxation in.
     ss_p = p["social_security_base"]
@@ -82,6 +68,22 @@ def compute_ia_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             ssb = ssb * (1 - p.num("social_security_phaseout_share"))
         ssb = pl.when(pl.col("gssi") > 0).then(ssb).otherwise(0.0)
         df = df.with_columns(ia_agi=pl.col("ia_agi") + ssb)
+    # The two-earner deduction also comes after the Social Security step.
+    if 1982 <= effective_year <= 1984:
+        p87 = YearParams(PRE1987_PARAMS, effective_year)
+        rate_2e = p87.num("two_earner_deduction_rate")
+        cap_2e = p87.num("two_earner_deduction_cap")
+        lesser_wage = pl.min_horizontal(pl.col("pwages"), pl.col("swages")).clip(0, None)
+        twoded = pl.when(files_joint()).then(
+            (rate_2e * lesser_wage).clip(0, cap_2e)
+        ).otherwise(0.0)
+        df = df.with_columns(ia_agi=pl.col("ia_agi") + twoded)
+    # TAXSIM adds the dividend and interest exclusion back after the Social Security step.
+    if p.in_effect("dividend_interest_exclusion_per_taxpayer"):
+        fed_excl = federal_dividend_exclusion_limit(effective_year, behavior)
+        divexc = pl.min_horizontal(pl.col("dividends") + pl.col("intrec"), fed_excl)
+        own_cap = (pl.col("dividends") + pl.col("intrec")).clip(0, p.num("dividend_interest_exclusion_per_taxpayer") * pl.col("ia_taxpayers"))
+        df = df.with_columns(ia_agi=pl.col("ia_agi") + divexc - own_cap)
     # The reportable benefits: half of the lesser of the benefits and income (federal AGI less the taxable
     # benefits) over $32,000 on a joint return, $25,000 on any other.
     base = pl.when(files_joint()).then(float(ss_p["joint"])).otherwise(float(ss_p["single"]))
@@ -423,8 +425,8 @@ def compute_ia_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     if effective_year >= 1990:
         rate_eitc = p.num("eitc_rate")
         cap_eitc = p.num("eitc_agi_cap")
-        # Tested against Iowa AGI.
-        earncr = pl.when(pl.col("ia_agi") < cap_eitc).then(rate_eitc * pl.col("eitc")).otherwise(0.0)
+        # Tested against federal AGI (after the deduction for half the self-employment tax).
+        earncr = pl.when(pl.col("agi") < cap_eitc).then(rate_eitc * pl.col("eitc")).otherwise(0.0)
 
         if p.in_effect("eitc_joint_worksheet"):
             nkid = pl.col("depx")

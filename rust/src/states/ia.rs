@@ -203,16 +203,6 @@ pub fn tax(i: &Inp, f: &Fed, p: &IaParams) -> f64 {
 
     // ---- AGI ----
     let mut agi = f.agi + 0.5 * setax;
-    if let Some((rate, cap)) = p.two_earner {
-        if is_joint {
-            agi += (rate * i.pwages.min(i.swages).max(0.0)).max(0.0).min(cap);
-        }
-    }
-    if let Some(per_taxpayer) = p.dividend_interest {
-        let divexc = (i.dividends + i.intrec).min(f.pre87.divexc);
-        let own_cap = (i.dividends + i.intrec).max(0.0).min(per_taxpayer * txp);
-        agi += divexc - own_cap;
-    }
     // Social Security: federal taxable benefits out; through 2013 Iowa's own partial taxation in.
     let pha = if is_joint { p.ss_base[0] } else if fs == Fs::Separate { p.ss_base[1] } else { p.ss_base[2] };
     agi -= f.taxable_social_security;
@@ -226,6 +216,18 @@ pub fn tax(i: &Inp, f: &Fed, p: &IaParams) -> f64 {
             ssb = 0.0;
         }
         agi += ssb;
+    }
+    // The two-earner deduction also comes after the Social Security step.
+    if let Some((rate, cap)) = p.two_earner {
+        if is_joint {
+            agi += (rate * i.pwages.min(i.swages).max(0.0)).max(0.0).min(cap);
+        }
+    }
+    // TAXSIM adds the dividend and interest exclusion back after the Social Security step.
+    if let Some(per_taxpayer) = p.dividend_interest {
+        let divexc = (i.dividends + i.intrec).min(f.pre87.divexc);
+        let own_cap = (i.dividends + i.intrec).max(0.0).min(per_taxpayer * txp);
+        agi += divexc - own_cap;
     }
     // The reportable benefits: half of the lesser of the benefits and income (federal AGI less the taxable benefits)
     // over $32,000 on a joint return, $25,000 on any other.
@@ -430,7 +432,7 @@ pub fn tax(i: &Inp, f: &Fed, p: &IaParams) -> f64 {
     // ---- EITC ----
     let mut earncr = 0.0;
     if let Some((rate, agi_cap)) = p.eitc {
-        earncr = if agi < agi_cap { rate * f.eitc } else { 0.0 };
+        earncr = if f.agi < agi_cap { rate * f.eitc } else { 0.0 };
         if let Some(w) = &p.worksheet {
             let nkid = depx;
             let xlin2 = if nkid == 0.0 { w.start[0] } else if (1.0..=2.0).contains(&nkid) { w.start[1] } else { w.start[2] };
