@@ -119,6 +119,14 @@ def compute_ct_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             rate = pl.when(joint).then(
                 _step_value(agi, pension_rates["joint"])
             ).otherwise(_step_value(agi, pension_rates["non_joint"]))
+            if effective_year >= 2024 and not behavior.step_connecticut_pension_deduction_per_statute:
+                # TAXSIM interpolates its table (`tablki`) between the thresholds, with the weights reversed.
+                def taxsim_rows(rows: list[list[float]]) -> list[list[float]]:
+                    return [[rows[i + 1][0], rows[i][1]] for i in range(len(rows) - 1)] + [[1.0e20, rows[-1][1]]]
+
+                rate = pl.when(joint).then(
+                    interpolate_table(agi, taxsim_rows(pension_rates["joint"]))
+                ).otherwise(interpolate_table(agi, taxsim_rows(pension_rates["non_joint"])))
             agi = agi - rate * pl.col("pensions")
         else:
             limit_p = p["pension_deduction_agi_limit"]
@@ -150,10 +158,11 @@ def compute_ct_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
                 0.5 * (pl.col("ct_household_income") - 0.5 * benefits - adjustments - excl).clip(0, None), 0.5 * benefits
             )
             partial = (taxable_ss - kept).clip(0, None)
-        elif effective_year >= 2022:
+        elif effective_year >= 2022 or not behavior.limit_connecticut_social_security_exclusion_to_base_amount_per_statute:
             # A share of the lesser of gross benefits and combined income
             # above the federal base amount (IRC section 86).
-            combined_income = agi - taxable_ss + 0.5 * benefits
+            income_for_ss = agi if behavior.limit_connecticut_social_security_exclusion_to_base_amount_per_statute else pl.col("agi")
+            combined_income = income_for_ss - taxable_ss + 0.5 * benefits
             combined_excess = (combined_income - excl).clip(0, None)
             partial = (taxable_ss - p["social_security_partial_share"] * pl.min_horizontal(benefits, combined_excess)).clip(0, None)
         else:
@@ -161,7 +170,7 @@ def compute_ct_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
                 taxable_ss - p["social_security_partial_share"] * pl.min_horizontal(benefits, excl)
             ).otherwise(0.0)
         agi = pl.when(taxable_ss > 0).then(
-            agi - pl.when(agi < ssbmax).then(taxable_ss).otherwise(partial)
+            agi - pl.when(pl.col("agi") < ssbmax).then(taxable_ss).otherwise(partial)
         ).otherwise(agi)
     if effective_year >= 2024 and not behavior.exclude_transfers_from_connecticut_income_per_statute:
         # TAXSIM's 2024 on routine starts from household income, which includes transfers.

@@ -478,7 +478,7 @@ pub fn tax(i: &Inp, f: &Fed, p: &CtParams) -> f64 {
             0.0
         };
         if taxable_ss > 0.0 {
-            agi -= if agi < ssbmax { taxable_ss } else { partial };
+            agi -= if f.agi < ssbmax { taxable_ss } else { partial };
         }
     }
     let ct_agi = agi;
