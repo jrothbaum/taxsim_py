@@ -269,7 +269,6 @@ The shipped source stops the whole run, with no output, on two kinds of record.
 
 | State | Years | Cause | Handling |
 | --- | --- | --- | --- |
-| IA | 1977-1997 | `iatax77` adds `xm` to the head-of-household credit, but `xm` is set only for 1998 on, so the credit depends on stack garbage (0 and +$10 in two compiles) | The oracle build sets it to the year's credit (`scripts/build_oracle.sh`); taxsim mode credits the head of household that amount twice |
 
 ## TAXSIM's answer for a record depends on the records before it
 
@@ -290,8 +289,6 @@ investment deduction has no age test, Pennsylvania exempts pensions from 60, Ore
 
 | State | Years | Households that differ |
 | --- | --- | --- |
-| IA | 2019 on | joint returns with spouse self-employment income: the federal tax deducted and the qualified business income deduction differ (TAXSIM -$2,738 federal deduction against taxsim-py $5,108 in one case) |
-| IA | 1995-2015 | married with children and other property income (1-2 households in 200) |
 | MI | 2015 on | couples aged 80 |
 | PA | 1995 on | negative other property income with self-employment income |
 | OR | 2015 | a single filer with $60,000 of wages and $40,000 of pensions and no interest (grid case; $194) |
@@ -300,7 +297,6 @@ investment deduction has no age test, Pennsylvania exempts pensions from 60, Ore
 | MA | 1985 and SE households | 1985 (10 of 400) and self-employment households ($2-7) |
 | ME | 2005-2021 | the property tax fairness credit amounts (TAXSIM pays $900 where the 2013-2015 table says $600) |
 | WV | 2020-2021 | singles aged 66 with interest: $90-97 |
-| IA | 1995-2015 | itemizing joint returns with high property tax: $20-200 (3-5 of 400 households per year) |
 | OH | 2015-2025 | joint returns with about $50,000 of wages and self-employment income: $35-55 lower than TAXSIM (exemption tier or business income tax; grid case: wages $50,000 and self-employment $15,000) |
 | CT, DE, KS, MI, NE, NY, OK | various | not traced yet (7-11 of 1,200 households each): mostly retirees (CT) |
 | DE | all years | couples both 65 or older with only pensions: TAXSIM does not add the $2,000 low-income exclusion we add |
