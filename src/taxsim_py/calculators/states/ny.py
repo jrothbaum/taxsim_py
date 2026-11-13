@@ -766,7 +766,7 @@ def compute_ny_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             childless = nkids == 0
             age_law = law if eligibility_year is None else eligibility_year
             if behavior.apply_new_york_earned_income_credit_age_test_per_statute or y >= 2022:
-                eligible = eitc_filer_eligible(childless, age_law) & eitc_age_eligible(childless, age_law)
+                eligible = eitc_filer_eligible(childless, age_law) & eitc_age_eligible(childless, age_law, behavior)
             else:
                 # TAXSIM's credit routine has no age test; only dependent filers are shut out.
                 eligible = ~is_dependent_filer()

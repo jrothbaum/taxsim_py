@@ -362,6 +362,8 @@ eitc_match_rate: {1977: 0.0, 2006: 0.08, 2007: 0.1}
 social_security_exclusion_agi_limit:
   single: {2015: 43000, 2021: 44460, 2022: 45790, 2023: 49310, 2024: 1.0e+20}
   married_joint: {2015: 58000, 2021: 59960, 2022: 61760, 2023: 66510, 2024: 1.0e+20}
+# TAXSIM's 2023 single limit is typed 493,100.
+taxsim_social_security_exclusion_agi_limit_single: {2023: 493100, 2024: null}
 social_security_exclusion_share_above_limit: {2015: 0.0, 2021: 0.05, 2022: 0.4, 2023: 0.6, 2024: 1.0}
 # From 2024, refundable child tax credit per dependent 5 or younger, [AGI above,
 # amount], with child care expenses or income at or below the federal poverty

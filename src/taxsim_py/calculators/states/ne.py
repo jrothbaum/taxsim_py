@@ -46,6 +46,8 @@ def compute_ne_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         limit = pl.when(is_joint).then(p.num("social_security_exclusion_agi_limit", "married_joint")).otherwise(
             p.num("social_security_exclusion_agi_limit", "single")
         )
+        if p.in_effect("taxsim_social_security_exclusion_agi_limit_single") and not behavior.use_nebraska_published_social_security_limit_per_statute:
+            limit = pl.when(is_joint).then(limit).otherwise(p.num("taxsim_social_security_exclusion_agi_limit_single"))
         above = p.num("social_security_exclusion_share_above_limit")
         ne_agi = ne_agi - pl.when(fed_agi <= limit).then(pl.col("taxable_social_security")).otherwise(
             above * pl.col("taxable_social_security")
@@ -239,7 +241,7 @@ def compute_ne_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
                 earned_primary = pl.col("pwages") + pl.col("psemp") + pl.col("pbusinc") + pl.col("pprofinc")
                 earned_spouse = pl.col("swages") + pl.col("ssemp") + pl.col("sbusinc") + pl.col("sprofinc")
                 earnmin = pl.when(is_joint).then(pl.min_horizontal(earned_primary, earned_spouse)).otherwise(earned_primary)
-                x6 = pl.min_horizontal(pl.col("childcare"), earnmin, 8000.0 * pl.col("dep13").clip(None, 2))
+                x6 = pl.min_horizontal(pl.col("childcare"), earnmin.clip(0, None), 8000.0 * pl.col("dep13").clip(None, 2))
                 x9 = (1 - 0.1 * (fagi - 22_000) / 1000).clip(0, 1)
                 chcref = pl.when(fagi <= 29_000).then(x6 * 0.5 * x9).otherwise(0.0)
             elif y == 2022 or y == 2023:
@@ -252,7 +254,7 @@ def compute_ne_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         earned_primary = pl.col("pwages") + pl.col("psemp") + pl.col("pbusinc") + pl.col("pprofinc")
         earned_spouse = pl.col("swages") + pl.col("ssemp") + pl.col("sbusinc") + pl.col("sprofinc")
         earnmin = pl.when(is_joint).then(pl.min_horizontal(earned_primary, earned_spouse)).otherwise(earned_primary)
-        care = pl.min_horizontal(pl.lit(6000.0), pl.col("childcare"), 3000.0 * pl.col("dep13").clip(None, 2), earnmin)
+        care = pl.min_horizontal(pl.lit(6000.0), pl.col("childcare"), 3000.0 * pl.col("dep13").clip(None, 2), earnmin.clip(0, None))
         frac1 = pl.max_horizontal(pl.lit(28.0), 35.0 - (fagi - 15_000).clip(0, None) / 2000.0) / 100.0
         frac2 = pl.max_horizontal(pl.lit(30.0), 100.0 - 10.0 * (fagi - 22_000).clip(0, None) / 1000.0) / 100.0
         chcref = pl.when(fagi <= 29_000).then(frac1 * frac2 * care).otherwise(0.0)
@@ -272,6 +274,9 @@ def compute_ne_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         eligible = (pl.col("childcare") > 0) | (pl.col("agi") <= poverty)
         amount = bracket_rate(pl.col("agi"), c["amount"])
         ctc = pl.when(eligible).then(amount * pl.col("dep6")).otherwise(0.0)
+        if not behavior.pay_nebraska_child_tax_credit_per_statute:
+            # TAXSIM works the credit out and then overwrites it with the child care credit in the same variable.
+            ctc = pl.lit(0.0)
     statax = statax - chcref - earncr - ctc
     final_chcr = pl.when(chcref > 0).then(chcref).otherwise(chcr)
     final_credit = credit + chcref + earncr + ctc

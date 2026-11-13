@@ -1168,7 +1168,7 @@ def _credits(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorProfi
     eitc = pl.when(eitc_filer_eligible(childless, year)).then(eitc).otherwise(0.0)
     # The credit before the minimum-age test (`comnew(188)`, read by Maine).
     eitc_before_age_test = eitc
-    eitc = pl.when(eitc_age_eligible(childless, year)).then(eitc).otherwise(0.0)
+    eitc = pl.when(eitc_age_eligible(childless, year, behavior)).then(eitc).otherwise(0.0)
     df = df.with_columns(
         eitc=eitc, eitc_before_age_test=eitc_before_age_test, eitc_before_filer_test=eitc_before_filer_test
     )

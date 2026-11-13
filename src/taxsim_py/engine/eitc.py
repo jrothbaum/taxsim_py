@@ -1,11 +1,16 @@
 """Earned Income Tax Credit calculations."""
 
-
 from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 import polars as pl
 
 from taxsim_py.engine.inputs import aged_count, is_dependent_filer, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, load_yaml, resolve_year
+
+if TYPE_CHECKING:
+    from taxsim_py.behavior import BehaviorProfile
 
 _EITC_MISC = load_yaml(PARAMETERS_ROOT / "national" / "eitc_misc.yaml")
 
@@ -22,7 +27,7 @@ def eitc_filer_eligible(childless: pl.Expr, year: int) -> pl.Expr:
     return eligible
 
 
-def eitc_age_eligible(childless: pl.Expr, year: int) -> pl.Expr:
+def eitc_age_eligible(childless: pl.Expr, year: int, behavior: BehaviorProfile | None = None) -> pl.Expr:
     """Whether a childless return passes the EITC minimum-age test (1994 on).
 
     A taxpayer below the minimum age disqualifies it (outside 2021 only the
@@ -32,8 +37,20 @@ def eitc_age_eligible(childless: pl.Expr, year: int) -> pl.Expr:
     if year < 1994:
         return pl.lit(True)
     minimum_age = float(resolve_year(_EITC_MISC["childless_minimum_age"], year))
-    older = pl.max_horizontal(pl.col("page"), pl.col("sage"))
-    younger = pl.min_horizontal(pl.col("page"), pl.col("sage"))
+    spouse_age = pl.col("sage")
+    if behavior is not None and not behavior.leave_unreported_spouse_age_out_of_eitc_age_test_per_statute:
+        # TAXSIM gives a joint filer with no spouse age a spouse of 40.
+        spouse_age = pl.when((pl.col("mstat") == 2) & (pl.col("sage") == 0)).then(40).otherwise(pl.col("sage"))
+        # It then calls the return eligible when either age is in range (25-64; 19 and older in 2021), or both are unreported.
+        low, high = (19, 115) if year == 2021 else (25, 64)
+
+        def in_range(age: pl.Expr) -> pl.Expr:
+            return (age >= low) & (age <= high)
+
+        either = in_range(pl.col("page")) | in_range(spouse_age) | (pl.col("page") + spouse_age == 0)
+        return ~(childless & ~either)
+    older = pl.max_horizontal(pl.col("page"), spouse_age)
+    younger = pl.min_horizontal(pl.col("page"), spouse_age)
 
     def too_young(age: pl.Expr) -> pl.Expr:
         return (age > 0) & (age < minimum_age)

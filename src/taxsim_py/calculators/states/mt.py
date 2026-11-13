@@ -401,7 +401,7 @@ def compute_mt_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         def spouse_credit(earned: pl.Expr) -> pl.Expr:
             credit = federal_eitc(earned, pl.col("agi"), disqy, status, nkids, eitc_params, dylim)
             childless = nkids == 0
-            eligible = eitc_filer_eligible(childless, y) & eitc_age_eligible(childless, y)
+            eligible = eitc_filer_eligible(childless, y) & eitc_age_eligible(childless, y, behavior)
             return p.num("eitc_match_rate") * pl.when(eligible).then(credit).otherwise(0.0)
 
         earned_h = pl.col("pwages") + pl.col("psemp")
