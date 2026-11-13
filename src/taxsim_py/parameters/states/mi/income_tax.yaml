@@ -293,6 +293,10 @@ pension_exclusion_per_taxpayer:
   2019: 52808
   2020: 53759
   2021: 54404
+  2022: 56961
+  2023: 61518
+  2024: 64040
+  2025: 65897
 # From 1994: interest, dividends (and from 1997 capital gains) up to this per
 # taxpayer, when larger than the pension subtraction.
 senior_investment_deduction_per_taxpayer:
@@ -323,6 +327,10 @@ senior_investment_deduction_per_taxpayer:
   2019: 11771
   2020: 11983
   2021: 12127
+  2022: 12697
+  2023: 13712
+  2024: 14274
+  2025: 14688
 # 2013+: a flat deduction per taxpayer 65 or older replaces both in TAXSIM.
 # By law (2013-2022) the tier follows the older spouse's birth year: born
 # before `senior_tier_two_first_birth_year`, the pension and investment
@@ -385,6 +393,9 @@ property_credit_senior_percentage:
   - [29001, 0.68]
   - [30001, 0.64]
   - [50001, 0.60]
+# The highest household income at which the senior credit is allowed (MI-1040CR-7 income limit); TAXSIM
+# ends its percentage table there.
+property_credit_senior_income_limit: {2021: 60600, 2022: 63000, 2023: 67300, 2024: 69700, 2025: 71500}
 # Senior renters may instead claim rent over this share of income.
 property_credit_senior_rent_income_share:
   1980: 0.4

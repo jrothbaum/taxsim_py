@@ -202,6 +202,9 @@ class BehaviorProfile:
     exempt_pennsylvania_pensions_from_age_65_per_statute: bool = True
     keep_oregon_state_tax_deduction_for_aged_per_statute: bool = True
     apply_iowa_personal_credits_before_amt_per_statute: bool = True
+    leave_michigan_business_loss_out_of_household_income_per_statute: bool = True
+    reduce_michigan_heating_credit_income_by_half_self_employment_tax_per_statute: bool = True
+    end_michigan_senior_percentage_table_at_statutory_row_per_statute: bool = True
     test_ohio_senior_credit_on_income_after_business_deduction_per_statute: bool = True
     base_ohio_joint_credit_on_income_after_business_deduction_per_statute: bool = True
     start_maryland_child_tax_credit_phaseout_at_threshold_per_statute: bool = True

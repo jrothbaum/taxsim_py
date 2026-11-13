@@ -33,6 +33,10 @@ def compute_mi_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     setax = pl.col("payroll_setax")
     ui_total = unemployment_total()
     hh_income = household_income(behavior)
+    if effective_year >= 2021 and not behavior.leave_michigan_business_loss_out_of_household_income_per_statute:
+        # TAXSIM adds a self-employment loss back and floors household income at zero (`hy`).
+        business_loss = -(pl.col("psemp") + pl.col("ssemp")).clip(None, 0)
+        hh_income = (hh_income + business_loss).clip(0, None)
     df = df.with_columns(mi_setax=setax, mi_household_income_undeflated=hh_income, mi_household_income=hh_income)
 
     df = deflate_for_extrapolation(df, flate, extra=("mi_household_income",))
@@ -129,7 +133,7 @@ def compute_mi_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         # exemptions (not below the benefit), then 75% of the pension cap for those born 1959-1966.
         older = pl.max_horizontal(pl.col("page"), pl.col("sage"))
         older = pl.when((older == 0) & (aged > 0)).then(74).otherwise(older)
-        born = year - older
+        born = effective_year - older
         pend = p.num("pension_exclusion_per_taxpayer")
         ssben = pl.col("taxable_social_security")
         tier2 = pl.min_horizontal(pl.col("agi"), p.num("senior_standard_deduction") * n_tp)
@@ -138,7 +142,7 @@ def compute_mi_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         first, last = p.num("senior_tier_two_first_birth_year"), p.num("senior_tier_two_last_birth_year")
         stded_t = (
             pl.when(known & (born >= first) & (born <= last)).then(tier2)
-            .when(known & (born > last) & (born <= pl.min_horizontal(pl.lit(1958), year - 66))).then(tier3)
+            .when(known & (born > last) & (born <= pl.min_horizontal(pl.lit(1958), effective_year - 66))).then(tier3)
             .otherwise(0.0)
         )
         penex_t = (
@@ -191,6 +195,12 @@ def compute_mi_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     rentpaid = pl.col("rentpaid")
     ptax = pl.col("proptax") + p.num("property_credit_rent_share") * rentpaid
     pcred_under65 = p.num("property_credit_rate") * (ptax - share * hhy).clip(0, None)
+    senior_percentage_rows = MI_PARAMS["property_credit_senior_percentage"]
+    if not behavior.end_michigan_senior_percentage_table_at_statutory_row_per_statute:
+        # TAXSIM's table has a closing row (zero at any income) and, from 2021, the year's income limit in place of
+        # the 50,001 row, so it interpolates between 30,001 and that threshold.
+        last_threshold = p.num("property_credit_senior_income_limit") if y >= 2021 else senior_percentage_rows[-1][0]
+        senior_percentage_rows = senior_percentage_rows[:-1] + [[last_threshold, senior_percentage_rows[-1][1]], [1.0e20, 0.0]]
     # Taxpayers 65 or older: property tax over a sliding share of income,
     # from 2012 scaled by an income percentage; renters may instead claim
     # rent over 40% of income.
@@ -200,14 +210,14 @@ def compute_mi_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         senior_table = p.value("property_credit_senior_income_share")
         pcred_aged = (ptax - interpolate_table(hhy, senior_table) * hhy).clip(0, None)
         if y >= 2012:
-            pcred_aged = pcred_aged * interpolate_table(hhy, MI_PARAMS["property_credit_senior_percentage"])
+            pcred_aged = pcred_aged * interpolate_table(hhy, senior_percentage_rows)
         pcred_aged = pl.when(rentpaid > 0).then(
             pl.max_horizontal(pcred_aged, rentpaid - p.num("property_credit_senior_rent_income_share") * hhy)
         ).otherwise(pcred_aged)
     if y >= 2021 and not behavior.cap_michigan_senior_renter_credit_at_statute_amount:
         # TAXSIM caps the alternative renter credit for taxpayers 65 or older at a fixed $1,500 (applied after the main cap).
         pcred_aged_main = (ptax - interpolate_table(hhy, p.value("property_credit_senior_income_share")) * hhy).clip(0, None)
-        pcred_aged_main = pcred_aged_main * interpolate_table(hhy, MI_PARAMS["property_credit_senior_percentage"]) if y >= 2012 else pcred_aged_main
+        pcred_aged_main = pcred_aged_main * interpolate_table(hhy, senior_percentage_rows) if y >= 2012 else pcred_aged_main
         pcred_aged = pcred_aged_main.clip(None, p.num("property_credit_cap"))
         older_65 = pl.max_horizontal(pl.col("page"), pl.col("sage")) >= 65
         rent_alternative = pl.min_horizontal(
@@ -250,9 +260,16 @@ def compute_mi_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         fc = fc + (amex - 6.0).clip(0, None) * p.num("heating_credit_per_extra_exemption")
     else:
         fc = p.num("heating_credit_base") + (amex - 1.0).clip(0, None) * p.num("heating_credit_per_extra_exemption")
+    hy_standard = hy
+    if not behavior.reduce_michigan_heating_credit_income_by_half_self_employment_tax_per_statute:
+        # TAXSIM's standard heating credit takes half the self-employment tax off household income (`secaded`,
+        # `hhy`) and, through 2020, floors the result at zero.
+        hy_standard = hy - 0.5 * pl.col("mi_setax")
+        if y < 2021:
+            hy_standard = hy_standard.clip(0, None)
     fuel = (
         pl.when(nexemp > 0)
-        .then((fc - p.num("heating_credit_income_rate") * hy).clip(0, None))
+        .then((fc - p.num("heating_credit_income_rate") * hy_standard).clip(0, None))
         .otherwise(0.0 if behavior.give_michigan_dependent_filers_exemption_per_statute or effective_year < 2021 else pl.when(is_dependent_filer()).then((fc - p.num("heating_credit_income_rate") * hy).clip(0, None)).otherwise(0.0))
         * p.num("heating_credit_share")
     )
