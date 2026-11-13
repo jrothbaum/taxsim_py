@@ -199,7 +199,6 @@ class BehaviorProfile:
     exempt_arkansas_unemployment_from_2024_per_statute: bool = True
     omit_georgia_itemizer_credit_per_statute: bool = True
     require_age_65_for_michigan_investment_deduction_per_statute: bool = True
-    exempt_pennsylvania_pensions_from_age_65_per_statute: bool = True
     keep_oregon_state_tax_deduction_for_aged_per_statute: bool = True
     apply_iowa_personal_credits_before_amt_per_statute: bool = True
     add_back_self_employment_loss_to_earned_income_credit_phaseout_per_statute: bool = True
@@ -496,7 +495,15 @@ class BehaviorProfile:
     report_social_security_taxable_earnings: bool = True
 
 
-STATUTORY_BEHAVIOR = BehaviorProfile()
+# Switches where TAXSIM's behavior has not been shown to be wrong, so statutory mode keeps it: statutory mode departs from
+# TAXSIM only where TAXSIM contradicts a form, a statute, or its own source (an unset variable, a typo). Every name
+# here is read as its TAXSIM value in both modes; docs/statutory_audit.md says why each one is listed.
+KEEP_TAXSIM_BEHAVIOR = frozenset(
+    {
+        "double_kentucky_standard_deduction_for_joint_returns",
+    }
+)
+STATUTORY_BEHAVIOR = BehaviorProfile(**{name: False for name in KEEP_TAXSIM_BEHAVIOR})
 # Switches whose TAXSIM error was fixed by the 2026 build (taxsim_2026_11_09.f):
 # TAXSIM mode now keeps the statutory value for them.
 FIXED_IN_2026_BUILD = frozenset(

@@ -13,6 +13,9 @@ from pathlib import Path
 import polars as pl
 import yaml
 
+from taxsim_py.behavior import BehaviorProfile
+from dataclasses import fields
+
 ROOT = Path(__file__).resolve().parents[1]
 impact = pl.read_csv(ROOT / "docs/data/statutory_switch_impact.csv").with_columns(
     stake=pl.col("changed") * pl.col("mean_abs_change_if_changed")
@@ -30,12 +33,16 @@ def statutory_side(switch: str) -> str:
     return ""
 
 
-frame = impact.sort("stake", descending=True).to_dicts()
-counts = {"verified": 0, "corrected": 0, "partial": 0, "unverified": 0}
+live = {f.name for f in fields(BehaviorProfile)}
+frame = [r for r in impact.sort("stake", descending=True).to_dicts() if r["switch"] in live]
+counts = {"verified": 0, "corrected": 0, "partial": 0, "kept_taxsim": 0, "unverified": 0}
+kept = {k: v for k, v in status.items() if v["status"] == "kept_taxsim"}
+counts["kept_taxsim"] = len(kept)
 lines = []
 for r in frame:
     entry = status.get(r["switch"], {"status": "unverified", "source": ""})
-    counts[entry["status"]] += 1
+    if entry["status"] != "kept_taxsim":
+        counts[entry["status"]] += 1
     lines.append(
         f"| `{r['switch']}` | {r['states']} | {r['changed']}/{r['units']} | {r['mean_abs_change_if_changed']:.0f} "
         f"| {entry['status']} | {statutory_side(r['switch'])} | {entry['source']} |"
@@ -50,6 +57,7 @@ side has been checked against a form or statute.
 
 - Switches: {total}. Verified against a primary source: {counts['verified']}. Corrected after checking: {counts['corrected']}.
   Partly checked: {counts['partial']}. Not yet checked: {counts['unverified']}.
+  Switches where statutory mode keeps TAXSIM's behavior because TAXSIM was not shown wrong: {counts['kept_taxsim']} (listed after the table).
 - Switches whose flip changes at least one household in the sample: {changed}. The rest change nobody in the sample
   (they apply to inputs or years the CPS sample does not reach) and are checked last.
 
@@ -59,12 +67,17 @@ tax moves by more than $1; "average" is the mean move for those households.
 (`scripts/audit_switch_impact.py`). Verdicts live in `docs/data/statutory_audit_status.yaml`; this page is built by
 `scripts/build_audit_ledger.py`.
 
+**Rule.** Statutory mode departs from TAXSIM only where TAXSIM is shown to be wrong: it contradicts a form or statute,
+or its own source is evidently broken (a variable never set, a typo). Where TAXSIM's behavior is a defensible reading, or
+the inputs cannot decide, statutory mode keeps TAXSIM's behavior (`KEEP_TAXSIM_BEHAVIOR` in `behavior.py`). Switches
+that still show "unverified" depart from TAXSIM without that proof yet; each is a candidate to be moved to the kept list.
+
 Status: **verified** = the statutory rule matches a cited primary source; **corrected** = the check found the
 statutory side wrong and it was changed; **partial** = true by design or only part checked; **unverified** = nothing
 yet beyond the earlier porting work.
 
 | Switch | States | Households changed | Average change ($) | Status | Statutory side | Source |
 |:--|:--:|:--:|--:|:--:|:--|:--|
-""" + "\n".join(lines) + "\n"
+""" + "\n".join(lines) + "\n\n## Statutory mode keeps TAXSIM's behavior\n\n| Switch | Why |\n|:--|:--|\n" + "\n".join(f"| `{k}` | {v['source']} |" for k, v in sorted(kept.items())) + "\n"
 (ROOT / "docs/statutory_audit.md").write_text(page)
 print(counts)

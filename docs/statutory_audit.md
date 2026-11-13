@@ -4,9 +4,10 @@ Statutory mode is only useful if each place it departs from TAXSIM can be defend
 statutory switch (`src/taxsim_py/behavior.py`), ranked by how much is at stake, and says whether its statutory
 side has been checked against a form or statute.
 
-- Switches: 450. Verified against a primary source: 8. Corrected after checking: 1.
-  Partly checked: 10. Not yet checked: 431.
-- Switches whose flip changes at least one household in the sample: 167. The rest change nobody in the sample
+- Switches: 449. Verified against a primary source: 8. Corrected after checking: 0.
+  Partly checked: 9. Not yet checked: 431.
+  Switches where statutory mode keeps TAXSIM's behavior because TAXSIM was not shown wrong: 2 (listed after the table).
+- Switches whose flip changes at least one household in the sample: 166. The rest change nobody in the sample
   (they apply to inputs or years the CPS sample does not reach) and are checked last.
 
 How the ranking was made: for each switch, statutory mode is run on CPS households (40 per state, law years 1985,
@@ -14,6 +15,11 @@ How the ranking was made: for each switch, statutory mode is run on CPS househol
 tax moves by more than $1; "average" is the mean move for those households.
 (`scripts/audit_switch_impact.py`). Verdicts live in `docs/data/statutory_audit_status.yaml`; this page is built by
 `scripts/build_audit_ledger.py`.
+
+**Rule.** Statutory mode departs from TAXSIM only where TAXSIM is shown to be wrong: it contradicts a form or statute,
+or its own source is evidently broken (a variable never set, a typo). Where TAXSIM's behavior is a defensible reading, or
+the inputs cannot decide, statutory mode keeps TAXSIM's behavior (`KEEP_TAXSIM_BEHAVIOR` in `behavior.py`). Switches
+that still show "unverified" depart from TAXSIM without that proof yet; each is a candidate to be moved to the kept list.
 
 Status: **verified** = the statutory rule matches a cited primary source; **corrected** = the check found the
 statutory side wrong and it was changed; **partial** = true by design or only part checked; **unverified** = nothing
@@ -35,16 +41,15 @@ yet beyond the earlier porting work.
 | `pay_minnesota_property_tax_refund_through_2023` | MN | 28/200 | 639 | partial | paid. | Minnesota Form M-1PR (homestead credit refund, renter's property tax refund) is a real refundable credit in these years; the refund tables have not been compared line by line; checked 2026-11-13 |
 | `deduct_colorado_federal_tax_after_1977` | CO | 32/200 | 484 | unverified | both deducted. |  |
 | `exclude_transfers_from_provisional_income` | all | 17/2040 | 668 | verified | adds nothing; the law adds tax-exempt interest, which TAXSIM has no input for. The same applies to the Iowa (2014 on) and Montana worksheets. | IRC 86(b)(2): provisional income is modified AGI plus tax-exempt interest plus half of benefits; transfers are not in it; checked 2026-11-13 |
-| `exempt_pennsylvania_pensions_from_age_65_per_statute` | PA | 10/200 | 1040 | corrected | exempt when a taxpayer is 65 or older (the statute is not checked). | PA Dept of Revenue REV-636 (retirement distributions are not taxable once the plan's retirement age is reached and the owner has retired; 59 1/2 for IRAs). Statutory age was 65 and applied to a household with any aged member; now 60 (retirement age proxy), checked 2026-11-13 |
 | `subtract_state_tax_in_georgia_itemized_deduction` | GA | 17/200 | 534 | partial | less the state tax. | Georgia Form 500 and Schedule 1 (IT-511 booklet): state income tax claimed on federal Schedule A is added back, and Georgia keeps a 10,000 SALT limit; confirmed from Georgia DOR forms and Intuit/TurboTax expert answers, IT-511 text itself not read; checked 2026-11-13 |
 | `use_colorado_statutory_sales_tax_refund` | CO | 54/200 | 161 | unverified | none. |  |
 | `pay_new_york_empire_child_credit_per_statute` | NY | 18/200 | 481 | partial | children 4-16. | NY Tax Dept Empire State child credit page and IT-213 instructions: 330 per child at least 4 and under 17, with children under 4 added at 330 before 2025 and 1,000 from 2025; phase-out over 75,000 / 110,000. The pre-2018 statutory rules (which years counted children under 4 and 4-16) were not compared line by line; checked 2026-11-13 |
 | `remove_state_tax_from_west_virginia_itemized_deductions` | WV | 9/200 | 905 | unverified | removed. |  |
-| `double_kentucky_standard_deduction_for_joint_returns` | KY | 57/200 | 135 | partial | a standard deduction per taxpayer and the higher earner's wages plus half the other income. | Kentucky Form 740 instructions list one standard deduction by year ($2,650 in 2020) that does not vary by filing status; whether each spouse takes one on a combined return was not settled from the results (a married couple filing separately on a combined return each uses their own); checked 2026-11-13 |
+| `double_kentucky_standard_deduction_for_joint_returns` | KY | 57/200 | 135 | kept_taxsim | a standard deduction per taxpayer and the higher earner's wages plus half the other income. | Kentucky Form 740 gives one standard deduction amount by year that does not vary by filing status; no source found that a joint return takes two, so TAXSIM's one-per-return was not shown wrong. Statutory mode now uses it (switch kept in KEEP_TAXSIM_BEHAVIOR); 2026-11-14 |
 | `count_colorado_credit_children_per_statute` | CO | 4/200 | 1543 | partial | children under 6 and 6-16 with the flat formula. | Colorado DOR child tax credit page and Family Affordability Tax Credit coverage: FATC up to 3,200 per child under 6 and 2,400 per child 6-16 in 2024 and 2025, phase-out 85,000 single / 95,000 joint; CTC AGI limits 75,000/85,000 (2024) and 77,000/87,000 (2025); numbers from news and agency summaries, not the DR 0104CN text; checked 2026-11-13 |
 | `count_other_property_income_in_eitc_disqualified_income_per_statute` | all | 1/2040 | 6015 | verified | counted in every year. | IRC 32(i)(2): disqualified income includes interest, dividends, net rent and royalty income, capital gain net income and passive activity income, so other property income counts in every year; checked 2026-11-13 |
 | `split_montana_joint_returns_per_statute` | MT | 24/200 | 250 | unverified | higher earner plus a share. |  |
-| `file_kentucky_combined_returns_per_statute` | KY | 45/200 | 131 | partial | a standard deduction per taxpayer and the higher earner's wages plus half the other income. | Allocation of non-wage income between spouses on a combined return is a modelling convention because the inputs give each spouse's wages but not other income; Kentucky Form 740 lets spouses file separately on a combined return; checked 2026-11-13 |
+| `file_kentucky_combined_returns_per_statute` | KY | 45/200 | 131 | partial | a standard deduction per taxpayer and the higher earner's wages plus half the other income. | Allocating non-wage income between spouses on a combined return is a modelling convention, so TAXSIM's split was not shown wrong; to be moved to KEEP_TAXSIM_BEHAVIOR once the Rust engine can run TAXSIM's split (not yet ported); 2026-11-14 |
 | `pay_kansas_homestead_refund_from_2007_per_statute` | KS | 11/200 | 502 | unverified | the refund. |  |
 | `compute_missouri_itemized_deduction_before_2018` | MO | 11/200 | 452 | unverified | itemized. |  |
 | `leave_missouri_federal_tax_deduction_uncapped_before_1994` | MO | 14/200 | 343 | unverified | published. |  |
@@ -471,3 +476,10 @@ yet beyond the earlier porting work.
 | `credit_wisconsin_1983_homestead_excess` | WI | 0/200 | 0 | unverified | 80%. |  |
 | `report_base_state_worksheet` | all | 0/2040 | 0 | unverified | drops the $1 and reports the base calculation. |  |
 | `report_social_security_taxable_earnings` | all | 0/2040 | 0 | unverified | reports both earners' wages plus 92.35% of net business income, each capped at the wage base. |  |
+
+## Statutory mode keeps TAXSIM's behavior
+
+| Switch | Why |
+|:--|:--|
+| `double_kentucky_standard_deduction_for_joint_returns` | Kentucky Form 740 gives one standard deduction amount by year that does not vary by filing status; no source found that a joint return takes two, so TAXSIM's one-per-return was not shown wrong. Statutory mode now uses it (switch kept in KEEP_TAXSIM_BEHAVIOR); 2026-11-14 |
+| `exempt_pennsylvania_pensions_from_age_65_per_statute` | Pennsylvania exempts retirement distributions from the plan's retirement age (REV-636) with no fixed age and no per-person rule the inputs can apply, so TAXSIM's reading (a couple's pension to the spouse 55 or older, exempt from 60) is a defensible implementation and was not shown wrong. Statutory mode now uses it; the switch was removed; 2026-11-14 |

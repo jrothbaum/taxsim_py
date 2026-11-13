@@ -4,7 +4,7 @@
 from __future__ import annotations
 import polars as pl
 
-from taxsim_py.engine.inputs import files_joint, taxpayer_count
+from taxsim_py.engine.inputs import aged_count, files_joint, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml
 from taxsim_py.engine.state import phaseout_steps, with_state_detail, dividend_input_adjustment, unemployment_total
 from taxsim_py.behavior import BehaviorProfile, TAXSIM_BEHAVIOR
@@ -31,26 +31,21 @@ def compute_pa_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         pl.col("psemp") + pl.col("ssemp") + pl.col("pbusinc") + pl.col("pprofinc") + pl.col("sbusinc")
         + pl.col("sprofinc")
     )
-    if behavior.exempt_pennsylvania_pensions_from_age_65_per_statute:
-        # Retirement income is exempt once the owner has reached the plan's retirement age; 59 1/2 for an IRA (REV-636),
-        # taken as 60 here because the inputs say nothing of retirement.
-        retirement_age = (pl.col("page") >= 60) | (pl.col("sage") >= 60)
-        taxable_pensions = pl.when(retirement_age).then(0.0).otherwise(pl.col("pensions"))
-    else:
-        # TAXSIM gives a married couple's pensions to the spouse aged 55 or older (halves if both or neither are), and
-        # taxes each share unless that spouse is 60 or older.
-        pensions = pl.col("pensions")
-        head_55, spouse_55 = pl.col("page") >= 55, pl.col("sage") >= 55
-        head_share = (
-            pl.when(pl.col("mstat") != 2).then(pensions)
-            .when(head_55 & ~spouse_55).then(pensions)
-            .when(~head_55 & spouse_55).then(0.0)
-            .otherwise(pensions / 2.0)
-        )
-        taxable_pensions = (
-            pl.when(pl.col("page") < 60).then(head_share).otherwise(0.0)
-            + pl.when(pl.col("sage") < 60).then(pensions - head_share).otherwise(0.0)
-        )
+    # TAXSIM gives a married couple's pensions to the spouse aged 55 or older (halves if both or neither are), and taxes
+    # each share unless that spouse is 60 or older. Pennsylvania exempts retirement income from the plan's retirement age
+    # (REV-636) with no fixed age, so TAXSIM's reading is kept in both modes.
+    pensions = pl.col("pensions")
+    head_55, spouse_55 = pl.col("page") >= 55, pl.col("sage") >= 55
+    head_share = (
+        pl.when(pl.col("mstat") != 2).then(pensions)
+        .when(head_55 & ~spouse_55).then(pensions)
+        .when(~head_55 & spouse_55).then(0.0)
+        .otherwise(pensions / 2.0)
+    )
+    taxable_pensions = (
+        pl.when(pl.col("page") < 60).then(head_share).otherwise(0.0)
+        + pl.when(pl.col("sage") < 60).then(pensions - head_share).otherwise(0.0)
+    )
     income = (
         pl.col("pwages").clip(0, None) + pl.col("swages").clip(0, None)
         + pl.col("dividends") + dividend_adjustment + pl.col("intrec")
@@ -93,7 +88,7 @@ def compute_pa_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     if behavior.apply_pennsylvania_forgiveness_rules:
         # Schedule SP eligibility income adds nontaxable income such as
         # unemployment compensation and exempt pensions.
-        eligibility = taxinc + unemployment_total() + pl.when((pl.col("page") >= 60) | (pl.col("sage") >= 60)).then(pl.col("pensions")).otherwise(0.0)
+        eligibility = taxinc + unemployment_total() + pl.when(aged_count() > 0).then(pl.col("pensions")).otherwise(0.0)
     remain = (eligibility - allow).clip(0, None)
     forgiven_share = (1.0 - remain / p.num("forgiveness_phaseout")).clip(0, None)
     if p.in_effect("forgiveness_step"):
