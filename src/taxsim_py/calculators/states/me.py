@@ -79,6 +79,22 @@ def compute_me_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             width = by_filing_status({k: float(v) for k, v in po["width"].items()})
             share = ((pl.col("agi") - start).clip(0, None) / width).clip(None, 1.0)
             pension_deduction = pension_deduction * (1.0 - share)
+        if effective_year < 2022 and not behavior.deduct_maine_pensions_at_any_age:
+            # TAXSIM allocates the pension between the spouses (to the one 55 or older when only one is) and caps each
+            # share at $10,000 and at the year's amount less that taxpayer's share of the benefits.
+            joint = files_joint()
+            sage_eff = pl.when(joint & (pl.col("sage") == 0)).then(40.0).otherwise(pl.col("sage").cast(pl.Float64))
+            to_h = (
+                pl.when(~joint).then(pl.col("pensions"))
+                .when((pl.col("page") >= 55) & (sage_eff < 55)).then(pl.col("pensions"))
+                .when((pl.col("page") < 55) & (sage_eff >= 55)).then(0.0)
+                .otherwise(pl.col("pensions") / 2)
+            )
+            to_s = pl.when(joint).then(pl.col("pensions") - to_h).otherwise(0.0)
+            remaining = (pended - pl.col("gssi") / pl.col("me_txp").clip(1, None)).clip(0, None)
+            pension_deduction = pl.min_horizontal(pl.min_horizontal(to_h, pl.lit(10000.0)), remaining) + pl.min_horizontal(
+                pl.min_horizontal(to_s, pl.lit(10000.0)), remaining
+            )
         if effective_year >= 2022 and not behavior.deduct_maine_pensions_at_any_age:
             # TAXSIM gives the deduction to a taxpayer aged 55 or over, and reduces each
             # spouse's cap by that spouse's share of Social Security (split the same way).
@@ -399,6 +415,10 @@ def compute_me_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     if p.in_effect("eitc_rate"):
         rate_eitc = p.num("eitc_rate")
         earncr = rate_eitc * pl.col("eitc")
+        if effective_year in (2020, 2021) and not behavior.pay_maine_childless_credit_rate_to_all_ages_per_statute:
+            # TAXSIM pays childless taxpayers aged 18 to 24 the match on the federal credit before its age test.
+            young_childless = (pl.col("dep18") < 1) & (pl.col("page") >= 18) & (pl.col("page") <= 24)
+            earncr = pl.when(young_childless).then(rate_eitc * pl.col("eitc_before_age_test")).otherwise(earncr)
         if p.in_effect("eitc_rate_childless"):
             # On the federal credit before its minimum-age test.
             federal = pl.col("eitc_before_age_test")
