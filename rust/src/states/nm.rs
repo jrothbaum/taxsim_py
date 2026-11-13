@@ -224,7 +224,8 @@ pub fn tax(i: &Inp, f: &Fed, p: &NmParams) -> f64 {
         + p.dividend_adjustment
         + i.intrec
         + i.gssi
-        + i.pensions;
+        + i.pensions
+        + i.otherprop;
     // Business and S corporation income.
     let business_income =
         [i.pbusinc, i.pprofinc, i.scorp, i.sbusinc, i.sprofinc].iter().map(|v| v.max(0.0)).fold(0.0, |a, b| a + b);

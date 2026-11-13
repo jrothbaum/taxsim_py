@@ -65,7 +65,7 @@ def compute_nm_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     modagi = (
         pl.col("pwages").clip(0, None) + pl.col("swages").clip(0, None) + unemployment_total()
         + business.clip(0, None) + pl.col("ltcg").clip(0, None) + pl.col("stcg").clip(0, None)
-        + pl.col("dividends") + dividend_adjustment + pl.col("intrec") + pl.col("gssi") + pl.col("pensions")
+        + pl.col("dividends") + dividend_adjustment + pl.col("intrec") + pl.col("gssi") + pl.col("pensions") + pl.col("otherprop")
     )
     # Business and S corporation income, which are not deflated in projected years.
     business_income = sum(pl.col(c).clip(0, None) for c in ("pbusinc", "pprofinc", "scorp", "sbusinc", "sprofinc"))
@@ -256,7 +256,12 @@ def compute_nm_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     match_rate = p.num("eitc_match_rate")
     if p.in_effect("taxsim_eitc_match_rate") and not behavior.use_new_mexico_working_families_rates_per_statute:
         match_rate = p.num("taxsim_eitc_match_rate")
-    earncr = match_rate * pl.col("eitc")
+    eitc_base = pl.col("eitc")
+    if year >= 2021 and not behavior.require_federal_age_test_for_new_mexico_working_families_credit_per_statute:
+        # TAXSIM pays the match on the credit before the federal minimum-age test to a taxpayer aged 18 to 24.
+        young = pl.col("page").is_between(18, 24) | pl.col("sage").is_between(18, 24)
+        eitc_base = pl.when(young).then(pl.col("eitc_before_age_test")).otherwise(pl.col("eitc"))
+    earncr = match_rate * eitc_base
     # Property tax rebate for taxpayers 65 or older.
     ptax = pl.col("proptax") + float(p["property_rebate_rent_share"]) * pl.col("rentpaid")
     pmax = interpolate_table(modagi, p["property_rebate_threshold"])

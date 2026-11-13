@@ -157,18 +157,22 @@ def compute_nj_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         oldest = pl.max_horizontal(pl.col("page"), pl.col("sage"))
         fed_less_ss = pl.col("agi") - pl.col("taxable_social_security")
         retmax = pl.when(txp >= 2).then(100_000.0).otherwise(75_000.0)
+        # TAXSIM's earned income for the other retirement income exclusion: both spouses' wages and the business inputs.
+        earned = (
+            pl.col("pwages") + pl.col("swages") + pl.col("pbusinc") + pl.col("pprofinc") + pl.col("scorp")
+            + pl.col("sbusinc") + pl.col("sprofinc")
+        )
+        if y >= 2021:
+            # The 2021 on routine tests both spouses' wages, total self-employment income and short-term gains.
+            earned = pl.col("pwages") + pl.col("swages") + (pl.col("psemp") + pl.col("ssemp")).clip(0, None) + pl.col("stcg").clip(0, None)
         if y >= 2021:
             penex = pl.when(agi < 150_000).then(frac * pensions).otherwise(0.0)
             other_cap = frac * agi - frac * pensions
-            earned = pl.col("pwages") + pl.col("psemp").clip(0, None) + pl.col("pbusinc") + pl.col("pprofinc")
             retoth = pl.when((other_cap > 0) & (earned <= 3000)).then(other_cap).otherwise(0.0)
         else:
             penex = pl.min_horizontal(pl.when(frac < 1).then(frac * pensions).otherwise(retmax), pensions)
             othmax = pl.when(frac < 1).then(frac * fed_less_ss).otherwise(retmax)
             unused = (othmax - penex).clip(0, None)
-            earned = (
-                pl.col("pwages") + pl.col("pbusinc") + pl.col("pprofinc") + pl.col("sbusinc") + pl.col("sprofinc")
-            )
             retoth = pl.when(earned <= 3000).then(pl.min_horizontal(unused, agi.clip(0, None))).otherwise(0.0)
         eligible_age = oldest >= 62
         agi = agi - pl.when(eligible_age).then(penex + retoth).otherwise(0.0)
@@ -467,6 +471,7 @@ def _taxsim_tax(df: pl.DataFrame, y: int, flate: float, p: YearParams, behavior:
     # Earned income credit.
     earncr = pl.lit(0.0)
     rate_eitc = p.num("eitc_match_rate")
+    minimum_applies = None
     eitc = pl.col("eitc")
     before_test = pl.col("eitc_before_filer_test")
     if y >= 2000:
@@ -486,11 +491,13 @@ def _taxsim_tax(df: pl.DataFrame, y: int, flate: float, p: YearParams, behavior:
             qualifies = ((primary_earn > 0) & (page >= 18)) | ((spouse_earn > 0) & (sage >= 18))
             flat = pl.when(qualifies & ~is_dependent_filer() & ~is_hoh).then(minimum).otherwise(0.0)
             applies_min = (depx == 0) & ~in_range & (before_test > 0)
+            minimum_applies = applies_min & (flat > earncr)
             earncr = pl.when(applies_min).then(pl.max_horizontal(flat, earncr)).otherwise(earncr)
 
     if y >= 2024 and behavior.mode.value != "statutory":
         # TAXSIM's 2024 on routine does not reinflate the earned income credit in a projected year.
-        earncr = earncr / flate
+        # (The flat minimum credit is reinflated.)
+        earncr = pl.when(minimum_applies).then(earncr).otherwise(earncr / flate) if minimum_applies is not None else earncr / flate
     refundable_nonref = chcr_nonref + pcred
     refundable = earncr + chcr_ref + ctc
     if y <= 1984:

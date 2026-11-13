@@ -91,6 +91,12 @@ def compute_wv_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     half_other = 0.5 * (ti - pw - sw)
     two = pl.min_horizontal(half_other + pw, pl.lit(cap)) + pl.min_horizontal(half_other + sw, pl.lit(cap))
     oldded = pl.when(aged == 1).then(one).when(aged == 2).then(two).otherwise(0.0)
+    if not behavior.subtract_west_virginia_social_security_per_statute and y <= 2021:
+        # TAXSIM gives each spouse the senior deduction on their share of income as soon as either is 65 or older.
+        any_aged_taxsim = (pl.col("page") >= 65) | (pl.col("sage") >= 65) | (aged > 0)
+        share_primary, share_spouse = split_agi(agi)
+        split_two = pl.min_horizontal(share_primary.clip(0, None), pl.lit(cap)) + pl.min_horizontal(share_spouse.clip(0, None), pl.lit(cap))
+        oldded = pl.when(any_aged_taxsim).then(pl.when(is_joint).then(split_two).otherwise(one)).otherwise(0.0)
     if behavior.allow_west_virginia_disability_deduction:
         # Under 65 with Social Security benefits in AGI: the disability
         # deduction, which TAXSIM's year test never reaches.
