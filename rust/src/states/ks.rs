@@ -441,7 +441,7 @@ pub fn tax(i: &Inp, f: &Fed, p: &KsParams) -> f64 {
             fd
         }
         Food::Credit { amount, ceiling } => {
-            let eligible = depx + aged > 0.0;
+            let eligible = depx + aged > 0.0 || i.page >= 55.0 || i.sage >= 55.0;
             if y <= 2012 {
                 if eligible && ks_agi <= *ceiling {
                     2.0 * amount * exemps

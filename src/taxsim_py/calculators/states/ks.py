@@ -275,7 +275,8 @@ def compute_ks_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         if effective_year >= 2007 and not behavior.pay_kansas_homestead_refund_from_2007_per_statute:
             # TAXSIM has no homestead refund table after 2006.
             pcred = pl.lit(0.0)
-        if p.in_effect("senior_property_relief_share"):
+        if p.in_effect("senior_property_relief_share") and behavior.pay_kansas_homestead_refund_from_2007_per_statute:
+            # TAXSIM leaves out the low-income senior property tax relief (it cannot tell the house value).
             share = p.num("senior_property_relief_share")
             limit = p.num("senior_property_relief_income_limit")
             senior = (aged_count() > 0) & (pl.col("proptax") > 0) & (hy < limit)
@@ -298,7 +299,8 @@ def compute_ks_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             within = hy <= limit if index == len(tiers) - 1 else hy < limit
             fd = pl.when(within).then(base + per_extra * extra).otherwise(fd)
     elif effective_year >= 1998:
-        eligible = (pl.col("depx") + aged_count()) > 0
+        # The food sales tax refund goes to households with a dependent or a member 55 or older.
+        eligible = ((pl.col("depx") + aged_count()) > 0) | (pl.col("page") >= 55) | (pl.col("sage") >= 55)
         food_amt = p.num("food_sales_tax_credit_amount")
         if effective_year <= 2012:
             agimax = p.num("food_sales_tax_refund_agi_ceiling")

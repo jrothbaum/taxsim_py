@@ -297,7 +297,8 @@ investment deduction has no age test, Pennsylvania exempts pensions from 60, Ore
 | WV | 2020-2021 | singles aged 66 with interest: $90-97 |
 | MD | 2026 only | joint returns with self-employment income or children, $3-11 on four of 1,000 households (2022-25: 0 of 1,000) |
 | OK | 1987-2006, 2010, 2021 | one joint household of 38-year-olds with three children and about $27,000 of transfers (tax deducted from the federal credit, $2-$18); 2010 round-number wages of exactly $100,000 sit on TAXSIM's AGI edge for the child care credit (knife edge) |
-| CT, DE, KS, NY | various | not traced yet (7-11 of 1,200 households each): mostly retirees (CT) |
+| KS | 2010 | two households with wages of exactly $35,000: TAXSIM's first AGI is $34,999.999, ours $35,000.011 (the one-cent AGI difference), which flips the earned income credit tier ($180) |
+| CT, DE, NY | various | not traced yet (7-11 of 1,200 households each): mostly retirees (CT) |
 | DE | all years | couples both 65 or older with only pensions: TAXSIM does not add the $2,000 low-income exclusion we add |
 
 ## The state validator prints `staxbc` as 0
