@@ -26,13 +26,15 @@ def _taxsim_tax(taxinc: pl.Expr, table: dict) -> tuple[pl.Expr, pl.Expr]:
     return tax, rate_pct / 100.0
 
 
-def _joint_credit(statax: pl.Expr, taxinc: pl.Expr, businc: pl.Expr, p: YearParams, eligible: pl.Expr) -> pl.Expr:
-    """Tax after the joint filing credit."""
+def _joint_credit(
+    statax: pl.Expr, taxinc: pl.Expr, businc: pl.Expr, p: YearParams, eligible: pl.Expr, income: pl.Expr | None = None
+) -> pl.Expr:
+    """Tax after the joint filing credit; `income` replaces taxable income plus business income as the tier test."""
     rows = p.value("joint_credit_share")
     if p.year <= 1983:
         share = interpolate_table(taxinc, rows)
     else:
-        (share,) = tier_values(taxinc + businc, [r[0] for r in rows], [r[1] for r in rows], strict=True)
+        (share,) = tier_values(taxinc + businc if income is None else income, [r[0] for r in rows], [r[1] for r in rows], strict=True)
     jcred = (share * statax).clip(0, None)
     if p.in_effect("joint_credit_cap"):
         jcred = jcred.clip(None, p.num("joint_credit_cap"))
@@ -162,6 +164,9 @@ def compute_oh_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             retcr_any_age = retcr_any_age.clip(None, p.num("retirement_income_credit_cap"))
         limit = p.num("senior_credit_taxable_income_limit")
         within = (taxinc + businc <= limit) if y < 2021 else (taxinc <= limit)
+        if y >= 2021 and not behavior.test_ohio_senior_credit_on_income_after_business_deduction_per_statute:
+            # TAXSIM tests income less exemptions before the business income deduction.
+            within = (agi - exemp) < limit
         retcr_any_age = pl.when(within).then(retcr_any_age).otherwise(0.0)
         senior_only = pl.when(within).then(p.num("senior_credit")).otherwise(0.0)
         regcr = regcr + pl.when(aged > 0).then(senior_only).otherwise(0.0) + retcr_any_age
@@ -257,7 +262,12 @@ def compute_oh_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         joint_ok = is_joint & joint_eligible
         if p.in_effect("high_income_limit"):
             joint_ok = joint_ok & ((taxinc + businc) <= p.num("high_income_limit"))
-        statax = _joint_credit(statax, taxinc, businc, p, joint_ok)
+        joint_income = None
+        if not behavior.base_ohio_joint_credit_on_income_after_business_deduction_per_statute:
+            # TAXSIM tests the credit tiers on federal AGI less the exemptions and taxable Social Security, before
+            # the business income deduction.
+            joint_income = pl.col("agi") - exemp - pl.col("taxable_social_security")
+        statax = _joint_credit(statax, taxinc, businc, p, joint_ok, joint_income)
         statax = (statax - earncr).clip(0, None)
 
     credits = regcr + excred + earncr

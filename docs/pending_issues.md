@@ -296,7 +296,6 @@ investment deduction has no age test, Pennsylvania exempts pensions from 60, Ore
 | MA | 1985 and SE households | 1985 (10 of 400) and self-employment households ($2-7) |
 | ME | 2005-2021 | the property tax fairness credit amounts (TAXSIM pays $900 where the 2013-2015 table says $600) |
 | WV | 2020-2021 | singles aged 66 with interest: $90-97 |
-| OH | 2015-2025 | joint returns with about $50,000 of wages and self-employment income: $35-55 lower than TAXSIM (exemption tier or business income tax; grid case: wages $50,000 and self-employment $15,000) |
 | MD | 2026 only | joint returns with self-employment income or children, $3-11 on four of 1,000 households (2022-25: 0 of 1,000) |
 | CT, DE, KS, MI, NE, NY, OK | various | not traced yet (7-11 of 1,200 households each): mostly retirees (CT) |
 | DE | all years | couples both 65 or older with only pensions: TAXSIM does not add the $2,000 low-income exclusion we add |
