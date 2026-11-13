@@ -191,16 +191,24 @@ def compute_ia_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     feddh = pl.when(pl.col("ia_agi") != 0).then(split_fedded * agih / pl.col("ia_agi")).otherwise(0.0)
     feddw = split_fedded - feddh
     agiw_positive = is_mfc & (agiw > 0)
+    # The qualified business income deduction is shared half each; TAXSIM splits it by each spouse's share of the
+    # net self-employment earnings (all to the taxpayer when there is none).
+    dedbus_h = dedbus_w = 0.5 * dedbus
+    if not behavior.split_iowa_joint_income_by_wages_only:
+        se_h = (pl.col("psemp") + pl.col("pbusinc") + pl.col("pprofinc")).clip(0, None)
+        se_w = (pl.col("ssemp") + pl.col("sbusinc") + pl.col("sprofinc")).clip(0, None)
+        share_h = pl.when(se_h + se_w > 0).then(se_h / (se_h + se_w)).otherwise(1.0)
+        dedbus_h, dedbus_w = dedbus * share_h, dedbus * (1.0 - share_h)
     taxinh = (
         pl.when(agiw_positive)
-        .then((agih - dedh_general + 0.25 * setax_again - feddh - 0.5 * dedbus).clip(0, None))
+        .then((agih - dedh_general + 0.25 * setax_again - feddh - dedbus_h).clip(0, None))
         .when(is_mfc)
         .then(pl.col("ia_taxinc"))
         .otherwise(pl.lit(0.0))
     )
     taxinw = (
         pl.when(agiw_positive)
-        .then((agiw - dedw_general + 0.25 * setax_again - feddw - 0.5 * dedbus).clip(0, None))
+        .then((agiw - dedw_general + 0.25 * setax_again - feddw - dedbus_w).clip(0, None))
         .otherwise(pl.lit(0.0))
     )
     df = df.with_columns(ia_taxinh=taxinh, ia_taxinw=taxinw, ia_agi_higher_earner=agih, ia_agi_lower_earner=agiw)
@@ -239,6 +247,8 @@ def compute_ia_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         stath = bracket_tax(pl.col("ia_taxinh") / aif, table) * aif
         statw = bracket_tax(pl.col("ia_taxinw") / aif, table) * aif
         df = df.with_columns(ia_statj=pl.col("ia_statax"))
+        if effective_year >= 2019:
+            df = df.with_columns(ia_stath=stath, ia_statw=statw, ia_sepcmb=is_mfc & (stath + statw < pl.col("ia_statax")))
         df = df.with_columns(
             ia_statax=pl.when(is_mfc).then(pl.min_horizontal(pl.col("ia_statax"), stath + statw)).otherwise(pl.col("ia_statax"))
         )
@@ -308,6 +318,10 @@ def compute_ia_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             mfc_tax = pl.min_horizontal(joint_tax, tax_h + tax_w)
             other_tax = whole_tax
         df = df.with_columns(ia_statax=pl.when(is_mfc).then(mfc_tax).otherwise(other_tax))
+        if p.in_effect("amt_rate"):
+            df = df.with_columns(ia_stath=tax_h + amt_h, ia_statw=tax_w + amt_w)
+        else:
+            df = df.with_columns(ia_stath=tax_h, ia_statw=tax_w)
 
     # --- Personal Exemption Credit ---
     xmp = p.num("personal_exemption_credit")
@@ -326,6 +340,19 @@ def compute_ia_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     else:
         gcred = xmp * (pl.col("depx") + pl.col("ia_taxpayers")) + (xmp / 2.0) * aged_count()
         gcred = pl.when(is_hoh).then(gcred + xmp).otherwise(gcred)
+    if effective_year >= 2019 and not behavior.credit_iowa_dependents_in_full_on_separate_spouse_returns_per_statute and effective_year >= 1998:
+        # When the separate-spouse tax is the lower, TAXSIM limits each spouse's personal credit to their own tax and
+        # hands the dependents' credits out alternately (the taxpayer first), each limited to the higher spouse's tax
+        # left after the personal credit (it passes that figure for both spouses).
+        old_h = pl.col("page") >= 65
+        old_w = pl.when(pl.col("sage") == 0).then(40).otherwise(pl.col("sage")) >= 65
+        credit_h = xmp + (xmp / 2.0) * old_h.cast(pl.Float64)
+        credit_w = xmp + (xmp / 2.0) * old_w.cast(pl.Float64)
+        left = (pl.col("ia_stath") - credit_h).clip(0, None)
+        dependents_h = pl.min_horizontal(xmp * ((pl.col("depx") + 1) // 2).cast(pl.Float64), left)
+        dependents_w = pl.min_horizontal(xmp * (pl.col("depx") // 2).cast(pl.Float64), left)
+        separate = pl.min_horizontal(pl.col("ia_statax"), credit_h + credit_w + dependents_h + dependents_w)
+        gcred = pl.when(pl.col("ia_sepcmb")).then(separate).otherwise(gcred)
     df = df.with_columns(ia_gcred=gcred)
     df = df.with_columns(ia_statax=(pl.col("ia_statax") - pl.col("ia_gcred")).clip(0, None))
 

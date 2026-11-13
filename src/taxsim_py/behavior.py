@@ -201,6 +201,7 @@ class BehaviorProfile:
     require_age_65_for_michigan_investment_deduction_per_statute: bool = True
     exempt_pennsylvania_pensions_from_age_65_per_statute: bool = True
     keep_oregon_state_tax_deduction_for_aged_per_statute: bool = True
+    credit_iowa_dependents_in_full_on_separate_spouse_returns_per_statute: bool = True
     require_federal_age_test_for_new_mexico_working_families_credit_per_statute: bool = True
     apply_federal_investment_income_limit_to_wisconsin_eitc_per_statute: bool = True
     split_wisconsin_self_employment_between_spouses_per_statute: bool = True
