@@ -38,7 +38,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from oracle import run_oracle  # noqa: E402
 from taxsim_py import calculate_taxes  # noqa: E402
 from taxsim_py.calculators.states import STATE_CALCULATOR_PATHS  # noqa: E402
-from taxsim_py.engine.inputs import TAXSIM_INPUTS  # noqa: E402
+from taxsim_py.engine.inputs import OPTIONAL_CHILD_COUNT_INPUTS, TAXSIM_INPUTS  # noqa: E402
 from taxsim_py.prep import cps_asec_tax_units, read_cps_asec  # noqa: E402
 
 FIRST_STATE_YEAR = 1977
@@ -120,7 +120,8 @@ def compare_with_taxsim(units: pl.DataFrame, years: list[int], base_year: int) -
     )
     print(f"  TAXSIM executable: {time.time() - started:.0f}s for {len(groups):,} state-years", flush=True)
     started = time.time()
-    taxsim_mode = calculate_taxes(cases, calculation_mode="taxsim", engine="python").select(
+    # TAXSIM reads only its own inputs, so TAXSIM mode is run without the extension child counts (`children_under_3`...).
+    taxsim_mode = calculate_taxes(cases.drop([c for c in OPTIONAL_CHILD_COUNT_INPUTS if c in cases.columns]), calculation_mode="taxsim", engine="python").select(
         "taxsimid", pl.col("fiitax").alias("t_fi"), pl.col("siitax").alias("t_si")
     )
     print(f"  taxsim-py, TAXSIM mode: {time.time() - started:.0f}s", flush=True)

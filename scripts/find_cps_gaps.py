@@ -17,7 +17,7 @@ import polars as pl
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 from build_comparison_report import (  # noqa: E402
-    STATE_NAME, TAXSIM_INPUTS, calculate_taxes, cps_asec_tax_units, for_year, read_cps_asec, run_oracle, sample_units,
+    OPTIONAL_CHILD_COUNT_INPUTS, STATE_NAME, TAXSIM_INPUTS, calculate_taxes, cps_asec_tax_units, for_year, read_cps_asec, run_oracle, sample_units,
 )
 
 parser = argparse.ArgumentParser()
@@ -42,7 +42,9 @@ for year in (int(y) for y in args.years.split(",")):
     cases = cases.with_row_index("row", offset=1).with_columns(taxsimid=pl.col("row").cast(pl.Int64)).drop("row")
     for group in cases.partition_by("state", maintain_order=True):
         oracle = run_oracle(group).select("taxsimid", pl.col("siitax").alias("o_si"), pl.col("fiitax").alias("o_fi"))
-        mine = calculate_taxes(group, calculation_mode="taxsim", engine="python").select(
+        mine = calculate_taxes(
+            group.drop([c for c in OPTIONAL_CHILD_COUNT_INPUTS if c in group.columns]), calculation_mode="taxsim", engine="python"
+        ).select(
             "taxsimid", pl.col("siitax").alias("t_si"), pl.col("fiitax").alias("t_fi"))
         joined = group.join(oracle, on="taxsimid").join(mine, on="taxsimid")
         out.append(joined.with_columns(gap=pl.col("t_si") - pl.col("o_si")).filter(pl.col("gap").abs() > 1))

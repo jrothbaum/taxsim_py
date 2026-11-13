@@ -7,7 +7,7 @@ import polars as pl
 from taxsim_py.engine.inputs import aged_count, files_head_of_household, files_joint, files_separate, files_single, separate_divisor, taxpayer_count
 from taxsim_py.engine.brackets import bracket_rate, bracket_tax
 from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml, resolve_year
-from taxsim_py.engine.state import by_filing_status, dividend_input_adjustment, federal_capital_gain_in_agi, forced_itemized, forced_standard, higher_earner_share, with_state_detail
+from taxsim_py.engine.state import by_filing_status, dividend_input_adjustment, federal_capital_gain_in_agi, forced_itemized, forced_standard, higher_earner_share, split_agi, with_state_detail
 from taxsim_py.behavior import BehaviorProfile, TAXSIM_BEHAVIOR
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
@@ -224,7 +224,12 @@ def compute_ar_tax(
         # TAXSIM's husband is always the primary taxpayer: wages and business income of each, the rest shared.
         earnh = pl.col("pwages") + pl.col("pbusinc") + pl.col("pprofinc")
         earnw = pl.col("swages") + pl.col("sbusinc") + pl.col("sprofinc")
-        df = df.with_columns(ar_agi_higher_earner=earnh + 0.5 * (pl.col("ar_agi") - earnh - earnw))
+        agih = earnh + 0.5 * (pl.col("ar_agi") - earnh - earnw)
+        if effective_year >= 2021:
+            # The 2026 build's 2021 on routine splits with `splitagi`: pensions and taxable Social Security go to the
+            # spouse 55 or older, self-employment income to its earner.
+            agih, _ = split_agi(pl.col("ar_agi"))
+        df = df.with_columns(ar_agi_higher_earner=agih)
     df = df.with_columns(
         ar_agi_lower_earner=pl.col("ar_agi") - pl.col("ar_agi_higher_earner"),
         ar_xitdh=pl.when(pl.col("ar_agi") != 0).then(pl.col("ar_xitded") * pl.col("ar_agi_higher_earner") / pl.col("ar_agi")).otherwise(0.0),

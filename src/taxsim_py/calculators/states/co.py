@@ -7,7 +7,7 @@ import polars as pl
 from taxsim_py.engine.brackets import bracket_rate, bracket_tax
 from taxsim_py.engine.inputs import aged_count, files_joint, files_separate, separate_divisor, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml, resolve_year
-from taxsim_py.engine.state import phaseout_steps, by_filing_status, dividend_input_adjustment, dividend_exclusion_addback, household_income, interpolate_table, with_state_detail
+from taxsim_py.engine.state import allocate_pensions, phaseout_steps, by_filing_status, dividend_input_adjustment, dividend_exclusion_addback, household_income, interpolate_table, with_state_detail
 from taxsim_py.behavior import BehaviorProfile, TAXSIM_BEHAVIOR
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
@@ -35,7 +35,43 @@ def compute_co_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         # The federal exemption count, including the aged.
         co_exemps=taxpayer_count() + pl.col("depx") + aged_count(),
     )
-    if p.in_effect("pension_subtraction"):
+    if p.in_effect("taxsim_pension_subtraction") and not behavior.apply_colorado_pension_subtraction_by_statute_from_2021:
+        ts = p.value("taxsim_pension_subtraction")
+        older_age, younger_age = float(ts["age_older"]), float(ts["age_younger"])
+        cap_older, cap_younger = float(ts["cap_older"]), float(ts["cap_younger"])
+        social_security = pl.col("taxable_social_security")
+        if effective_year >= 2022:
+            # TAXSIM's 2022 on routine subtracts each spouse's share of Social Security (all of it from 65, up to the
+            # younger cap from 55) and a pension up to the cap less that; a return with a taxpayer 65 or older counts
+            # both spouses as old enough.
+            any_aged = aged_count() >= 1
+
+            def routine(age: pl.Expr, benefits: pl.Expr, retirement: pl.Expr) -> pl.Expr:
+                older, younger = (age >= older_age) | any_aged, (age >= younger_age) | any_aged
+                benefit = pl.when(older).then(benefits).when(younger).then(pl.min_horizontal(cap_younger, benefits)).otherwise(0.0)
+                pension = (
+                    pl.when(older).then(pl.min_horizontal((cap_older - benefit).clip(0, None), retirement))
+                    .when(younger).then(pl.min_horizontal((cap_younger - benefit).clip(0, None), retirement))
+                    .otherwise(0.0)
+                )
+                return benefit + pension
+
+            benefit_primary, benefit_spouse = allocate_pensions(social_security, 55)
+            retire_primary, retire_spouse = allocate_pensions(pl.col("pensions"), 55)
+            exclusion = routine(pl.col("page"), benefit_primary, retire_primary) + routine(pl.col("sage"), benefit_spouse, retire_spouse)
+        else:
+            retire_primary, retire_spouse = allocate_pensions(pl.col("pensions") + social_security, 55)
+
+            def taxsim_subtraction(age: pl.Expr, retirement: pl.Expr) -> pl.Expr:
+                return (
+                    pl.when(age >= older_age).then(pl.min_horizontal(cap_older, retirement))
+                    .when(age >= younger_age).then(pl.min_horizontal(cap_younger, retirement))
+                    .otherwise(0.0)
+                )
+
+            exclusion = taxsim_subtraction(pl.col("page"), retire_primary) + taxsim_subtraction(pl.col("sage"), retire_spouse)
+        df = df.with_columns(co_pension_exclusion=exclusion)
+    elif p.in_effect("pension_subtraction"):
         ps = p.value("pension_subtraction")
         cap_older, cap_younger = float(ps["cap_older"]), float(ps["cap_younger"])
         agi_limits = ps["social_security_full_agi_limit"]

@@ -334,7 +334,7 @@ pub fn tax(i: &Inp, f: &Fed, p: &VtParams) -> f64 {
     // ---- refundable credits ----
     let mut earncr = p.eitc_rate.map_or(0.0, |rate| rate * f.eitc);
     if let Some(rate) = p.eitc_childless_rate {
-        if i.dep17 < 1.0 {
+        if i.dep18 < 1.0 {
             earncr = rate * f.eitc;
         }
     }

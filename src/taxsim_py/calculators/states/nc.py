@@ -305,7 +305,7 @@ def compute_nc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
                     .when(is_hoh).then(bracket_rate(fed_agix, steps["head_of_household"]))
                     .otherwise(bracket_rate(fed_agix, steps["single"]))
                 )
-            children = pl.col("dep18") if taxsim_steps else pl.col("dep17")
+            children = pl.col("dep17") if behavior.read_north_carolina_child_deduction_per_statute else pl.col("dep18")
             taxinc = (taxinc - per_child * children).clip(0, None)
         df, (taxinc,) = checkpoint(df, nc_taxinc=taxinc)
 

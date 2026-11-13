@@ -5,7 +5,7 @@ import polars as pl
 from taxsim_py.engine.brackets import bracket_rate, bracket_tax
 from taxsim_py.engine.inputs import aged_count, files_joint, is_dependent_filer, separate_divisor, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml
-from taxsim_py.engine.state import by_filing_status, dividend_input_adjustment, forced_standard, higher_earner_share, tier_values, unemployment_total, with_state_detail
+from taxsim_py.engine.state import allocate_pensions, by_filing_status, dividend_input_adjustment, forced_standard, higher_earner_share, tier_values, unemployment_total, with_state_detail
 from taxsim_py.behavior import BehaviorProfile, TAXSIM_BEHAVIOR
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
@@ -72,6 +72,13 @@ def compute_de_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             ).otherwise(retdedt)
         else:
             retdeds = retdeds + pl.when(is_joint_return & w_old & (totn_w < 2500) & agilow).then(2000.0).otherwise(0.0)
+        if effective_year >= 2024 and not behavior.exclude_delaware_pensions_by_statute_from_2024:
+            # The 2024 on routine gives the pension to the spouse 55 or older and, to a taxpayer 60 or older, adds an equal
+            # share of interest and dividends to the $12,500 exclusion; others exclude up to $2,000.
+            pent_24, pens_24 = allocate_pensions(pensions, 55)
+            share = (pl.col("dividends") + dividend_input_adjustment() + pl.col("intrec")) / pl.col("de_taxpayers").clip(1, None)
+            retdedt = pl.when(page >= 60).then(pl.min_horizontal(pent_24 + share, pl.lit(12500.0))).otherwise(pl.min_horizontal(pent_24, pl.lit(2000.0)))
+            retdeds = pl.when(sage >= 60).then(pl.min_horizontal(pens_24 + share, pl.lit(12500.0))).otherwise(pl.min_horizontal(pens_24, pl.lit(2000.0)))
         df = df.with_columns(de_retdedt=retdedt, de_retdeds=retdeds, de_agi_pre=agi_pre)
         df = df.with_columns(de_agi=(pl.col("de_agi_pre") - pl.col("de_retdedt") - pl.col("de_retdeds")).clip(0, None))
     else:
@@ -216,13 +223,15 @@ def compute_de_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         exclusion_w = pl.lit(0.0) if split_after_exclusion else pl.col("de_retdeds")
         tinc = pl.col("pwages") + seih + pui_part - exclusion_h + pent_s
         sinc = pl.col("swages") + seis + sui_part - exclusion_w + pens_s
-        cinc = 0.5 * (pl.col("de_agi_pre") - tinc - sinc + secah + secas)
+        # The 2024 on routine splits federal AGI (with its taxable Social Security), then takes each spouse's pension
+        # exclusion and share of the Social Security.
+        cinc = 0.5 * ((pl.col("agi") if split_after_exclusion else pl.col("de_agi_pre")) - tinc - sinc + secah + secas)
         agit = tinc + cinc - secah
         agis = sinc + cinc - secas
         if split_after_exclusion:
-            # TAXSIM splits the income first, then takes each spouse's pension exclusion.
-            agit = agit - pl.col("de_retdedt")
-            agis = agis - pl.col("de_retdeds")
+            benefit_h, benefit_w = allocate_pensions(pl.col("taxable_social_security"), 55)
+            agit = agit.clip(0, None) - pl.col("de_retdedt") - benefit_h
+            agis = agis.clip(0, None) - pl.col("de_retdeds") - benefit_w
         std_each = float(p.num("standard_deduction_per_taxpayer")) if p.in_effect("standard_deduction_per_taxpayer") else 0.0
         if not p.in_effect("standard_deduction_per_taxpayer") and not behavior.compute_delaware_before_1996_per_statute:
             std_each = float(p.num("taxsim_split_standard_deduction"))

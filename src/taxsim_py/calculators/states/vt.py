@@ -232,7 +232,7 @@ def compute_vt_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     # --- Refundable credits ---
     earncr = p.num("eitc_rate") * pl.col("eitc") if p.in_effect("eitc_rate") else pl.lit(0.0)
     if p.in_effect("eitc_childless_rate"):
-        earncr = pl.when(pl.col("dep17") < 1).then(p.num("eitc_childless_rate") * pl.col("eitc")).otherwise(earncr)
+        earncr = pl.when(pl.col("dep18") < 1).then(p.num("eitc_childless_rate") * pl.col("eitc")).otherwise(earncr)
     telcr = pl.lit(0.0)
     if p.in_effect("telephone_credit") and behavior.pay_vermont_telephone_credit:
         aged_tel = pl.when(hh < p.num("telephone_credit_aged_income_limit")).then(p.num("telephone_credit")).otherwise(0.0)
@@ -285,7 +285,11 @@ def compute_vt_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         if not behavior.count_vermont_child_credit_by_statutory_age:
             # TAXSIM's age bands for 6 and 7 are the under-13 count.
             young = pl.col("dep13")
-        ctc = (float(credit["amount"]) * young - reduction).clip(0, None)
+            # ...and it reduces each child's credit by 2% of the income over the start, with no steps.
+            per_child = (float(credit["amount"]) - float(credit["reduction_amount"]) / float(credit["reduction_increment"]) * excess).clip(0, None)
+            ctc = per_child * young
+        else:
+            ctc = (float(credit["amount"]) * young - reduction).clip(0, None)
     statax = statax - pcred - earncr - telcr - chcref - ctc
 
     df = df.with_columns(siitax=statax * flate)

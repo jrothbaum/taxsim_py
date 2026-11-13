@@ -849,6 +849,7 @@ def compute_ny_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             numctc = (pl.col("dep18") - pl.col("dep6")).clip(0, None)
             dep17 = numctc
             dep18 = numctc
+            kids = numctc
         if behavior.exclude_children_under_4_from_ny_empire_credit and p.value("empire_child_credit_excludes_under_4"):
             young = pl.col("children_under_4")
             dep17 = dep17 - young

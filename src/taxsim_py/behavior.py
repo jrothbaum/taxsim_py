@@ -201,6 +201,8 @@ class BehaviorProfile:
     require_age_65_for_michigan_investment_deduction_per_statute: bool = True
     exempt_pennsylvania_pensions_from_age_65_per_statute: bool = True
     keep_oregon_state_tax_deduction_for_aged_per_statute: bool = True
+    exclude_delaware_pensions_by_statute_from_2024: bool = True
+    apply_colorado_pension_subtraction_by_statute_from_2021: bool = True
     count_oregon_eitc_young_children_by_age_per_statute: bool = True
     subtract_michigan_social_security_with_investment_deduction_per_statute: bool = True
     limit_georgia_exclusion_for_ages_62_to_64_before_2021_per_statute: bool = True
@@ -479,6 +481,7 @@ FIXED_IN_2026_BUILD = frozenset(
         "drop_household_income_record_adjustment",
         "apply_illinois_exemption_income_limit",
         "require_young_child_for_california_yctc",
+        "pay_california_yctc_per_young_child",
         "deduct_massachusetts_employee_payroll_tax_per_spouse",
         "complete_new_york_1986_maximum_tax_table",
         "limit_ohio_joint_credit_to_joint_returns",
