@@ -302,7 +302,8 @@ investment deduction has no age test, Pennsylvania exempts pensions from 60, Ore
 | PA | 1995 on | negative other property income with self-employment income |
 | OR | 2015 | a single filer with $60,000 of wages and $40,000 of pensions and no interest (grid case; $194) |
 | AR, CO, NY, NC, CA, VT, DE | 2021 and 2025 | fixed in the second pass (see the rows in `statutory_corrections.md`); TAXSIM reads `dep6` as the number of children under 3 when no ages are given (as in Oregon's EITC), and the comparison runs now give TAXSIM mode no extension child counts |
-| WI, NM, MA, MD, KS, CT | various | not traced yet (22-27 of 1,200 households each in the 1985-2025 sample) |
+| MD | 2022 on | the poverty level credit's eligibility test (`povelig`, worksheets 18A and 21A) is only approximated: 70 of 720 grid households differ |
+| WI, NM, MA, KS, CT | various | not traced yet (22-27 of 1,200 households each in the 1985-2025 sample): mostly low-income households with transfers, unemployment or property tax |
 | DE | all years | couples both 65 or older with only pensions: TAXSIM does not add the $2,000 low-income exclusion we add |
 
 ## The state validator prints `staxbc` as 0

@@ -201,6 +201,7 @@ class BehaviorProfile:
     require_age_65_for_michigan_investment_deduction_per_statute: bool = True
     exempt_pennsylvania_pensions_from_age_65_per_statute: bool = True
     keep_oregon_state_tax_deduction_for_aged_per_statute: bool = True
+    exclude_maryland_pensions_per_taxpayer_per_statute: bool = True
     exclude_delaware_pensions_by_statute_from_2024: bool = True
     apply_colorado_pension_subtraction_by_statute_from_2021: bool = True
     count_oregon_eitc_young_children_by_age_per_statute: bool = True

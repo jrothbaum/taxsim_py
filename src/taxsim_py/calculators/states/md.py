@@ -8,6 +8,7 @@ from taxsim_py.engine.brackets import bracket_rate, bracket_tax
 from taxsim_py.engine.inputs import aged_count, federal_exemption_count, files_head_of_household, files_joint, files_separate, files_single, is_dependent_filer, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml
 from taxsim_py.engine.state import (
+    allocate_pensions,
     federal_zero_bracket,
     phaseout_steps,
     federal_dividend_exclusion_limit,
@@ -63,6 +64,21 @@ def compute_md_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     # Pension exclusion per taxpayer 65 or older, less Social Security benefits.
     pex = p.num("pension_exclusion")
     penexc = pl.col("pensions").clip(0, (pex * aged_count() - pl.col("gssi")).clip(0, None))
+    taxpayer_exclusion = spouse_exclusion = None
+    if not behavior.exclude_maryland_pensions_per_taxpayer_per_statute:
+        # TAXSIM allocates the pension between the spouses (at age 59 through 2021, 65 after), gives nothing to a spouse
+        # under 65, and takes the spouse's share of the benefits (allocated at 65, then 55) off the exclusion; through 2021
+        # it takes the taxpayer's share off both.
+        pension_primary, pension_spouse = allocate_pensions(pl.col("pensions"), 59 if effective_year <= 2021 else 65)
+        benefit_primary, benefit_spouse = allocate_pensions(pl.col("gssi"), 65 if effective_year <= 2021 else 55)
+        if effective_year <= 2021:
+            benefit_spouse = benefit_primary
+        spouse_age = pl.when(pl.col("sage") == 0).then(40.0).otherwise(pl.col("sage").cast(pl.Float64))
+        pension_primary = pl.when(pl.col("page") < 65).then(0.0).otherwise(pension_primary)
+        pension_spouse = pl.when(spouse_age < 65).then(0.0).otherwise(pension_spouse)
+        taxpayer_exclusion = pl.min_horizontal((pex - benefit_primary).clip(0, None), pension_primary)
+        spouse_exclusion = pl.min_horizontal((pex - benefit_spouse).clip(0, None), pension_spouse)
+        penexc = taxpayer_exclusion + spouse_exclusion
     md_agi = pl.col("agi") - chexp - penexc
     if effective_year >= 1985:
         md_agi = md_agi - pl.col("taxable_social_security")
@@ -98,6 +114,9 @@ def compute_md_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     one_aged_pension = (aged_count() == 1) & (penexc > 0)
     twoh = pl.when(one_aged_pension).then(agih - 0.5 * shared).otherwise(agih - 0.5 * (shared + penexc)).clip(0, None)
     twow = pl.when(one_aged_pension).then(agiw - 0.5 * shared - penexc).otherwise(agiw - 0.5 * (shared + penexc)).clip(0, None)
+    if taxpayer_exclusion is not None:
+        twoh = pl.when(one_aged_pension).then(agih - 0.5 * shared - taxpayer_exclusion).otherwise(twoh).clip(0, None)
+        twow = pl.when(one_aged_pension).then(agiw - 0.5 * shared - spouse_exclusion).otherwise(twow).clip(0, None)
     if effective_year <= 1991:
         twoear = pl.lit(0.0)
     elif p.in_effect("two_earner_subtraction_high_income"):
@@ -351,8 +370,8 @@ def compute_md_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         xlin3 = pov1 + pov2 * (exemps_count - 1.0)
         xlin4 = pl.max_horizontal(pl.col("agi"), pl.col("earned_income"))
         ptcr = pl.when((xlin3 >= xlin4) & ~is_dependent_filer()).then(p["poverty_credit_rate"] * pl.col("earned_income")).otherwise(0.0)
-        if not behavior.pay_maryland_poverty_level_credit_per_statute:
-            # TAXSIM works the credit out but never takes it off the tax.
+        if not behavior.pay_maryland_poverty_level_credit_per_statute and effective_year <= 2021:
+            # TAXSIM works the credit out but never takes it off the tax (its 2022 on routine does take it off).
             ptcr = pl.lit(0.0)
     else:
         ptcr = pl.lit(0.0)
