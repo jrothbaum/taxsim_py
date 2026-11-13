@@ -286,7 +286,7 @@ state and year at a time. Not traced to a line yet.
 
 ## TAXSIM mode against the oracle on CPS households
 
-On CPS ASEC households ([comparison page](comparisons.md)) TAXSIM mode agreed with TAXSIM for 99.1% of households,
+On CPS ASEC households ([comparison page](comparisons.md)) TAXSIM mode agreed with TAXSIM for 99.1% of households (99.6% after the fixes below),
 with a few states at 91-96% for decades. Tracing the Fortran (`scripts/find_cps_gaps.py` lists the failing households,
 `scripts/grid_state.py` runs an age and income grid against the executable) found, and fixed, age rules the synthetic
 cases never exercised: Georgia's retirement exclusion starts at 62, Iowa's pension exclusion at 55, Michigan's senior
