@@ -198,6 +198,12 @@ class BehaviorProfile:
     count_arkansas_s_corporation_income_once: bool = True
     exempt_arkansas_unemployment_from_2024_per_statute: bool = True
     omit_georgia_itemizer_credit_per_statute: bool = True
+    require_age_65_for_michigan_investment_deduction_per_statute: bool = True
+    exempt_pennsylvania_pensions_from_age_65_per_statute: bool = True
+    keep_oregon_state_tax_deduction_for_aged_per_statute: bool = True
+    count_oregon_eitc_young_children_by_age_per_statute: bool = True
+    subtract_michigan_social_security_with_investment_deduction_per_statute: bool = True
+    limit_georgia_exclusion_for_ages_62_to_64_before_2021_per_statute: bool = True
     exclude_massachusetts_bank_interest_from_2024_per_statute: bool = True
     cap_virginia_state_tax_deduction_per_statute: bool = True
     allow_virginia_standard_deduction_when_itemizing_federally_per_statute: bool = True

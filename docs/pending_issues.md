@@ -286,17 +286,22 @@ state and year at a time. Not traced to a line yet.
 
 ## TAXSIM mode against the oracle on CPS households
 
-On CPS ASEC households ([comparison page](comparisons.md)) TAXSIM mode agrees with TAXSIM for 99.1% of households, but
-a few states stay at 91-96% for decades. The mismatches are small groups with pensions, Social Security, other property
-or non-property income, or self-employment income, and are not covered by the synthetic validation cases:
+On CPS ASEC households ([comparison page](comparisons.md)) TAXSIM mode agreed with TAXSIM for 99.1% of households,
+with a few states at 91-96% for decades. Tracing the Fortran (`scripts/find_cps_gaps.py` lists the failing households,
+`scripts/grid_state.py` runs an age and income grid against the executable) found, and fixed, age rules the synthetic
+cases never exercised: Georgia's retirement exclusion starts at 62, Iowa's pension exclusion at 55, Michigan's senior
+investment deduction has no age test, Pennsylvania exempts pensions from 60, Oregon's retirement credit starts at 62
+(rows in [`statutory_corrections.md`](statutory_corrections.md)). On 200 households per state for 1995, 2005, 2015 and
+2021, the households that differ fell from 190 to 28 across GA, IA, MI, OR and PA. What remains:
 
-| State | Years | Households that differ | Example |
-| --- | --- | --- | --- |
-| GA | 1989-2026 | with pensions or other property income | single, age 62, pensions $5,566, Social Security $15,044: TAXSIM -$26.00, taxsim-py -$20.34 (2005) |
-| OR | 1992-2026 | with non-property income or pensions | single, age 66, pensions $40,296, interest $7,164: TAXSIM $3,464.50, taxsim-py $3,424.10 (2005) |
-| IA | 1995-2022 | with pensions | married, ages 67 and 73, pensions $2,343, Social Security $18,545: $1,587.72 against $1,589.07 (2005) |
-| MI | 1994-2026 | with self-employment or other property income | single, age 62, pensions $1,114: $1,302.03 against $1,303.07 (2005) |
-| Others | various | PA, KS, MA 1977-2022, NY and NC 2018-2021, VT 2022 on | see `docs/data/comparison_taxsim.csv` |
+| State | Years | Households that differ |
+| --- | --- | --- |
+| IA | 2019 on | joint returns with spouse self-employment income: the federal tax deducted and the qualified business income deduction differ (TAXSIM -$2,738 federal deduction against taxsim-py $5,108 in one case) |
+| IA | 1995-2015 | married with children and other property income (1-2 households in 200) |
+| MI | 2015 on | couples aged 80 |
+| PA | 1995 on | negative other property income with self-employment income |
+| OR | 2015 | a single filer with $60,000 of wages and $40,000 of pensions and no interest (grid case; $194) |
+| AR, CO, NY, NC, CA, CT, DE, VT, MA, KS | 2021 and 2025 mostly | not traced yet: older couples (retirement exclusions) and households with children (child credits). TAXSIM reads `dep6` as the number of children under 3 when no ages are given (as in Oregon's EITC), which the comparison runs hit |
 
 ## Federal AGI carries 1 cent more in the oracle
 

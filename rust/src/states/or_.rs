@@ -6,7 +6,7 @@ use crate::common::Brackets;
 use crate::federal::{Fed, Inp};
 use crate::params::{self, get, load, num, resolve_year, status_direct, Fs, YearParams};
 use crate::states::{
-    dividend_adjustment, dividend_exclusion_addback, federal_exemption_count, household_income, law_year_is_exact,
+    dividend_adjustment, dividend_exclusion_addback, federal_exemption_count, law_year_is_exact,
     pre1987_gross_itemized, unemployment_total, Interp, Tiers,
 };
 
@@ -342,7 +342,6 @@ pub fn tax(i: &Inp, f: &Fed, p: &OrParams) -> f64 {
     let exemps = federal_exemption_count(y, i);
     let salt = f.ded;
     let ui = unemployment_total(i);
-    let household = household_income(i, p.dividend_adjustment);
 
     // ---- AGI ----
     let mut agi = fed_agi;
@@ -506,12 +505,30 @@ pub fn tax(i: &Inp, f: &Fed, p: &OrParams) -> f64 {
             }
         }
     }
-    // Retirement income credit for taxpayers 65 or older (1991+).
+    // Retirement income credit for taxpayers 62 or older (1991+). A joint return's pension goes to the spouse 55 or older when
+    // only one is (halves otherwise), and only the share of a spouse 62 or older counts.
     let mut rcred = 0.0;
     if let Some(r) = &p.retirement {
-        let room = ((r.base * txp - i.gssi).max(0.0) - (household - r.income_start * txp).max(0.0)).max(0.0);
-        if aged > 0.0 && agi <= r.agi_limit * txp {
-            rcred = r.rate * i.pensions.min(room);
+        let room = ((r.base * txp - i.gssi).max(0.0) - (agi + i.transfers - r.income_start * txp).max(0.0)).max(0.0);
+        if i.pensions > 0.0 && agi <= r.agi_limit * txp {
+            let spouse_age = if i.sage == 0.0 { 40.0 } else { i.sage };
+            let primary = if i.mstat != 2.0 {
+                i.pensions
+            } else {
+                match (i.page >= 55.0, spouse_age >= 55.0) {
+                    (true, false) => i.pensions,
+                    (false, true) => 0.0,
+                    _ => i.pensions / 2.0,
+                }
+            };
+            let mut income = 0.0;
+            if i.page >= 62.0 {
+                income += primary;
+            }
+            if i.sage >= 62.0 {
+                income += i.pensions - primary;
+            }
+            rcred = r.rate * income.max(0.0).min(room);
         }
     }
     let earncr = match p.eitc {

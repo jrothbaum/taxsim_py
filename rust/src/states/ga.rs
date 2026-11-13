@@ -26,8 +26,6 @@ struct UnemploymentThresholds {
 
 struct EarningsCap {
     cap: f64,
-    capital_loss_limit: f64,
-    spouse_loss_share: f64,
 }
 
 enum Exemption {
@@ -68,6 +66,7 @@ pub struct GaParams {
     two_earner: Option<(f64, f64)>,
     unemployment: Option<UnemploymentThresholds>,
     retirement_max: f64,
+    retirement_max_62_to_64: Option<f64>,
     retirement_earned_limit: Option<f64>,
     earnings_cap: Option<EarningsCap>,
     exemption: Exemption,
@@ -109,11 +108,7 @@ impl GaParams {
             None
         };
         let earnings_cap = match opt("retirement_exclusion_earnings_cap")? {
-            Some(cap) => Some(EarningsCap {
-                cap,
-                capital_loss_limit: num(get(&doc, "retirement_exclusion_capital_loss_limit")?)?,
-                spouse_loss_share: num(get(&doc, "retirement_exclusion_spouse_loss_share")?)?,
-            }),
+            Some(cap) => Some(EarningsCap { cap }),
             None => None,
         };
         let exemption = if year <= 1986 {
@@ -183,6 +178,7 @@ impl GaParams {
             two_earner,
             unemployment,
             retirement_max: p.f("retirement_exclusion_max")?,
+            retirement_max_62_to_64: if p.in_effect("retirement_exclusion_max_age_62_to_64")? { Some(p.f("retirement_exclusion_max_age_62_to_64")?) } else { None },
             retirement_earned_limit: opt("retirement_exclusion_earned_limit")?,
             earnings_cap,
             exemption,
@@ -234,35 +230,30 @@ pub fn tax(i: &Inp, f: &Fed, p: &GaParams) -> f64 {
             rtexc = 0.0;
         }
     }
+    let mut eligible = aged > 0.0;
     if let Some(c) = &p.earnings_cap {
-        let capgn = (i.stcg + i.ltcg).max(-c.capital_loss_limit / sep);
-        let schedule_e = i.otherprop + i.scorp;
-        let investment = i.intrec + i.dividends + p.dividend_adjustment + schedule_e;
-        let rhy = (investment + i.pensions).max(0.0) + if capgn >= 0.0 { capgn / sep } else { 0.5 * capgn / sep };
-        let single = rtmax.min(f.earned_income.min(c.cap) + rhy);
-        let se_half = 0.5 * (i.psemp + i.ssemp).max(0.0);
-        let mut hearn = i.pwages.max(i.swages) + se_half;
-        let mut wearn = i.pwages.min(i.swages) + se_half;
-        if y >= 2018 {
-            hearn += i.pbusinc + i.sbusinc;
-            wearn += i.pprofinc + i.sprofinc;
-        }
-        let rterw = wearn.min(c.cap);
-        let rterh = hearn.min(c.cap);
-        let rhyw = 0.5 * investment
-            + i.pensions
-            + if capgn >= 0.0 { 0.5 * capgn / sep } else { c.spouse_loss_share * capgn / sep };
-        let couple_one = rtmax.min(rterw + rhyw) + rterh;
-        let couple_two = rtmax.min(rterw + 0.5 * rhy) + rtmax.min(rterh + 0.5 * rhy);
-        rtexc = if taxpayers == 1.0 {
-            single
-        } else if taxpayers > 1.0 {
-            if aged < 2.0 { couple_one } else { couple_two }
-        } else {
-            rtexc
+        // From 1989 the exclusion is for taxpayers 62 or older: up to the cap of the taxpayer's wages plus retirement and
+        // investment income, split between spouses.
+        let head_62 = i.page >= 62.0;
+        let spouse_62 = i.sage >= 62.0;
+        eligible = head_62 || spouse_62;
+        let business = (i.pbusinc + i.pprofinc + i.scorp + i.sbusinc + i.sprofinc).max(0.0);
+        let gains = (i.stcg + i.ltcg).max(0.0);
+        let other = i.dividends + p.dividend_adjustment + i.intrec + business + gains;
+        let one = |wages: f64| wages.min(c.cap) + i.pensions + other / taxpayers.max(1.0);
+        let both = |wages: f64| wages.min(c.cap) + (i.pensions + other) / 2.0;
+        let share = |mine: bool, other_eligible: bool, wages: f64| {
+            if mine && !other_eligible { one(wages) } else if mine { both(wages) } else { 0.0 }
         };
+        let limit = |age: f64| match p.retirement_max_62_to_64 {
+            Some(low) if age < 65.0 => low,
+            _ => rtmax,
+        };
+        let head = share(head_62, spouse_62, i.pwages);
+        let spouse = share(spouse_62, head_62, i.swages);
+        rtexc = (head.min(limit(i.page)) + spouse.min(limit(i.sage))).max(0.0);
     }
-    agi -= if aged > 0.0 { rtexc } else { 0.0 };
+    agi -= if eligible { rtexc } else { 0.0 };
     // Social Security benefits are exempt from 1988.
     if y >= 1988 {
         agi -= f.taxable_social_security;

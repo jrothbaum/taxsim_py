@@ -8,12 +8,12 @@ from taxsim_py.engine.brackets import bracket_rate, bracket_tax
 from taxsim_py.engine.inputs import aged_count, federal_exemption_count, files_head_of_household, files_joint, files_separate, files_single, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml, resolve_year
 from taxsim_py.engine.state import (
+    allocate_pensions,
     dividend_input_adjustment,
     by_filing_status,
     checkpoint,
     dividend_exclusion_addback,
     forced_standard,
-    household_income,
     interpolate_table,
     pre1987_federal_itemizing,
     tier_values,
@@ -33,8 +33,8 @@ def compute_or_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     y = effective_year
     p = YearParams(OR_PARAMS, effective_year)
     dividend_adjustment = dividend_input_adjustment()
-    df = df.with_columns(or_ui=unemployment_total(), or_household_income=household_income(behavior))
-    df = deflate_for_extrapolation(df, flate, extra=("or_ui", "or_household_income"))
+    df = df.with_columns(or_ui=unemployment_total())
+    df = deflate_for_extrapolation(df, flate, extra=("or_ui",))
 
     is_joint = files_joint()
     is_sep = files_separate()
@@ -153,8 +153,8 @@ def compute_or_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             tx = pl.when((xtot > 0) & (over > 0)).then((xtot - xconst) / xtot * tx).otherwise(tx)
     if y <= 2017:
         xitded = (deducp - tx).clip(0, None)
-        if y >= 1992:
-            # Taxpayers 65 or older keep the state income tax deduction.
+        if y >= 1992 and behavior.keep_oregon_state_tax_deduction_for_aged_per_statute:
+            # Taxpayers 65 or older keep the state income tax deduction (TAXSIM's 2026 build does not).
             xitded = pl.when(aged > 0).then(deducp.clip(0, None)).otherwise(xitded)
     else:
         xitded = xtot
@@ -239,24 +239,34 @@ def compute_or_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             )
             gcred = pl.when(fed_agi > phasa).then(reduced).otherwise(gcred)
 
-    # Retirement income credit for taxpayers 65 or older (1991+).
+    # Retirement income credit for taxpayers 62 or older (1991+).
     rcred = pl.lit(0.0)
     if p.in_effect("retirement_income_credit"):
         r = p.value("retirement_income_credit")
         room = (
             (r["base_per_taxpayer"] * txp - pl.col("gssi")).clip(0, None)
-            - (pl.col("or_household_income") - r["income_start_per_taxpayer"] * txp).clip(0, None)
+            - (agi + pl.col("transfers") - r["income_start_per_taxpayer"] * txp).clip(0, None)
         ).clip(0, None)
-        rcred = pl.when((aged > 0) & (agi <= r["agi_limit_per_taxpayer"] * txp)).then(
-            r["rate"] * pl.min_horizontal(pl.col("pensions"), room)
+        # The pension counted is the share of each spouse 62 or older (a joint return's pension goes to the spouse 55 or
+        # older when only one is, otherwise it is split).
+        primary, spouse = allocate_pensions(pl.col("pensions"), 55)
+        retirement_income = (
+            pl.when(pl.col("page") >= 62).then(primary).otherwise(0.0) + pl.when(pl.col("sage") >= 62).then(spouse).otherwise(0.0)
+        ).clip(0, None)
+        rcred = pl.when((pl.col("pensions") > 0) & (agi <= r["agi_limit_per_taxpayer"] * txp)).then(
+            r["rate"] * pl.min_horizontal(retirement_income, room)
         ).otherwise(0.0)
 
     if p.in_effect("eitc_rate"):
         eitc_rate = p.num("eitc_rate")
-        if p.in_effect("eitc_rate_young_child"):
-            eitc_rate = pl.when(pl.col("children_under_3") > 0).then(
-                p.num("eitc_rate_young_child")
-            ).otherwise(eitc_rate)
+        taxsim_rates = not behavior.count_oregon_eitc_young_children_by_age_per_statute
+        key = "taxsim_eitc_rate_young_child" if taxsim_rates and p.in_effect("taxsim_eitc_rate_young_child") else "eitc_rate_young_child"
+        if p.in_effect(key):
+            young = pl.col("children_under_3")
+            if taxsim_rates:
+                # Without child ages TAXSIM counts the children under 6 (`dep6`) as under 3.
+                young = pl.when(pl.col("child_ages_given")).then(young).otherwise(pl.col("dep6"))
+            eitc_rate = pl.when(young > 0).then(p.num(key)).otherwise(eitc_rate)
         earncr = eitc_rate * pl.col("eitc")
     else:
         earncr = pl.lit(0.0)

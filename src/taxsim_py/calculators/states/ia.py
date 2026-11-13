@@ -77,18 +77,19 @@ def compute_ia_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         if p.in_effect("social_security_phaseout_share"):
             ssb = ssb * (1 - p.num("social_security_phaseout_share"))
         ssb = pl.when(pl.col("gssi") > 0).then(ssb).otherwise(0.0)
-        df = df.with_columns(ia_agi=pl.col("ia_agi") + ssb, ia_addph=pl.col("taxable_social_security") - ssb)
-    else:
-        half = 0.5 * pl.col("gssi")
-        transfers = pl.lit(0.0) if behavior.exclude_transfers_from_provisional_income else pl.col("transfers")
-        provisional = pl.col("agi") - pl.col("taxable_social_security") + transfers + half
-        df = df.with_columns(
-            ia_addph=pl.when(pl.col("gssi") > 0).then(pl.min_horizontal(half, (provisional - pha).clip(0, None) / 2)).otherwise(0.0)
-        )
-    # Pension exclusion (1995+), taxpayers 65 or older.
+        df = df.with_columns(ia_agi=pl.col("ia_agi") + ssb)
+    # The reportable benefits: half of the lesser of the benefits and income (federal AGI less the taxable
+    # benefits) over $32,000 on a joint return, $25,000 on any other.
+    base = pl.when(files_joint()).then(float(ss_p["joint"])).otherwise(float(ss_p["single"]))
+    income = pl.col("agi") - pl.col("taxable_social_security")
+    df = df.with_columns(
+        ia_addph=pl.when(pl.col("gssi") > 0).then(0.5 * pl.min_horizontal(pl.col("gssi"), (income - base).clip(0, None))).otherwise(0.0)
+    )
+    # Pension exclusion (1995+), when a taxpayer is 55 or older.
     if effective_year >= 1995:
         cap = p.num("pension_exclusion")
-        penexc = pl.when(aged_count() > 0).then(pl.min_horizontal(pl.col("ia_taxpayers") * cap, pl.col("pensions"))).otherwise(0.0)
+        age_55 = (pl.col("page") >= 55) | (pl.col("sage") >= 55)
+        penexc = pl.when(age_55).then(pl.min_horizontal(pl.col("ia_taxpayers") * cap, pl.col("pensions"))).otherwise(0.0)
     else:
         penexc = pl.lit(0.0)
     if p.in_effect("retirement_exclusion"):
@@ -237,6 +238,7 @@ def compute_ia_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     else:
         stath = bracket_tax(pl.col("ia_taxinh") / aif, table) * aif
         statw = bracket_tax(pl.col("ia_taxinw") / aif, table) * aif
+        df = df.with_columns(ia_statj=pl.col("ia_statax"))
         df = df.with_columns(
             ia_statax=pl.when(is_mfc).then(pl.min_horizontal(pl.col("ia_statax"), stath + statw)).otherwise(pl.col("ia_statax"))
         )
@@ -258,6 +260,54 @@ def compute_ia_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         df = df.with_columns(
             ia_statax=pl.when(not_single).then(pl.min_horizontal(pl.col("ia_statax"), altax)).otherwise(pl.col("ia_statax"))
         )
+    if effective_year >= 2021 and p.in_effect("alternate_tax_rate"):
+        # From 2021 the alternate tax and the AMT are applied to the joint tax and to each spouse's separate tax; the
+        # lower of the joint tax and the two spouses' sum is used. A joint return's alternate tax is shared between the
+        # spouses in proportion to their income, and each spouse's tax is limited to its share.
+        agi_h, agi = pl.col("ia_agi_higher_earner"), pl.col("ia_agi")
+        share_h = (altax * agi_h / agi.clip(1e-9, None)).clip(0, None)
+        share_w = (altax - share_h).clip(0, None)
+        joint_tax = pl.min_horizontal(pl.col("ia_statj"), altax)
+        tax_h, tax_w = pl.min_horizontal(stath, share_h), pl.min_horizontal(statw, share_w)
+        whole_tax = pl.col("ia_statax")
+
+        def amt_ia(itemized, standard, taxinc, property_tax, base_tax, status: str) -> pl.Expr:
+            rate = p.num("amt_rate")
+            floor = float(p["amt_exclusion_base_by_status"][status])
+            threshold = float(p["amt_exclusion_phaseout_threshold_by_status"][status])
+            income = pl.when(itemized > standard).then(taxinc + property_tax).otherwise(taxinc)
+            exclusion = pl.when(income > threshold).then(
+                (floor - p["amt_exclusion_phaseout_rate"] * (income - threshold)).clip(0, None)
+            ).otherwise(floor)
+            return (rate * (income - exclusion) - base_tax).clip(0, None)
+
+        if p.in_effect("amt_rate"):
+            status = pl.col("filing_status")
+            whole_status = pl.when(status == "married_separate").then(0).when(status == "married_joint").then(1).when(
+                status == "head_of_household").then(2).otherwise(3)
+            whole_amt = pl.lit(0.0)
+            for index, name in enumerate(("married_separate", "married_joint", "head_of_household", "single")):
+                whole_amt = pl.when(whole_status == index).then(
+                    amt_ia(pl.col("ia_xitded"), pl.col("ia_stded"), pl.col("ia_taxinc"), pl.col("proptax"), whole_tax, name)
+                ).otherwise(whole_amt)
+            split_h = agiw_positive
+            property_h = pl.col("proptax") * agi_h / agi.clip(1e-9, None)
+            amt_h = amt_ia(
+                pl.when(split_h).then(xitdh).otherwise(pl.col("ia_xitded")),
+                pl.when(split_h).then(stded_h_general).otherwise(pl.col("ia_stded")),
+                pl.col("ia_taxinh"), property_h, tax_h, "married_separate",
+            )
+            amt_w = amt_ia(
+                pl.when(split_h).then(xitdw).otherwise(0.0), pl.when(split_h).then(stded_h_general).otherwise(0.0),
+                pl.col("ia_taxinw"), pl.col("proptax") - property_h, tax_w, "married_separate",
+            )
+            amt_j = amt_ia(pl.col("ia_xitded"), pl.col("ia_stded"), pl.col("ia_taxinc"), pl.col("proptax"), joint_tax, "married_joint")
+            mfc_tax = pl.min_horizontal(joint_tax + amt_j, tax_h + amt_h + tax_w + amt_w)
+            other_tax = whole_tax + whole_amt
+        else:
+            mfc_tax = pl.min_horizontal(joint_tax, tax_h + tax_w)
+            other_tax = whole_tax
+        df = df.with_columns(ia_statax=pl.when(is_mfc).then(mfc_tax).otherwise(other_tax))
 
     # --- Personal Exemption Credit ---
     xmp = p.num("personal_exemption_credit")
@@ -279,8 +329,8 @@ def compute_ia_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     df = df.with_columns(ia_gcred=gcred)
     df = df.with_columns(ia_statax=(pl.col("ia_statax") - pl.col("ia_gcred")).clip(0, None))
 
-    # --- AMT ---
-    if p.in_effect("amt_share_of_federal") or p.in_effect("amt_rate"):
+    # --- AMT --- (from 2021 it is part of the alternate tax step above)
+    if effective_year < 2021 and (p.in_effect("amt_share_of_federal") or p.in_effect("amt_rate")):
         if p.in_effect("amt_share_of_federal"):
             alty = pl.col("amt") * p.num("amt_share_of_federal")
         else:

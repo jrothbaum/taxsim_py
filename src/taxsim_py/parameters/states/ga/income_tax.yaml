@@ -60,17 +60,17 @@ standard_deduction:
 aged_standard_deduction: {1987: 700, 1998: 1300, 2024: 0}
 
 # --- Retirement income exclusion ---
-# Per taxpayer 65 or older. Before 1989: the lesser of federal AGI and this
+# Before 1989, per taxpayer 65 or older: the lesser of federal AGI and this
 # amount, and none in 1986-1988 when earned income exceeds `earned_limit`
-# per taxpayer. From 1989 it covers up to `earnings_cap` of earnings plus
-# retirement and investment income, split between spouses.
+# per taxpayer. From 1989, per taxpayer 62 or older (TAXSIM 2026 build,
+# `gatax77`): up to `earnings_cap` of the taxpayer's wages plus retirement and
+# investment income (pensions, interest, dividends, business income, capital
+# gains), the income split between spouses; at ages 62-64 the dollar limit is
+# `max_age_62_to_64` (statute from 2012; TAXSIM from 2021).
 retirement_exclusion_max: {1977: 0, 1982: 2000, 1986: 4000, 1989: 8000, 1993: 10000, 1994: 11000, 1995: 12000, 1999: 13000, 2000: 13500, 2001: 14000, 2002: 14500, 2003: 15000, 2006: 25000, 2007: 30000, 2008: 35000, 2012: 65000}
+retirement_exclusion_max_age_62_to_64: {2012: 35000}
 retirement_exclusion_earned_limit: {1986: 1200, 1989: null}
 retirement_exclusion_earnings_cap: {1989: 4000, 2024: 5000}
-# The federal net capital loss limit (halved on separate returns) and the
-# share of losses counted for a spouse.
-retirement_exclusion_capital_loss_limit: 3000
-retirement_exclusion_spouse_loss_share: 0.25
 
 # --- 1982-1986 additions (Georgia kept 1981 federal law) ---
 # IRA adjustment: `amount` less the federal IRA limit (earnings up to the

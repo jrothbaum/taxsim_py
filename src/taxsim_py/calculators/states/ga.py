@@ -58,7 +58,7 @@ def compute_ga_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         fdutx = pl.min_horizontal(0.5 * (ui_total + pl.col("ga_agi") - femp).clip(0, None), ui_total)
         df = df.with_columns(ga_agi=pl.col("ga_agi") + (stutx - fdutx))
 
-    # Retirement income exclusion for taxpayers 65 or older.
+    # Retirement income exclusion. Before 1989 it is for taxpayers 65 or older; from 1989, 62 or older.
     aged = aged_count()
     rtmax = p.num("retirement_exclusion_max")
     rtexc = pl.min_horizontal(pl.col("agi"), rtmax * aged).clip(0, None)
@@ -66,34 +66,41 @@ def compute_ga_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         rtexc = pl.when(
             pl.col("earned_income") > p.num("retirement_exclusion_earned_limit") * pl.col("ga_taxpayers")
         ).then(0.0).otherwise(rtexc)
+    eligible = aged > 0
     if p.in_effect("retirement_exclusion_earnings_cap"):
         cap = p.num("retirement_exclusion_earnings_cap")
-        sep = pl.col("ga_sep")
-        capgn = pl.max_horizontal(pl.col("stcg") + pl.col("ltcg"), -p["retirement_exclusion_capital_loss_limit"] / sep)
-        schedule_e = pl.col("otherprop") + pl.col("scorp")
-        investment = pl.col("intrec") + pl.col("dividends") + dividend_input_adjustment() + schedule_e
-        rhy = (investment + pl.col("pensions")).clip(0, None) + pl.when(capgn >= 0).then(capgn / sep).otherwise(0.5 * capgn / sep)
-        single = pl.min_horizontal(pl.lit(rtmax), pl.min_horizontal(pl.col("earned_income"), cap) + rhy)
-        se_half = 0.5 * (pl.col("psemp") + pl.col("ssemp")).clip(0, None)
-        hearn = pl.max_horizontal(pl.col("pwages"), pl.col("swages")) + se_half
-        wearn = pl.min_horizontal(pl.col("pwages"), pl.col("swages")) + se_half
-        if effective_year >= 2018:
-            hearn = hearn + pl.col("pbusinc") + pl.col("sbusinc")
-            wearn = wearn + pl.col("pprofinc") + pl.col("sprofinc")
-        rterw = pl.min_horizontal(wearn, cap)
-        rterh = pl.min_horizontal(hearn, cap)
-        rhyw = 0.5 * investment + pl.col("pensions") + pl.when(capgn >= 0).then(0.5 * capgn / sep).otherwise(p["retirement_exclusion_spouse_loss_share"] * capgn / sep)
-        couple_one = pl.min_horizontal(pl.lit(rtmax), rterw + rhyw) + rterh
-        couple_two = pl.min_horizontal(pl.lit(rtmax), rterw + 0.5 * rhy) + pl.min_horizontal(pl.lit(rtmax), rterh + 0.5 * rhy)
-        rtexc = (
-            pl.when(pl.col("ga_taxpayers") == 1).then(single)
-            .when(pl.col("ga_taxpayers") > 1).then(pl.when(aged < 2).then(couple_one).otherwise(couple_two))
-            .otherwise(rtexc)
-        )
+        head_62, spouse_62 = pl.col("page") >= 62, pl.col("sage") >= 62
+        eligible = head_62 | spouse_62
+        # Retirement and investment income other than the capped earnings (wages), halved when both are eligible
+        # except for pensions on a return where only one is.
+        business = (pl.col("pbusinc") + pl.col("pprofinc") + pl.col("scorp") + pl.col("sbusinc") + pl.col("sprofinc")).clip(0, None)
+        gains = (pl.col("stcg") + pl.col("ltcg")).clip(0, None)
+        other = pl.col("dividends") + dividend_input_adjustment() + pl.col("intrec") + business + gains
+        pensions = pl.col("pensions")
+        taxpayers = pl.max_horizontal(pl.col("ga_taxpayers"), pl.lit(1.0))
+
+        def one(wages: pl.Expr) -> pl.Expr:
+            return pl.min_horizontal(wages, cap) + pensions + other / taxpayers
+
+        def both(wages: pl.Expr) -> pl.Expr:
+            return pl.min_horizontal(wages, cap) + (pensions + other) / 2.0
+
+        head = pl.when(head_62 & ~spouse_62).then(one(pl.col("pwages"))).when(head_62 & spouse_62).then(both(pl.col("pwages"))).otherwise(0.0)
+        spouse = pl.when(spouse_62 & ~head_62).then(one(pl.col("swages"))).when(head_62 & spouse_62).then(both(pl.col("swages"))).otherwise(0.0)
+
+        def limit(age: pl.Expr) -> pl.Expr:
+            # The dollar limit is lower at ages 62-64 (TAXSIM applies it from 2021, the statute from 2012).
+            if p.in_effect("retirement_exclusion_max_age_62_to_64") and (
+                effective_year >= 2021 or behavior.limit_georgia_exclusion_for_ages_62_to_64_before_2021_per_statute
+            ):
+                return pl.when(age < 65).then(p.num("retirement_exclusion_max_age_62_to_64")).otherwise(rtmax)
+            return pl.lit(rtmax)
+
+        rtexc = (pl.min_horizontal(head, limit(pl.col("page"))) + pl.min_horizontal(spouse, limit(pl.col("sage")))).clip(0, None)
     if effective_year < 1989 and not behavior.allow_georgia_retirement_exclusion_before_1989_per_statute:
         # TAXSIM's retirement exclusion starts in 1989.
         rtexc = pl.lit(0.0)
-    df = df.with_columns(ga_agi=pl.col("ga_agi") - pl.when(aged > 0).then(rtexc).otherwise(0.0))
+    df = df.with_columns(ga_agi=pl.col("ga_agi") - pl.when(eligible).then(rtexc).otherwise(0.0))
     # Social Security benefits are exempt from 1988.
     if effective_year >= 1988:
         df = df.with_columns(ga_agi=pl.col("ga_agi") - pl.col("taxable_social_security"))

@@ -77,4 +77,10 @@ def build_ga_test_cases() -> list[dict[str, Any]]:
         rows.append(case(year, "GA unemployment, single", mstat=1, pwages=10000, ui=8000))
         rows.append(case(year, "GA unemployment, married_joint", mstat=2, pwages=15000, swages=5000, ui=8000, sui=4000))
 
+        # Ages below and above each state's retirement thresholds (55, 60, 62, 65), alone and with a younger spouse.
+        for age in (54, 56, 60, 63, 66):
+            rows.append(case(year, f"GA retirement income, single, age={age}", mstat=1, page=age, pwages=3000, pensions=12000, intrec=3000, gssi=9000))
+            rows.append(case(year, f"GA retirement income, married_joint, age={age}, spouse 45", mstat=2, page=age, sage=45, pwages=30000, swages=20000, pensions=15000, intrec=3000, gssi=12000))
+            rows.append(case(year, f"GA retirement income, married_joint, both age={age}", mstat=2, page=age, sage=age, pwages=3000, pensions=40000, intrec=3000))
+
     return rows

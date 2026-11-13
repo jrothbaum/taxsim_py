@@ -217,7 +217,6 @@ pub fn tax(i: &Inp, f: &Fed, p: &IaParams) -> f64 {
     let pha = if is_joint { p.ss_base[0] } else if fs == Fs::Separate { p.ss_base[1] } else { p.ss_base[2] };
     agi -= f.taxable_social_security;
     let half = 0.5 * i.gssi;
-    let addph;
     if y <= 2013 {
         let mut ssb = (0.5 * (half + agi.max(0.0) - pha).max(0.0)).min(half);
         if let Some(share) = p.ss_share {
@@ -227,14 +226,14 @@ pub fn tax(i: &Inp, f: &Fed, p: &IaParams) -> f64 {
             ssb = 0.0;
         }
         agi += ssb;
-        addph = f.taxable_social_security - ssb;
-    } else {
-        let provisional = f.agi - f.taxable_social_security + half;
-        addph = if i.gssi > 0.0 { half.min((provisional - pha).max(0.0) / 2.0) } else { 0.0 };
     }
-    // Pension exclusion, taxpayers 65 or older.
+    // The reportable benefits: half of the lesser of the benefits and income (federal AGI less the taxable benefits)
+    // over $32,000 on a joint return, $25,000 on any other.
+    let base = if is_joint { p.ss_base[0] } else { p.ss_base[2] };
+    let addph = if i.gssi > 0.0 { 0.5 * i.gssi.min((f.agi - f.taxable_social_security - base).max(0.0)) } else { 0.0 };
+    // Pension exclusion, when a taxpayer is 55 or older.
     let mut penexc = match p.pension_cap {
-        Some(cap) if aged > 0.0 => (txp * cap).min(i.pensions),
+        Some(cap) if i.page >= 55.0 || i.sage >= 55.0 => (txp * cap).min(i.pensions),
         _ => 0.0,
     };
     if let Some((minimum_age, cap)) = p.retirement {
@@ -314,6 +313,8 @@ pub fn tax(i: &Inp, f: &Fed, p: &IaParams) -> f64 {
     if let Some((joint, other)) = &p.by_status {
         statax = if is_joint { joint.tax(taxinc) } else { other.tax(taxinc) };
     }
+    let statj = statax;
+    let (mut stath, mut statw) = (0.0, 0.0);
     if is_mfc {
         let (h, w) = if y <= 1986 {
             let denom = agi.max(1e-9);
@@ -324,8 +325,9 @@ pub fn tax(i: &Inp, f: &Fed, p: &IaParams) -> f64 {
         } else {
             (taxinh, taxinw)
         };
-        let split = p.table.tax(h / aif) * aif + p.table.tax(w / aif) * aif;
-        statax = statax.min(split);
+        stath = p.table.tax(h / aif) * aif;
+        statw = p.table.tax(w / aif) * aif;
+        statax = statax.min(stath + statw);
     }
 
     // ---- alternate tax (never single) ----
@@ -345,6 +347,38 @@ pub fn tax(i: &Inp, f: &Fed, p: &IaParams) -> f64 {
         if not_single {
             statax = statax.min(altax);
         }
+        if y >= 2021 {
+            // From 2021 the alternate tax and the AMT are applied to the joint tax and to each spouse's separate tax; the
+            // lower of the joint tax and the two spouses' sum is used. A joint return's alternate tax is shared between
+            // the spouses in proportion to their income, and each spouse's tax is limited to its share.
+            let share_h = (altax * agih / agi.max(1e-9)).max(0.0);
+            let share_w = (altax - share_h).max(0.0);
+            let joint_tax = statj.min(altax);
+            let (tax_h, tax_w) = (stath.min(share_h), statw.min(share_w));
+            // AMT on one tax: income (plus property tax if itemizing) less the exclusion, which phases out.
+            let amt_ia = |itemized: f64, standard: f64, income: f64, property: f64, base_tax: f64, status: Fs| -> f64 {
+                let Some(a) = &p.amt else { return 0.0 };
+                let rate = a.rate.unwrap_or(0.0);
+                let income = if itemized > standard { income + property } else { income };
+                let (floor, threshold) = (a.base[status as usize], a.threshold[status as usize]);
+                let exclusion = if income > threshold { (floor - a.phaseout_rate * (income - threshold)).max(0.0) } else { floor };
+                (rate * (income - exclusion) - base_tax).max(0.0)
+            };
+            statax = if is_mfc {
+                let property_h = i.proptax * agih / agi.max(1e-9);
+                let (items_h, std_h, items_w, std_w) = if agiw_positive {
+                    (xitdh, stded_h_general, xitdw, stded_h_general)
+                } else {
+                    (xitded, stded, 0.0, 0.0)
+                };
+                let amt_j = amt_ia(xitded, stded, taxinc, i.proptax, joint_tax, Fs::Joint);
+                let amt_h = amt_ia(items_h, std_h, taxinh, property_h, tax_h, Fs::Separate);
+                let amt_w = amt_ia(items_w, std_w, taxinw, i.proptax - property_h, tax_w, Fs::Separate);
+                (joint_tax + amt_j).min(tax_h + amt_h + tax_w + amt_w)
+            } else {
+                statax + amt_ia(xitded, stded, taxinc, i.proptax, statax, fs)
+            };
+        }
     }
 
     // ---- personal exemption credit ----
@@ -361,8 +395,8 @@ pub fn tax(i: &Inp, f: &Fed, p: &IaParams) -> f64 {
     };
     statax = (statax - gcred).max(0.0);
 
-    // ---- AMT ----
-    if let Some(a) = &p.amt {
+    // ---- AMT ---- (from 2021 it is part of the alternate tax step above)
+    if let (Some(a), true) = (&p.amt, y < 2021) {
         let alty = if let Some(share) = a.share_of_federal {
             f.amt * share
         } else {

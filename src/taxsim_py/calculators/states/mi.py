@@ -73,10 +73,19 @@ def compute_mi_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         unearned = pl.col("dividends") + pl.col("intrec")
         if y >= 1997:
             unearned = unearned + (pl.col("stcg") + pl.col("ltcg")).clip(0, None)
-        divded = pl.when(aged > 0).then(
+        # TAXSIM tests only that a taxpayer was born in 1946 or earlier, so a younger taxpayer gets it too.
+        senior = aged > 0
+        if not behavior.require_age_65_for_michigan_investment_deduction_per_statute:
+            senior = (1946 + pl.max_horizontal(pl.col("page"), pl.col("sage"))) >= year
+        divded = pl.when(senior).then(
             pl.min_horizontal(unearned, p.num("senior_investment_deduction_per_taxpayer") * n_tp)
         ).otherwise(0.0)
-    pens = pl.max_horizontal(penexc, divded)
+    if behavior.subtract_michigan_social_security_with_investment_deduction_per_statute:
+        pens = pl.max_horizontal(penexc, divded)
+    else:
+        # TAXSIM takes the larger of the investment deduction and the pension plus Social Security subtractions, so
+        # the benefits are taxed when the investment deduction is larger.
+        pens = pl.max_horizontal(penexc, divded - pl.col("taxable_social_security"))
     tiered = p.in_effect("senior_standard_deduction") and y <= 2022 and behavior.apply_michigan_retirement_tiers
     taxsim_tiers = False
     taxsim_tiers_2021 = False

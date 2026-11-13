@@ -31,13 +31,30 @@ def compute_pa_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         pl.col("psemp") + pl.col("ssemp") + pl.col("pbusinc") + pl.col("pprofinc") + pl.col("sbusinc")
         + pl.col("sprofinc")
     )
+    if behavior.exempt_pennsylvania_pensions_from_age_65_per_statute:
+        taxable_pensions = pl.when(aged_count() > 0).then(0.0).otherwise(pl.col("pensions"))
+    else:
+        # TAXSIM gives a married couple's pensions to the spouse aged 55 or older (halves if both or neither are), and
+        # taxes each share unless that spouse is 60 or older.
+        pensions = pl.col("pensions")
+        head_55, spouse_55 = pl.col("page") >= 55, pl.col("sage") >= 55
+        head_share = (
+            pl.when(pl.col("mstat") != 2).then(pensions)
+            .when(head_55 & ~spouse_55).then(pensions)
+            .when(~head_55 & spouse_55).then(0.0)
+            .otherwise(pensions / 2.0)
+        )
+        taxable_pensions = (
+            pl.when(pl.col("page") < 60).then(head_share).otherwise(0.0)
+            + pl.when(pl.col("sage") < 60).then(pensions - head_share).otherwise(0.0)
+        )
     income = (
         pl.col("pwages").clip(0, None) + pl.col("swages").clip(0, None)
         + pl.col("dividends") + dividend_adjustment + pl.col("intrec")
         + business.clip(0, None)
         + (pl.col("stcg") + pl.col("ltcg")).clip(0, None)
         + pl.col("pa_schede")
-        + pl.when(aged_count() > 0).then(0.0).otherwise(pl.col("pensions"))
+        + taxable_pensions
     )
     if not behavior.count_nonproperty_income_once:
         # TAXSIM's variable for other non-property income (`d(23)`) is part of Pennsylvania income.

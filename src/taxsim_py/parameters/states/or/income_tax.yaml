@@ -365,6 +365,8 @@ retirement_income_credit:
 eitc_rate: {1997: 0.05, 2008: 0.06, 2014: 0.08, 2020: 0.09, 2026: 0.14}
 # From 2022, the share for a return with a child under 3.
 eitc_rate_young_child: {2022: 0.12, 2026: 0.17}
+# TAXSIM's 2026 build pays it from 2017 (11% to 2019, 12% from 2020); not confirmed against the statute.
+taxsim_eitc_rate_young_child: {2017: 0.11, 2020: 0.12, 2022: null}
 # Working family child care credit 1997-2015 (not for separate returns): share
 # of child care expenses by federal AGI (interpolated), with thresholds by
 # household size (1-8) times the index; requires earned income of at least the
