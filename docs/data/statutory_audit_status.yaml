@@ -1,0 +1,23 @@
+# Verdicts for the statutory side of each switch (status: verified | corrected | partial | unverified).
+count_vermont_child_credit_by_statutory_age:
+  source: 'Vermont Dept of Taxes, 2025 tax changes and Act 71 of 2025: child credit up to $1,000 for a child under 6 before 2025 and age 6 or younger from 2025; checked 2026-11-13'
+  status: verified
+exclude_transfers_from_provisional_income:
+  source: 'IRC 86(b)(2): provisional income is modified AGI plus tax-exempt interest plus half of benefits; transfers are not in it; checked 2026-11-13'
+  status: verified
+exempt_pennsylvania_pensions_from_age_65_per_statute:
+  source: PA Dept of Revenue REV-636 (retirement distributions are not taxable once the plan's retirement age is reached and the owner has retired; 59 1/2 for IRAs). Statutory age was 65 and applied to
+    a household with any aged member; now 60 (retirement age proxy), checked 2026-11-13
+  status: corrected
+floor_child_credit_phaseout_at_zero:
+  source: 'IRC 24(b): the credit is reduced by $50 per $1,000 of income over the threshold and cannot go below zero (it is a reduction of the credit amount); checked 2026-11-13'
+  status: verified
+leave_out_one_time_state_rebates:
+  source: Rebates are payments by the state, not tax liability, so statutory mode leaves them out by design; not a legal question
+  status: partial
+pay_kansas_credits_per_statute:
+  source: ''
+  status: unverified
+use_form_8995a_qbi_streams:
+  source: IRS Form 8995-A and its instructions (qualified business income by trade or business, separate W-2 wage and UBIA limits); checked 2026-11-13
+  status: verified

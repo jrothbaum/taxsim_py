@@ -28,6 +28,7 @@ nav:
   - Browser: browser.md
   - Reference:
       - TAXSIM errors and corrections: statutory_corrections.md
+      - Audit of the statutory side: statutory_audit.md
       - 2026 state law, sources and verification: state_2026_parameters.md
       - Performance: performance.md
       - Comparison with TAXSIM and PolicyEngine, by state and year: comparisons.md

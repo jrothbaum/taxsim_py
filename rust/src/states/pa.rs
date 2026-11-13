@@ -67,7 +67,7 @@ pub fn tax(i: &Inp, f: &Fed, p: &PaParams) -> f64 {
     let y = p.year;
     // Federal Schedule E income: other property income, plus S corporation income from 1987.
     let schede = i.otherprop + if y >= 1987 { i.scorp } else { 0.0 };
-    // Positive income classes only; pensions are exempt for taxpayers 65 or older.
+    // Positive income classes only; pensions are exempt from the retirement age (60).
     let business = i.psemp + i.ssemp + i.pbusinc + i.pprofinc + i.sbusinc + i.sprofinc;
     let income = i.pwages.max(0.0)
         + i.swages.max(0.0)
@@ -77,7 +77,7 @@ pub fn tax(i: &Inp, f: &Fed, p: &PaParams) -> f64 {
         + business.max(0.0)
         + (i.stcg + i.ltcg).max(0.0)
         + schede
-        + if i.aged_count() > 0.0 { 0.0 } else { i.pensions };
+        + if i.page >= 60.0 || i.sage >= 60.0 { 0.0 } else { i.pensions };
     let taxinc = income.max(0.0);
     let mut statax = taxinc * p.rate;
 
@@ -113,7 +113,7 @@ pub fn tax(i: &Inp, f: &Fed, p: &PaParams) -> f64 {
         a.first * dep1 + a.other * dep2
     };
     // Schedule SP eligibility income adds nontaxable income such as unemployment compensation and exempt pensions.
-    let eligibility = taxinc + unemployment_total(i) + if i.aged_count() > 0.0 { i.pensions } else { 0.0 };
+    let eligibility = taxinc + unemployment_total(i) + if i.page >= 60.0 || i.sage >= 60.0 { i.pensions } else { 0.0 };
     let remain = (eligibility - allow).max(0.0);
     let forgiven_share = match p.step {
         Some((share, income)) => (1.0 - share * (remain / income).ceil()).max(0.0),
