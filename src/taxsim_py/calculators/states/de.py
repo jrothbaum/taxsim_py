@@ -219,6 +219,13 @@ def compute_de_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         seis = pl.col("ssemp") + pl.col("sbusinc") + pl.col("sprofinc")
         secah = pl.col("payroll_setax_primary") / 2
         secas = pl.col("payroll_setax_secondary") / 2
+        if effective_year >= 2024 and not behavior.deflate_delaware_spouse_self_employment_per_statute:
+            # In a projected year TAXSIM keeps the spouse's self-employment input undeflated (`d(216)`) while the total
+            # is deflated, so the taxpayer's share is the deflated total less the undeflated spouse amount.
+            secah = secah / flate
+            secas = secas / flate
+            seih = seih + pl.col("ssemp") - pl.col("ssemp") * flate
+            seis = seis - pl.col("ssemp") + pl.col("ssemp") * flate
         split_after_exclusion = effective_year >= 2024 and not behavior.split_delaware_income_before_pension_exclusion_per_statute
         exclusion_h = pl.lit(0.0) if split_after_exclusion else pl.col("de_retdedt")
         exclusion_w = pl.lit(0.0) if split_after_exclusion else pl.col("de_retdeds")
@@ -229,6 +236,7 @@ def compute_de_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         cinc = 0.5 * ((pl.col("agi") if split_after_exclusion else pl.col("de_agi_pre")) - tinc - sinc + secah + secas)
         agit = tinc + cinc - secah
         agis = sinc + cinc - secas
+        agit_before_exclusion = agit.clip(0, None)
         if split_after_exclusion:
             benefit_h, benefit_w = allocate_pensions(pl.col("taxable_social_security"), 55)
             agit = agit.clip(0, None) - pl.col("de_retdedt") - benefit_h
@@ -245,6 +253,10 @@ def compute_de_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         safe_agi = pl.when(pl.col("de_agi") != 0).then(pl.col("de_agi")).otherwise(1.0)
         deduch = pl.when(itemizing_split).then(pl.col("de_xitded") * agit / safe_agi).otherwise(std_h)
         deducw = pl.when(itemizing_split).then(pl.col("de_xitded") * agis / safe_agi).otherwise(std_w)
+        if split_after_exclusion:
+            # TAXSIM shares the itemized deduction by the husband's split income before the exclusions.
+            deduch = pl.when(itemizing_split).then(pl.col("de_xitded") * agit_before_exclusion / safe_agi).otherwise(std_h)
+            deducw = pl.when(itemizing_split).then(pl.col("de_xitded") - deduch).otherwise(std_w)
         df = df.with_columns(
             de_dedh=deduch, de_dedw=deducw,
             de_taxinh=(agit - deduch - 0.5 * pl.col("de_exemp")).clip(0, None),
