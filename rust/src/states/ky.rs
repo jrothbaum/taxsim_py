@@ -230,7 +230,8 @@ pub fn tax(i: &Inp, f: &Fed, p: &KyParams) -> f64 {
     let ky_agi = agi;
 
     // ---- standard deduction ----
-    let stded = p.standard_deduction * if p.standard_per_taxpayer { taxpayers } else { 1.0 };
+    // One standard deduction per return: TAXSIM's reading, not shown to be wrong (Kentucky's amount does not vary by filing status).
+    let stded = p.standard_deduction;
 
     // ---- itemized deduction ----
     let salt = f.ded;

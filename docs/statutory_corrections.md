@@ -1,11 +1,5 @@
 # TAXSIM errors and corrections
 
-> **Statutory mode departs from TAXSIM only where TAXSIM is known to be wrong**: its own source is evidently broken (a
-> variable never set, a typo, a result overwritten), or it contradicts a form or statute that was read. The rows below
-> that are not yet in that class keep TAXSIM's behavior in statutory mode (`KEEP_TAXSIM_BEHAVIOR`); the
-> [audit](statutory_audit.md) lists which. The compiled Rust calculator implements every override (`ALL_OVERRIDES_BEHAVIOR`)
-> and has not been rebuilt on this basis, so it refuses statutory mode for now.
-
 This page lists the apparent errors in NBER TAXSIM that turned up while porting it,
 what taxsim-py does about each one, and the other deliberate differences from the
 compiled program. Each error was judged from the Fortran source and from tests

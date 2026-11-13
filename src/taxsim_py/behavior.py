@@ -2,8 +2,6 @@
 
 
 from __future__ import annotations
-
-import os
 from dataclasses import dataclass, fields
 from enum import Enum
 
@@ -497,6 +495,15 @@ class BehaviorProfile:
     report_social_security_taxable_earnings: bool = True
 
 
+# Switches where TAXSIM's behavior has not been shown to be wrong, so statutory mode keeps it: statutory mode departs from
+# TAXSIM only where TAXSIM contradicts a form, a statute, or its own source (an unset variable, a typo). Every name
+# here is read as its TAXSIM value in both modes; docs/statutory_audit.md says why each one is listed.
+KEEP_TAXSIM_BEHAVIOR = frozenset(
+    {
+        "double_kentucky_standard_deduction_for_joint_returns",
+    }
+)
+STATUTORY_BEHAVIOR = BehaviorProfile(**{name: False for name in KEEP_TAXSIM_BEHAVIOR})
 # Switches whose TAXSIM error was fixed by the 2026 build (taxsim_2026_11_09.f):
 # TAXSIM mode now keeps the statutory value for them.
 FIXED_IN_2026_BUILD = frozenset(
@@ -526,148 +533,6 @@ FIXED_IN_2026_BUILD = frozenset(
         "complete_west_virginia_1984_head_of_household_table",
     }
 )
-# Statutory mode departs from TAXSIM only where TAXSIM is known to be wrong: its own source is evidently broken (a variable never
-# set, a typo, a result overwritten) or it contradicts a form or statute that was read (docs/statutory_audit.md,
-# docs/data/statutory_audit_status.yaml). Every other override keeps TAXSIM's behavior in statutory mode until it is verified.
-VERIFIED_TAXSIM_BUGS = frozenset(
-    {
-        "limit_arkansas_low_income_table_to_its_range",
-        "pay_new_york_empire_child_credit_per_statute",
-        "subtract_state_tax_in_georgia_itemized_deduction",
-        "pay_minnesota_property_tax_refund_through_2023",
-        "add_back_north_dakota_state_tax_for_itemizers_only",
-        "add_back_self_employment_loss_to_earned_income_credit_phaseout_per_statute",
-        "add_earnings_to_district_of_columbia_dependent_standard_deduction_per_statute",
-        "add_nebraska_single_additional_tax_once",
-        "add_wisconsin_minimum_tax_once",
-        "allow_additional_child_credit_before_2001",
-        "allow_kansas_itemizing_after_2020",
-        "allow_louisiana_federal_credit_share_per_statute",
-        "allow_massachusetts_child_care_deduction_2011_2020",
-        "allow_minnesota_renter_and_homeowner_refunds",
-        "allow_virginia_child_care_deduction_2003",
-        "allow_west_virginia_disability_deduction",
-        "apply_1979_dividend_exclusion",
-        "apply_elderly_credit_before_1987",
-        "apply_iowa_eitc_caps_as_in_2010_law",
-        "apply_kentucky_pension_cap_per_taxpayer",
-        "apply_michigan_retirement_tiers",
-        "apply_minnesota_pension_exclusion_through_1986_per_statute",
-        "apply_missouri_property_credit_to_tax_paid",
-        "apply_nonrefundable_credits_before_1998",
-        "apply_oregon_dependent_care_credit_per_statute",
-        "apply_payroll_wage_bases_correctly",
-        "apply_pennsylvania_forgiveness_rules",
-        "apply_state_childless_eitc_minimum_age",
-        "base_wisconsin_renter_credit_on_rent",
-        "cap_amt_exemption_for_dependents_only",
-        "cap_medicare_in_state_payroll_deduction",
-        "charge_new_york_minimum_tax_on_preferences_only",
-        "charge_new_york_unearned_income_tax_1987_1988",
-        "compute_louisiana_tax_per_statute",
-        "compute_montana_retirement_exclusion_per_statute",
-        "count_additional_medicare_once_in_alabama_fica_deduction",
-        "count_all_children_for_north_carolina_joint_child_care",
-        "count_new_mexico_aged_once_in_rebate",
-        "count_only_children_under_13_for_oregon_dependent_care",
-        "count_other_property_income_from_2024",
-        "count_other_property_income_in_eitc_disqualified_income_per_statute",
-        "count_pre_1998_nonrefundable_credits_correctly",
-        "count_vermont_child_credit_by_statutory_age",
-        "credit_iowa_dependents_before_1998",
-        "credit_maine_1988_standard_deduction_and_exemptions",
-        "credit_wisconsin_1983_homestead_excess",
-        "deduct_colorado_federal_tax_after_1977",
-        "deduct_mortgage_interest_from_1983_minimum_tax",
-        "deduct_south_carolina_federal_tax_under_1980_law",
-        "deduct_virginia_age_deduction_per_statute",
-        "enforce_schedule_se_minimum",
-        "exclude_children_under_4_from_ny_empire_credit",
-        "exclude_hawaii_pensions",
-        "exclude_separate_returns_from_massachusetts_exemption_carryover",
-        "exclude_transfers_from_provisional_income",
-        "exclude_utah_state_income_tax_from_taxpayer_credit_before_2018",
-        "exclude_wages_from_1977_preference_income",
-        "exempt_amt_from_itemized_limit_1991_1992",
-        "exempt_new_mexico_social_security_1984_1989",
-        "floor_child_credit_phaseout_at_zero",
-        "floor_mississippi_excess_charity",
-        "floor_new_york_itemized_deductions",
-        "floor_wisconsin_capital_gain_exclusion",
-        "halve_rhode_island_separate_standard_deduction",
-        "halve_wisconsin_separate_amt_exemption",
-        "ignore_federal_salt_cap_in_california",
-        "include_business_and_rental_income_in_california_minimum_tax",
-        "include_unemployment_in_california_total_income",
-        "index_wisconsin_joint_brackets",
-        "initialize_arizona_short_term_loss",
-        "keep_itemized_inputs_when_taking_standard_deduction",
-        "keep_wisconsin_1999_itemized_credit",
-        "keep_wisconsin_mortgage_interest_cents",
-        "limit_minnesota_child_care_credit_by_maximum_after_2017",
-        "omit_oregon_2021_kicker",
-        "omit_vermont_student_credit",
-        "order_minnesota_1998_working_family_credit",
-        "pay_kansas_credits_per_statute",
-        "pay_maryland_poverty_level_credit_per_statute",
-        "pay_minnesota_homemaker_credit_to_nondependents",
-        "pay_nebraska_child_tax_credit_per_statute",
-        "pay_oregon_2015_2017_kickers",
-        "pay_oregon_2019_kicker",
-        "pay_oregon_kids_credit_per_statute",
-        "pay_wisconsin_child_care_credit_per_statute",
-        "phase_out_oregon_federal_tax_limit_in_steps",
-        "read_federal_child_care_credit_before_1987",
-        "read_west_virginia_family_credit_limits_per_statute",
-        "reduce_louisiana_joint_tax_once_for_dependents",
-        "remove_state_tax_from_west_virginia_itemized_deductions",
-        "replace_federal_unemployment_in_oregon_1981_1984",
-        "report_base_state_worksheet",
-        "report_social_security_taxable_earnings",
-        "scale_virginia_itemized_limit_threshold",
-        "step_connecticut_pension_deduction_per_statute",
-        "subtract_illinois_property_credit_once_in_eitc_limit",
-        "subtract_minnesota_elderly_and_charity_from_income",
-        "subtract_montana_separate_capital_loss_once",
-        "subtract_ohio_exemption_credit_once",
-        "subtract_only_taxable_unemployment_in_montana",
-        "subtract_rhode_island_tax_once_in_minimum_tax",
-        "suspend_kentucky_itemized_limitation_through_2012",
-        "suspend_montana_itemized_limit_through_2012",
-        "take_north_carolina_child_care_credit_once",
-        "tax_nebraska_before_1987_per_statute",
-        "tax_oregon_dependent_filers_per_statute",
-        "use_additional_medicare_separate_threshold",
-        "use_age_qualified_children_for_dc_eitc",
-        "use_california_published_2025_brackets_per_statute",
-        "use_colorado_itemized_deductions_before_1987",
-        "use_current_rates_in_dc_earner_split",
-        "use_current_rates_in_dc_low_income_credit",
-        "use_form_8995a_qbi_streams",
-        "use_idaho_standard_deduction_2008_2009_per_statute",
-        "use_joint_elderly_credit_threshold",
-        "use_louisiana_brackets_per_statute",
-        "use_maine_year_standard_deduction",
-        "use_minnesota_2012_joint_working_family_thresholds",
-        "use_minnesota_working_family_tables_by_children",
-        "use_nebraska_high_income_tables_per_statute",
-        "use_net_long_term_gain_in_rhode_island",
-        "use_new_york_statutory_child_care_credit",
-        "use_north_carolina_married_table_without_splitting",
-        "use_own_bounds_in_new_york_worksheets",
-        "use_published_capital_gains_thresholds",
-        "use_published_dependent_standard_deduction_minimum",
-        "use_rhode_island_deduction_phaseout_steps_only",
-        "use_single_standard_deduction_for_new_york_head_of_household_before_1987",
-        "use_wisconsin_net_household_income_1989_1990",
-    }
-)
-_OVERRIDES = frozenset(f.name for f in fields(BehaviorProfile) if f.name != "mode") - FIXED_IN_2026_BUILD
-KEEP_TAXSIM_BEHAVIOR = _OVERRIDES - VERIFIED_TAXSIM_BUGS
-# Every override, verified or not: the behavior the Rust engine implements. Used to check the Rust engine against Python
-# (scripts/validate_rust.py) until the Rust engine is rebuilt on TAXSIM's behavior.
-ALL_OVERRIDES_BEHAVIOR = BehaviorProfile()
-STATUTORY_BEHAVIOR = BehaviorProfile(**{name: not getattr(ALL_OVERRIDES_BEHAVIOR, name) for name in KEEP_TAXSIM_BEHAVIOR})
 TAXSIM_BEHAVIOR = BehaviorProfile(
     mode=CalculationMode.TAXSIM,
     **{
@@ -685,9 +550,4 @@ def resolve_behavior(mode: str | CalculationMode) -> BehaviorProfile:
     except (TypeError, ValueError) as exc:
         choices = ", ".join(repr(item.value) for item in CalculationMode)
         raise ValueError(f"calculation_mode must be one of: {choices}") from exc
-    if resolved is CalculationMode.TAXSIM:
-        return TAXSIM_BEHAVIOR
-    # Internal: the profile with every statutory override, which the Rust engine implements (checked by validate_rust).
-    if os.environ.get("TAXSIM_PY_STATUTORY_PROFILE") == "all_overrides":
-        return ALL_OVERRIDES_BEHAVIOR
-    return STATUTORY_BEHAVIOR
+    return TAXSIM_BEHAVIOR if resolved is CalculationMode.TAXSIM else STATUTORY_BEHAVIOR

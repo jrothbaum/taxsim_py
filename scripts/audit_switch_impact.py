@@ -22,7 +22,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 import taxsim_py.api as api  # noqa: E402
 from build_comparison_report import STATE_NAME, for_year, sample_units  # noqa: E402
-from taxsim_py.behavior import ALL_OVERRIDES_BEHAVIOR as STATUTORY_BEHAVIOR, FIXED_IN_2026_BUILD, BehaviorProfile  # noqa: E402
+from taxsim_py.behavior import FIXED_IN_2026_BUILD, STATUTORY_BEHAVIOR, BehaviorProfile  # noqa: E402
 from taxsim_py.engine.inputs import OPTIONAL_CHILD_COUNT_INPUTS, TAXSIM_INPUTS  # noqa: E402
 from taxsim_py.prep import cps_asec_tax_units, read_cps_asec  # noqa: E402
 
