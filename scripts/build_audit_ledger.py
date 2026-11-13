@@ -24,6 +24,21 @@ status = yaml.safe_load((ROOT / "docs/data/statutory_audit_status.yaml").read_te
 rows = [line for line in (ROOT / "docs/statutory_corrections.md").read_text().split("\n") if line.startswith("|")]
 
 
+_PARAM = re.compile(r"typo|indexed|index(ing)? |inflation factor|stale|brackets?|thresholds?|\$[\d,]{3,}|\d{1,3},\d{3}|table|amount|rates?|maximum|limit|cap\b", re.I)
+_LOGIC = re.compile(r"never|overwrit|ignores|reversed|slot|never true|uninitiali|not set|unset|never set|stops|multiplies", re.I)
+
+
+def kind(switch: str) -> str:
+    """A parameter error (a number in TAXSIM's tables differs from the published one) or a logic error (found in its source)."""
+    for line in rows:
+        if switch in line:
+            cells = line.split("|")
+            desc = cells[4].strip() if len(cells) > 4 else ""
+            if _PARAM.search(desc) and re.search(r"\d", desc) and not (_LOGIC.search(desc) and not re.search("typo|stale|indexed", desc, re.I)):
+                return "parameter"
+    return "logic"
+
+
 def statutory_side(switch: str) -> str:
     for line in rows:
         if switch in line:
@@ -35,55 +50,48 @@ def statutory_side(switch: str) -> str:
 
 live = {f.name for f in fields(BehaviorProfile)}
 frame = [r for r in impact.sort("stake", descending=True).to_dicts() if r["switch"] in live]
-counts = {"verified": 0, "corrected": 0, "partial": 0, "kept_taxsim": 0, "unverified": 0}
+counts = {"logic": 0, "verified": 0, "corrected": 0, "partial": 0, "kept_taxsim": 0, "unverified": 0}
 kept = {k: v for k, v in status.items() if v["status"] == "kept_taxsim"}
 counts["kept_taxsim"] = len(kept)
 lines = []
 for r in frame:
     entry = status.get(r["switch"], {"status": "unverified", "source": ""})
+    typ = kind(r["switch"])
+    if entry["status"] == "unverified" and typ == "logic":
+        entry = {"status": "logic", "source": "Found by reading TAXSIM's source; no form or statute check needed"}
     if entry["status"] != "kept_taxsim":
         counts[entry["status"]] += 1
     lines.append(
-        f"| `{r['switch']}` | {r['states']} | {r['changed']}/{r['units']} | {r['mean_abs_change_if_changed']:.0f} "
+        f"| `{r['switch']}` | {typ} | {r['states']} | {r['changed']}/{r['units']} | {r['mean_abs_change_if_changed']:.0f} "
         f"| {entry['status']} | {statutory_side(r['switch'])} | {entry['source']} |"
     )
 total = len(frame)
 changed = sum(1 for r in frame if r["changed"] > 0)
 page = f"""# Audit of the statutory side
 
-Statutory mode is only useful if each place it departs from TAXSIM can be defended. This page lists every
-statutory switch (`src/taxsim_py/behavior.py`), ranked by how much is at stake, and says whether its statutory
-side has been checked against a form or statute.
+Statutory mode departs from TAXSIM only where TAXSIM is known to be wrong. The rows in `statutory_corrections.md` are
+the errors found by reading TAXSIM's source and testing it, so each is a known bug. Only **parameter errors**, where a number
+in TAXSIM's tables differs from the published value, need a source to confirm the published number. **Logic errors**
+(a variable never set, a typo in a condition, a result overwritten) need nothing more. Where a check shows TAXSIM's
+behavior is not actually wrong (a modelling choice, or a rule the inputs cannot decide), statutory mode is moved back to
+TAXSIM's behavior and the switch is listed at the end (`KEEP_TAXSIM_BEHAVIOR` in `behavior.py`).
 
-- Switches: {total}. Verified against a primary source: {counts['verified']}. Corrected after checking: {counts['corrected']}.
-  Partly checked: {counts['partial']}. Not yet checked: {counts['unverified']}.
-  Switches where statutory mode keeps TAXSIM's behavior because TAXSIM was not shown wrong: {counts['kept_taxsim']} (listed after the table).
-- Switches whose flip changes at least one household in the sample: {changed}. The rest change nobody in the sample
-  (they apply to inputs or years the CPS sample does not reach) and are checked last.
+- Switches: {total}. Logic errors (no confirmation needed): {counts['logic']}. Parameter errors verified against a primary
+  source: {counts['verified']}; partly verified: {counts['partial']}; still to verify: {counts['unverified']}. Moved back to
+  TAXSIM's behavior: {counts['kept_taxsim']}.
+- Switches whose flip changes at least one household in the sample: {changed}. The rest change nobody in the sample.
 
-How the ranking was made: for each switch, statutory mode is run on CPS households (40 per state, law years 1985,
-2000, 2012, 2022 and 2025) with only that switch set to TAXSIM's behavior. "Changed" counts households whose federal or state
-tax moves by more than $1; "average" is the mean move for those households.
-(`scripts/audit_switch_impact.py`). Verdicts live in `docs/data/statutory_audit_status.yaml`; this page is built by
-`scripts/build_audit_ledger.py`.
+How the impact was measured: for each switch, statutory mode is run on CPS households (40 per state, law years 1985, 2000,
+2012, 2022 and 2025) with only that switch set to TAXSIM's behavior. "Changed" counts households whose federal or state tax moves by more than $1;
+"average" is the mean move for those households (`scripts/audit_switch_impact.py`). Verdicts live in
+`docs/data/statutory_audit_status.yaml`; this page is built by `scripts/build_audit_ledger.py`. The type column is a first sort
+by the wording of each row and may misfile a few.
 
-**Rule.** Statutory mode departs from TAXSIM only where TAXSIM is shown to be wrong: it contradicts a form or statute,
-or its own source is evidently broken (a variable never set, a typo). Where TAXSIM's behavior is a defensible reading, or
-the inputs cannot decide, statutory mode keeps TAXSIM's behavior (`KEEP_TAXSIM_BEHAVIOR` in `behavior.py`). Switches
-that still show "unverified" depart from TAXSIM without that proof yet; each is a candidate to be moved to the kept list.
+Status: **logic** = nothing more to confirm; **verified** = the published value matches a cited source; **partial** =
+confirmed in part; **unverified** = a parameter error whose published value has not been checked yet.
 
-**Rule.** Statutory mode departs from TAXSIM only where TAXSIM is known to be wrong. The rows in
-`statutory_corrections.md` are the errors found by reading TAXSIM's source and testing it, so each one is a known
-bug unless this audit finds otherwise. The audit checks the statutory side of each row against the form or statute. Where the
-check shows TAXSIM's behavior is not actually wrong (a modelling choice, or a rule the inputs cannot decide), statutory mode is moved
-back to TAXSIM's behavior and the switch is listed under "keeps TAXSIM's behavior" (`KEEP_TAXSIM_BEHAVIOR` in `behavior.py`).
-
-Status: **verified** = the statutory rule matches a cited primary source; **corrected** = the check found the
-statutory side wrong and it was changed; **partial** = true by design or only part checked; **unverified** = nothing
-yet beyond the source reading that logged it as a TAXSIM error.
-
-| Switch | States | Households changed | Average change ($) | Status | Statutory side | Source |
-|:--|:--:|:--:|--:|:--:|:--|:--|
+| Switch | Type | States | Households changed | Average change ($) | Status | Statutory side | Source |
+|:--|:--:|:--:|:--:|--:|:--:|:--|:--|
 """ + "\n".join(lines) + "\n\n## Statutory mode keeps TAXSIM's behavior\n\n| Switch | Why |\n|:--|:--|\n" + "\n".join(f"| `{k}` | {v['source']} |" for k, v in sorted(kept.items())) + "\n"
 (ROOT / "docs/statutory_audit.md").write_text(page)
 print(counts)
