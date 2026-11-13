@@ -130,7 +130,7 @@ def compare_with_taxsim(units: pl.DataFrame, years: list[int], base_year: int) -
         taxsim_mode = calculate_taxes(
             cases.drop([c for c in OPTIONAL_CHILD_COUNT_INPUTS if c in cases.columns]), calculation_mode="taxsim", engine="python"
         ).select("taxsimid", pl.col("fiitax").alias("t_fi"), pl.col("siitax").alias("t_si"))
-        statutory = calculate_taxes(cases, calculation_mode="statutory", engine="rust").select(
+        statutory = calculate_taxes(cases, calculation_mode="statutory", engine="python").select(
             "taxsimid", pl.col("fiitax").alias("s_fi"), pl.col("siitax").alias("s_si")
         )
         joined = cases.select("taxsimid", "state", "year").join(oracle, on="taxsimid").join(taxsim_mode, on="taxsimid").join(
@@ -167,7 +167,7 @@ def compare_with_policyengine(units: pl.DataFrame, years: list[int], base_year: 
         frame = for_year(units, year, base_year).select(keep)
         frame = frame.filter(pl.col("state") > 0).with_row_index("row", offset=1)
         cases = frame.drop("row").with_columns(taxsimid=frame["row"].cast(pl.Int64))
-        statutory = calculate_taxes(cases, calculation_mode="statutory", engine="rust").select(
+        statutory = calculate_taxes(cases, calculation_mode="statutory", engine="python").select(
             "taxsimid", pl.col("fiitax").alias("s_fi"), pl.col("siitax").alias("s_si")
         )
         try:

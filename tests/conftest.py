@@ -8,3 +8,8 @@ the compiled calculator (`test_rust_backend.py`) pass `engine="rust"` themselves
 import os
 
 os.environ.setdefault("TAXSIM_PY_ENGINE", "python")
+
+# Most tests check the machinery of every statutory override (each correction's value, the Rust engine against Python).
+# Statutory mode itself now departs from TAXSIM only where TAXSIM is known to be wrong; tests/test_statutory_policy.py
+# checks that policy with the real profile.
+os.environ.setdefault("TAXSIM_PY_STATUTORY_PROFILE", "all_overrides")

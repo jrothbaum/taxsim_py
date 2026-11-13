@@ -29,7 +29,7 @@ from functools import lru_cache
 import polars as pl
 from polars.plugins import register_plugin_function
 
-from taxsim_py.behavior import BehaviorProfile, CalculationMode
+from taxsim_py.behavior import ALL_OVERRIDES_BEHAVIOR, KEEP_TAXSIM_BEHAVIOR, BehaviorProfile, CalculationMode
 from taxsim_py.engine.inputs import with_input_defaults
 from taxsim_py.engine.schema import PARAMETERS_ROOT
 
@@ -72,6 +72,12 @@ def require_available(behavior: BehaviorProfile, detail: bool) -> None:
         )
     if behavior.mode is not CalculationMode.STATUTORY:
         raise RuntimeError("engine='rust' implements statutory mode only; pass engine='python' for taxsim mode")
+    if behavior is not ALL_OVERRIDES_BEHAVIOR and KEEP_TAXSIM_BEHAVIOR:
+        raise RuntimeError(
+            "engine='rust' implements every statutory override, but statutory mode now departs from TAXSIM only where "
+            "TAXSIM is known to be wrong (docs/statutory_audit.md); the compiled calculator has not been rebuilt on that "
+            "basis. Pass engine='python'."
+        )
     if detail:
         raise RuntimeError(
             "engine='rust' cannot produce detailed output (idtl 2 or keep_intermediate); pass engine='python'"

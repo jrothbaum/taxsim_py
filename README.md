@@ -91,8 +91,10 @@ optional reader (`pip install "taxsim-py[readstat]"`, which adds
   conventions: `psemp`/`ssemp` get no qualified business income deduction (use
   `pbusinc`/`pprofinc`), and `pensions` is the kind of pension each state exempts.
 - **Accuracy:** in `taxsim` mode, to the cent against the compiled TAXSIM on the
-  validation matrix, apart from logged TAXSIM errors. `statutory` mode follows the law where TAXSIM is
-  wrong ([Statutory corrections](https://jrothbaum.github.io/taxsim_py/statutory_corrections/)); its remaining
+  validation matrix, apart from logged TAXSIM errors. `statutory` mode departs from TAXSIM only where TAXSIM is
+  known to be wrong (its own source is evidently broken, or it contradicts a form or statute that was read); every
+  other difference keeps TAXSIM's behavior until it is verified
+  ([Audit of the statutory side](https://jrothbaum.github.io/taxsim_py/statutory_audit/), [Statutory corrections](https://jrothbaum.github.io/taxsim_py/statutory_corrections/)). The compiled `engine="rust"` calculator has not been rebuilt on that basis and refuses statutory mode for now; use `engine="python"`; its remaining
   differences from PolicyEngine-US (2022-2026) are in the
   [PolicyEngine comparison](https://jrothbaum.github.io/taxsim_py/policyengine_recent_state_comparison/). Agreement with TAXSIM and
   PolicyEngine for every state and year, on CPS households, is on the
