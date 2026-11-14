@@ -128,7 +128,7 @@ def compute_vt_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
                 exempt_share = ((phb - fed_agi) / p["social_security_exemption_range"]).clip(0, 1)
                 points = exempt_share * 100.0 - 0.5 if not behavior.round_up_phaseout_steps else (exempt_share * 100.0 - 0.5).ceil()
                 if y >= 2022:
-                    points = points.round(0)
+                    points = points.round(0, mode="half_away_from_zero")
                 exssb = points / 100.0 * ss
             agi = fed_agi - dedg - exssb
             # The federal exemption count is deflated in projected years.

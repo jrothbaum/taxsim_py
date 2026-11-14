@@ -28,6 +28,6 @@ def compute_wa_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     ceiling = pl.col("phaseout_start") + pl.col("max_credit") / pl.col("rate_out")
     income = pl.max_horizontal(pl.col("earned_income"), pl.col("agi"))
     reduced = maximum - (income - (ceiling - reduction_band)).clip(0, None) * maximum / reduction_band
-    credit = pl.when(reduced > 0).then(pl.max_horizontal(pl.lit(minimum), reduced.round(0))).otherwise(0.0)
+    credit = pl.when(reduced > 0).then(pl.max_horizontal(pl.lit(minimum), reduced.round(0, mode="half_away_from_zero"))).otherwise(0.0)
     eligible = (pl.col("eitc") > 0) & (income < ceiling) & (pl.col("earned_income") > 0)
     return df.with_columns(siitax=-pl.when(eligible).then(credit).otherwise(0.0))

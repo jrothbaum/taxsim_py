@@ -53,6 +53,21 @@ frame = [r for r in impact.sort("stake", descending=True).to_dicts() if r["switc
 counts = {"logic": 0, "verified": 0, "corrected": 0, "partial": 0, "kept_taxsim": 0, "unverified": 0}
 kept = {k: v for k, v in status.items() if v["status"] == "no_switch"}
 counts["kept_taxsim"] = len(kept)
+oracle_check: dict[str, str] = {}
+confirmation = ROOT / "docs/data/logic_switch_confirmation.csv"
+if confirmation.exists():
+    for row in pl.read_csv(confirmation).to_dicts():
+        n = row["affected"]
+        if not n:
+            oracle_check[row["switch"]] = "not reached by the CPS sample"
+            continue
+        tm, st = row["oracle_equals_taxsim_mode"], row["oracle_equals_statutory"]
+        if tm >= 0.9 and st <= tm - 0.15:
+            oracle_check[row["switch"]] = f"confirmed: compiled TAXSIM equals taxsim mode on {tm:.0%} of {n} affected households, statutory on {st:.0%}"
+        elif tm >= 0.9:
+            oracle_check[row["switch"]] = f"inconclusive: compiled TAXSIM equals taxsim mode on {tm:.0%} of {n} affected households but statutory also on {st:.0%} (other switches interact)"
+        else:
+            oracle_check[row["switch"]] = f"taxsim mode equals compiled TAXSIM on only {tm:.0%} of {n} affected households (residual logged in pending_issues.md)"
 lines = []
 for r in frame:
     entry = status.get(r["switch"], {"status": "unverified", "source": ""})
@@ -63,7 +78,7 @@ for r in frame:
         counts[entry["status"]] += 1
     lines.append(
         f"| `{r['switch']}` | {typ} | {r['states']} | {r['changed']}/{r['units']} | {r['mean_abs_change_if_changed']:.0f} "
-        f"| {entry['status']} | {statutory_side(r['switch'])} | {entry['source']} |"
+        f"| {entry['status']} | {statutory_side(r['switch'])} | {entry['source']} | {oracle_check.get(r['switch'], '')} |"
     )
 total = len(frame)
 changed = sum(1 for r in frame if r["changed"] > 0)
@@ -87,11 +102,17 @@ How the impact was measured: for each switch, statutory mode is run on CPS house
 `docs/data/statutory_audit_status.yaml`; this page is built by `scripts/build_audit_ledger.py`. The type column is a first sort
 by the wording of each row and may misfile a few.
 
+The last column is the check against the compiled TAXSIM for logic errors (`scripts/confirm_logic_switches.py`, results in
+`docs/data/logic_switch_confirmation.csv`): the CPS households that the switch changes are run through the compiled
+program, and the column says how often it agrees with taxsim mode and with statutory mode. "Not reached by the CPS sample"
+means no sampled household (up to 800 per state in 17 law years) has the situation the rule covers; those rules rest on
+TAXSIM's source and on the oracle comparisons made while building taxsim mode.
+
 Status: **logic** = nothing more to confirm; **verified** = the published value matches a cited source; **partial** =
 confirmed in part; **unverified** = a parameter error whose published value has not been checked yet.
 
-| Switch | Type | States | Households changed | Average change ($) | Status | Statutory side | Source |
-|:--|:--:|:--:|:--:|--:|:--:|:--|:--|
+| Switch | Type | States | Households changed | Average change ($) | Status | Statutory side | Source | Compiled TAXSIM check (logic errors) |
+|:--|:--:|:--:|:--:|--:|:--:|:--|:--|:--|
 """ + "\n".join(lines) + "\n\n## Switches removed: TAXSIM's behavior is not a bug\n\n| Switch | Why |\n|:--|:--|\n" + "\n".join(f"| `{k}` | {v['source']} |" for k, v in sorted(kept.items())) + "\n"
 (ROOT / "docs/statutory_audit.md").write_text(page)
 print(counts)

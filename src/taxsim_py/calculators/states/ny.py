@@ -296,7 +296,7 @@ def _recapture_tiers(
     def ratio(start: float) -> pl.Expr:
         share = (agi - start) / phase
         # TAXSIM leaves the worksheet ratio unrounded.
-        return share.round(decimals) if behavior.round_new_york_recapture_ratio_per_statute else share
+        return share.round(decimals, mode="half_away_from_zero") if behavior.round_new_york_recapture_ratio_per_statute else share
 
     def worksheet(rate: pl.Expr | float, addition: pl.Expr | float, start: pl.Expr | float) -> pl.Expr:
         flat = taxinc * rate

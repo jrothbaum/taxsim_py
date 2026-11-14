@@ -229,10 +229,7 @@ def compute_ut_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
                 ).clip(0, None)
         earned_income_credit = pl.lit(0.0)
         if p.in_effect("earned_income_credit_rate"):
-            earned_income_credit = pl.min_horizontal(
-                p.num("earned_income_credit_rate") * pl.col("eitc"),
-                (pl.col("pwages") + pl.col("swages")).clip(0, None),
-            )
+            earned_income_credit = p.num("earned_income_credit_rate") * pl.col("eitc")
 
         statax = (statax - credit - retcrd - ctc - earned_income_credit).clip(0, None)
         if p.in_effect("exempt_taxpayer_agi_floor"):

@@ -26,8 +26,7 @@ oracle = {}
 csv = ROOT / "docs" / "data" / "logic_switch_confirmation.csv"
 if csv.exists():
     for row in pl.read_csv(csv).to_dicts():
-        if row.get("affected"):
-            oracle[row["switch"]] = row
+        oracle[row["switch"]] = row
 
 ledger = {}
 for line in (ROOT / "docs" / "statutory_audit.md").read_text().splitlines():
@@ -58,7 +57,10 @@ def for_switch(name: str) -> str | None:
         text = "TAXSIM source (logic error, no form check needed)"
         if name in oracle:
             r = oracle[name]
-            text += f"; compiled TAXSIM agrees with taxsim mode on {r['oracle_equals_taxsim_mode']:.0%} of {r['affected']} affected households"
+            if not r["affected"]:
+                text += "; no CPS household reaches the rule, so it was not run through the compiled TAXSIM"
+            else:
+                text += f"; compiled TAXSIM agrees with taxsim mode on {r['oracle_equals_taxsim_mode']:.0%} of {r['affected']} affected households"
         return text
     return None
 

@@ -253,7 +253,7 @@ def compute_co_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         if p.in_effect("food_credit"):
             table = p.value("food_credit")
             foody = pl.col("co_ag") / (pl.col("co_taxpayers") + pl.col("depx"))
-            base_amt = (interpolate_table(foody, table) * aif).round()
+            base_amt = (interpolate_table(foody, table) * aif).round(0, mode="half_away_from_zero")
             is_sep = files_separate()
             foodcr = (pl.col("co_taxpayers") + pl.col("depx")) * base_amt
             if effective_year >= 1978:

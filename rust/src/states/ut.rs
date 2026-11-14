@@ -348,7 +348,7 @@ pub fn tax(i: &Inp, f: &Fed, p: &UtParams) -> f64 {
                 None => 0.0,
             };
             let earned_income_credit = match g.earned_income_rate {
-                Some(rate) => (rate * f.eitc).min((i.pwages + i.swages).max(0.0)),
+                Some(rate) => rate * f.eitc,
                 None => 0.0,
             };
             let after = (statax - credit - retcrd - ctc - earned_income_credit).max(0.0);

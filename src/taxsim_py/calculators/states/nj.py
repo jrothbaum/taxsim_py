@@ -304,7 +304,7 @@ def compute_nj_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         # Federal also bars childless returns on which everyone is 65 or older;
         # New Jersey removed that limit from 2021 and still bars dependents.
         meets_other_rules = pl.col("eitc_before_filer_test" if y >= 2021 else "eitc_before_age_test") > 0
-        flat = (p.num("eitc_match_rate") * pl.col("max_credit")).round(0)
+        flat = (p.num("eitc_match_rate") * pl.col("max_credit")).round(0, mode="half_away_from_zero")
         earncr = (
             pl.when(childless & ~is_dependent_filer() & ~too_young & ~too_old & meets_other_rules & (pl.col("eitc") <= 0))
             .then(flat)
