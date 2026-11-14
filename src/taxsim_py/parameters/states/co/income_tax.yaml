@@ -168,8 +168,9 @@ sales_tax_refund:
 
 # TAXSIM mode: the refund table TAXSIM interpolates between thresholds
 # ([modified AGI, amount]; a single amount is flat).
-# Refundable credit TAXSIM pays to returns with a taxpayer 65 or older.
-taxsim_senior_housing_credit:
+# Income-qualified senior housing credit (C.R.S. 39-22-544; HB22-1205 for 2022, HB24-1052 for 2024; tax.colorado.gov):
+# refundable, taxpayer 65 or older, `maximum` at AGI up to `floor`, less `rate` per $500 over it, none at `agi_limit`.
+senior_housing_credit:
   2022: {maximum: 1000, agi_limit: 75000, floor: 25000, rate: 10}
   2023: null
   2024: {maximum: 800, agi_limit: 125000, floor: 25000, rate: 8}

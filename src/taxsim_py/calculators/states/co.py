@@ -381,9 +381,11 @@ def compute_co_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     else:
         df = df.with_columns(co_salesrefund=interpolate_table(coagi, refund) * pl.col("co_taxpayers"))
 
-    if not behavior.use_colorado_statutory_sales_tax_refund and p.in_effect("taxsim_senior_housing_credit"):
-        # TAXSIM pays a refundable senior housing credit to returns with a taxpayer 65 or older (2022, 2024).
-        sh = p.value("taxsim_senior_housing_credit")
+    if p.in_effect("senior_housing_credit"):
+        # Income-qualified senior housing credit (C.R.S. 39-22-544; HB22-1205, HB24-1052): refundable, 65 or older, reduced
+        # per $500 of federal AGI over the floor, halved per spouse on joint returns. The property tax exemption
+        # disqualification cannot be tested from the inputs.
+        sh = p.value("senior_housing_credit")
         reduction = (pl.col("agi") - float(sh["floor"])).clip(0, None) * float(sh["rate"]) / (500.0 * pl.col("co_sep"))
         senior_housing = pl.when((aged_count() > 0) & (pl.col("agi") < float(sh["agi_limit"]))).then(
             (float(sh["maximum"]) - reduction).clip(0, None)

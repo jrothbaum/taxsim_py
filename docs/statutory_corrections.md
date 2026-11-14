@@ -414,7 +414,6 @@ Taxsim mode now follows the statutory rule for these (they remain in
 | CO | 1987-2020 | 2026: 4550-5128 | The pension subtraction sits inside the itemizer-only state tax add-back block, which starts in 1992: nonitemizers, and everyone before 1992, get none | Statutory: every aged return. `subtract_colorado_pensions_for_nonitemizers_before_2021` |
 | CO | 2018 on | 2026: 4550-5128, 5140-5488 | The state tax add-back is the lesser of the state tax and all state and local taxes up to the federal cap (2022 on), so property tax at the cap does not stop it | Statutory: only the state tax that fit under the cap. `use_colorado_statutory_high_income_addback` |
 | CO | 2022-2023 | 2026: 5140-5488 | No high-income deduction add-back in 2022; from 2023 the larger deduction over $12,000 ($16,000 joint) when AGI is over $300,000 | Statutory: published. `use_colorado_statutory_high_income_addback` |
-| CO | 2022, 2024 | 2026: 5140-5488 | A refundable senior housing credit (up to $1,000, then $800) for a taxpayer 65 or older | Statutory: none. `use_colorado_statutory_sales_tax_refund` |
 | CO | 2000-2001 | 2026: 4550-5128 | The $300 child credit counts the children under 13 (the "under 6" helper returns that count) | Statutory: none. `use_colorado_statutory_sales_tax_refund` |
 | CO | 2022 | 2026: 5140-5488 | The $750 per-taxpayer rebate has no age test | Both modes |
 | CO | 2022 on | 2026: 5140-5488 | The sales tax refund is interpolated between thresholds from its own table | Statutory: steps. `use_colorado_statutory_sales_tax_refund` |

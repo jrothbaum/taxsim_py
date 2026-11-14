@@ -8,7 +8,7 @@ behavior is not actually wrong (a modelling choice, or a rule the inputs cannot 
 TAXSIM's behavior in both modes: the switch is removed (a switch exists only to let TAXSIM mode override the correct behavior to reproduce a bug) and listed at the end.
 
 - Switches: 448. Logic errors (no confirmation needed): 224. Parameter errors verified against a primary
-  source: 8; partly verified: 9; still to verify: 207. Switch removed because TAXSIM's behavior
+  source: 8; partly verified: 10; still to verify: 206. Switch removed because TAXSIM's behavior
   is not a bug: 2.
 - Switches whose flip changes at least one household in the sample: 165. The rest change nobody in the sample.
 
@@ -38,7 +38,7 @@ confirmed in part; **unverified** = a parameter error whose published value has 
 | `deduct_colorado_federal_tax_after_1977` | logic | CO | 32/200 | 484 | logic | both deducted. | Found by reading TAXSIM's source; no form or statute check needed |
 | `exclude_transfers_from_provisional_income` | logic | all | 17/2040 | 668 | verified | adds nothing; the law adds tax-exempt interest, which TAXSIM has no input for. The same applies to the Iowa (2014 on) and Montana worksheets. | IRC 86(b)(2): provisional income is modified AGI plus tax-exempt interest plus half of benefits; transfers are not in it; checked 2026-11-13 |
 | `subtract_state_tax_in_georgia_itemized_deduction` | logic | GA | 17/200 | 534 | partial | less the state tax. | Georgia Form 500 and Schedule 1 (IT-511 booklet): state income tax claimed on federal Schedule A is added back, and Georgia keeps a 10,000 SALT limit; confirmed from Georgia DOR forms and Intuit/TurboTax expert answers, IT-511 text itself not read; checked 2026-11-13 |
-| `use_colorado_statutory_sales_tax_refund` | parameter | CO | 54/200 | 161 | unverified | none. |  |
+| `use_colorado_statutory_sales_tax_refund` | parameter | CO | 54/200 | 161 | partial | none. | Senior housing credit: Colorado DOR page (tax.colorado.gov/income-qualified-senior-housing-income-tax-credit) and HB22-1205 summary (leg.colorado.gov): $1,000 (2022) / $800 (2024) refundable to 65+, reduced per $500 of AGI over $25,000, halved per spouse on joint returns, exactly TAXSIM's formula, so it is now computed in both modes (no switch). The other parts (sales tax refund steps vs interpolation, 2000-01 child credit age) are TAXSIM logic; checked 2026-11-13 |
 | `pay_new_york_empire_child_credit_per_statute` | parameter | NY | 18/200 | 481 | partial | children 4-16. | NY Tax Dept Empire State child credit page and IT-213 instructions: 330 per child at least 4 and under 17, with children under 4 added at 330 before 2025 and 1,000 from 2025; phase-out over 75,000 / 110,000. The pre-2018 statutory rules (which years counted children under 4 and 4-16) were not compared line by line; checked 2026-11-13 |
 | `remove_state_tax_from_west_virginia_itemized_deductions` | logic | WV | 9/200 | 905 | logic | removed. | Found by reading TAXSIM's source; no form or statute check needed |
 | `count_colorado_credit_children_per_statute` | parameter | CO | 4/200 | 1543 | partial | children under 6 and 6-16 with the flat formula. | Colorado DOR child tax credit page and Family Affordability Tax Credit coverage: FATC up to 3,200 per child under 6 and 2,400 per child 6-16 in 2024 and 2025, phase-out 85,000 single / 95,000 joint; CTC AGI limits 75,000/85,000 (2024) and 77,000/87,000 (2025); numbers from news and agency summaries, not the DR 0104CN text; checked 2026-11-13 |

@@ -138,6 +138,7 @@ pub struct CoParams {
     old: Option<Old>,
     new: Option<New>,
     refund: Refund,
+    senior_housing: Option<(f64, f64, f64, f64)>,
     share: Share,
     share_nonzero: bool,
     dependent_offset: Option<f64>,
@@ -299,6 +300,10 @@ impl CoParams {
         } else {
             Refund::Table(Interp::new(&params::brackets(refund_v)?))
         };
+        let senior_housing = match p.opt("senior_housing_credit")? {
+            Some(s) => Some((num(get(s, "maximum")?)?, num(get(s, "agi_limit")?)?, num(get(s, "floor")?)?, num(get(s, "rate")?)?)),
+            None => None,
+        };
         let share_v = p.value("child_care_credit_federal_share", &[])?;
         let (share, share_nonzero) = if share_v.is_sequence() {
             (Share::Table(Interp::new(&params::brackets(share_v)?)), true)
@@ -346,6 +351,7 @@ impl CoParams {
             refund,
             share,
             share_nonzero,
+            senior_housing,
             dependent_offset: opt("child_care_credit_dependent_offset")?,
             eitc_share: p.f("eitc_federal_share")?,
             minimum_age: opt("eitc_minimum_age")?,
@@ -548,6 +554,11 @@ pub fn tax(i: &Inp, f: &Fed, p: &CoParams) -> f64 {
         Refund::Flat(amount) => amount * txp,
         Refund::Steps(b) => b.rate(coagi) * txp,
         Refund::Table(t) => t.eval(coagi) * txp,
+    } + match p.senior_housing {
+        Some((maximum, agi_limit, floor, rate)) if aged > 0.0 && f.agi < agi_limit => {
+            (maximum - (f.agi - floor).max(0.0) * rate / (500.0 * sep)).max(0.0)
+        }
+        _ => 0.0,
     };
 
     // ---- child care credit: a share of the federal credit up to tax ----

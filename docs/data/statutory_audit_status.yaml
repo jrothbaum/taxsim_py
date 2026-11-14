@@ -63,6 +63,11 @@ tax_nebraska_before_1987_per_statute:
   source: 'Nebraska Legislature, individual income tax chronology (nebraskalegislature.gov/app_rev/source/chrono_incometax.htm): through 1986 the tax was a percentage of federal liability, 18/16/18/15/15/18/20/19/20/19%
     for 1977-86, identical to federal_tax_share in ne/income_tax.yaml; checked 2026-11-13'
   status: verified
+use_colorado_statutory_sales_tax_refund:
+  source: 'Senior housing credit: Colorado DOR page (tax.colorado.gov/income-qualified-senior-housing-income-tax-credit) and HB22-1205 summary (leg.colorado.gov): $1,000 (2022) / $800 (2024) refundable
+    to 65+, reduced per $500 of AGI over $25,000, halved per spouse on joint returns, exactly TAXSIM''s formula, so it is now computed in both modes (no switch). The other parts (sales tax refund steps
+    vs interpolation, 2000-01 child credit age) are TAXSIM logic; checked 2026-11-13'
+  status: partial
 use_form_8995a_qbi_streams:
   source: IRS Form 8995-A and its instructions (qualified business income by trade or business, separate W-2 wage and UBIA limits); checked 2026-11-13
   status: verified
