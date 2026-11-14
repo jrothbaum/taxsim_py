@@ -63,6 +63,11 @@ apply_state_childless_eitc_minimum_age:
   source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
     it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
   status: logic
+bar_virginia_income_based_credits_with_age_deduction_per_statute:
+  source: 'Virginia Tax, Low Income Individuals Credit and earned income credit page (tax.virginia.gov/low-income-individuals-credit): none of the credit for low income individuals, the non-refundable earned
+    income credit and the refundable earned income credit may be claimed by a taxpayer who claims the age deduction or the additional exemption for aged taxpayers (the page does not say whether a filer
+    may skip the deduction to take the credit, which statutory mode does not model); TAXSIM''s 2021 on routines pay them anyway; checked 2026-11-14'
+  status: verified
 cap_delaware_property_tax_deduction_per_statute:
   source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
     it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters

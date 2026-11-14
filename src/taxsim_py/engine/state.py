@@ -224,12 +224,18 @@ def dividend_exclusion_addback(year: int, behavior: BehaviorProfile = TAXSIM_BEH
     return pl.min_horizontal(excluded, federal_dividend_exclusion_limit(year, behavior)).clip(0, None)
 
 
-def split_agi(agi: pl.Expr, exclude_primary: pl.Expr | float = 0.0, exclude_spouse: pl.Expr | float = 0.0) -> tuple[pl.Expr, pl.Expr]:
+def split_agi(
+    agi: pl.Expr, exclude_primary: pl.Expr | float = 0.0, exclude_spouse: pl.Expr | float = 0.0, projection_factor: float = 1.0
+) -> tuple[pl.Expr, pl.Expr]:
     """TAXSIM `splitagi`: each spouse's own income on a joint return, the rest shared equally.
 
     `agi` is the combined income before the exclusions. Pensions and Social Security go to the spouse
     aged 55 or over (half each when both or neither are), business income to its earner (with each
     spouse's own self-employment tax half deducted), unemployment by `sui`.
+
+    In a projected state-law year (`projection_factor` not 1) TAXSIM keeps the spouse's self-employment input
+    (`d(216)`) undeflated while the other inputs are deflated, so the taxpayer's share is the deflated total less the
+    undeflated spouse amount (the same quirk Delaware has inline).
     """
     sage = pl.when(pl.col("sage") == 0).then(40.0).otherwise(pl.col("sage").cast(pl.Float64))
     ui_total = pl.max_horizontal(pl.col("ui"), pl.col("pui") + pl.col("sui"))
@@ -243,6 +249,11 @@ def split_agi(agi: pl.Expr, exclude_primary: pl.Expr | float = 0.0, exclude_spou
     seis = pl.col("ssemp") + pl.col("sbusinc") + pl.col("sprofinc")
     secah = pl.col("payroll_setax_primary") / 2
     secas = pl.col("payroll_setax_secondary") / 2
+    if projection_factor != 1.0:
+        secah = secah / projection_factor
+        secas = secas / projection_factor
+        seih = seih + pl.col("ssemp") - pl.col("ssemp") * projection_factor
+        seis = seis - pl.col("ssemp") + pl.col("ssemp") * projection_factor
     tinc = pl.col("pwages") + seih + pui_part - exclude_primary + pent
     sinc = pl.col("swages") + seis + sui_part - exclude_spouse + pens
     cinc = 0.5 * (agi - tinc - sinc + secah + secas)

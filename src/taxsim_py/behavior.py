@@ -451,6 +451,7 @@ class BehaviorProfile:
     zero_virginia_tax_below_filing_threshold: bool = True
     read_virginia_low_income_limits_per_statute: bool = True
     refund_virginia_earned_income_credit_at_2025_rate: bool = True
+    bar_virginia_income_based_credits_with_age_deduction_per_statute: bool = True
     use_north_dakota_married_separate_brackets_from_2023: bool = True
     use_published_north_dakota_brackets_from_2024: bool = True
     use_published_kansas_exemption_from_2024: bool = True
