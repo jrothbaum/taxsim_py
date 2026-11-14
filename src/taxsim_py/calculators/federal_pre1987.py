@@ -355,7 +355,10 @@ def compute_federal_income_tax_pre1987(
         reduction = eld_p.num("agi_share") * (pl.col("agi") - agi_threshold).clip(0, None) + (
             pl.col("gssi") - pl.col("taxable_social_security")
         ).clip(0, None)
-        elderly = pl.when(aged_count() > 0).then(eld_p.num("rate") * (base_amount - reduction).clip(0, None)).otherwise(0.0)
+        # Before 1984 (IRC 37, 26 CFR 1.37-2(c)) a married person gets the credit only on a joint return, unless the spouses
+        # lived apart all year, which the inputs cannot say.
+        eligible = (aged_count() > 0) & ~(files_separate() & pl.lit(year < 1984))
+        elderly = pl.when(eligible).then(eld_p.num("rate") * (base_amount - reduction).clip(0, None)).otherwise(0.0)
     else:
         elderly = pl.lit(0.0)
     df = df.with_columns(credit=pl.min_horizontal(pl.col("chcr") + pl.col("gencr") + elderly, pl.col("taxbc")).clip(0, None))

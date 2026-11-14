@@ -358,7 +358,9 @@ pub fn pre1987(i: &Inp, ded: f64, forced_itemize: bool, p: &Pre87Params) -> Fed 
     let single = fs != Fs::Joint && fs != Fs::Separate;
     let agi_threshold = if single { e.threshold_one } else { e.threshold_two / sepret };
     let reduction = e.agi_share * (agi - agi_threshold).max(0.0) + (i.gssi - taxable_ss).max(0.0);
-    let elderly = if aged > 0.0 { e.rate * (base_amount - reduction).max(0.0) } else { 0.0 };
+    // Before 1984 (IRC 37, 26 CFR 1.37-2(c)) a married person gets the credit only on a joint return, unless the spouses
+    // lived apart all year, which the inputs cannot say.
+    let elderly = if aged > 0.0 && !(p.year < 1984 && fs == Fs::Separate) { e.rate * (base_amount - reduction).max(0.0) } else { 0.0 };
     let credit = (chcr + gencr + elderly).min(taxbc).max(0.0);
     let taxaft = taxbc - credit;
 
