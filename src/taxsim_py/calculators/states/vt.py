@@ -121,7 +121,9 @@ def compute_vt_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
                 else "taxsim_social_security_exemption_start"
             )
             phb = pl.when(is_joint).then(float(starts["married_joint"])).otherwise(float(starts["other"]))
-            exssb = ss - ((fed_agi - phb).clip(0, None) / p["social_security_exemption_range"]).clip(None, 1.0) * ss
+            # Schedule IN-112 worksheet line 7: the exempt share is rounded to two decimals (.481 becomes .48).
+            statutory_share = 1.0 - ((fed_agi - phb) / p["social_security_exemption_range"]).clip(0, 1)
+            exssb = statutory_share.mul(100.0).round(0, mode="half_away_from_zero").truediv(100.0) * ss
             if not behavior.use_vermont_published_standard_deductions:
                 # TAXSIM's `ceil` does not round, so the exempt share comes out a half point low
                 # (2022 on: rounded to the nearest point afterwards).

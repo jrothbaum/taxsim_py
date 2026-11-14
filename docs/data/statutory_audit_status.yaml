@@ -375,6 +375,10 @@ pay_kansas_homestead_refund_from_2007_per_statute:
 pay_minnesota_property_tax_refund_through_2023:
   source: Minnesota Form M-1PR (homestead credit refund, renter's property tax refund) is a real refundable credit in these years; the refund tables have not been compared line by line; checked 2026-11-13
   status: partial
+pay_missouri_working_family_credit_by_statute:
+  source: 'Census Bureau Federal and State Tax Parameter Workbook TY2025, MO sheet: MOEICRATE 10% of the federal EITC for 2023 and 20% for 2024-25, investment income limit MOMAXINVST 4,050 / 4,300 / 4,400;
+    so the 2023 credit exists (TAXSIM pays none in 2023) and TAXSIM''s investment income limit from 2024 is right, which both modes now apply; checked 2026-11-13'
+  status: verified
 pay_nebraska_refundable_child_care_per_statute:
   source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
     it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
@@ -461,6 +465,10 @@ require_age_65_for_ohio_retirement_credit:
 require_earned_income_for_ohio_joint_credit:
   source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or tested wrongly); the row in statutory_corrections.md describes it. No form check needed
   status: logic
+require_federal_age_test_for_new_mexico_working_families_credit_per_statute:
+  source: 'New Mexico 2021 law (HB 291 / SB 339; NM Voices fact sheet; NMSA 7-2-18.15): the working families tax credit is 25% of the federal EITC the filer would have been eligible for but for the age
+    requirement, so childless workers aged 18 to 24 qualify; TAXSIM is right, so statutory mode now does the same and the switch was removed; checked 2026-11-13'
+  status: no_switch
 require_indiana_federal_credit_for_decoupled_credit_per_statute:
   source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
     it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
@@ -778,7 +786,8 @@ use_vermont_published_brackets:
   status: partial
 use_vermont_published_standard_deductions:
   source: 'Census Bureau Federal and State Tax Parameter Workbook TY2025, VT sheet STD1/2/4 and PEXAMT: standard deduction single 7,000 / 7,400 / 7,650, joint 14,050 / 14,850 / 15,300, head of household
-    10,550 / 11,100 / 11,450 (2023-25), exemption 4,850 / 5,100 / 5,300; equal to the statutory parameters (TAXSIM uses 1.5 and 2 times the single amount); checked 2026-11-13'
+    10,550 / 11,100 / 11,450 (2023-25), exemption 4,850 / 5,100 / 5,300; equal to the statutory parameters (TAXSIM uses 1.5 and 2 times the single amount); checked 2026-11-13; the Social Security exemption
+    share is rounded to two decimals in statutory mode (Schedule IN-112 instructions 2024, worksheet line 7, tax.vermont.gov), which TAXSIM does not do'
   status: verified
 use_vermont_social_security_exemption_starts_per_statute:
   source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes

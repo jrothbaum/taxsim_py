@@ -364,7 +364,9 @@ pub fn tax(i: &Inp, f: &Fed, p: &NmParams) -> f64 {
         }
         None => 0.0,
     };
-    let earncr = p.eitc_match_rate * f.eitc;
+    // From 2021 a taxpayer aged 18 to 24 gets the match on the credit before the federal minimum-age test (NMSA 7-2-18.15).
+    let young = p.year >= 2021 && ((18.0..=24.0).contains(&i.page) || (18.0..=24.0).contains(&i.sage));
+    let earncr = p.eitc_match_rate * if young { f.eitc_before_age_test } else { f.eitc };
     // Property tax rebate for taxpayers 65 or older.
     let ptax = i.proptax + p.property_rent_share * i.rentpaid;
     let pmax = p.property_threshold.eval(modagi);

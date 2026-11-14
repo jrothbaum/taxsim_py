@@ -344,9 +344,11 @@ def compute_mo_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         eligible = (investment <= float(c["investment_income_limit"])) & ~is_dependent_filer()
         if not behavior.pay_missouri_working_family_credit_by_statute:
             # TAXSIM pays nothing in 2023, and from 2024 a fifth of the federal credit under the investment income
-            # limit (strictly below it), also to dependent filers.
+            # limit (strictly below it), also to dependent filers, on the federal credit before its filer-status test
+            # (a married separate return gets it).
             eligible = pl.lit(y >= 2024) & (investment < float(c["investment_income_limit"]))
-        wftc = pl.when(eligible).then(pl.min_horizontal(float(c["match"]) * pl.col("eitc"), statax.clip(0, None))).otherwise(0.0)
+        federal_credit = pl.col("eitc") if behavior.pay_missouri_working_family_credit_by_statute else pl.col("eitc_before_filer_test")
+        wftc = pl.when(eligible).then(pl.min_horizontal(float(c["match"]) * federal_credit, statax.clip(0, None))).otherwise(0.0)
         statax = statax - wftc
 
     detail_stded = fed_zbr

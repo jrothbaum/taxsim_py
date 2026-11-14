@@ -257,8 +257,9 @@ def compute_nm_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     if p.in_effect("taxsim_eitc_match_rate") and not behavior.use_new_mexico_working_families_rates_per_statute:
         match_rate = p.num("taxsim_eitc_match_rate")
     eitc_base = pl.col("eitc")
-    if year >= 2021 and not behavior.require_federal_age_test_for_new_mexico_working_families_credit_per_statute:
-        # TAXSIM pays the match on the credit before the federal minimum-age test to a taxpayer aged 18 to 24.
+    if year >= 2021:
+        # A taxpayer aged 18 to 24 gets the match on the credit before the federal minimum-age test (NMSA 7-2-18.15). The
+        # credit before the age test is not deflated in a projected year, so it is divided by the projection factor here.
         young = pl.col("page").is_between(18, 24) | pl.col("sage").is_between(18, 24)
         eitc_base = pl.when(young).then(pl.col("eitc_before_age_test") / flate).otherwise(pl.col("eitc"))
     earncr = match_rate * eitc_base

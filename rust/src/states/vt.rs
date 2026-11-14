@@ -275,7 +275,9 @@ pub fn tax(i: &Inp, f: &Fed, p: &VtParams) -> f64 {
             // Taxable Social Security is exempt, phased out above an AGI start.
             let ss = f.taxable_social_security;
             let phb = if is_joint { c.ss_start_joint } else { c.ss_start_other };
-            let exssb = ss - ((fed_agi - phb).max(0.0) / c.ss_range).min(1.0) * ss;
+            // Schedule IN-112 worksheet line 7: the exempt share is rounded to two decimals.
+            let exempt_share = ((1.0 - ((fed_agi - phb) / c.ss_range).clamp(0.0, 1.0)) * 100.0).round() / 100.0;
+            let exssb = exempt_share * ss;
             let agi = fed_agi - dedg - exssb;
             let exemps = federal_exemption_count(y, i);
             let mut stded = if is_hoh {
