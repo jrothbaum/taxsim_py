@@ -415,6 +415,9 @@ def compute_co_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         # the federal credit before its age test.
         older = pl.max_horizontal(pl.col("page"), pl.col("sage"))
         too_young = (pl.col("num_children") == 0) & (older > 0) & (older < p.num("eitc_minimum_age"))
+        if not behavior.apply_colorado_earned_income_credit_minimum_age_per_statute:
+            # TAXSIM pays the credit on the federal credit before its age test to anyone, however young.
+            too_young = pl.lit(False)
         eitc_co = pl.when(too_young).then(0.0).otherwise(pl.col("eitc_before_age_test").clip(0, None))
         df = df.with_columns(co_earncr=eitc_share * eitc_co)
     elif eitc_share:
@@ -438,11 +441,13 @@ def compute_co_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             maximum = fed.num("amount_per_child") * pl.col("dep6")
             available_tax = (pl.col("tax_before_credits") - pl.col("ccc") - pl.col("elderly_credit_raw")).clip(0, None)
             nonrefundable = pl.min_horizontal(maximum, available_tax)
-            refundable = pl.min_horizontal(
-                fed.num("actc_max_refundable_per_child") * pl.col("dep6"),
-                maximum - nonrefundable,
-                fed.num("actc_rate") * (pl.col("earned_income").clip(0, None) - fed.num("actc_earned_income_floor")).clip(0, None),
-            ).clip(0, None)
+            refundable_limits = [fed.num("actc_max_refundable_per_child") * pl.col("dep6"), maximum - nonrefundable]
+            if behavior.limit_colorado_child_tax_credit_refund_by_earnings_per_statute:
+                # The federal credit's earned income limit on the refundable part; TAXSIM computes it and never applies it.
+                refundable_limits.append(
+                    fed.num("actc_rate") * (pl.col("earned_income").clip(0, None) - fed.num("actc_earned_income_floor")).clip(0, None)
+                )
+            refundable = pl.min_horizontal(*refundable_limits).clip(0, None)
             co_ctc = (ctc_rate / fed.num("amount_per_child")) * (nonrefundable + refundable)
         elif not behavior.count_colorado_credit_children_per_statute and p.in_effect("taxsim_family_affordability_table"):
             # TAXSIM's `numlt(6)` counts children under 13 and `numlt(17)` those under 18; the

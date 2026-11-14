@@ -400,6 +400,9 @@ def compute_ca_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     if effective_year >= 2015:
         ieic = pl.col("dep18").clip(0, 3).cast(pl.Int64)
         earned = pl.col("wages") if effective_year <= 2016 else pl.col("earned_income")
+        if effective_year > 2016 and not behavior.exclude_nonproperty_income_from_federal_earned_income_per_statute:
+            # TAXSIM counts the other non-property income input as earned income here too.
+            earned = pl.col("federal_earned_income")
 
         def by_children(values: list[float], default: float | None = None) -> pl.Expr:
             out = pl.lit(float(values[-1]) if default is None else default)
@@ -488,6 +491,10 @@ def compute_ca_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
                     pl.col("earned_income") <= float(yc["loss_threshold"])
                 )
                 young_gate = young_gate | ((pl.col("dep18") > 0) & small_losses)
+            if effective_year >= 2022 and not behavior.limit_california_young_child_credit_to_eitc_filers_per_statute:
+                # TAXSIM pays it to every filer with a child under 6 (under the federal investment income limit), however high the
+                # income, with no state credit or loss test.
+                young_gate = (pl.col("dep6") > 0) & (disqy < p.num("eitc_disqualified_income_limit"))
             if behavior.require_young_child_for_california_yctc:
                 young_gate = young_gate & (pl.col("dep6") > 0)
             yc_amount = yc["amount"]

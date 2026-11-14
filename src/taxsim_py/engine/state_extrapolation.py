@@ -47,7 +47,7 @@ def resolve_state_year(year: int, behavior: BehaviorProfile, params: Mapping[str
 # (`comnew(175)`) and tax before credits (`comnew(154)`) are not deflated.
 PROJECTED_YEAR_DEFLATED_COLUMNS = (
     "actc", "agi", "amt", "amt_income", "cares", "economic_stimulus_rebate", "ccc", "charity_cash", "childcare", "dividends",
-    "earned_income", "eitc", "federal_chcr", "federal_elder", "fica", "fiitax", "gssi", "intrec",
+    "earned_income", "federal_earned_income", "eitc", "federal_chcr", "federal_elder", "fica", "fiitax", "gssi", "intrec",
     "itemized_before_limit", "itemized_deduction", "ltcg", "ltg", "making_work_pay", "mortgage", "nonprop",
     "nonrefundable_credits",
     "odc", "otheritem", "otherprop", "pensions", "personal_exemptions", "pre1987_amex", "pre1987_capgn",

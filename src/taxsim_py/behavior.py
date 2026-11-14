@@ -76,6 +76,9 @@ class BehaviorProfile:
     apply_illinois_exemption_income_limit: bool = True
     add_washington_working_families_credit: bool = True
     phase_out_washington_working_families_credit_per_statute: bool = True
+    apply_colorado_earned_income_credit_minimum_age_per_statute: bool = True
+    limit_california_young_child_credit_to_eitc_filers_per_statute: bool = True
+    limit_colorado_child_tax_credit_refund_by_earnings_per_statute: bool = True
     allow_kansas_itemizing_after_2020: bool = True
     deduct_kansas_other_taxes_per_statute: bool = True
     pay_kansas_homestead_refund_from_2007_per_statute: bool = True

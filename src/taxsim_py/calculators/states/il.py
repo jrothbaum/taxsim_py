@@ -101,9 +101,12 @@ def compute_il_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             older = pl.max_horizontal(pl.col("page"), pl.col("sage"))
             too_young = (pl.col("num_children") == 0) & (older > 0) & (older < p.num("eitc_childless_minimum_age"))
             federal_eitc = pl.when(too_young).then(0.0).otherwise(pl.col("eitc_before_age_test"))
+            if effective_year == 2023 and not behavior.apply_illinois_earned_income_credit_age_test_per_statute:
+                # TAXSIM's 2023 routine takes the federal credit as it stands (no credit for the 18 to 24 year olds the state added).
+                federal_eitc = pl.col("eitc")
             if effective_year >= 2024 and not behavior.apply_illinois_earned_income_credit_age_test_per_statute:
-                # TAXSIM's 2024 on routine has no upper age limit (but nothing for dependent filers).
-                federal_eitc = pl.when(too_young | is_dependent_filer()).then(0.0).otherwise(pl.col("eitc_before_filer_test"))
+                # TAXSIM's 2024 on routine has no age limit at all (but nothing for dependent filers).
+                federal_eitc = pl.when(is_dependent_filer()).then(0.0).otherwise(pl.col("eitc_before_filer_test"))
         df = df.with_columns(il_eitc_raw=eitc_match_rate * (federal_eitc / flate))
         if not p.value("eitc_refundable"):
             ceiling = pl.col("il_tax_after_property_credit")

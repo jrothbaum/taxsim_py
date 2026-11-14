@@ -24,6 +24,10 @@ allocate_delaware_credits_freely_between_spouses_per_statute:
 apply_1979_dividend_exclusion:
   source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or tested wrongly); the row in statutory_corrections.md describes it. No form check needed
   status: logic
+apply_colorado_earned_income_credit_minimum_age_per_statute:
+  source: 'Found by running every CPS household through the compiled TAXSIM (scripts/cps_full_state_check.py): it pays Colorado''s earned income credit on the federal credit before its age test to filers
+    as young as 15; the statutory minimum age (19 in 2022) follows the parameters; checked 2026-11-14'
+  status: logic
 apply_colorado_pension_subtraction_by_statute_from_2021:
   source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or tested wrongly); the row in statutory_corrections.md describes it. No form check needed
   status: logic
@@ -322,6 +326,14 @@ limit_arkansas_low_income_table_to_its_range:
   source: 'Arkansas AR1000F instructions (2023): the low-income tax tables apply when total income from all sources is within the table''s limits; the table range and the step table below it were not compared
     with the form; checked 2026-11-13'
   status: partial
+limit_california_young_child_credit_to_eitc_filers_per_statute:
+  source: 'Found by the CPS check and the Fortran (`caleitc`: from 2022 the young child credit is paid whenever a child under 6 is present, with no CalEITC, income or loss test); R&TC 17052.1 ties it to
+    CalEITC eligibility or the small-loss test, which statutory mode applies; checked 2026-11-14'
+  status: logic
+limit_colorado_child_tax_credit_refund_by_earnings_per_statute:
+  source: 'Found by the CPS check and the Fortran (`cotax22`: x11-x13 compute the federal earned income limit on the refundable part and `x10=min(x8,x9)` never uses it); the Colorado DR 0104CN worksheet
+    follows the federal rules, so statutory mode keeps the earnings limit; checked 2026-11-14'
+  status: logic
 limit_connecticut_social_security_exclusion_to_base_amount_per_statute:
   source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or tested wrongly); the row in statutory_corrections.md describes it. No form check needed
   status: logic
