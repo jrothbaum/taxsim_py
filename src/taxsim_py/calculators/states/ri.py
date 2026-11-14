@@ -249,7 +249,7 @@ def compute_ri_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         statax = pl.min_horizontal(statax, p.num("flat_tax_rate") * fed_agi.clip(0, None))
 
     # --- Property tax relief credit for taxpayers 65 or older ---
-    hy = pl.col("ri_household_income_undeflated")
+    hy = pl.col("ri_household_income_undeflated") / flate
     relief = p.value("property_relief")
     if p.in_effect("taxsim_property_relief") and not behavior.update_rhode_island_property_tax_relief_limit_per_statute:
         relief = p.value("taxsim_property_relief")
