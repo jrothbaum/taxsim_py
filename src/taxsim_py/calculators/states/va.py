@@ -347,12 +347,14 @@ def compute_va_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         limit = base_limit + (people - 1) * per_person_limit
         crlow = pl.when(agi <= limit).then(p.num("low_income_credit_per_person") * people).otherwise(0.0)
         # The low income and earned income credits (refundable or not) may not be claimed with the age deduction or the aged
-        # exemption (Virginia Tax, income-based credits page). TAXSIM's 2021 on routines do not bar them.
-        bar_with_age_deduction = behavior.bar_virginia_income_based_credits_with_age_deduction_per_statute or y < 2021
-        crlow = pl.when((elder > 0) & pl.lit(bar_with_age_deduction)).then(0.0).otherwise(crlow)
+        # exemption (Virginia Tax, income-based credits page). TAXSIM bars only the credit for low income individuals, and
+        # only through 2021 (`if(elder.gt.0) crlow=0`); it never bars the earned income credits.
+        statutory_bar = behavior.bar_virginia_income_based_credits_with_age_deduction_per_statute
+        bar_low_income = statutory_bar or y <= 2021
+        crlow = pl.when((elder > 0) & pl.lit(bar_low_income)).then(0.0).otherwise(crlow)
         if p.in_effect("eitc_rate"):
             earncr = p.num("eitc_rate") * pl.col("eitc")
-            earncr = pl.when((elder > 0) & pl.lit(bar_with_age_deduction)).then(0.0).otherwise(earncr)
+            earncr = pl.when((elder > 0) & pl.lit(statutory_bar)).then(0.0).otherwise(earncr)
             crlow = pl.max_horizontal(earncr, crlow)
         crlow = pl.min_horizontal(statax, crlow)
         if p.in_effect("eitc_refundable_rate"):
@@ -361,7 +363,7 @@ def compute_va_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             if p.in_effect("taxsim_eitc_refundable_rate") and not behavior.refund_virginia_earned_income_credit_at_2025_rate:
                 refundable_rate = p.num("taxsim_eitc_refundable_rate")
             refundable_claim = refundable_rate * pl.col("eitc")
-            no_age_deduction = (elder <= 0) | pl.lit(not bar_with_age_deduction)
+            no_age_deduction = (elder <= 0) | pl.lit(not statutory_bar)
             elect = (refundable_claim > crlow) & no_age_deduction
             refundable_extra = pl.when(elect).then(refundable_claim).otherwise(0.0)
             crlow = pl.when(elect).then(0.0).otherwise(crlow)
