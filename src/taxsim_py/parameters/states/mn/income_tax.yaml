@@ -561,6 +561,10 @@ phaseout_inflation:
 taxsim_exemption_phaseout_start:
   2021: {single: 199850, married: 299750, head_of_household: 249800}
 taxsim_exemption_phaseout_inflation: {2021: 1.0, 2022: 1.0302, 2023: 1.1741, 2024: 1.1835}
+# TAXSIM's 2024 on table of exemption phase-out starts (`exdepmaxa`; the 2025 single start is a typo for 239,050).
+taxsim_exemption_phaseout_table:
+  2024: {single: 232550, married: 348850, head_of_household: 290700}
+  2025: {single: 279050, married: 358550, head_of_household: 298800}
 phaseout_multiplier: {single: 1.0, married_joint: 1.5, married_separate: 1.5, head_of_household: 1.25}
 exemption_phaseout_rate: {2011: 0.02}
 exemption_phaseout_step: {2011: 2500}

@@ -683,8 +683,9 @@ use_minnesota_2012_joint_working_family_thresholds:
     it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
   status: logic
 use_minnesota_2022_working_family_credit_per_statute:
-  source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or tested wrongly); the row in statutory_corrections.md describes it. No form check needed
-  status: logic
+  source: 'Minnesota Department of Revenue Schedule M1CWFC 2024 and M1WFC 2022: the credit requires investment income below the federal EITC limit ($10,300 in 2022, $11,600 in 2024), which statutory mode
+    now applies (it had no test); the 2022 credit tables themselves were not compared with the form; checked 2026-11-14'
+  status: partial
 use_minnesota_published_brackets_from_2022:
   source: 'Census Bureau Federal and State Tax Parameter Workbook TY2025, MN sheet CUTMN1/2/3 (2023-25): single 30,070 / 98,760 / 183,340, 31,690 / 104,090 / 193,240, 32,570 / 106,990 / 198,630; joint and
     head of household likewise. Two typos in the statutory 2024 parameters (single 104,690, head of household 39,690) were corrected to 104,090 and 39,010. 2022 is not in the workbook; checked 2026-11-13'

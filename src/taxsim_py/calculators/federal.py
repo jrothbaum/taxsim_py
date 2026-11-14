@@ -1156,6 +1156,7 @@ def _credits(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorProfi
     )
     # Investment income above the annual limit disqualifies the credit entirely.
     eitc = eitc_ordinary
+    eitc_investment_disqualified = pl.lit(0.0)
     if year >= 1996:
         dylim = float(resolve_year(FEDERAL_EITC_PARAMS_MISC["dylim"], year))
         disqy = _capital_gain(year).clip(0, None) + _dividends() + pl.col("intrec")
@@ -1166,6 +1167,7 @@ def _credits(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorProfi
             # The 2026 TAXSIM build counts these memo items and S corporation income here.
             disqy = disqy + pl.col("pbusinc") + pl.col("sbusinc") + pl.col("scorp").clip(0, None)
         eitc = pl.when(disqy > dylim).then(0.0).otherwise(eitc)
+        eitc_investment_disqualified = pl.when(disqy > dylim).then(1.0).otherwise(0.0)
     childless = pl.col("num_children") == 0
     eitc_before_filer_test = eitc
     eitc = pl.when(eitc_filer_eligible(childless, year)).then(eitc).otherwise(0.0)
@@ -1173,7 +1175,8 @@ def _credits(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorProfi
     eitc_before_age_test = eitc
     eitc = pl.when(eitc_age_eligible(childless, year, behavior)).then(eitc).otherwise(0.0)
     df = df.with_columns(
-        eitc=eitc, eitc_before_age_test=eitc_before_age_test, eitc_before_filer_test=eitc_before_filer_test
+        eitc=eitc, eitc_before_age_test=eitc_before_age_test, eitc_before_filer_test=eitc_before_filer_test,
+        eitc_investment_disqualified=eitc_investment_disqualified,
     )
     if analytic_rate:
         df = df.with_columns(analytic_eitc_income=phaseout_income)

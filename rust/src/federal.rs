@@ -803,6 +803,8 @@ pub struct Fed {
     pub odc: f64,
     pub actc: f64,
     pub eitc_before_age_test: f64,
+    /// Investment income over the limit: the whole credit is lost, and states that tie a credit to it lose theirs.
+    pub eitc_investment_disqualified: bool,
     pub eitc_before_filer_test: f64,
     pub federal_elder: f64,
     pub personal_exemptions: f64,
@@ -1413,6 +1415,7 @@ pub fn federal(i: &Inp, ded: f64, itemizes: bool, p: &FedParams) -> Fed {
         odc,
         actc,
         eitc_before_age_test,
+        eitc_investment_disqualified: disqualified,
         eitc_before_filer_test,
         federal_elder: elderly_raw,
         personal_exemptions: amex,

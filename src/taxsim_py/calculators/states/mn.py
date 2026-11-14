@@ -481,9 +481,11 @@ def _working_family_credit(
     nkid = pl.col("depx").floor()
     eitc = pl.col("eitc")
     if y >= 2023 or (y == 2022 and behavior.use_minnesota_2022_working_family_credit_per_statute):
-        return _statutory_working_family_credit(
+        credit = _statutory_working_family_credit(
             y, pl.col("earned_income"), pl.col("agi"), is_joint, behavior.count_unknown_ages_as_eligible_for_minnesota_childless_credit
         )
+        # The credit needs the federal investment income test (Schedule M1CWFC): over the limit it is lost.
+        return pl.when(pl.col("eitc_investment_disqualified") > 0).then(0.0).otherwise(credit)
     if y < 1991:
         return pl.lit(0.0)
     if p.in_effect("working_family_credit_federal_share"):
@@ -626,6 +628,9 @@ def _working_family_credit(
 
     if p.in_effect("working_family_credit_min_federal_eitc"):
         work = pl.when(eitc >= p.num("working_family_credit_min_federal_eitc")).then(work).otherwise(0.0)
+    elif y >= 2019:
+        # With the federal minimum gone, TAXSIM still loses the credit to the federal investment income test.
+        work = pl.when(pl.col("eitc_investment_disqualified") > 0).then(0.0).otherwise(work)
     return work
 
 
@@ -744,6 +749,12 @@ def compute_mn_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             ph13 = pl.when(is_joint | is_sep).then(float(starts["married"])).when(
                 files_head_of_household()
             ).then(float(starts["head_of_household"])).otherwise(float(starts["single"])) * p.num("taxsim_exemption_phaseout_inflation")
+            if p.in_effect("taxsim_exemption_phaseout_table"):
+                # From 2024 (`mntax24`) the start comes from a table typed in the routine (2025 single has a typo).
+                table = p.value("taxsim_exemption_phaseout_table")
+                ph13 = pl.when(is_joint | is_sep).then(float(table["married"])).when(
+                    files_head_of_household()
+                ).then(float(table["head_of_household"])).otherwise(float(table["single"]))
     if y >= 2013:
         exemption_amount = p.num("exemption_amount")
         count = federal_exemption_count(y) if y <= 2018 else depx

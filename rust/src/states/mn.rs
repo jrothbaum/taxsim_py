@@ -812,7 +812,7 @@ fn working_family_credit(p: &MnParams, base_earned: f64, base_agi: f64, fed_agi:
             let agi = f.agi;
             let spouse_age = if is_joint && i.sage == 0.0 { 40.0 } else { i.sage };
             let ages = (i.page >= 19.0 && i.page <= 64.0) || (spouse_age >= 19.0 && spouse_age <= 64.0) || (i.page == 0.0 && i.sage == 0.0);
-            let eligible = (i.depx > 0.0 || ages) && i.fs() != Fs::Separate;
+            let eligible = (i.depx > 0.0 || ages) && i.fs() != Fs::Separate && !f.eitc_investment_disqualified;
             let income = earned.max(agi);
             let count = i.dep18.clamp(0.0, 3.0) as usize;
             let credit = earned.max(0.0).min(earnings_maximum[count]) * phase_in_rate[count];
@@ -824,7 +824,7 @@ fn working_family_credit(p: &MnParams, base_earned: f64, base_agi: f64, fed_agi:
             let earned = f.earned_income;
             let spouse_age = if is_joint && i.sage == 0.0 { 40.0 } else { i.sage };
             let ages = (i.page >= 19.0 && i.page <= 64.0) || (spouse_age >= 19.0 && spouse_age <= 64.0) || (i.page == 0.0 && i.sage == 0.0);
-            let eligible = (i.depx > 0.0 || ages) && i.fs() != Fs::Separate;
+            let eligible = (i.depx > 0.0 || ages) && i.fs() != Fs::Separate && !f.eitc_investment_disqualified;
             let income = earned.max(f.agi);
             let base = child_amount * i.dep17 + phase_in_rate * earned.max(0.0).min(*phase_in_end);
             let threshold = if is_joint { *phase_out_joint } else { *phase_out_other };
@@ -927,6 +927,9 @@ fn working_family_credit(p: &MnParams, base_earned: f64, base_agi: f64, fed_agi:
         if !(eitc >= min) {
             work = 0.0;
         }
+    } else if y >= 2019 && f.eitc_investment_disqualified {
+        // The federal minimum is gone, but the federal investment income test still applies.
+        work = 0.0;
     }
     work
 }
