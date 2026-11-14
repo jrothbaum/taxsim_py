@@ -372,12 +372,12 @@ report_base_state_worksheet,all,0,,,,
 report_social_security_taxable_earnings,all,0,,,,
 pay_missouri_working_family_credit_by_statute,MO,2,1.0,0.5,0.0,2023
 exclude_nonproperty_income_from_federal_earned_income_per_statute,all,0,,,,
-compute_virginia_spouse_adjustment_per_statute,VA,593,0.8887015177065767,0.418212478920742,0.0016863406408094434,"2000,2005,2010,2012,2015,2018,2020,2021,2022,2023,2024,2025,2026"
 count_half_self_employment_tax_in_refundable_child_credit_per_statute,all,1,1.0,0.0,1.0,2000
 apply_state_childless_eitc_minimum_age,all,11,1.0,0.0,0.8181818181818182,"2020,2022,2023,2024,2025,2026"
 apply_kentucky_pension_cap_per_taxpayer,KY,214,1.0,0.0,0.5887850467289719,"1995,2000,2005,2010,2012,2015,2018,2020,2021,2022,2023,2024,2025,2026"
-require_federal_age_test_for_new_mexico_working_families_credit_per_statute,NM,182,0.8186813186813187,0.19230769230769232,0.0,"2021,2022,2023,2024,2025,2026"
 use_vermont_social_security_exemption_starts_per_statute,VT,85,1.0,0.0,0.03529411764705882,"2018,2020,2021,2022,2023,2024,2025,2026"
 compute_louisiana_tax_per_statute,LA,652,1.0,0.11042944785276074,0.6886503067484663,"2021,2025,2026"
-subtract_minnesota_elderly_and_charity_from_income,MN,42,0.8571428571428571,0.5,0.09523809523809523,"1990,1995,2000,2005,2010,2012,2015,2022,2023,2024,2025,2026"
 use_minnesota_2022_working_family_credit_per_statute,MN,27,1.0,0.0,0.7777777777777778,2022
+compute_virginia_spouse_adjustment_per_statute,VA,577,0.9930675909878682,0.42980935875216636,0.0,"2000,2005,2010,2012,2015,2018,2020,2021,2022,2023,2024,2025,2026"
+require_federal_age_test_for_new_mexico_working_families_credit_per_statute,NM,182,1.0,0.19230769230769232,0.0,"2021,2022,2023,2024,2025,2026"
+subtract_minnesota_elderly_and_charity_from_income,MN,36,1.0,0.5833333333333334,0.0,"1990,1995,2000,2005,2010,2012,2015,2022,2023"

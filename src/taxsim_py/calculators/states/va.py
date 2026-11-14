@@ -312,7 +312,20 @@ def compute_va_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         if not behavior.compute_virginia_spouse_adjustment_per_statute:
             # TAXSIM splits AGI as `splitagi` does and takes a fixed $930 (plus $800 at 65) off each share.
             sa = p.value("taxsim_spouse_adjustment")
-            agit, agis = split_agi(agi, 0.0, 0.0)
+            # From 2022 the routine splits the AGI with the (untaxed) unemployment compensation added back.
+            exclude_primary, exclude_spouse = 0.0, 0.0
+            if y < 2022 and p.in_effect("age_deduction"):
+                # Through 2021 the split also leaves out the age deduction figured from `eldera`: all of it to the primary
+                # taxpayer when only they are 65 or older, half each when both are, none when only the spouse is (a typo in
+                # the routine's second test).
+                limits = p.value("taxsim_age_deduction_income_limit")
+                age_limit = pl.when(txp > 1).then(float(limits["married_joint"])).otherwise(float(limits["single"]))
+                over = (fed_agi - pl.col("taxable_social_security") - age_limit).clip(0, None)
+                age_deduction = pl.when(aged >= 1).then((aged * p.num("age_deduction") - over).clip(0, None)).otherwise(0.0)
+                primary_old, spouse_old = pl.col("page") >= 65, pl.col("sage") >= 65
+                exclude_primary = pl.when(primary_old & ~spouse_old).then(age_deduction).when(primary_old & spouse_old).then(age_deduction / 2).otherwise(0.0)
+                exclude_spouse = pl.when(primary_old & spouse_old).then(age_deduction / 2).otherwise(0.0)
+            agit, agis = split_agi(agi + pl.col("taxable_unemployment") if y >= 2022 else agi, exclude_primary, exclude_spouse)
             dedt = float(sa["deduction"]) + float(sa["aged_addition"]) * (pl.col("page") >= 65).cast(pl.Float64)
             deds = float(sa["deduction"]) + float(sa["aged_addition"]) * (pl.col("sage") >= 65).cast(pl.Float64)
             taxy23 = pl.min_horizontal(agit - dedt, agis - deds)

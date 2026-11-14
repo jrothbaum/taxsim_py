@@ -260,7 +260,7 @@ def compute_nm_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     if year >= 2021 and not behavior.require_federal_age_test_for_new_mexico_working_families_credit_per_statute:
         # TAXSIM pays the match on the credit before the federal minimum-age test to a taxpayer aged 18 to 24.
         young = pl.col("page").is_between(18, 24) | pl.col("sage").is_between(18, 24)
-        eitc_base = pl.when(young).then(pl.col("eitc_before_age_test")).otherwise(pl.col("eitc"))
+        eitc_base = pl.when(young).then(pl.col("eitc_before_age_test") / flate).otherwise(pl.col("eitc"))
     earncr = match_rate * eitc_base
     # Property tax rebate for taxpayers 65 or older.
     ptax = pl.col("proptax") + float(p["property_rebate_rent_share"]) * pl.col("rentpaid")
