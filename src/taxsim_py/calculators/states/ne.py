@@ -158,6 +158,8 @@ def compute_ne_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             source = p.value("brackets")
             if p.in_effect("taxsim_brackets") and not behavior.use_nebraska_high_income_tables_per_statute:
                 source = p.value("taxsim_brackets")
+                if p.in_effect("taxsim_bracket_inflation"):
+                    factor = p.num("taxsim_bracket_inflation")
             tables = {status_name: scale_brackets(values, factor) for status_name, values in source.items()}
             taxy = pl.when(is_sep).then(2.0 * taxinc).otherwise(taxinc)
             dagi = pl.when(is_sep).then(2.0 * fed_agi).otherwise(fed_agi)
