@@ -481,8 +481,10 @@ def _working_family_credit(
     nkid = pl.col("depx").floor()
     eitc = pl.col("eitc")
     if y >= 2023 or (y == 2022 and behavior.use_minnesota_2022_working_family_credit_per_statute):
+        # TAXSIM reads its federal earned income (`c(37)`), which counts other non-property income and business inputs.
+        earned = pl.col("earned_income") if behavior.measure_minnesota_credit_earnings_per_statute else pl.col("federal_earned_income")
         credit = _statutory_working_family_credit(
-            y, pl.col("earned_income"), pl.col("agi"), is_joint, behavior.count_unknown_ages_as_eligible_for_minnesota_childless_credit
+            y, earned, pl.col("agi"), is_joint, behavior.count_unknown_ages_as_eligible_for_minnesota_childless_credit
         )
         # The credit needs the federal investment income test (Schedule M1CWFC): over the limit it is lost.
         return pl.when(pl.col("eitc_investment_disqualified") > 0).then(0.0).otherwise(credit)
@@ -1059,7 +1061,7 @@ def compute_mn_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             half_pensions = 0.5 * (pl.col("pensions") + pl.col("taxable_social_security"))
             older_dependents = (pl.col("depx") - pl.col("dep18")).clip(0, None)
             business_primary = pl.col("psemp") + pl.col("pbusinc") + pl.col("pprofinc") - older_dependents
-            business_spouse = pl.col("ssemp") + pl.col("sbusinc") + pl.col("sprofinc") - pl.col("dep6")
+            business_spouse = pl.col("ssemp") * flate + pl.col("sbusinc") + pl.col("sprofinc") - pl.col("dep6")
             earn = pl.min_horizontal(
                 pl.col("pwages") + half_pensions + share * business_primary,
                 pl.col("swages") + half_pensions + share * business_spouse,

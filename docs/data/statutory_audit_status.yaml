@@ -734,6 +734,14 @@ measure_arizona_property_credit_income_per_statute:
   source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
     it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
   status: logic
+measure_minnesota_credit_earnings_per_statute:
+  source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
+    it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
+  status: logic
+apply_wisconsin_retirement_exclusion_per_statute:
+  source: 'Wisconsin Department of Revenue Publication 106 and the retirement benefits FAQ (revenue.wi.gov/Pages/FAQS/pcs-retired.aspx): up to $5,000 of retirement income for taxpayers 65 or older with federal AGI under $15,000
+    ($30,000 joint), in place since tax year 2009; checked 2026-11-14'
+  status: verified
 cap_massachusetts_2022_household_dependent_credit_per_statute:
   source: 'Massachusetts 2021 Form 1 instructions and the tax expenditure budget: the Household Dependent Tax Credit is $180 for one dependent and $360 for two or more; TAXSIM 2022 pays $180 for each child under 13
     with no limit; the 2022 instructions text was not retrieved; checked 2026-11-14'

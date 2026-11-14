@@ -164,7 +164,7 @@ def compute_nj_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         )
         if y >= 2021:
             # The 2021 on routine tests both spouses' wages, total self-employment income and short-term gains.
-            earned = pl.col("pwages") + pl.col("swages") + (pl.col("psemp") + pl.col("ssemp")).clip(0, None) + pl.col("stcg").clip(0, None)
+            earned = pl.col("pwages") + pl.col("swages") + (pl.col("psemp") + pl.col("ssemp")).clip(0, None) + pl.col("stcg").clip(0, None) + pl.col("nj_schede").clip(0, None)
         if y >= 2021:
             penex = pl.when(agi < 150_000).then(frac * pensions).otherwise(0.0)
             other_cap = frac * agi - frac * pensions

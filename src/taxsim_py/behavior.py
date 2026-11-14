@@ -352,6 +352,7 @@ class BehaviorProfile:
     include_self_employment_in_household_income: bool = True
     apply_michigan_retirement_tiers: bool = True
     pay_minnesota_homemaker_credit_to_nondependents: bool = True
+    measure_minnesota_credit_earnings_per_statute: bool = True
     order_minnesota_1998_working_family_credit: bool = True
     use_minnesota_2012_joint_working_family_thresholds: bool = True
     use_minnesota_working_family_tables_by_children: bool = True
@@ -485,6 +486,7 @@ class BehaviorProfile:
     limit_wisconsin_capital_loss_to_statutory_amount: bool = True
     limit_wisconsin_dependent_standard_deduction_from_2023: bool = True
     keep_wisconsin_mortgage_interest_cents: bool = True
+    apply_wisconsin_retirement_exclusion_per_statute: bool = True
     keep_wisconsin_1999_itemized_credit: bool = True
     index_wisconsin_joint_brackets: bool = True
     tax_wisconsin_1986_separate_returns: bool = True

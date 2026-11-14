@@ -475,6 +475,23 @@ pub fn tax(i: &Inp, f: &Fed, p: &WiParams) -> f64 {
         }
     }
 
+    // Retirement income exclusion for taxpayers 65 or older (2009-2024): up to $5,000 each when federal AGI is under
+    // $15,000 ($30,000 joint).
+    if (2009..=2024).contains(&y) {
+        let limit = if is_joint { 30000.0 } else { 15000.0 };
+        let share = if is_joint { i.pensions / 2.0 } else { i.pensions };
+        let mut exclusion = 0.0;
+        if i.page >= 65.0 {
+            exclusion += 5000.0_f64.min(share);
+        }
+        if is_joint && i.sage >= 65.0 {
+            exclusion += 5000.0_f64.min(share);
+        }
+        if fed_agi < limit {
+            agi -= exclusion;
+        }
+    }
+
     // ---- standard deduction ----
     let depadd = p.dependent_addition.as_ref().map_or(0.0, |t| t.eval(agi));
     let mut stded = if let Some((rate, cap)) = p.standard_share {
@@ -635,7 +652,8 @@ pub fn tax(i: &Inp, f: &Fed, p: &WiParams) -> f64 {
             }
         }
         Eitc::ByChildren(shares) => {
-            let share = if depx == 1.0 { shares[0] } else if depx == 2.0 { shares[1] } else if depx >= 3.0 { shares[2] } else { 0.0 };
+            let kids = if y >= 2023 { f.num_children } else { depx };
+            let share = if kids == 1.0 { shares[0] } else if kids == 2.0 { shares[1] } else if kids >= 3.0 { shares[2] } else { 0.0 };
             share * eitc
         }
         Eitc::Flat(share) => share * eitc,

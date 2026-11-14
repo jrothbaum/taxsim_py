@@ -129,6 +129,31 @@ def compute_wi_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             pl.min_horizontal(child, pl.col("pwages"), pl.col("swages")).clip(0, None)
         ).otherwise(child)
         agi = agi - pl.when(pl.col("federal_chcr") > 0).then(child).otherwise(0.0)
+    # Retirement income exclusion for taxpayers 65 or older (2009 on): up to $5,000 each when federal AGI is under $15,000
+    # ($30,000 joint). TAXSIM applies it from 2021, and in 2023-2024 at age 67 with the limit per qualifying taxpayer.
+    if 2009 <= y <= 2024:
+        pension = pl.col("pensions")
+        limit = pl.when(is_joint).then(30000.0).otherwise(15000.0)
+        old_head, old_spouse = pl.col("page") >= 65, (pl.col("sage") >= 65) & is_joint
+        shares = pl.when(is_joint).then(pension / 2).otherwise(pension)
+        exclusion = (
+            pl.when(old_head).then(pl.min_horizontal(pl.lit(5000.0), shares)).otherwise(0.0)
+            + pl.when(old_spouse).then(pl.min_horizontal(pl.lit(5000.0), shares)).otherwise(0.0)
+        )
+        in_range = fed_agi < limit
+        if not behavior.apply_wisconsin_retirement_exclusion_per_statute:
+            if y < 2021:
+                in_range = pl.lit(False)
+            elif y >= 2023:
+                # Ages 67 or older, the limit multiplied by the number of qualifying taxpayers, pensions not split.
+                head_67, spouse_67 = pl.col("page") >= 67, pl.col("sage") >= 67
+                numold = head_67.cast(pl.Float64) + spouse_67.cast(pl.Float64)
+                exclusion = pl.min_horizontal(5000.0 * numold, pl.col("pensions"))
+                in_range = (numold > 0) & (fed_agi < 15000.0 * numold)
+            else:
+                # TAXSIM's 2021-2022 routine reads only the pension input, not the other retirement income.
+                pass
+        agi = agi - pl.when(in_range).then(exclusion).otherwise(0.0)
     df, (agi,) = checkpoint(df, wi_agi=agi)
 
     # --- Standard deduction ---
@@ -383,8 +408,10 @@ def compute_wi_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         )
     elif isinstance(shares, dict):
         share = pl.lit(0.0)
+        # From 2023 the credit follows the qualifying children (TAXSIM's `d(8) - d(209)`), before it the dependents.
+        kids = pl.col("num_children") if y >= 2023 else depx
         for n, key in ((1, "one"), (2, "two"), (3, "three")):
-            share = pl.when((depx == n) if n < 3 else (depx >= n)).then(float(shares[key])).otherwise(share)
+            share = pl.when((kids == n) if n < 3 else (kids >= n)).then(float(shares[key])).otherwise(share)
         earncr = share * eitc
     elif shares is not None:
         earncr = float(shares) * eitc
