@@ -1,4 +1,84 @@
 # Verdicts for the statutory side of each switch (status: logic | verified | partial | unverified | no_switch).
+add_idaho_aged_standard_deduction_in_projected_years_per_statute:
+  source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
+    it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
+  status: logic
+add_kansas_aged_and_dependent_standard_deduction_per_statute:
+  source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
+    it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
+  status: logic
+apply_kentucky_pension_exclusion_schedule:
+  source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
+    it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
+  status: logic
+apply_michigan_retirement_tiers:
+  source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
+    it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
+  status: logic
+apply_missouri_property_credit_to_tax_paid:
+  source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
+    it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
+  status: logic
+apply_state_childless_eitc_minimum_age:
+  source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
+    it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
+  status: logic
+cap_delaware_property_tax_deduction_per_statute:
+  source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
+    it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
+  status: logic
+cap_new_york_state_tax_deduction_per_statute:
+  source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
+    it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
+  status: logic
+cap_oregon_property_tax_deduction_per_statute:
+  source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
+    it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
+  status: logic
+compute_delaware_before_1996_per_statute:
+  source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
+    it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
+  status: logic
+compute_maryland_itemized_deduction_from_2018_per_statute:
+  source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
+    it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
+  status: logic
+compute_minnesota_property_tax_refund_per_statute:
+  source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
+    it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
+  status: logic
+compute_montana_tax_from_2024_per_statute:
+  source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
+    it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
+  status: logic
+compute_new_jersey_tax_per_statute:
+  source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
+    it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
+  status: logic
+compute_new_york_property_credit_per_statute:
+  source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
+    it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
+  status: logic
+compute_oklahoma_itemized_deduction_from_2022_per_statute:
+  source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
+    it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
+  status: logic
+compute_oklahoma_pension_exclusion_per_statute:
+  source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
+    it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
+  status: logic
+compute_virginia_spouse_adjustment_per_statute:
+  source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
+    it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
+  status: logic
+count_all_dependents_for_maine_dependent_credit:
+  source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
+    it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
+  status: logic
+count_arizona_dependent_credit_children_under_17_per_statute:
+  source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
+    it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
+  status: logic
 count_colorado_credit_children_per_statute:
   source: 'Colorado DOR child tax credit page and Family Affordability Tax Credit coverage: FATC up to 3,200 per child under 6 and 2,400 per child 6-16 in 2024 and 2025, phase-out 85,000 single / 95,000
     joint; CTC AGI limits 75,000/85,000 (2024) and 77,000/87,000 (2025); numbers from news and agency summaries, not the DR 0104CN text; checked 2026-11-13'
@@ -13,14 +93,62 @@ count_other_property_income_in_eitc_disqualified_income_per_statute:
 count_vermont_child_credit_by_statutory_age:
   source: 'Vermont Dept of Taxes, 2025 tax changes and Act 71 of 2025: child credit up to $1,000 for a child under 6 before 2025 and age 6 or younger from 2025; checked 2026-11-13'
   status: verified
+credit_delaware_spouse_low_income_exclusion_to_spouse:
+  source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
+    it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
+  status: logic
+deduct_idaho_itemized_from_2018_per_statute:
+  source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
+    it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
+  status: logic
+deduct_maine_pensions_at_any_age:
+  source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
+    it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
+  status: logic
+deduct_missouri_federal_tax_after_refundable_credits:
+  source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
+    it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
+  status: logic
+deduct_missouri_federal_tax_from_2022:
+  source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
+    it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
+  status: logic
+deduct_virginia_age_deduction_per_statute:
+  source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
+    it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
+  status: logic
 double_kentucky_standard_deduction_for_joint_returns:
   source: Kentucky Form 740 gives one standard deduction amount by year that does not vary by filing status; no source found that a joint return takes two, so TAXSIM's one-per-return was not shown wrong.
     Statutory mode now uses it (switch removed); 2026-11-14
   status: no_switch
+end_michigan_senior_percentage_table_at_statutory_row_per_statute:
+  source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
+    it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
+  status: logic
+enforce_schedule_se_minimum:
+  source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
+    it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
+  status: logic
+exclude_arkansas_pensions_per_taxpayer:
+  source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
+    it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
+  status: logic
+exclude_delaware_pensions_by_statute_from_2024:
+  source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
+    it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
+  status: logic
 exclude_hawaii_pensions:
   source: 'Hawaii Schedule J instructions: pension distributions after 1997 are exempt to the extent attributable to employer contributions; the part traceable to the employee''s own contributions is taxable.
     Statutory mode excludes all of the pension input, which overstates the exemption when part of the pension is employee-funded (the inputs cannot say); checked 2026-11-13'
   status: partial
+exclude_new_jersey_pensions_per_statute:
+  source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
+    it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
+  status: logic
+exclude_nonproperty_income_from_new_jersey_income:
+  source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
+    it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
+  status: logic
 exclude_transfers_from_provisional_income:
   source: 'IRC 86(b)(2): provisional income is modified AGI plus tax-exempt interest plus half of benefits; transfers are not in it; checked 2026-11-13'
   status: verified
@@ -35,9 +163,21 @@ file_kentucky_combined_returns_per_statute:
 floor_child_credit_phaseout_at_zero:
   source: 'IRC 24(b): the credit is reduced by $50 per $1,000 of income over the threshold and cannot go below zero (it is a reduction of the credit amount); checked 2026-11-13'
   status: verified
+give_south_carolina_pension_deduction_to_each_taxpayer:
+  source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
+    it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
+  status: logic
+halve_minnesota_motor_fuels_credit_for_separate_returns_per_statute:
+  source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
+    it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
+  status: logic
 halve_salt_phaseout_for_separate_returns_per_statute:
   source: 'IRC 164(b)(7): separate returns get half the cap and half the threshold ($20,000 / $250,000 for 2025; $20,200 / $252,500 for 2026); secondary summaries; checked 2026-11-13'
   status: verified
+ignore_federal_salt_cap_in_california:
+  source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
+    it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
+  status: logic
 index_salt_cap_from_2026:
   source: 'IRC 164(b)(7) as amended by the 2025 reconciliation act: cap $40,000 for 2025, $40,400 for 2026 (1% a year), phase-down threshold $500,000 / $505,000 at 30% to a $10,000 floor; figures from several
     secondary summaries (the revenue procedure does not cover it); checked 2026-11-13'
@@ -56,6 +196,30 @@ limit_arkansas_low_income_table_to_its_range:
   source: 'Arkansas AR1000F instructions (2023): the low-income tax tables apply when total income from all sources is within the table''s limits; the table range and the step table below it were not compared
     with the form; checked 2026-11-13'
   status: partial
+limit_hawaii_state_tax_deduction_from_2011:
+  source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
+    it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
+  status: logic
+limit_maine_child_care_credit_by_federal_tax_in_2021_per_statute:
+  source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
+    it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
+  status: logic
+limit_maine_dependent_filer_standard_deduction_per_statute:
+  source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
+    it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
+  status: logic
+limit_minnesota_itemized_deduction_from_2024_per_statute:
+  source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
+    it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
+  status: logic
+limit_new_york_property_credit_rent_per_statute:
+  source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
+    it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
+  status: logic
+limit_virginia_2021_child_care_deduction_per_statute:
+  source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
+    it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
+  status: logic
 pay_kansas_credits_per_statute:
   source: ''
   status: unverified
@@ -67,25 +231,133 @@ pay_kansas_homestead_refund_from_2007_per_statute:
 pay_minnesota_property_tax_refund_through_2023:
   source: Minnesota Form M-1PR (homestead credit refund, renter's property tax refund) is a real refundable credit in these years; the refund tables have not been compared line by line; checked 2026-11-13
   status: partial
+pay_nebraska_refundable_child_care_per_statute:
+  source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
+    it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
+  status: logic
+pay_new_jersey_renter_credit_per_statute:
+  source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
+    it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
+  status: logic
 pay_new_york_empire_child_credit_per_statute:
   source: 'NY Tax Dept Empire State child credit page and IT-213 instructions: 330 per child at least 4 and under 17, with children under 4 added at 330 before 2025 and 1,000 from 2025; phase-out over 75,000
     / 110,000. The pre-2018 statutory rules (which years counted children under 4 and 4-16) were not compared line by line; checked 2026-11-13'
   status: partial
+pay_oregon_kids_credit_per_statute:
+  source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
+    it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
+  status: logic
+pay_pennsylvania_child_care_credit_only_from_2023:
+  source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
+    it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
+  status: logic
+pay_utah_retirement_credit_per_statute:
+  source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
+    it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
+  status: logic
+pay_vermont_telephone_credit:
+  source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
+    it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
+  status: logic
+pay_wisconsin_homestead_credit_from_2023:
+  source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
+    it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
+  status: logic
 phase_out_amt_exemption_at_half_rate_from_2026:
   source: 'Rev. Proc. 2025-32 (irs.gov/pub/irs-drop/rp-25-32.pdf) section 3.10: 2026 AMT exemption $140,200 joint / $90,100 single / $70,100 separate with phaseout starting at $1,000,000 / $500,000 / $500,000
     and complete at $1,280,400 / $680,200 / $640,200, which implies a 50% phaseout rate ((1,280,400-1,000,000) x 50% = 140,200); checked 2026-11-13'
   status: verified
+phase_out_oregon_federal_tax_limit_in_steps:
+  source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
+    it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
+  status: logic
+read_montana_elderly_credit_multiplier_per_statute:
+  source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
+    it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
+  status: logic
+read_north_carolina_child_deduction_per_statute:
+  source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
+    it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
+  status: logic
+reduce_iowa_single_tax_before_2017:
+  source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
+    it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
+  status: logic
+require_age_65_for_ohio_retirement_credit:
+  source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
+    it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
+  status: logic
+require_indiana_federal_credit_for_decoupled_credit_per_statute:
+  source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
+    it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
+  status: logic
+round_new_york_empire_child_credit_phaseout_per_statute:
+  source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
+    it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
+  status: logic
+round_new_york_recapture_ratio_per_statute:
+  source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
+    it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
+  status: logic
+round_up_phaseout_steps:
+  source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
+    it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
+  status: logic
+start_ohio_business_deduction_per_statute:
+  source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
+    it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
+  status: logic
+step_alabama_dependent_exemption_per_statute:
+  source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
+    it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
+  status: logic
+step_missouri_federal_tax_deduction_share:
+  source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
+    it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
+  status: logic
+step_missouri_property_credit_per_statute:
+  source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
+    it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
+  status: logic
+step_ohio_exemption_by_income:
+  source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
+    it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
+  status: logic
 subtract_state_tax_in_georgia_itemized_deduction:
   source: 'Georgia Form 500 and Schedule 1 (IT-511 booklet): state income tax claimed on federal Schedule A is added back, and Georgia keeps a 10,000 SALT limit; confirmed from Georgia DOR forms and Intuit/TurboTax
     expert answers, IT-511 text itself not read; checked 2026-11-13'
   status: partial
+subtract_west_virginia_social_security_per_statute:
+  source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
+    it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
+  status: logic
+tax_full_capital_gains_in_new_jersey_before_1987:
+  source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
+    it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
+  status: logic
 tax_nebraska_before_1987_per_statute:
   source: 'Nebraska Legislature, individual income tax chronology (nebraskalegislature.gov/app_rev/source/chrono_incometax.htm): through 1986 the tax was a percentage of federal liability, 18/16/18/15/15/18/20/19/20/19%
     for 1977-86, identical to federal_tax_share in ne/income_tax.yaml; checked 2026-11-13'
   status: verified
+tax_new_jersey_top_rate_after_1982_per_statute:
+  source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
+    it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
+  status: logic
+test_arizona_family_credit_before_exemptions:
+  source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
+    it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
+  status: logic
+test_oklahoma_earned_income_credit_age_per_statute:
+  source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
+    it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
+  status: logic
 use_additional_medicare_separate_threshold:
   source: 'IRC 3101(b)(2): the Additional Medicare Tax threshold is $125,000 for a married individual filing a separate return ($250,000 joint, $200,000 other); checked 2026-11-13'
   status: verified
+use_arkansas_statutory_step_credits:
+  source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
+    it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
+  status: logic
 use_colorado_statutory_sales_tax_refund:
   source: 'Senior housing credit: Colorado DOR page (tax.colorado.gov/income-qualified-senior-housing-income-tax-credit) and HB22-1205 summary (leg.colorado.gov): $1,000 (2022) / $800 (2024) refundable
     to 65+, reduced per $500 of AGI over $25,000, halved per spouse on joint returns, exactly TAXSIM''s formula, so it is now computed in both modes (no switch). The other parts (sales tax refund steps
@@ -94,10 +366,18 @@ use_colorado_statutory_sales_tax_refund:
 use_form_8995a_qbi_streams:
   source: IRS Form 8995-A and its instructions (qualified business income by trade or business, separate W-2 wage and UBIA limits); checked 2026-11-13
   status: verified
+use_maine_current_deductions_when_itemizing:
+  source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
+    it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
+  status: logic
 use_maine_year_standard_deduction:
   source: 'Maine 2012 1040ME booklet and conformity summary: Maine conformed its standard deduction to the federal amount from 2012; earlier years used Maine''s own amounts (joint 9,800 against 15,000 under
     conformity in the fiscal summary). The amounts statutory mode uses for 1989-2011 are not yet compared with the Maine booklets; checked 2026-11-13'
   status: partial
+use_minnesota_2012_joint_working_family_thresholds:
+  source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
+    it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
+  status: logic
 use_published_capital_gains_thresholds:
   source: 'Rev. Proc. 2025-32 (irs.gov/pub/irs-drop/rp-25-32.pdf) section 3.03 (2026: 0% to $98,900 joint, $49,450 single or separate, $66,200 head of household; 15% to $613,700 / $545,500 / $306,850 /
     $579,600), matching the parameters; earlier years Rev. Proc. 2021-45 (2022: 20% above $459,750 single) and later yearly revenue procedures; checked 2026-11-13'
@@ -105,3 +385,19 @@ use_published_capital_gains_thresholds:
 use_published_dependent_standard_deduction_minimum:
   source: 'IRC 63(c)(5)(A) and the yearly revenue procedures: minimum $650 in 1995-1996, $1,150 in 2022, $1,250 in 2023, $1,350 in 2026 (Rev. Proc. 2025-32 section 3.14); checked 2026-11-13'
   status: verified
+use_rhode_island_deduction_phaseout_steps_only:
+  source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
+    it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
+  status: logic
+use_vermont_social_security_exemption_starts_per_statute:
+  source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
+    it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
+  status: logic
+use_wisconsin_statutory_school_credit:
+  source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
+    it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
+  status: logic
+weight_falling_tables_correctly:
+  source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
+    it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
+  status: logic
