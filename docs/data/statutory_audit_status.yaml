@@ -433,6 +433,10 @@ read_oklahoma_federal_credit_income_per_statute:
 read_oklahoma_federal_credit_law_year_per_statute:
   source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or tested wrongly); the row in statutory_corrections.md describes it. No form check needed
   status: logic
+read_virginia_low_income_limits_per_statute:
+  source: 'Census Bureau Federal and State Tax Parameter Workbook TY2025, VA sheet VACUT: the low-income credit limit follows the prior-year poverty guideline, 15,060 (2024) and 15,650 (2025) with 5,380
+    and 5,500 per extra person, equal to the statutory parameters; the 2022 guideline value 13,590 is the same series; TAXSIM''s 13,950 for 2022 is a typo; checked 2026-11-13'
+  status: partial
 reduce_iowa_single_tax_before_2017:
   source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
     it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
@@ -564,6 +568,14 @@ use_arkansas_statutory_step_credits:
   source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
     it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
   status: logic
+use_california_2025_minimum_tax_exemption_per_statute:
+  source: 'Census Bureau Federal and State Tax Parameter Workbook TY2025, CA sheet AMTEXM1/2 and AMTCUT11/12: 2025 exemption 92,749 single and 123,667 joint, phase-out start 347,808 / 463,745 (2024: 90,048,
+    120,065, 337,678, 450,238); equal to the statutory parameters (TAXSIM uses the 2024 amounts); checked 2026-11-13'
+  status: verified
+use_california_published_2025_brackets_per_statute:
+  source: 'Census Bureau Federal and State Tax Parameter Workbook TY2025, CA sheet CUTOFF1/4 (2025): single 11,079 / 26,264 / 41,452 / 57,542 / 72,724 / 371,479 / 445,771 / 742,953; head of household 22,173
+    / 52,530 / 67,716 / 83,805 / 98,990 / 505,208 / 606,251 / 1,010,417; equal to the statutory parameters (TAXSIM has 371,749 and 505,209); checked 2026-11-13'
+  status: verified
 use_colorado_statutory_high_income_addback:
   source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or tested wrongly); the row in statutory_corrections.md describes it. No form check needed
   status: logic
@@ -581,6 +593,10 @@ use_current_rates_in_dc_earner_split:
 use_current_rates_in_dc_low_income_credit:
   source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or tested wrongly); the row in statutory_corrections.md describes it. No form check needed
   status: logic
+use_delaware_published_tax_brackets:
+  source: 'Census Bureau Federal and State Tax Parameter Workbook TY2025, DE sheet TCUTDEL/TAXRATDE (2023-25): brackets 0 / 2,000 / 5,000 / 10,000 / 20,000 / 25,000 / 60,000 with rates 0 / 2.2 / 3.9 / 4.8
+    / 5.2 / 5.55 / 6.6%, the statutory schedule (no subtracted constant); personal credit 110; checked 2026-11-13'
+  status: verified
 use_form_8995a_qbi_streams:
   source: IRS Form 8995-A and its instructions (qualified business income by trade or business, separate W-2 wage and UBIA limits); checked 2026-11-13
   status: verified
@@ -631,12 +647,24 @@ use_minnesota_2012_joint_working_family_thresholds:
 use_minnesota_2022_working_family_credit_per_statute:
   source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or tested wrongly); the row in statutory_corrections.md describes it. No form check needed
   status: logic
+use_minnesota_published_brackets_from_2022:
+  source: 'Census Bureau Federal and State Tax Parameter Workbook TY2025, MN sheet CUTMN1/2/3 (2023-25): single 30,070 / 98,760 / 183,340, 31,690 / 104,090 / 193,240, 32,570 / 106,990 / 198,630; joint and
+    head of household likewise. Two typos in the statutory 2024 parameters (single 104,690, head of household 39,690) were corrected to 104,090 and 39,010. 2022 is not in the workbook; checked 2026-11-13'
+  status: partial
 use_minnesota_working_family_tables_by_children:
   source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or tested wrongly); the row in statutory_corrections.md describes it. No form check needed
   status: logic
+use_nebraska_published_social_security_limit_per_statute:
+  source: 'Census Bureau Federal and State Tax Parameter Workbook TY2025, NE sheet NESSCUT1/2: the Social Security deduction AGI limit is 49,310 single / 66,510 joint for 2023 and none from 2024 (limit
+    10,000,000, full deduction), so the statutory parameters are right and TAXSIM''s typed 493,100 is the error; checked 2026-11-13'
+  status: verified
 use_net_long_term_gain_in_rhode_island:
   source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or tested wrongly); the row in statutory_corrections.md describes it. No form check needed
   status: logic
+use_new_mexico_published_child_tax_credit:
+  source: 'Census Bureau Federal and State Tax Parameter Workbook TY2025, NM sheet NMCTCCUT/NMCTCAMT: 600 / 400 / 200 / 100 / 75 / 50 / 25 (2023), 622 / 414 / 207 / 103 / 77 / 51 / 25 (2024), 637 / 424
+    / 212 / 106 / 79 / 53 / 26 (2025) at AGI thresholds 25,000 / 50,000 / 75,000 / 100,000 / 200,000 / 350,000; equal to the statutory parameters (TAXSIM interpolates an indexed 2023 table); checked 2026-11-13'
+  status: verified
 use_new_york_dependent_standard_deduction_alone:
   source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or tested wrongly); the row in statutory_corrections.md describes it. No form check needed
   status: logic
@@ -690,9 +718,20 @@ use_utah_2022_credit_threshold_per_statute:
   source: 'Census Bureau Federal and State Tax Parameter Workbook TY2025, UT sheet (PHASE4 head of household phase-out base: 2025 $27,320, the published amount, not TAXSIM''s 27,318.60; 2023 PHASE1/2/4:
     16,742 / 33,484 / 25,114; 2024: 17,652 / 35,304 / 26,478). The 2022 amounts (15,548 and so on) are not in that workbook and were not checked against the TC-40; checked 2026-11-13'
   status: partial
+use_vermont_capital_gain_exclusion_options:
+  source: 'Census Bureau Federal and State Tax Parameter Workbook TY2025, VT sheet VTCAPEAMT: the flat capital gain exclusion is 5,000 (2023-25); the percentage option is not in the workbook; checked 2026-11-13'
+  status: partial
 use_vermont_nonrefundable_child_care_credit_before_2003:
   source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or tested wrongly); the row in statutory_corrections.md describes it. No form check needed
   status: logic
+use_vermont_published_brackets:
+  source: 'Census Bureau Federal and State Tax Parameter Workbook TY2025, VT sheet VTTCUT1/2/4 (2023-25): single 45,400 / 110,050 / 229,550, 47,900 / 116,000 / 242,000, 49,400 / 119,700 / 249,700; joint
+    and head of household likewise; rates 3.35 / 6.6 / 7.6 / 8.75%; equal to the statutory parameters. Years before 2023 are not covered by the workbook; checked 2026-11-13'
+  status: partial
+use_vermont_published_standard_deductions:
+  source: 'Census Bureau Federal and State Tax Parameter Workbook TY2025, VT sheet STD1/2/4 and PEXAMT: standard deduction single 7,000 / 7,400 / 7,650, joint 14,050 / 14,850 / 15,300, head of household
+    10,550 / 11,100 / 11,450 (2023-25), exemption 4,850 / 5,100 / 5,300; equal to the statutory parameters (TAXSIM uses 1.5 and 2 times the single amount); checked 2026-11-13'
+  status: verified
 use_vermont_social_security_exemption_starts_per_statute:
   source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
     it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
