@@ -361,12 +361,11 @@ pub fn tax(i: &Inp, f: &Fed, p: &MoParams) -> f64 {
     if y <= 1978 {
         pcred = pcred.min(statax);
     }
-    let tax_before_property_credit = statax;
     statax -= pcred;
     if let Some(c) = &p.wftc {
         let investment = i.dividends + i.intrec + (i.stcg + i.ltcg).max(0.0) + i.otherprop.max(0.0);
-        let eligible = investment <= c.investment_limit && !dependent_filer;
-        let wftc = if eligible { (c.matching * f.eitc).min(tax_before_property_credit.max(0.0)) } else { 0.0 };
+        let eligible = investment < c.investment_limit && !dependent_filer && !is_sep;
+        let wftc = if eligible { (c.matching * f.eitc).min(statax.max(0.0)) } else { 0.0 };
         statax -= wftc;
     }
     statax * 1.0

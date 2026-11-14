@@ -377,7 +377,10 @@ pay_minnesota_property_tax_refund_through_2023:
   status: partial
 pay_missouri_working_family_credit_by_statute:
   source: 'Census Bureau Federal and State Tax Parameter Workbook TY2025, MO sheet: MOEICRATE 10% of the federal EITC for 2023 and 20% for 2024-25, investment income limit MOMAXINVST 4,050 / 4,300 / 4,400;
-    so the 2023 credit exists (TAXSIM pays none in 2023) and TAXSIM''s investment income limit from 2024 is right, which both modes now apply; checked 2026-11-13'
+    so the 2023 credit exists (TAXSIM pays none in 2023) and TAXSIM''s investment income limit from 2024 is right, which both modes now apply; Missouri DOR working family tax credit FAQ (dor.mo.gov): 10%
+    of the federal EIC for 2023 and 20% from 2024, nonrefundable, needs "a tax liability after the application of a miscellaneous tax credit or a Property Tax Credit" (so it is limited to the tax left after
+    the property tax credit, which TAXSIM does not do), "investment income equal to or greater than" the limit disqualifies (strictly below it qualifies, so TAXSIM''s strict test is right and statutory
+    mode now uses it), and married filing separately is not an eligible status; checked 2026-11-14'
   status: verified
 pay_nebraska_refundable_child_care_per_statute:
   source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes

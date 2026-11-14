@@ -342,16 +342,19 @@ def compute_mo_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         investment = (
             pl.col("dividends") + pl.col("intrec") + (pl.col("stcg") + pl.col("ltcg")).clip(0, None) + pl.col("otherprop").clip(0, None)
         )
-        eligible = (investment <= float(c["investment_income_limit"])) & ~is_dependent_filer()
+        # "Investment income equal to or greater than" the limit disqualifies (MO-WFTC), so it must be strictly below it, and
+        # a married separate return is not among the filing statuses that qualify (Missouri DOR FAQ).
+        eligible = (investment < float(c["investment_income_limit"])) & ~is_dependent_filer() & ~is_sep
         if not behavior.pay_missouri_working_family_credit_by_statute:
             # TAXSIM pays nothing in 2023, and from 2024 a fifth of the federal credit under the investment income
             # limit (strictly below it), also to dependent filers, on the federal credit before its filer-status test
             # (a married separate return gets it).
             eligible = pl.lit(y >= 2024) & (investment < float(c["investment_income_limit"]))
         federal_credit = pl.col("eitc") if behavior.pay_missouri_working_family_credit_by_statute else pl.col("eitc_before_filer_test") / flate
-        # The credit is nonrefundable and the property tax credit refundable (Form MO-1040 takes the nonrefundable
-        # credits first), so the credit is limited to the tax before the property tax credit, in both modes.
-        tax_limit = tax_before_property_credit
+        # The credit needs "a tax liability after the application of a miscellaneous tax credit or a Property Tax
+        # Credit" (Missouri DOR working family tax credit FAQ), so the law limits it to the tax left after the property
+        # tax credit. TAXSIM limits it to the tax before that credit, so both credits can use the same tax.
+        tax_limit = statax if behavior.pay_missouri_working_family_credit_by_statute else tax_before_property_credit
         wftc = pl.when(eligible).then(pl.min_horizontal(float(c["match"]) * federal_credit, tax_limit.clip(0, None))).otherwise(0.0)
         statax = statax - wftc
 
