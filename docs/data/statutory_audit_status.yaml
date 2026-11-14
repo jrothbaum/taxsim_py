@@ -659,6 +659,14 @@ use_maryland_published_2025_tax_table_per_statute:
     / 2,000 / 3,000 / 100,000 / 125,000 / 150,000 / 250,000 / 500,000 / 1,000,000 and joint at 150,000 / 175,000 / 225,000 / 300,000 / 600,000 / 1,200,000, the statutory brackets; the statutory tax is computed
     from these rates, so TAXSIM''s +0.50 and -40 table constants are errors; checked 2026-11-13'
   status: verified
+use_massachusetts_2001_rent_cap_per_statute:
+  source: '830 CMR 62.3.1 and the Massachusetts tax expenditure budget: the rent deduction is one-half of rent paid up to $3,000 for tax years beginning on or after January 1, 2001 (TAXSIM keeps $2,500);
+    the statutory handling of separate returns (no half cap from 2001) is not confirmed; checked 2026-11-13'
+  status: partial
+use_massachusetts_2020_part_c_rate_per_statute:
+  source: 'Massachusetts 2020 Form 1 instructions (mass.gov 2020-form-1-instructions) and the 2020 Form 2: effective for tax years beginning on or after January 1, 2020 the rate on most classes of income,
+    including Part C, is 5%, so the 5.05% TAXSIM applies in 2020 is the 2019 rate; checked 2026-11-13'
+  status: verified
 use_minnesota_2012_joint_working_family_thresholds:
   source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
     it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
@@ -698,6 +706,10 @@ use_new_york_household_credit_table_1990_2016:
 use_new_york_statutory_child_care_credit:
   source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or tested wrongly); the row in statutory_corrections.md describes it. No form check needed
   status: logic
+use_north_carolina_head_of_household_deduction_per_statute:
+  source: 'North Carolina D-400 instructions: head of household standard deduction $13,200 for 2016 and $14,000 for 2017 (NC Department of Revenue forms; EY alert for the 2015 amount $12,400), so TAXSIM''s
+    one-year lag is an error for those years; 2018-2022 not checked; checked 2026-11-13'
+  status: partial
 use_north_carolina_married_table_without_splitting:
   source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or tested wrongly); the row in statutory_corrections.md describes it. No form check needed
   status: logic
@@ -708,6 +720,10 @@ use_north_dakota_published_marriage_credit_limits_per_statute:
   source: 'Census Bureau Federal and State Tax Parameter Workbook TY2025, ND sheet (cites North Dakota forms): marriage credit maximum 287 / 303 / 312 (2023-25), lower spouse minimum qualified income 43,980
     / 46,275 / 47,550, minimum combined taxable income 74,862 / 78,836 / 81,036, calculation amount 13,850 / 14,600 / 15,750; equal to the statutory parameters (TAXSIM has 297 for 2023 and its own 2024-25
     limits); checked 2026-11-13'
+  status: verified
+use_oregon_standard_deduction_index_per_statute:
+  source: 'Oregon 2016 standard deduction $2,155 single and separate, $4,310 joint (Tax Form Calculator''s 2016 table, from the Oregon forms; the 2016 OR-40 instructions were not retrieved): the statutory
+    index 1.3140243 on the 1,640 base gives 2,155.1, TAXSIM''s rounded 1.314 gives 2,154.96; checked 2026-11-13'
   status: verified
 use_own_bounds_in_new_york_worksheets:
   source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or tested wrongly); the row in statutory_corrections.md describes it. No form check needed
