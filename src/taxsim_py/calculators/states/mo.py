@@ -246,10 +246,10 @@ def compute_mo_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         ).clip(0, None)
     pended = pl.lit(0.0)
     if not behavior.compute_missouri_pension_exemption_per_statute and y >= 1999:
-        # TAXSIM: up to $6,000 per taxpayer of pensions, less income over a floor, for everyone.
+        # TAXSIM: up to $6,000 per taxpayer of pensions, less income (after the capital gain subtraction) over a floor, for everyone.
         floor = by_filing_status({"single": 25000.0, "married_joint": 32000.0, "head_of_household": 25000.0, "married_separate": 15000.0})
         pended = (
-            pl.min_horizontal(6000.0 * txp, pl.col("pensions")) - (agi - pl.col("taxable_social_security") - floor).clip(0, None)
+            pl.min_horizontal(6000.0 * txp, pl.col("pensions")) - (agi - cg_subtraction - pl.col("taxable_social_security") - floor).clip(0, None)
         ).clip(0, None)
     df, (taxinc,) = checkpoint(
         df, mo_taxinc=(agi - deduc - fedtax - exemp - cg_subtraction - pended - extra_taxsim_subtraction).clip(0, None)
@@ -334,6 +334,7 @@ def compute_mo_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         ).otherwise(0.0)
     if y <= 1978:
         pcred = pl.min_horizontal(pcred, statax)
+    tax_before_property_credit = statax
     statax = statax - pcred
     wftc = pl.lit(0.0)
     if p.in_effect("working_family_credit"):
@@ -347,8 +348,11 @@ def compute_mo_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             # limit (strictly below it), also to dependent filers, on the federal credit before its filer-status test
             # (a married separate return gets it).
             eligible = pl.lit(y >= 2024) & (investment < float(c["investment_income_limit"]))
-        federal_credit = pl.col("eitc") if behavior.pay_missouri_working_family_credit_by_statute else pl.col("eitc_before_filer_test")
-        wftc = pl.when(eligible).then(pl.min_horizontal(float(c["match"]) * federal_credit, statax.clip(0, None))).otherwise(0.0)
+        federal_credit = pl.col("eitc") if behavior.pay_missouri_working_family_credit_by_statute else pl.col("eitc_before_filer_test") / flate
+        # The credit is nonrefundable and the property tax credit refundable (Form MO-1040 takes the nonrefundable
+        # credits first), so the credit is limited to the tax before the property tax credit, in both modes.
+        tax_limit = tax_before_property_credit
+        wftc = pl.when(eligible).then(pl.min_horizontal(float(c["match"]) * federal_credit, tax_limit.clip(0, None))).otherwise(0.0)
         statax = statax - wftc
 
     detail_stded = fed_zbr
