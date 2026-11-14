@@ -8,7 +8,7 @@ behavior is not actually wrong (a modelling choice, or a rule the inputs cannot 
 TAXSIM's behavior in both modes: the switch is removed (a switch exists only to let TAXSIM mode override the correct behavior to reproduce a bug) and listed at the end.
 
 - Switches: 448. Logic errors (no confirmation needed): 298. Parameter errors verified against a primary
-  source: 16; partly verified: 10; still to verify: 124. Switch removed because TAXSIM's behavior
+  source: 16; partly verified: 12; still to verify: 122. Switch removed because TAXSIM's behavior
   is not a bug: 2.
 - Switches whose flip changes at least one household in the sample: 165. The rest change nobody in the sample.
 
@@ -122,7 +122,7 @@ confirmed in part; **unverified** = a parameter error whose published value has 
 | `credit_iowa_dependents_before_1998` | logic | IA | 17/200 | 31 | logic | dependents credited, head of household once. | Found by reading TAXSIM's source; no form or statute check needed |
 | `compute_new_mexico_deductions_per_statute` | logic | NM | 3/200 | 155 | logic | the existing deduction rules. | Found by reading TAXSIM's source; no form or statute check needed |
 | `add_back_iowa_self_employment_tax_twice` | logic | IA | 4/200 | 115 | logic | published. | Found by reading TAXSIM's source; no form or statute check needed |
-| `apply_federal_investment_income_limit_to_wisconsin_eitc_per_statute` | parameter | WI | 1/200 | 440 | unverified | the federal limit. |  |
+| `apply_federal_investment_income_limit_to_wisconsin_eitc_per_statute` | parameter | WI | 1/200 | 440 | partial | the federal limit. | Wisconsin's EITC is a share of the federal credit, and the federal disqualified investment income limit is $10,000 for 2021 and $10,300 for 2022 (IRC 32(i), Rev. Proc. 2020-45 and 2021-45, from memory, documents not opened this session), not TAXSIM's $3,650 / $3,800; checked 2026-11-13 |
 | `count_new_mexico_aged_once_in_rebate` | logic | NM | 12/200 | 37 | logic | once. | Found by reading TAXSIM's source; no form or statute check needed |
 | `split_missouri_joint_income_by_earner_only` | logic | MO | 14/200 | 31 | logic | by earner only. | Found by reading TAXSIM's source; no form or statute check needed |
 | `pay_utah_retirement_credit_per_statute` | parameter | UT | 2/200 | 216 | logic | aged taxpayers, plus a Social Security credit. | Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters |
@@ -132,7 +132,7 @@ confirmed in part; **unverified** = a parameter error whose published value has 
 | `weight_falling_tables_correctly` | parameter | all | 38/2040 | 9 | logic |  | Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters |
 | `exclude_delaware_pensions_by_statute_from_2024` | parameter | DE | 1/200 | 341 | logic | the earlier routine. | Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters |
 | `compute_maryland_itemized_deduction_from_2018_per_statute` | parameter | MD | 1/200 | 340 | logic | whole state tax. | Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters |
-| `start_oklahoma_joint_top_bracket_per_statute` | parameter | OK | 15/200 | 22 | unverified | $14,400. |  |
+| `start_oklahoma_joint_top_bracket_per_statute` | parameter | OK | 15/200 | 22 | partial | $14,400. | A tax-prep summary of the 2024 Form 511 schedule puts the joint 4.75% bracket at over $14,400 with $307 base tax, and the base is consistent with the lower joint brackets ($224.50 at $12,200 plus 3.75% of the next $2,200 = $307); the official Form 511 table was not retrieved; checked 2026-11-13 |
 | `round_up_phaseout_steps` | parameter | all | 7/2040 | 46 | logic | in whole steps. | Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters |
 | `compute_iowa_tax_from_2023_per_statute` | logic | IA | 1/200 | 297 | logic | published. | Found by reading TAXSIM's source; no form or statute check needed |
 | `omit_vermont_student_credit` | logic | VT | 31/200 | 10 | logic | none (TAXSIM has no student input). | Found by reading TAXSIM's source; no form or statute check needed |

@@ -7,6 +7,10 @@ add_kansas_aged_and_dependent_standard_deduction_per_statute:
   source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
     it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
   status: logic
+apply_federal_investment_income_limit_to_wisconsin_eitc_per_statute:
+  source: Wisconsin's EITC is a share of the federal credit, and the federal disqualified investment income limit is $10,000 for 2021 and $10,300 for 2022 (IRC 32(i), Rev. Proc. 2020-45 and 2021-45, from
+    memory, documents not opened this session), not TAXSIM's $3,650 / $3,800; checked 2026-11-13
+  status: partial
 apply_kentucky_pension_exclusion_schedule:
   source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
     it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
@@ -307,6 +311,10 @@ start_ohio_business_deduction_per_statute:
   source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
     it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
   status: logic
+start_oklahoma_joint_top_bracket_per_statute:
+  source: A tax-prep summary of the 2024 Form 511 schedule puts the joint 4.75% bracket at over $14,400 with $307 base tax, and the base is consistent with the lower joint brackets ($224.50 at $12,200 plus
+    3.75% of the next $2,200 = $307); the official Form 511 table was not retrieved; checked 2026-11-13
+  status: partial
 step_alabama_dependent_exemption_per_statute:
   source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
     it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
