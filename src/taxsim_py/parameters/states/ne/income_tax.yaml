@@ -162,7 +162,10 @@ zero_bracket:
 # minimum; below it the bracket rate applies when taxable income is under
 # `additional_tax_agi_share` of AGI above the threshold.
 # Each band steps by fixed amounts over the first bound; 1996 single and 1997
-# joint correct TAXSIM's typos ($297,950 and $575,950). The 2017 inflation
+# joint correct TAXSIM's typos ($297,950 and $575,950). Kept without a form (none was
+# found for 1996 or 1997) because every other year's bounds follow the same yearly
+# step (3,250 a year in 1995-1997) and TAXSIM's two values break it (297,950 is 10,000
+# above the step; 575,950 is the 1993 value repeated). Change them if a form disagrees. The 2017 inflation
 # factor is 1.046 as in every other state (TAXSIM: 1.08).
 additional_tax_bounds:
   single:

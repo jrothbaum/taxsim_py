@@ -716,7 +716,7 @@ use_nebraska_high_income_tables_per_statute:
     / 29,830, 2022 3,440 / 20,590 / 33,180, 2023 3,700 / 22,170 / 35,730), which are now the statutory parameters for 2015-2021 too (statutory mode had the 2014 table times an index, up to $4 off; TAXSIM
     keeps that scaling) and the TAXSIM 2022-23 unrounded tables are not the published ones; the 2017 itemized limit factor 1.046 is the federal 2017 threshold ratio (261,500 / 250,000), not TAXSIM''s 1.08;
     the 1996 single and 1997 joint additional tax bounds follow the constant yearly step of every other year''s table (TAXSIM''s 297,950 and 575,950 break it), but no 1996 or 1997 Nebraska form was available
-    to confirm them; checked 2026-11-14'
+    to confirm them; checked 2026-11-14; the two unconfirmed 1996-97 values are kept in statutory mode on purpose (decision 2026-11-14), because TAXSIM''s break the fixed yearly step every other year follows'
   status: partial
 use_nebraska_published_social_security_limit_per_statute:
   source: 'Census Bureau Federal and State Tax Parameter Workbook TY2025, NE sheet NESSCUT1/2: the Social Security deduction AGI limit is 49,310 single / 66,510 joint for 2023 and none from 2024 (limit
