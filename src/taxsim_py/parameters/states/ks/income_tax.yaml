@@ -155,7 +155,7 @@ homestead_reduction_schedule:
 # From 1997: property tax (up to `homestead_property_tax_cap`) times a share
 # by income ([income, share] interpolated) below the income limit.
 homestead_property_tax_cap: {1997: 600, 2007: 700}
-homestead_refund_income_limit: {1997: 25001, 2004: 26301, 2005: 27001, 2006: 28001, 2007: 29101, 2008: 29701, 2009: 31301, 2010: 30801, 2011: 31201, 2012: 32401, 2013: 32901, 2014: 33401, 2015: 34001, 2016: 34101, 2017: 34451, 2018: 35000, 2019: 35700, 2020: 36300, 2021: 36600}
+homestead_refund_income_limit: {1997: 25001, 2004: 26301, 2005: 27001, 2006: 28001, 2007: 29101, 2008: 29701, 2009: 31301, 2010: 30801, 2011: 31201, 2012: 32401, 2013: 32901, 2014: 33401, 2015: 34001, 2016: 34101, 2017: 34451, 2018: 35000, 2019: 35700, 2020: 36300, 2021: 36600, 2022: 37751, 2023: 40501, 2024: 42601, 2025: 43390}
 homestead_refund_share:
   1997:
     - [3001, 1.0]
@@ -207,7 +207,7 @@ homestead_refund_share:
 # From 2008, property tax relief for low-income seniors replaces it: this
 # share of property tax when household income is under the limit.
 senior_property_relief_share: {2008: 0.45, 2011: 0.75}
-senior_property_relief_income_limit: {2008: 16800, 2009: 17500, 2011: 17700, 2012: 18200, 2013: 18600, 2014: 18900, 2015: 19100, 2016: 19200, 2017: 19500, 2018: 19800, 2019: 20300, 2020: 20700, 2021: 20900}
+senior_property_relief_income_limit: {2008: 16800, 2009: 17500, 2011: 17700, 2012: 18200, 2013: 18600, 2014: 18900, 2015: 19100, 2016: 19200, 2017: 19500, 2018: 19800, 2019: 20300, 2020: 20700, 2021: 20900, 2022: 22000, 2023: 23700, 2024: 24500, 2025: 25380}
 
 # Food sales tax refund. Through 1985: `amount` per taxpayer 65 or older (up
 # to the number of exemptions) at household income up to `income_limit`.

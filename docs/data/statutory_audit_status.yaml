@@ -48,6 +48,11 @@ limit_arkansas_low_income_table_to_its_range:
 pay_kansas_credits_per_statute:
   source: ''
   status: unverified
+pay_kansas_homestead_refund_from_2007_per_statute:
+  source: 'Kansas Dept of Revenue K-40H booklets 2008-2025 (ksrevenue.gov/pdf/k-40hbookYY.pdf): refund is a percentage of property tax, maximum $700, income limit by year (29,700 in 2008 ... 36,600 in 2021,
+    37,750 / 40,500 / 42,600 / 43,389 for 2022-2025), percentage table identical to the 1997-2021 rows in the parameters (100% to 6,000 down to 5%); senior relief income limits 16,800 (2008) ... 25,380
+    (2025). The 2022-2025 limits were missing from the parameters and were added; checked 2026-11-13'
+  status: verified
 pay_minnesota_property_tax_refund_through_2023:
   source: Minnesota Form M-1PR (homestead credit refund, renter's property tax refund) is a real refundable credit in these years; the refund tables have not been compared line by line; checked 2026-11-13
   status: partial
