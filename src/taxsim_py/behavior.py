@@ -346,6 +346,7 @@ class BehaviorProfile:
     suspend_kentucky_itemized_limitation_through_2012: bool = True
     exclude_separate_returns_from_massachusetts_exemption_carryover: bool = True
     allow_massachusetts_child_care_deduction_2011_2020: bool = True
+    cap_massachusetts_2022_household_dependent_credit_per_statute: bool = True
     include_self_employment_in_household_income: bool = True
     apply_michigan_retirement_tiers: bool = True
     pay_minnesota_homemaker_credit_to_nondependents: bool = True

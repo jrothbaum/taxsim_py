@@ -80,7 +80,7 @@ def compute_or_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         taxbc = pl.col("regular_tax")
         fed_ccc = pl.col("federal_chcr")
         # Nonrefundable federal credits (`comnew(58)`).
-        fed_credit = pl.col("nonrefundable_credits")
+        fed_credit = pl.col("reported_nonrefundable_credits")
 
     # --- Federal tax subtraction, limited by AGI ---
     fedtax = (taxbc - fed_credit).clip(0, None)

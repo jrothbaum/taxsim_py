@@ -50,6 +50,7 @@ PROJECTED_YEAR_DEFLATED_COLUMNS = (
     "earned_income", "federal_earned_income", "eitc", "federal_chcr", "federal_elder", "fica", "fiitax", "gssi", "intrec",
     "itemized_before_limit", "itemized_deduction", "ltcg", "ltg", "making_work_pay", "mortgage", "nonprop",
     "nonrefundable_credits",
+    "reported_nonrefundable_credits",
     "odc", "otheritem", "otherprop", "pensions", "personal_exemptions", "pre1987_amex", "pre1987_capgn",
     "pre1987_chcr", "pre1987_deduc", "pre1987_pref", "proptax", "psemp", "pui", "pwages", "qbi_deduction", "regular_tax", "senior_deduction",
     "rentpaid", "salt_capped", "schedule_tax", "se_adjustment", "ssemp", "standard_deduction",

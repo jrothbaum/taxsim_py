@@ -726,6 +726,10 @@ use_massachusetts_2020_part_c_rate_per_statute:
   source: 'Massachusetts 2020 Form 1 instructions (mass.gov 2020-form-1-instructions) and the 2020 Form 2: effective for tax years beginning on or after January 1, 2020 the rate on most classes of income,
     including Part C, is 5%, so the 5.05% TAXSIM applies in 2020 is the 2019 rate; checked 2026-11-13'
   status: verified
+cap_massachusetts_2022_household_dependent_credit_per_statute:
+  source: 'Massachusetts 2021 Form 1 instructions and the tax expenditure budget: the Household Dependent Tax Credit is $180 for one dependent and $360 for two or more; TAXSIM 2022 pays $180 for each child under 13
+    with no limit; the 2022 instructions text was not retrieved; checked 2026-11-14'
+  status: partial
 use_minnesota_2012_joint_working_family_thresholds:
   source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
     it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters

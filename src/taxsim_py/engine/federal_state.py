@@ -32,8 +32,8 @@ _PRE1987_ONLY = (
     "pre1987_deduc", "pre1987_earncr", "pre1987_pref", "pre1987_pretax", "pre1987_taxbc", "pre1987_twoded",
 )
 _LAW87_ONLY = (
-    "actc", "amt", "amt_income", "niit", "cares", "economic_stimulus_rebate", "ccc", "ccc_uncapped", "charity_cash", "eitc", "eitc_before_age_test", "eitc_before_filer_test", "eitc_investment_disqualified",
-    "federal_elder", "itemized_before_limit", "nonrefundable_credits", "itemized_deduction", "ltg", "making_work_pay", "odc",
+    "actc", "amt", "amt_income", "niit", "cares", "economic_stimulus_rebate", "ccc", "ccc_uncapped", "charity_cash", "eitc", "eitc_before_age_test", "eitc_before_filer_test", "eitc_age_tested_before_filer_test", "eitc_investment_disqualified", "eitc_investment_income",
+    "federal_elder", "itemized_before_limit", "nonrefundable_credits", "reported_nonrefundable_credits", "itemized_deduction", "ltg", "making_work_pay", "odc",
     "personal_exemptions", "qbi_deduction", "salt_capped", "schedule_tax", "se_adjustment", "setax",
     "standard_deduction", "tax_before_credits",
 )

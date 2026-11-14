@@ -1157,6 +1157,7 @@ def _credits(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorProfi
     # Investment income above the annual limit disqualifies the credit entirely.
     eitc = eitc_ordinary
     eitc_investment_disqualified = pl.lit(0.0)
+    eitc_investment_income = pl.lit(0.0)
     if year >= 1996:
         dylim = float(resolve_year(FEDERAL_EITC_PARAMS_MISC["dylim"], year))
         disqy = _capital_gain(year).clip(0, None) + _dividends() + pl.col("intrec")
@@ -1166,17 +1167,21 @@ def _credits(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorProfi
         if not behavior.count_business_and_professional_inputs_as_income:
             # The 2026 TAXSIM build counts these memo items and S corporation income here.
             disqy = disqy + pl.col("pbusinc") + pl.col("sbusinc") + pl.col("scorp").clip(0, None)
+        eitc_investment_income = disqy
         eitc = pl.when(disqy > dylim).then(0.0).otherwise(eitc)
         eitc_investment_disqualified = pl.when(disqy > dylim).then(1.0).otherwise(0.0)
     childless = pl.col("num_children") == 0
     eitc_before_filer_test = eitc
+    # The credit that passes the minimum-age test but not the filer-status test (Missouri's working family credit).
+    eitc_age_tested_before_filer_test = pl.when(eitc_age_eligible(childless, year, behavior)).then(eitc).otherwise(0.0)
     eitc = pl.when(eitc_filer_eligible(childless, year)).then(eitc).otherwise(0.0)
     # The credit before the minimum-age test (`comnew(188)`, read by Maine).
     eitc_before_age_test = eitc
     eitc = pl.when(eitc_age_eligible(childless, year, behavior)).then(eitc).otherwise(0.0)
     df = df.with_columns(
         eitc=eitc, eitc_before_age_test=eitc_before_age_test, eitc_before_filer_test=eitc_before_filer_test,
-        eitc_investment_disqualified=eitc_investment_disqualified,
+        eitc_age_tested_before_filer_test=eitc_age_tested_before_filer_test,
+        eitc_investment_disqualified=eitc_investment_disqualified, eitc_investment_income=eitc_investment_income,
     )
     if analytic_rate:
         df = df.with_columns(analytic_eitc_income=phaseout_income)
@@ -1252,6 +1257,7 @@ def _credits(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorProfi
     tcja_reduction = ((agi - odc_threshold_expr).clip(0, None) / 1000) * odc_rate_per_1000
     combined_after_phaseout = (combined_base - tcja_reduction).clip(0, None)
 
+    uncapped_nonrefundable_credit = None
     if enhanced:
         # Fully refundable.
         nonrefundable_credit = pl.lit(0.0)
@@ -1286,6 +1292,7 @@ def _credits(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorProfi
             signed_credit = signed_credit.clip(0, None)
         remaining_after_ccc = (pl.col("tax_before_credits") - pl.col("ccc") - pl.col("elderly_credit_raw")).clip(0, None)
         nonrefundable_credit = pl.min_horizontal(signed_credit, remaining_after_ccc)
+        uncapped_nonrefundable_credit = nonrefundable_credit
         if year in (2022, 2023) and ctc_p.in_effect("actc_max_refundable_per_child") and not (
             behavior.cap_nonrefundable_child_credit_at_three_children_refundable_maximum_per_statute
         ):
@@ -1354,6 +1361,8 @@ def _credits(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorProfi
     df = df.with_columns(
         odc=nonrefundable_credit,
         actc=actc,
+        # What TAXSIM reports as its nonrefundable credit total (`comnew(58)`) before the 2022-23 cap on the split.
+        reported_child_credit=nonrefundable_credit if uncapped_nonrefundable_credit is None else uncapped_nonrefundable_credit,
     )
     if analytic_rate:
         df = df.with_columns(analytic_ctc=combined_after_phaseout, analytic_ctc_phasing=agi > odc_threshold_expr)
@@ -1425,7 +1434,10 @@ def _net_tax(df: pl.DataFrame | pl.LazyFrame, year: int, behavior: BehaviorProfi
         nonrefundable_credits = pl.col("elderly_credit")
     else:
         nonrefundable_credits = pl.col("ccc") + pl.col("elderly_credit") + pl.col("odc")
-    df = df.with_columns(nonrefundable_credits=nonrefundable_credits)
+    df = df.with_columns(
+        nonrefundable_credits=nonrefundable_credits,
+        reported_nonrefundable_credits=nonrefundable_credits - pl.col("odc") + pl.col("reported_child_credit") if year in (2022, 2023) else nonrefundable_credits,
+    )
 
     # Recovery rebate credits (economic impact payments).
     credits_p = YearParams(FEDERAL_CREDITS_PARAMS, year)

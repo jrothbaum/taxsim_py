@@ -396,13 +396,17 @@ def compute_ma_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         credit = p.value("personal_credit")
         scred = credit["per_taxpayer"] * n_tp + credit["per_dependent"] * pl.col("depx")
 
+    credit_dependents = ndep
+    if y == 2022 and not behavior.cap_massachusetts_2022_household_dependent_credit_per_statute:
+        # TAXSIM's 2022 routine pays $180 for every child under 13 (no limit of two, other dependents excluded).
+        credit_dependents = pl.col("dep13").floor()
     statax = (pretax - (ntscr + txcr + scred)).clip(0, None)
     if y >= 1997:
         statax = statax - p.num("eitc_rate") * pl.col("eitc")
     if p.in_effect("child_and_family_credit_per_child"):
         statax = statax - p.num("child_and_family_credit_per_child") * pl.col("dep13")
     elif p.in_effect("dependent_credit_per_dependent"):
-        statax = statax - pl.max_horizontal(chcred, ndep * p.num("dependent_credit_per_dependent"))
+        statax = statax - pl.max_horizontal(chcred, credit_dependents * p.num("dependent_credit_per_dependent"))
 
     # Senior circuit breaker credit (2001+, refundable).
     cbcred = pl.lit(0.0)
@@ -430,8 +434,8 @@ def compute_ma_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         state_chcr = pl.lit(0.0)
     elif p.in_effect("dependent_credit_per_dependent"):
         per_dependent = p.num("dependent_credit_per_dependent")
-        dependent_credit = pl.max_horizontal(chcred, ndep * per_dependent)
-        state_chcr = pl.when(chcred > ndep * per_dependent).then(chcred).otherwise(0.0)
+        dependent_credit = pl.max_horizontal(chcred, credit_dependents * per_dependent)
+        state_chcr = pl.when(chcred > credit_dependents * per_dependent).then(chcred).otherwise(0.0)
     else:
         dependent_credit = pl.lit(0.0)
         state_chcr = pl.lit(0.0)
