@@ -8,7 +8,7 @@ behavior is not actually wrong (a modelling choice, or a rule the inputs cannot 
 TAXSIM's behavior in both modes: the switch is removed (a switch exists only to let TAXSIM mode override the correct behavior to reproduce a bug) and listed at the end.
 
 - Switches: 448. Logic errors (no confirmation needed): 224. Parameter errors verified against a primary
-  source: 9; partly verified: 10; still to verify: 205. Switch removed because TAXSIM's behavior
+  source: 10; partly verified: 10; still to verify: 204. Switch removed because TAXSIM's behavior
   is not a bug: 2.
 - Switches whose flip changes at least one household in the sample: 165. The rest change nobody in the sample.
 
@@ -47,7 +47,7 @@ confirmed in part; **unverified** = a parameter error whose published value has 
 | `file_kentucky_combined_returns_per_statute` | logic | KY | 45/200 | 131 | partial | the higher earner's wages plus half the other income. | Allocating non-wage income between spouses on a combined return is a modelling convention, so TAXSIM's split was not shown wrong; to be moved to KEEP_TAXSIM_BEHAVIOR once the Rust engine can run TAXSIM's split (not yet ported); 2026-11-14 |
 | `pay_kansas_homestead_refund_from_2007_per_statute` | parameter | KS | 11/200 | 502 | verified | the refund. | Kansas Dept of Revenue K-40H booklets 2008-2025 (ksrevenue.gov/pdf/k-40hbookYY.pdf): refund is a percentage of property tax, maximum $700, income limit by year (29,700 in 2008 ... 36,600 in 2021, 37,750 / 40,500 / 42,600 / 43,389 for 2022-2025), percentage table identical to the 1997-2021 rows in the parameters (100% to 6,000 down to 5%); senior relief income limits 16,800 (2008) ... 25,380 (2025). The 2022-2025 limits were missing from the parameters and were added; checked 2026-11-13 |
 | `compute_missouri_itemized_deduction_before_2018` | logic | MO | 11/200 | 452 | logic | itemized. | Found by reading TAXSIM's source; no form or statute check needed |
-| `leave_missouri_federal_tax_deduction_uncapped_before_1994` | parameter | MO | 14/200 | 343 | unverified | published. |  |
+| `leave_missouri_federal_tax_deduction_uncapped_before_1994` | parameter | MO | 14/200 | 343 | verified | published. | RSMo 143.171 (as amended; text quoted in Missouri bills such as SB 806 (2014) and HB 571 (2017)): the $5,000 per-individual cap applies to tax years beginning on or after January 1, 1994, so earlier years are uncapped as statutory mode computes; checked 2026-11-13 |
 | `compute_delaware_before_1996_per_statute` | parameter | DE | 17/200 | 278 | unverified | the rules of each year. |  |
 | `allow_west_virginia_disability_deduction` | logic | WV | 5/200 | 936 | logic | under 65 with taxable Social Security. | Found by reading TAXSIM's source; no form or statute check needed |
 | `compute_new_jersey_tax_per_statute` | parameter | NJ | 39/200 | 117 | unverified | the published rules (the code before this change). |  |

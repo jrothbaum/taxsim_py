@@ -38,6 +38,10 @@ floor_child_credit_phaseout_at_zero:
 keep_itemized_inputs_when_taking_standard_deduction:
   source: 'IRC 63(b), (e): a taxpayer who elects the standard deduction takes no itemized deductions; checked 2026-11-13'
   status: verified
+leave_missouri_federal_tax_deduction_uncapped_before_1994:
+  source: 'RSMo 143.171 (as amended; text quoted in Missouri bills such as SB 806 (2014) and HB 571 (2017)): the $5,000 per-individual cap applies to tax years beginning on or after January 1, 1994, so
+    earlier years are uncapped as statutory mode computes; checked 2026-11-13'
+  status: verified
 leave_out_one_time_state_rebates:
   source: Rebates are payments by the state, not tax liability, so statutory mode leaves them out by design; not a legal question
   status: partial
