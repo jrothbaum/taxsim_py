@@ -885,7 +885,8 @@ def compute_mn_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         second = (fed_agi - float(t24["start"]) - float(t24["range"])).clip(0, None)
         reduction = pl.min_horizontal(0.03 * first + 0.1 * second, 0.8 * base)
         reduction = pl.when(fed_agi > float(t24["top"])).then(0.8 * base).otherwise(reduction)
-        xitded = pl.when(fed_itemizes).then((base - reduction).clip(0, None)).otherwise(0.0)
+        # Minnesota lets a filer itemize whatever the federal choice (Form M1 instructions), and so does TAXSIM.
+        xitded = (base - reduction).clip(0, None)
     df, (stded, xitded, exemp) = checkpoint(df, mn_stded=stded, mn_xitded=xitded, mn_exemp=exemp)
     deduc = pl.max_horizontal(stded, xitded)
     taxinc = agi - deduc - exemp
@@ -1078,10 +1079,14 @@ def compute_mn_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         single = pl.lit("single")
         x1 = _schedule_tax(xl11, fedtax, single, y, True, behavior.use_minnesota_published_brackets_from_2022)
         x2 = _schedule_tax((taxinc - xl11).clip(0, None), fedtax, single, y, True, behavior.use_minnesota_published_brackets_from_2022)
-        statm = pl.when(
-            (taxinc < p.num("marriage_credit_min_taxable_income")) | (earn < p.num("marriage_credit_min_earnings"))
-        ).then(0.0).otherwise(statax)
-        crmar = pl.min_horizontal(pl.lit(p.num("marriage_credit_max")), (statm - (x1 + x2)).clip(0, None))
+        credit_max, min_earnings, min_taxinc = p.num("marriage_credit_max"), p.num("marriage_credit_min_earnings"), p.num("marriage_credit_min_taxable_income")
+        if not behavior.compute_minnesota_marriage_credit_earnings_per_statute:
+            # TAXSIM's typed 2024-25 amounts are stale or off by one against the published ones (Schedule M1MA).
+            credit_max = p.num("taxsim_marriage_credit_max") if p.in_effect("taxsim_marriage_credit_max") else credit_max
+            min_earnings = p.num("taxsim_marriage_credit_min_earnings") if p.in_effect("taxsim_marriage_credit_min_earnings") else min_earnings
+            min_taxinc = p.num("taxsim_marriage_credit_min_taxable_income") if p.in_effect("taxsim_marriage_credit_min_taxable_income") else min_taxinc
+        statm = pl.when((taxinc < min_taxinc) | (earn < min_earnings)).then(0.0).otherwise(statax)
+        crmar = pl.min_horizontal(pl.lit(credit_max), (statm - (x1 + x2)).clip(0, None))
         credit = credit + pl.when(is_joint).then(crmar).otherwise(0.0)
 
     df, (credit,) = checkpoint(df, mn_credit=credit)

@@ -765,6 +765,12 @@ marriage_credit_max:
   2019: 1508
   2020: 1533
   2021: 1548
+  2022: 1596
+  2023: 1710
+  2024: 1801
+  2025: 1851
+# TAXSIM's typed 2024 and 2025 maximum (1,802 for both) is not the published one.
+taxsim_marriage_credit_max: {2024: 1802}
 marriage_credit_min_earnings:
   1999: 14000
   2000: 14250
@@ -779,6 +785,12 @@ marriage_credit_min_earnings:
   2016: 23000
   2019: 25000
   2021: 26000
+  2022: 26000
+  2023: 28000
+  2024: 30000
+  2025: 31000
+# TAXSIM keeps the 2024 amount in 2025.
+taxsim_marriage_credit_min_earnings: {2025: 30000}
 marriage_credit_min_taxable_income:
   1999: 25000
   2000: 25680
@@ -795,6 +807,12 @@ marriage_credit_min_taxable_income:
   2017: 38000
   2019: 39000
   2020: 40000
+  2022: 40000
+  2023: 44000
+  2024: 47000
+  2025: 48000
+# TAXSIM keeps the 2023 amount in 2024 and 2025.
+taxsim_marriage_credit_min_taxable_income: {2024: 44000}
 marriage_credit_self_employment_share: {1999: 0.5}
 # TAXSIM's share of each spouse's business income (the net earnings factor) in the marriage credit's earnings.
 taxsim_marriage_credit_business_share: {1999: 0.9235}
