@@ -148,7 +148,6 @@ class BehaviorProfile:
     scale_kansas_zero_tax_income_by_taxpayers_per_statute: bool = True
     reconstruct_connecticut_minimum_tax_income_per_statute: bool = True
     exclude_transfers_from_connecticut_income_per_statute: bool = True
-    use_published_minnesota_2025_aged_addition_per_statute: bool = True
     halve_minnesota_motor_fuels_credit_for_separate_returns_per_statute: bool = True
     use_published_minnesota_dependent_standard_deduction_per_statute: bool = True
     add_earnings_to_district_of_columbia_dependent_standard_deduction_per_statute: bool = True

@@ -796,11 +796,6 @@ def compute_mn_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             )
             + by_filer(_sub(aged_add, "single", y), _sub(aged_add, "married", y), _sub(aged_add, "single", y)) * aged
         ) / sep
-        if p.in_effect("taxsim_standard_deduction_aged_addition_married") and not behavior.use_published_minnesota_2025_aged_addition_per_statute:
-            # TAXSIM keeps the 2024 amount for married returns.
-            stded = stded - pl.when(is_joint).then(
-                (_sub(aged_add, "married", y) - float(p.num("taxsim_standard_deduction_aged_addition_married"))) * aged / sep
-            ).otherwise(0.0)
     taxsim_reduction = not behavior.reduce_minnesota_deductions_per_statute and p.in_effect("taxsim_deduction_reduction_start")
     if taxsim_reduction:
         # TAXSIM (2019-2022): 3% of federal AGI above its own start, at most 80% of the standard deduction.

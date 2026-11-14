@@ -446,9 +446,7 @@ standard_deduction_aged_addition:
     2022: 1350
     2023: 1450
     2024: 1550
-    2025: 1600
-# TAXSIM's married aged addition for 2025 (the 2024 amount).
-taxsim_standard_deduction_aged_addition_married: {2025: 1550}
+    2025: 1550
 # From 2018 a dependent filer's standard deduction is at most the larger of this
 # and earned income plus the addition.
 dependent_standard_deduction_floor: {2018: 1050}
