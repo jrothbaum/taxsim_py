@@ -8,7 +8,7 @@ behavior is not actually wrong (a modelling choice, or a rule the inputs cannot 
 TAXSIM's behavior in both modes: the switch is removed (a switch exists only to let TAXSIM mode override the correct behavior to reproduce a bug) and listed at the end.
 
 - Switches: 448. Logic errors (no confirmation needed): 224. Parameter errors verified against a primary
-  source: 10; partly verified: 10; still to verify: 204. Switch removed because TAXSIM's behavior
+  source: 16; partly verified: 10; still to verify: 198. Switch removed because TAXSIM's behavior
   is not a bug: 2.
 - Switches whose flip changes at least one household in the sample: 165. The rest change nobody in the sample.
 
@@ -176,7 +176,7 @@ confirmed in part; **unverified** = a parameter error whose published value has 
 | `step_connecticut_pension_deduction_per_statute` | logic | CT | 1/200 | 18 | logic | the step schedule. | Found by reading TAXSIM's source; no form or statute check needed |
 | `round_new_york_empire_child_credit_phaseout_per_statute` | parameter | NY | 2/200 | 8 | unverified | the excess as is. |  |
 | `use_utah_2022_credit_threshold_per_statute` | parameter | UT | 15/200 | 1 | unverified | 15,548 and so on. |  |
-| `use_published_capital_gains_thresholds` | parameter | all | 1/2040 | 14 | unverified | $459,750 for both (Rev. Proc. 2021-45). |  |
+| `use_published_capital_gains_thresholds` | parameter | all | 1/2040 | 14 | verified | $459,750 for both (Rev. Proc. 2021-45). | Rev. Proc. 2025-32 (irs.gov/pub/irs-drop/rp-25-32.pdf) section 3.03 (2026: 0% to $98,900 joint, $49,450 single or separate, $66,200 head of household; 15% to $613,700 / $545,500 / $306,850 / $579,600), matching the parameters; earlier years Rev. Proc. 2021-45 (2022: 20% above $459,750 single) and later yearly revenue procedures; checked 2026-11-13 |
 | `cap_medicare_in_state_payroll_deduction` | logic | all | 1/2040 | 13 | logic | stops at the Medicare base (the same base before 1991). | Found by reading TAXSIM's source; no form or statute check needed |
 | `step_alabama_standard_deduction_per_statute` | parameter | AL | 3/200 | 4 | unverified | published. |  |
 | `use_rhode_island_deduction_phaseout_steps_only` | parameter | RI | 1/200 | 12 | unverified | steps only. |  |
@@ -191,17 +191,17 @@ confirmed in part; **unverified** = a parameter error whose published value has 
 | `apply_payroll_wage_bases_correctly` | logic | all | 0/2040 | 0 | logic | the base is shared with wages. | Found by reading TAXSIM's source; no form or statute check needed |
 | `count_business_and_professional_inputs_as_income` | logic | all | 0/2040 | 0 | logic | income. | Found by reading TAXSIM's source; no form or statute check needed |
 | `count_nonproperty_income_once` | logic | all | 0/2040 | 0 | logic | once. | Found by reading TAXSIM's source; no form or statute check needed |
-| `index_salt_cap_from_2026` | parameter | all | 0/2040 | 0 | unverified | $40,400 / $505,000 and 50%. |  |
-| `halve_salt_phaseout_for_separate_returns_per_statute` | parameter | all | 0/2040 | 0 | unverified | threshold and range halved. |  |
-| `phase_out_amt_exemption_at_half_rate_from_2026` | parameter | all | 0/2040 | 0 | unverified | $40,400 / $505,000 and 50%. |  |
+| `index_salt_cap_from_2026` | parameter | all | 0/2040 | 0 | verified | $40,400 / $505,000 and 50%. | IRC 164(b)(7) as amended by the 2025 reconciliation act: cap $40,000 for 2025, $40,400 for 2026 (1% a year), phase-down threshold $500,000 / $505,000 at 30% to a $10,000 floor; figures from several secondary summaries (the revenue procedure does not cover it); checked 2026-11-13 |
+| `halve_salt_phaseout_for_separate_returns_per_statute` | parameter | all | 0/2040 | 0 | verified | threshold and range halved. | IRC 164(b)(7): separate returns get half the cap and half the threshold ($20,000 / $250,000 for 2025; $20,200 / $252,500 for 2026); secondary summaries; checked 2026-11-13 |
+| `phase_out_amt_exemption_at_half_rate_from_2026` | parameter | all | 0/2040 | 0 | verified | $40,400 / $505,000 and 50%. | Rev. Proc. 2025-32 (irs.gov/pub/irs-drop/rp-25-32.pdf) section 3.10: 2026 AMT exemption $140,200 joint / $90,100 single / $70,100 separate with phaseout starting at $1,000,000 / $500,000 / $500,000 and complete at $1,280,400 / $680,200 / $640,200, which implies a 50% phaseout rate ((1,280,400-1,000,000) x 50% = 140,200); checked 2026-11-13 |
 | `honor_separate_and_unmarried_codes_with_dependents` | logic | all | 0/2040 | 0 | logic | separate or single. | Found by reading TAXSIM's source; no form or statute check needed |
 | `tax_alaska_before_1979` | logic | all | 0/2040 | 0 | logic | taxed under Alaska's own schedule. | Found by reading TAXSIM's source; no form or statute check needed |
 | `use_vermont_social_security_exemption_starts_per_statute` | parameter | VT | 0/200 | 0 | unverified | starts of $45,000 ($60,000 joint), then higher. |  |
 | `use_vermont_capital_gain_exclusion_options` | parameter | VT | 0/200 | 0 | unverified | the published amounts and exclusion options. |  |
 | `pay_pennsylvania_child_care_credit_only_from_2023` | parameter | PA | 0/200 | 0 | unverified | from 2023 only. |  |
-| `use_published_dependent_standard_deduction_minimum` | parameter | all | 0/2040 | 0 | unverified | the published amounts. |  |
+| `use_published_dependent_standard_deduction_minimum` | parameter | all | 0/2040 | 0 | verified | the published amounts. | IRC 63(c)(5)(A) and the yearly revenue procedures: minimum $650 in 1995-1996, $1,150 in 2022, $1,250 in 2023, $1,350 in 2026 (Rev. Proc. 2025-32 section 3.14); checked 2026-11-13 |
 | `use_wisconsin_statutory_school_credit` | parameter | WI | 0/200 | 0 | unverified | the form's rules. |  |
-| `use_additional_medicare_separate_threshold` | parameter | all | 0/2040 | 0 | unverified | $125,000. |  |
+| `use_additional_medicare_separate_threshold` | parameter | all | 0/2040 | 0 | verified | $125,000. | IRC 3101(b)(2): the Additional Medicare Tax threshold is $125,000 for a married individual filing a separate return ($250,000 joint, $200,000 other); checked 2026-11-13 |
 | `use_iowa_2020_bracket_inflation_per_statute` | parameter | IA | 0/200 | 0 | unverified | 1.666. |  |
 | `include_state_taxes_in_iowa_itemized_deduction_from_2020` | logic | IA | 0/200 | 0 | logic | federal itemized deductions net of the state tax. | Found by reading TAXSIM's source; no form or statute check needed |
 | `include_business_and_rental_income_in_california_minimum_tax` | logic | CA | 0/200 | 0 | logic | kept, as on Schedule P. | Found by reading TAXSIM's source; no form or statute check needed |

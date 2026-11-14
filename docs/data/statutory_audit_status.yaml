@@ -35,6 +35,13 @@ file_kentucky_combined_returns_per_statute:
 floor_child_credit_phaseout_at_zero:
   source: 'IRC 24(b): the credit is reduced by $50 per $1,000 of income over the threshold and cannot go below zero (it is a reduction of the credit amount); checked 2026-11-13'
   status: verified
+halve_salt_phaseout_for_separate_returns_per_statute:
+  source: 'IRC 164(b)(7): separate returns get half the cap and half the threshold ($20,000 / $250,000 for 2025; $20,200 / $252,500 for 2026); secondary summaries; checked 2026-11-13'
+  status: verified
+index_salt_cap_from_2026:
+  source: 'IRC 164(b)(7) as amended by the 2025 reconciliation act: cap $40,000 for 2025, $40,400 for 2026 (1% a year), phase-down threshold $500,000 / $505,000 at 30% to a $10,000 floor; figures from several
+    secondary summaries (the revenue procedure does not cover it); checked 2026-11-13'
+  status: verified
 keep_itemized_inputs_when_taking_standard_deduction:
   source: 'IRC 63(b), (e): a taxpayer who elects the standard deduction takes no itemized deductions; checked 2026-11-13'
   status: verified
@@ -64,6 +71,10 @@ pay_new_york_empire_child_credit_per_statute:
   source: 'NY Tax Dept Empire State child credit page and IT-213 instructions: 330 per child at least 4 and under 17, with children under 4 added at 330 before 2025 and 1,000 from 2025; phase-out over 75,000
     / 110,000. The pre-2018 statutory rules (which years counted children under 4 and 4-16) were not compared line by line; checked 2026-11-13'
   status: partial
+phase_out_amt_exemption_at_half_rate_from_2026:
+  source: 'Rev. Proc. 2025-32 (irs.gov/pub/irs-drop/rp-25-32.pdf) section 3.10: 2026 AMT exemption $140,200 joint / $90,100 single / $70,100 separate with phaseout starting at $1,000,000 / $500,000 / $500,000
+    and complete at $1,280,400 / $680,200 / $640,200, which implies a 50% phaseout rate ((1,280,400-1,000,000) x 50% = 140,200); checked 2026-11-13'
+  status: verified
 subtract_state_tax_in_georgia_itemized_deduction:
   source: 'Georgia Form 500 and Schedule 1 (IT-511 booklet): state income tax claimed on federal Schedule A is added back, and Georgia keeps a 10,000 SALT limit; confirmed from Georgia DOR forms and Intuit/TurboTax
     expert answers, IT-511 text itself not read; checked 2026-11-13'
@@ -71,6 +82,9 @@ subtract_state_tax_in_georgia_itemized_deduction:
 tax_nebraska_before_1987_per_statute:
   source: 'Nebraska Legislature, individual income tax chronology (nebraskalegislature.gov/app_rev/source/chrono_incometax.htm): through 1986 the tax was a percentage of federal liability, 18/16/18/15/15/18/20/19/20/19%
     for 1977-86, identical to federal_tax_share in ne/income_tax.yaml; checked 2026-11-13'
+  status: verified
+use_additional_medicare_separate_threshold:
+  source: 'IRC 3101(b)(2): the Additional Medicare Tax threshold is $125,000 for a married individual filing a separate return ($250,000 joint, $200,000 other); checked 2026-11-13'
   status: verified
 use_colorado_statutory_sales_tax_refund:
   source: 'Senior housing credit: Colorado DOR page (tax.colorado.gov/income-qualified-senior-housing-income-tax-credit) and HB22-1205 summary (leg.colorado.gov): $1,000 (2022) / $800 (2024) refundable
@@ -84,3 +98,10 @@ use_maine_year_standard_deduction:
   source: 'Maine 2012 1040ME booklet and conformity summary: Maine conformed its standard deduction to the federal amount from 2012; earlier years used Maine''s own amounts (joint 9,800 against 15,000 under
     conformity in the fiscal summary). The amounts statutory mode uses for 1989-2011 are not yet compared with the Maine booklets; checked 2026-11-13'
   status: partial
+use_published_capital_gains_thresholds:
+  source: 'Rev. Proc. 2025-32 (irs.gov/pub/irs-drop/rp-25-32.pdf) section 3.03 (2026: 0% to $98,900 joint, $49,450 single or separate, $66,200 head of household; 15% to $613,700 / $545,500 / $306,850 /
+    $579,600), matching the parameters; earlier years Rev. Proc. 2021-45 (2022: 20% above $459,750 single) and later yearly revenue procedures; checked 2026-11-13'
+  status: verified
+use_published_dependent_standard_deduction_minimum:
+  source: 'IRC 63(c)(5)(A) and the yearly revenue procedures: minimum $650 in 1995-1996, $1,150 in 2022, $1,250 in 2023, $1,350 in 2026 (Rev. Proc. 2025-32 section 3.14); checked 2026-11-13'
+  status: verified
