@@ -452,6 +452,12 @@ phase_out_oregon_federal_tax_limit_in_steps:
   source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
     it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
   status: logic
+phase_out_washington_working_families_credit_per_statute:
+  source: 'RCW 82.08.0206(3) (app.leg.wa.gov): maximum $300 / $600 / $900 / $1,200 (indexed from 2024, rounded to $5), reduced starting $2,500 (no children) or $5,000 below the federal phase-out income,
+    at rates adjusted each year so that the minimum $50 is reached at the maximum qualifying income, rounded to the dollar; amounts for 2025 $335 / $660 / $995 / $1,330 and income ceilings $19,104 / $50,434
+    / $57,310 / $61,555 single and $26,214 / $57,554 / $64,430 / $68,675 joint from the Department of Revenue (workingfamiliescredit.wa.gov/eligibility and its January 2026 announcement); TAXSIM types its
+    own phase-out rates (0.120 / 0.120 / 0.180 / 0.240 in 2025) and the 2025 amounts were missing from the parameters (added); checked 2026-11-14'
+  status: verified
 read_montana_elderly_credit_multiplier_per_statute:
   source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
     it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters

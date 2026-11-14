@@ -214,7 +214,7 @@ impl StateCalc {
             Self::Va(p) => va::tax(i, f, p),
             Self::Vt(p) => vt::tax(i, f, p),
             Self::Tn(p) => tn::tax(i, p),
-            Self::Wa(p) => wa::tax(f, p),
+            Self::Wa(p) => wa::tax(i, f, p),
             Self::Wi(p) => wi::tax(i, f, p),
             Self::Wv(p) => wv::tax(i, f, p),
         }

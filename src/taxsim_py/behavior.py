@@ -75,6 +75,7 @@ class BehaviorProfile:
     use_age_qualified_children_for_dc_eitc: bool = True
     apply_illinois_exemption_income_limit: bool = True
     add_washington_working_families_credit: bool = True
+    phase_out_washington_working_families_credit_per_statute: bool = True
     allow_kansas_itemizing_after_2020: bool = True
     deduct_kansas_other_taxes_per_statute: bool = True
     pay_kansas_homestead_refund_from_2007_per_statute: bool = True

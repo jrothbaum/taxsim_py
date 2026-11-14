@@ -3,12 +3,30 @@
 # state income tax; TAXSIM computes no Washington tax.
 #
 # Sources: RCW 82.08.0206 and PolicyEngine-US `gov.states.wa.tax.income`.
+# 2026 repeats the 2025 amounts and ceilings (the Department has not published 2026 ones); TAXSIM mode instead runs 2025 law on
+# deflated incomes.
+law_coded_through: 2026
 
 # Maximum credit by number of EITC children (0, 1, 2, 3 or more), from 2022.
 working_families_credit_amount:
   2022: [300, 600, 900, 1200]
   2023: [315, 625, 940, 1255]
   2024: [325, 640, 965, 1290]
+  2025: [335, 660, 995, 1330]
+# Income ceilings (the federal EITC maximum qualifying income) by number of children (0 to 3), single filers and joint
+# filers, from the Department of Revenue's eligibility page (workingfamiliescredit.wa.gov/eligibility).
+working_families_credit_income_ceiling:
+  2022: {single: [16480, 43492, 49399, 53057], joint: [22610, 49622, 55529, 59187]}
+  2023: {single: [17640, 46560, 52918, 56838], joint: [24210, 53120, 59478, 63398]}
+  2024: {single: [18591, 49084, 55768, 59899], joint: [25511, 56004, 62688, 66819]}
+  2025: {single: [19104, 50434, 57310, 61555], joint: [26214, 57554, 64430, 68675]}
+# TAXSIM's phase-out rates per dollar (RCW 82.08.0206(3)(b) says 18, 12, 15 and 18 percent, adjusted each year so the minimum
+# credit is reached at the ceiling; TAXSIM types its own).
+taxsim_working_families_credit_phaseout_rate:
+  2022: [0.134, 0.132, 0.199, 0.266]
+  2023: [0.130, 0.128, 0.193, 0.258]
+  2024: [0.126, 0.125, 0.188, 0.251]
+  2025: [0.120, 0.120, 0.180, 0.240]
 # The credit starts to fall this far below the federal EITC income ceiling.
 working_families_credit_phaseout_start_below_ceiling: [2500, 5000, 5000, 5000]
 # A positive reduced credit is never below this amount.
