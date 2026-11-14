@@ -374,6 +374,11 @@ use_colorado_statutory_sales_tax_refund:
 use_form_8995a_qbi_streams:
   source: IRS Form 8995-A and its instructions (qualified business income by trade or business, separate W-2 wage and UBIA limits); checked 2026-11-13
   status: verified
+use_louisiana_brackets_per_statute:
+  source: '2021 Louisiana Tax Table (IT540TT, NBER copy of the Department of Revenue form) and revenue.louisiana.gov: rates 2/4/6% with breakpoints $12,500 / $50,000 single and $25,000 / $100,000 joint,
+    applied after the combined exemption-standard deduction ($4,500 single, $9,000 joint and head of household). The table''s head of household rows (for example $415 at $21,000-$21,250 with one exemption)
+    equal 2% to $3,500 then 4%, matching the statutory $3,500 / $41,000, not TAXSIM''s single-filer $8,000 / $45,500 (which gives $325); the single table matches TAXSIM; checked 2026-11-13'
+  status: verified
 use_maine_current_deductions_when_itemizing:
   source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
     it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
