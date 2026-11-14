@@ -105,7 +105,6 @@ class BehaviorProfile:
     apply_kentucky_pension_exclusion_schedule: bool = True
     step_kentucky_family_size_credit_by_poverty_share: bool = True
     limit_kentucky_itemized_deductions_to_mortgage_interest: bool = True
-    double_kentucky_standard_deduction_for_joint_returns: bool = True
     file_kentucky_combined_returns_per_statute: bool = True
     deduct_massachusetts_employee_payroll_tax_per_spouse: bool = True
     count_capital_gains_in_dc_childless_eitc_investment_income: bool = True
@@ -495,15 +494,7 @@ class BehaviorProfile:
     report_social_security_taxable_earnings: bool = True
 
 
-# Switches where TAXSIM's behavior has not been shown to be wrong, so statutory mode keeps it: statutory mode departs from
-# TAXSIM only where TAXSIM contradicts a form, a statute, or its own source (an unset variable, a typo). Every name
-# here is read as its TAXSIM value in both modes; docs/statutory_audit.md says why each one is listed.
-KEEP_TAXSIM_BEHAVIOR = frozenset(
-    {
-        "double_kentucky_standard_deduction_for_joint_returns",
-    }
-)
-STATUTORY_BEHAVIOR = BehaviorProfile(**{name: False for name in KEEP_TAXSIM_BEHAVIOR})
+STATUTORY_BEHAVIOR = BehaviorProfile()
 # Switches whose TAXSIM error was fixed by the 2026 build (taxsim_2026_11_09.f):
 # TAXSIM mode now keeps the statutory value for them.
 FIXED_IN_2026_BUILD = frozenset(

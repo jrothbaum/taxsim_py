@@ -5,12 +5,12 @@ the errors found by reading TAXSIM's source and testing it, so each is a known b
 in TAXSIM's tables differs from the published value, need a source to confirm the published number. **Logic errors**
 (a variable never set, a typo in a condition, a result overwritten) need nothing more. Where a check shows TAXSIM's
 behavior is not actually wrong (a modelling choice, or a rule the inputs cannot decide), statutory mode is moved back to
-TAXSIM's behavior and the switch is listed at the end (`KEEP_TAXSIM_BEHAVIOR` in `behavior.py`).
+TAXSIM's behavior in both modes: the switch is removed (a switch exists only to let TAXSIM mode override the correct behavior to reproduce a bug) and listed at the end.
 
-- Switches: 449. Logic errors (no confirmation needed): 224. Parameter errors verified against a primary
-  source: 8; partly verified: 9; still to verify: 207. Moved back to
-  TAXSIM's behavior: 2.
-- Switches whose flip changes at least one household in the sample: 166. The rest change nobody in the sample.
+- Switches: 448. Logic errors (no confirmation needed): 224. Parameter errors verified against a primary
+  source: 8; partly verified: 9; still to verify: 207. Switch removed because TAXSIM's behavior
+  is not a bug: 2.
+- Switches whose flip changes at least one household in the sample: 165. The rest change nobody in the sample.
 
 How the impact was measured: for each switch, statutory mode is run on CPS households (40 per state, law years 1985, 2000,
 2012, 2022 and 2025) with only that switch set to TAXSIM's behavior. "Changed" counts households whose federal or state tax moves by more than $1;
@@ -41,11 +41,10 @@ confirmed in part; **unverified** = a parameter error whose published value has 
 | `use_colorado_statutory_sales_tax_refund` | parameter | CO | 54/200 | 161 | unverified | none. |  |
 | `pay_new_york_empire_child_credit_per_statute` | parameter | NY | 18/200 | 481 | partial | children 4-16. | NY Tax Dept Empire State child credit page and IT-213 instructions: 330 per child at least 4 and under 17, with children under 4 added at 330 before 2025 and 1,000 from 2025; phase-out over 75,000 / 110,000. The pre-2018 statutory rules (which years counted children under 4 and 4-16) were not compared line by line; checked 2026-11-13 |
 | `remove_state_tax_from_west_virginia_itemized_deductions` | logic | WV | 9/200 | 905 | logic | removed. | Found by reading TAXSIM's source; no form or statute check needed |
-| `double_kentucky_standard_deduction_for_joint_returns` | logic | KY | 57/200 | 135 | kept_taxsim | a standard deduction per taxpayer and the higher earner's wages plus half the other income. | Kentucky Form 740 gives one standard deduction amount by year that does not vary by filing status; no source found that a joint return takes two, so TAXSIM's one-per-return was not shown wrong. Statutory mode now uses it (switch kept in KEEP_TAXSIM_BEHAVIOR); 2026-11-14 |
 | `count_colorado_credit_children_per_statute` | parameter | CO | 4/200 | 1543 | partial | children under 6 and 6-16 with the flat formula. | Colorado DOR child tax credit page and Family Affordability Tax Credit coverage: FATC up to 3,200 per child under 6 and 2,400 per child 6-16 in 2024 and 2025, phase-out 85,000 single / 95,000 joint; CTC AGI limits 75,000/85,000 (2024) and 77,000/87,000 (2025); numbers from news and agency summaries, not the DR 0104CN text; checked 2026-11-13 |
 | `count_other_property_income_in_eitc_disqualified_income_per_statute` | logic | all | 1/2040 | 6015 | verified | counted in every year. | IRC 32(i)(2): disqualified income includes interest, dividends, net rent and royalty income, capital gain net income and passive activity income, so other property income counts in every year; checked 2026-11-13 |
 | `split_montana_joint_returns_per_statute` | logic | MT | 24/200 | 250 | logic | higher earner plus a share. | Found by reading TAXSIM's source; no form or statute check needed |
-| `file_kentucky_combined_returns_per_statute` | logic | KY | 45/200 | 131 | partial | a standard deduction per taxpayer and the higher earner's wages plus half the other income. | Allocating non-wage income between spouses on a combined return is a modelling convention, so TAXSIM's split was not shown wrong; to be moved to KEEP_TAXSIM_BEHAVIOR once the Rust engine can run TAXSIM's split (not yet ported); 2026-11-14 |
+| `file_kentucky_combined_returns_per_statute` | logic | KY | 45/200 | 131 | partial | the higher earner's wages plus half the other income. | Allocating non-wage income between spouses on a combined return is a modelling convention, so TAXSIM's split was not shown wrong; to be moved to KEEP_TAXSIM_BEHAVIOR once the Rust engine can run TAXSIM's split (not yet ported); 2026-11-14 |
 | `pay_kansas_homestead_refund_from_2007_per_statute` | parameter | KS | 11/200 | 502 | unverified | the refund. |  |
 | `compute_missouri_itemized_deduction_before_2018` | logic | MO | 11/200 | 452 | logic | itemized. | Found by reading TAXSIM's source; no form or statute check needed |
 | `leave_missouri_federal_tax_deduction_uncapped_before_1994` | parameter | MO | 14/200 | 343 | unverified | published. |  |
@@ -473,9 +472,9 @@ confirmed in part; **unverified** = a parameter error whose published value has 
 | `report_base_state_worksheet` | logic | all | 0/2040 | 0 | logic | drops the $1 and reports the base calculation. | Found by reading TAXSIM's source; no form or statute check needed |
 | `report_social_security_taxable_earnings` | logic | all | 0/2040 | 0 | logic | reports both earners' wages plus 92.35% of net business income, each capped at the wage base. | Found by reading TAXSIM's source; no form or statute check needed |
 
-## Statutory mode keeps TAXSIM's behavior
+## Switches removed: TAXSIM's behavior is not a bug
 
 | Switch | Why |
 |:--|:--|
-| `double_kentucky_standard_deduction_for_joint_returns` | Kentucky Form 740 gives one standard deduction amount by year that does not vary by filing status; no source found that a joint return takes two, so TAXSIM's one-per-return was not shown wrong. Statutory mode now uses it (switch kept in KEEP_TAXSIM_BEHAVIOR); 2026-11-14 |
+| `double_kentucky_standard_deduction_for_joint_returns` | Kentucky Form 740 gives one standard deduction amount by year that does not vary by filing status; no source found that a joint return takes two, so TAXSIM's one-per-return was not shown wrong. Statutory mode now uses it (switch removed); 2026-11-14 |
 | `exempt_pennsylvania_pensions_from_age_65_per_statute` | Pennsylvania exempts retirement distributions from the plan's retirement age (REV-636) with no fixed age and no per-person rule the inputs can apply, so TAXSIM's reading (a couple's pension to the spouse 55 or older, exempt from 60) is a defensible implementation and was not shown wrong. Statutory mode now uses it; the switch was removed; 2026-11-14 |

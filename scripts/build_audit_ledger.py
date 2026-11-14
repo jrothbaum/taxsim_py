@@ -51,7 +51,7 @@ def statutory_side(switch: str) -> str:
 live = {f.name for f in fields(BehaviorProfile)}
 frame = [r for r in impact.sort("stake", descending=True).to_dicts() if r["switch"] in live]
 counts = {"logic": 0, "verified": 0, "corrected": 0, "partial": 0, "kept_taxsim": 0, "unverified": 0}
-kept = {k: v for k, v in status.items() if v["status"] == "kept_taxsim"}
+kept = {k: v for k, v in status.items() if v["status"] == "no_switch"}
 counts["kept_taxsim"] = len(kept)
 lines = []
 for r in frame:
@@ -59,7 +59,7 @@ for r in frame:
     typ = kind(r["switch"])
     if entry["status"] == "unverified" and typ == "logic":
         entry = {"status": "logic", "source": "Found by reading TAXSIM's source; no form or statute check needed"}
-    if entry["status"] != "kept_taxsim":
+    if entry["status"] != "no_switch":
         counts[entry["status"]] += 1
     lines.append(
         f"| `{r['switch']}` | {typ} | {r['states']} | {r['changed']}/{r['units']} | {r['mean_abs_change_if_changed']:.0f} "
@@ -74,11 +74,11 @@ the errors found by reading TAXSIM's source and testing it, so each is a known b
 in TAXSIM's tables differs from the published value, need a source to confirm the published number. **Logic errors**
 (a variable never set, a typo in a condition, a result overwritten) need nothing more. Where a check shows TAXSIM's
 behavior is not actually wrong (a modelling choice, or a rule the inputs cannot decide), statutory mode is moved back to
-TAXSIM's behavior and the switch is listed at the end (`KEEP_TAXSIM_BEHAVIOR` in `behavior.py`).
+TAXSIM's behavior in both modes: the switch is removed (a switch exists only to let TAXSIM mode override the correct behavior to reproduce a bug) and listed at the end.
 
 - Switches: {total}. Logic errors (no confirmation needed): {counts['logic']}. Parameter errors verified against a primary
-  source: {counts['verified']}; partly verified: {counts['partial']}; still to verify: {counts['unverified']}. Moved back to
-  TAXSIM's behavior: {counts['kept_taxsim']}.
+  source: {counts['verified']}; partly verified: {counts['partial']}; still to verify: {counts['unverified']}. Switch removed because TAXSIM's behavior
+  is not a bug: {counts['kept_taxsim']}.
 - Switches whose flip changes at least one household in the sample: {changed}. The rest change nobody in the sample.
 
 How the impact was measured: for each switch, statutory mode is run on CPS households (40 per state, law years 1985, 2000,
@@ -92,6 +92,6 @@ confirmed in part; **unverified** = a parameter error whose published value has 
 
 | Switch | Type | States | Households changed | Average change ($) | Status | Statutory side | Source |
 |:--|:--:|:--:|:--:|--:|:--:|:--|:--|
-""" + "\n".join(lines) + "\n\n## Statutory mode keeps TAXSIM's behavior\n\n| Switch | Why |\n|:--|:--|\n" + "\n".join(f"| `{k}` | {v['source']} |" for k, v in sorted(kept.items())) + "\n"
+""" + "\n".join(lines) + "\n\n## Switches removed: TAXSIM's behavior is not a bug\n\n| Switch | Why |\n|:--|:--|\n" + "\n".join(f"| `{k}` | {v['source']} |" for k, v in sorted(kept.items())) + "\n"
 (ROOT / "docs/statutory_audit.md").write_text(page)
 print(counts)

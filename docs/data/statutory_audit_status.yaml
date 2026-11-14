@@ -1,4 +1,4 @@
-# Verdicts for the statutory side of each switch (status: verified | corrected | partial | kept_taxsim | unverified).
+# Verdicts for the statutory side of each switch (status: logic | verified | partial | unverified | no_switch).
 count_colorado_credit_children_per_statute:
   source: 'Colorado DOR child tax credit page and Family Affordability Tax Credit coverage: FATC up to 3,200 per child under 6 and 2,400 per child 6-16 in 2024 and 2025, phase-out 85,000 single / 95,000
     joint; CTC AGI limits 75,000/85,000 (2024) and 77,000/87,000 (2025); numbers from news and agency summaries, not the DR 0104CN text; checked 2026-11-13'
@@ -15,8 +15,8 @@ count_vermont_child_credit_by_statutory_age:
   status: verified
 double_kentucky_standard_deduction_for_joint_returns:
   source: Kentucky Form 740 gives one standard deduction amount by year that does not vary by filing status; no source found that a joint return takes two, so TAXSIM's one-per-return was not shown wrong.
-    Statutory mode now uses it (switch kept in KEEP_TAXSIM_BEHAVIOR); 2026-11-14
-  status: kept_taxsim
+    Statutory mode now uses it (switch removed); 2026-11-14
+  status: no_switch
 exclude_hawaii_pensions:
   source: 'Hawaii Schedule J instructions: pension distributions after 1997 are exempt to the extent attributable to employer contributions; the part traceable to the employee''s own contributions is taxable.
     Statutory mode excludes all of the pension input, which overstates the exemption when part of the pension is employee-funded (the inputs cannot say); checked 2026-11-13'
@@ -27,7 +27,7 @@ exclude_transfers_from_provisional_income:
 exempt_pennsylvania_pensions_from_age_65_per_statute:
   source: Pennsylvania exempts retirement distributions from the plan's retirement age (REV-636) with no fixed age and no per-person rule the inputs can apply, so TAXSIM's reading (a couple's pension to
     the spouse 55 or older, exempt from 60) is a defensible implementation and was not shown wrong. Statutory mode now uses it; the switch was removed; 2026-11-14
-  status: kept_taxsim
+  status: no_switch
 file_kentucky_combined_returns_per_statute:
   source: Allocating non-wage income between spouses on a combined return is a modelling convention, so TAXSIM's split was not shown wrong; to be moved to KEEP_TAXSIM_BEHAVIOR once the Rust engine can run
     TAXSIM's split (not yet ported); 2026-11-14

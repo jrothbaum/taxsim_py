@@ -92,9 +92,9 @@ def compute_ky_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
 
     # --- Standard deduction ---
     ded_pf = p.num("standard_deduction")
-    doubled = p.value("standard_deduction_per_taxpayer") and behavior.double_kentucky_standard_deduction_for_joint_returns
-    stded_count = pl.col("ky_taxpayers") if doubled else pl.lit(1.0)
-    df = df.with_columns(ky_stded=ded_pf * stded_count)
+    # One standard deduction per return: Kentucky's amount does not vary by filing status, and TAXSIM's reading was not
+    # shown to be wrong, so there is a single behavior in both modes.
+    df = df.with_columns(ky_stded=pl.lit(ded_pf))
 
     # --- Itemized deduction ---
     if effective_year <= 1986:

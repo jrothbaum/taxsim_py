@@ -35,11 +35,9 @@ retirement_exclusion_share: {1995: 0.25, 1996: 0.5, 1997: 0.75, 1998: 1.0}
 retirement_exclusion_cap: {1995: 6250, 1996: 12500, 1997: 18750, 1998: 35000, 1999: 35700, 2000: 36414, 2001: 37500, 2002: 38775, 2003: 39400, 2004: 40200, 2005: 41110, 2018: 31110}
 
 # --- Deductions ---
-# Standard deduction, per taxpayer until 2022 (one per return from 2022,
-# Form 740 instructions). Source for 2022 on: PolicyEngine-US
-# gov.states.ky.tax.income.deductions.standard.
+# Standard deduction, one per return (Form 740 instructions; the amount does not vary by filing status). Source for 2022
+# on: PolicyEngine-US gov.states.ky.tax.income.deductions.standard.
 standard_deduction: {1977: 650, 1997: 900, 1998: 1200, 1999: 1500, 2000: 1700, 2001: 1750, 2002: 1800, 2003: 1830, 2004: 1870, 2005: 1910, 2006: 1970, 2007: 2050, 2008: 2100, 2009: 2190, 2010: 2210, 2011: 2240, 2012: 2290, 2013: 2360, 2014: 2400, 2015: 2440, 2016: 2460, 2017: 2480, 2018: 2530, 2019: 2590, 2020: 2650, 2021: 2690, 2022: 2770, 2023: 2980, 2024: 3160, 2025: 3270, 2026: 3360}
-standard_deduction_per_taxpayer: {1977: true, 2022: false}
 # 1991-2017 itemized limitation: `itemized_phaseout_rate` of AGI above the
 # threshold (times `itemized_limitation_index`, halved on separate
 # returns), at most `itemized_phaseout_cap_rate` of itemized deductions,
