@@ -382,3 +382,5 @@ See `docs/state_2026_parameters.md` for the full verification table. Open items:
 
 
 - Wisconsin 2023 married separate: a typo (`82.89d9` for `82.89d0`) in the bracket table made the oracle's tax hugely negative. Patched in `build_oracle.sh`.
+
+- **Minnesota exemption phase-out start rounding (2023-2025).** The statutory start is 100,000 times the index times the status multiplier, unrounded (2023 joint 330,975); Minnesota publishes the starts rounded to 50 (330,950; head of household 275,800 against 275,812.50). The itemized-deduction limit start uses the single value and also differs slightly from the exemption start in 2024 (232,500 against 232,550). Effect: a phase-out that begins at most $25 earlier or later. Fix by storing the published starts in the parameters (Python and Rust). Source: Census Bureau parameter workbook TY2025, MN sheet (MNEXLIM, MNSTDLIM).

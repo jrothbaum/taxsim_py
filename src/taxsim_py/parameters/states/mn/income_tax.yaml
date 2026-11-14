@@ -449,12 +449,12 @@ standard_deduction_aged_addition:
     2025: 1550
 # From 2018 a dependent filer's standard deduction is at most the larger of this
 # and earned income plus the addition.
-dependent_standard_deduction_floor: {2018: 1050}
-dependent_standard_deduction_earned_addition: {2018: 350}
+dependent_standard_deduction_floor: {2018: 1050, 2025: 1250}
+dependent_standard_deduction_earned_addition: {2018: 350, 2025: 350}
 # TAXSIM's limits for a dependent filer from 2024.
 taxsim_dependent_standard_deduction:
   2024: {floor: 1300, earned_addition: 400}
-  2025: {floor: 1250, earned_addition: 350}
+  2025: null
 # From 2018 state and local taxes are deductible up to this amount (halved on
 # separate returns).
 salt_cap: {2018: 10000}

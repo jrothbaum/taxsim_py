@@ -2,6 +2,11 @@
 add_back_minnesota_unemployment_exclusion_to_working_family_income_per_statute:
   source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or tested wrongly); the row in statutory_corrections.md describes it. No form check needed
   status: logic
+add_connecticut_recapture_per_statute:
+  source: 'Census Bureau Federal and State Tax Parameter Workbook TY2025, CT sheet (2023-25): tax rate phase-out add-back starts at 56,500 single / 100,500 joint / 78,500 head of household with steps of
+    20 / 40 / 32 per 5,000 (2023) and 25 / 50 / 40 (2024-25), recapture starts 200,000 / 400,000 / 320,000 (2023) and 105,000 / 210,000 / 168,000 (2024-25); equal to the statutory parameters; 2011-2022
+    not in the workbook; checked 2026-11-13'
+  status: partial
 add_idaho_aged_standard_deduction_in_projected_years_per_statute:
   source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
     it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
@@ -415,6 +420,11 @@ phase_out_amt_exemption_at_half_rate_from_2026:
 phase_out_connecticut_pension_deduction_per_statute:
   source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or tested wrongly); the row in statutory_corrections.md describes it. No form check needed
   status: logic
+phase_out_minnesota_exemptions_per_statute:
+  source: 'Census Bureau Federal and State Tax Parameter Workbook TY2025, MN sheet MNEXLIM1/2/4: 2023 start 220,650 single / 330,950 joint / 275,800 head of household, 2024 232,550 / 348,850 / 290,700,
+    2025 239,050 / 358,550 / 298,800; the statutory starts are 100,000 times the index times the status multiplier, equal for single and within $25 (joint) and $12.50 (head of household) of the published
+    values because Minnesota rounds to 50; TAXSIM''s own scaling is further off; the rounding gap is logged in pending_issues.md; checked 2026-11-13'
+  status: partial
 phase_out_oregon_federal_tax_limit_in_steps:
   source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
     it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
@@ -484,9 +494,9 @@ start_ohio_business_deduction_per_statute:
     it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
   status: logic
 start_oklahoma_joint_top_bracket_per_statute:
-  source: A tax-prep summary of the 2024 Form 511 schedule puts the joint 4.75% bracket at over $14,400 with $307 base tax, and the base is consistent with the lower joint brackets ($224.50 at $12,200 plus
-    3.75% of the next $2,200 = $307); the official Form 511 table was not retrieved; checked 2026-11-13
-  status: partial
+  source: 'Census Bureau Federal and State Tax Parameter Workbook TY2025, OK sheet OKTCUT2: joint and head of household brackets end at 12,200 for 2023 and 14,400 for 2024 and 2025 (Form 511 schedules),
+    so the statutory 14,400 from 2024 is right and TAXSIM''s 12,200 is stale; checked 2026-11-13'
+  status: verified
 start_wisconsin_head_of_household_third_tier_per_statute:
   source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or tested wrongly); the row in statutory_corrections.md describes it. No form check needed
   status: logic
@@ -584,6 +594,10 @@ use_colorado_statutory_sales_tax_refund:
     to 65+, reduced per $500 of AGI over $25,000, halved per spouse on joint returns, exactly TAXSIM''s formula, so it is now computed in both modes (no switch). The other parts (sales tax refund steps
     vs interpolation, 2000-01 child credit age) are TAXSIM logic; checked 2026-11-13'
   status: partial
+use_connecticut_personal_credit_table_per_statute:
+  source: 'Census Bureau Federal and State Tax Parameter Workbook TY2025, CT sheet (2023): personal credit starts at 15,000 / 24,000 / 19,000 with rate 0.75 falling 0.05 per 500 of AGI to 0.14 then 0.01
+    per 500 (CRAT1, CRAT2, INITCR1, OFFSET), the statutory table; 1991-2022 not in the workbook; checked 2026-11-13'
+  status: partial
 use_current_federal_standard_deduction_for_south_carolina_addback:
   source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or tested wrongly); the row in statutory_corrections.md describes it. No form check needed
   status: logic
@@ -640,6 +654,11 @@ use_maine_year_standard_deduction:
   source: 'Maine 2012 1040ME booklet and conformity summary: Maine conformed its standard deduction to the federal amount from 2012; earlier years used Maine''s own amounts (joint 9,800 against 15,000 under
     conformity in the fiscal summary). The amounts statutory mode uses for 1989-2011 are not yet compared with the Maine booklets; checked 2026-11-13'
   status: partial
+use_maryland_published_2025_tax_table_per_statute:
+  source: 'Census Bureau Federal and State Tax Parameter Workbook TY2025, MD sheet MDTXCUT1/2 and MDTXRAT (2025): rates 2 / 3 / 4 / 4.75 / 5 / 5.25 / 5.5 / 5.75 / 6.25 / 6.5% with single brackets at 1,000
+    / 2,000 / 3,000 / 100,000 / 125,000 / 150,000 / 250,000 / 500,000 / 1,000,000 and joint at 150,000 / 175,000 / 225,000 / 300,000 / 600,000 / 1,200,000, the statutory brackets; the statutory tax is computed
+    from these rates, so TAXSIM''s +0.50 and -40 table constants are errors; checked 2026-11-13'
+  status: verified
 use_minnesota_2012_joint_working_family_thresholds:
   source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
     it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
@@ -661,6 +680,10 @@ use_nebraska_published_social_security_limit_per_statute:
 use_net_long_term_gain_in_rhode_island:
   source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or tested wrongly); the row in statutory_corrections.md describes it. No form check needed
   status: logic
+use_new_mexico_low_income_rebate_per_statute:
+  source: 'Census Bureau Federal and State Tax Parameter Workbook TY2025, NM sheet NMLOWCUT/LOWREB (2023-25): the rebate steps by income and exemptions (211 / 238 / 222 / 200 ... 16 for one exemption in
+    2023; 218 ... in 2024; 224 ... in 2025) equal the statutory step tables; 2022 is not in the workbook; checked 2026-11-13'
+  status: partial
 use_new_mexico_published_child_tax_credit:
   source: 'Census Bureau Federal and State Tax Parameter Workbook TY2025, NM sheet NMCTCCUT/NMCTCAMT: 600 / 400 / 200 / 100 / 75 / 50 / 25 (2023), 622 / 414 / 207 / 103 / 77 / 51 / 25 (2024), 637 / 424
     / 212 / 106 / 79 / 53 / 26 (2025) at AGI thresholds 25,000 / 50,000 / 75,000 / 100,000 / 200,000 / 350,000; equal to the statutory parameters (TAXSIM interpolates an indexed 2023 table); checked 2026-11-13'
@@ -705,6 +728,11 @@ use_published_minnesota_2025_aged_addition_per_statute:
     before January 2, 1961): the married aged addition is $1,550 in 2025, which is what TAXSIM has; the statutory parameters had the federal $1,600, so they were corrected and the switch removed; checked
     2026-11-13'
   status: no_switch
+use_published_minnesota_dependent_standard_deduction_per_statute:
+  source: 'Minnesota Department of Revenue 2025 guidance: a dependent''s standard deduction is the greater of $1,250 or earned income plus $350 (up to the single amount), which is what TAXSIM has for 2025,
+    so the statutory parameters were corrected for 2025 (they had 1,050 and 350); the 2024 figures ($1,300 and $400 in TAXSIM, $1,050 and $350 in the parameters) and 2019-2023 are not confirmed, the worksheet
+    text for those years was not retrievable; checked 2026-11-13'
+  status: partial
 use_published_north_dakota_brackets_from_2024:
   source: 'Census Bureau Federal and State Tax Parameter Workbook TY2025, ND sheet NDTCUT1/2/4: single 44,725 / 225,975 (2023), 47,150 / 238,200 (2024), 48,475 / 244,825 (2025); joint 74,750 / 275,100,
     78,775 / 289,975, 80,975 / 298,075; head of household 59,950 / 250,550, 63,175 / 264,100, 64,950 / 271,450; rates 1.95% and 2.5%; equal to the statutory parameters (TAXSIM scales a 2023 price index);
@@ -714,6 +742,10 @@ use_rhode_island_deduction_phaseout_steps_only:
   source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
     it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
   status: logic
+use_rhode_island_published_brackets:
+  source: 'Census Bureau Federal and State Tax Parameter Workbook TY2025, RI sheet RITCUT1 (2023-25): 73,450 / 166,950, 77,450 / 176,050, 79,900 / 181,650 with rates 3.75 / 4.75 / 5.99%, equal to the statutory
+    parameters; the 2011-2022 published brackets are not in the workbook; checked 2026-11-13'
+  status: partial
 use_utah_2022_credit_threshold_per_statute:
   source: 'Census Bureau Federal and State Tax Parameter Workbook TY2025, UT sheet (PHASE4 head of household phase-out base: 2025 $27,320, the published amount, not TAXSIM''s 27,318.60; 2023 PHASE1/2/4:
     16,742 / 33,484 / 25,114; 2024: 17,652 / 35,304 / 26,478). The 2022 amounts (15,548 and so on) are not in that workbook and were not checked against the TC-40; checked 2026-11-13'
