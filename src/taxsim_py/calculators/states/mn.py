@@ -918,8 +918,18 @@ def compute_mn_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             p.num("charity_subtraction_rate") * (cash - p.num("charity_subtraction_floor")).clip(0, None)
         ).otherwise(0.0)
     if not behavior.subtract_minnesota_elderly_and_charity_from_income:
-        # The 2026 build computes these two subtractions and never applies them.
+        # The 2026 build computes the charitable subtraction and, through 2023, the elderly one, and never applies them. From
+        # 2024 (`mntax24`) it applies the elderly subtraction from its own formula: a maximum (9,600 for a single return, 12,000
+        # otherwise, including a head of household and a separate return) less nontaxable Social Security and half
+        # of federal AGI over 14,500 (18,000 for a joint return with two aged filers).
         subrac = pl.lit(0.0)
+        if y >= 2024:
+            # The routine caps its status code at 2 before it halves for separate returns, so those are not halved.
+            start = pl.when(is_joint & (aged >= 2)).then(18000.0).otherwise(14500.0)
+            maximum = pl.when(pl.col("filing_status") == "single").then(9600.0).otherwise(12000.0)
+            nontaxable = pl.col("gssi") - pl.col("taxable_social_security")
+            taxsim_elderly = (maximum - nontaxable - 0.5 * (fed_agi - start).clip(0, None)).clip(0, None)
+            subrac = pl.when(aged > 0).then(taxsim_elderly).otherwise(0.0)
     # 2017+ Social Security subtraction.
     if y >= 2017:
         ss_taxable = pl.col("taxable_social_security")
