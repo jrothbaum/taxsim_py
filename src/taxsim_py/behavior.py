@@ -353,6 +353,7 @@ class BehaviorProfile:
     apply_michigan_retirement_tiers: bool = True
     pay_minnesota_homemaker_credit_to_nondependents: bool = True
     measure_minnesota_credit_earnings_per_statute: bool = True
+    use_published_maine_2024_senior_fairness_base_per_statute: bool = True
     order_minnesota_1998_working_family_credit: bool = True
     use_minnesota_2012_joint_working_family_thresholds: bool = True
     use_minnesota_working_family_tables_by_children: bool = True

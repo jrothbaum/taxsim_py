@@ -494,14 +494,18 @@ def compute_me_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         )
         older = pl.max_horizontal(pl.col("page"), pl.col("sage"))
         senior = (older >= 65) & (float(d["senior"]) > 0)
-        base = pl.when(senior).then(float(d["senior"])).otherwise(base)
+        senior_base = float(d["senior"])
+        if effective_year == 2024 and not behavior.use_published_maine_2024_senior_fairness_base_per_statute:
+            # TAXSIM's 2024 typed base is the 2025 amount.
+            senior_base = 4100.0
+        base = pl.when(senior).then(senior_base).otherwise(base)
         countable = pl.col("proptax") + float(d["rent_share"]) * pl.col("rentpaid")
         capgn = pl.col("stcg") + pl.col("ltcg")
         fair_income = (
             pl.col("agi") + pl.col("me_setax") * 0.5 / flate + pl.col("gssi") - pl.col("taxable_social_security")
             - pl.min_horizontal(capgn, 0.0)
         )
-        credit = (pl.min_horizontal(base, countable) - float(d["income_rate"]) * fair_income).clip(0, None)
+        credit = (pl.min_horizontal(base, countable) - float(d["income_rate"]) * fair_income.clip(0, None)).clip(0, None)
         credit = pl.min_horizontal(credit, pl.when(aged_count() > 0).then(float(d["cap_senior"])).otherwise(float(d["cap"])))
         ptfc = pl.when(is_sep).then(0.0).otherwise(credit)
 

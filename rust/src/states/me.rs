@@ -786,7 +786,7 @@ pub fn tax(i: &Inp, f: &Fed, p: &MeParams) -> f64 {
         let countable = i.proptax + d.rent_share * i.rentpaid;
         let capgn = i.stcg + i.ltcg;
         let fair_income = f.agi + setax * 0.5 + i.gssi - f.taxable_social_security - capgn.min(0.0);
-        let mut c = (base.min(countable) - d.income_rate * fair_income).max(0.0);
+        let mut c = (base.min(countable) - d.income_rate * fair_income.max(0.0)).max(0.0);
         c = c.min(if i.aged_count() > 0.0 { d.cap_senior } else { d.cap });
         ptfc = if is_sep { 0.0 } else { c };
     }

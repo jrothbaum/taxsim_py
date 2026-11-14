@@ -449,8 +449,10 @@ def compute_ar_tax(
 
         def relief_credit(income: pl.Expr, joint: bool) -> pl.Expr:
             terms = relief["married_joint" if joint else "single"]
-            amount = terms["maximum"] - terms["reduction"] * (income - terms["start"]).clip(0, None) / terms["increment"]
-            return amount.clip(0, None)
+            # TAXSIM takes `reduction` per $1,000 of excess taxable income (its `ceil` leaves the quotient unrounded),
+            # whatever the filing status, so a joint return loses twice the published rate.
+            steps = (income - terms["start"]).clip(0, None) / 1000.0
+            return (terms["maximum"] - terms["reduction"] * steps).clip(0, None)
 
         def individual_credit(income: pl.Expr, count: pl.Expr | float) -> pl.Expr:
             return (count * (qic["amount"] - qic["rate"] * (income - qic["start"]).clip(0, None))).clip(0, None)
