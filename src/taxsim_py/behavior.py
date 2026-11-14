@@ -71,6 +71,7 @@ class BehaviorProfile:
     step_alabama_standard_deduction_per_statute: bool = True
     exempt_alabama_retirement_income_in_2022: bool = True
     limit_arizona_property_credit_per_statute: bool = True
+    measure_arizona_property_credit_income_per_statute: bool = True
     ignore_federal_salt_cap_in_california: bool = True
     use_age_qualified_children_for_dc_eitc: bool = True
     apply_illinois_exemption_income_limit: bool = True
@@ -240,6 +241,7 @@ class BehaviorProfile:
     count_oregon_eitc_young_children_by_age_per_statute: bool = True
     subtract_michigan_social_security_with_investment_deduction_per_statute: bool = True
     limit_georgia_exclusion_for_ages_62_to_64_before_2021_per_statute: bool = True
+    compute_georgia_retirement_exclusion_per_statute: bool = True
     exclude_massachusetts_bank_interest_from_2024_per_statute: bool = True
     cap_virginia_state_tax_deduction_per_statute: bool = True
     allow_virginia_standard_deduction_when_itemizing_federally_per_statute: bool = True

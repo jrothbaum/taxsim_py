@@ -52,7 +52,7 @@ def compute_wv_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         fraction = pl.when(over).then(above_share).otherwise(share)
         any_aged = (pl.col("page") >= 65) | (pl.col("sage") >= 65) | (aged > 0)
         benefit_primary, benefit_spouse = allocate_pensions(ss, 0)
-        income_primary, income_spouse = split_agi(fed_agi, 0.0, 0.0)
+        income_primary, income_spouse = split_agi(fed_agi, 0.0, 0.0, flate)
         counted = pl.when(over).then(above_share).otherwise(1.0)
         exempt_primary, exempt_spouse = counted * benefit_primary, counted * benefit_spouse
         senior_primary = pl.when(pl.col("page") >= 65).then((income_primary.clip(0, cap) - exempt_primary).clip(0, None)).otherwise(0.0)
@@ -68,7 +68,7 @@ def compute_wv_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         any_aged = (pl.col("page") >= 65) | (pl.col("sage") >= 65) | (aged > 0)
         low = fed_agi <= p["social_security_subtraction_agi_per_taxpayer"] * txp
         benefit_primary, benefit_spouse = allocate_pensions(ss, 65)
-        income_primary, income_spouse = split_agi(fed_agi, 0.0, 0.0)
+        income_primary, income_spouse = split_agi(fed_agi, 0.0, 0.0, flate)
         deducted_primary = pl.when(low).then(pl.min_horizontal(income_primary, benefit_primary)).otherwise(0.0)
         deducted_spouse = pl.when(low).then(pl.min_horizontal(income_spouse, benefit_spouse)).otherwise(0.0)
         senior_primary = (income_primary.clip(0, cap) - deducted_primary).clip(0, None)
@@ -94,7 +94,7 @@ def compute_wv_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     if not behavior.subtract_west_virginia_social_security_per_statute and y <= 2021:
         # TAXSIM gives each spouse the senior deduction on their share of income as soon as either is 65 or older.
         any_aged_taxsim = (pl.col("page") >= 65) | (pl.col("sage") >= 65) | (aged > 0)
-        share_primary, share_spouse = split_agi(agi)
+        share_primary, share_spouse = split_agi(agi, 0.0, 0.0, flate)
         split_two = pl.min_horizontal(share_primary.clip(0, None), pl.lit(cap)) + pl.min_horizontal(share_spouse.clip(0, None), pl.lit(cap))
         oldded = pl.when(any_aged_taxsim).then(pl.when(is_joint).then(split_two).otherwise(one)).otherwise(0.0)
     if behavior.allow_west_virginia_disability_deduction:

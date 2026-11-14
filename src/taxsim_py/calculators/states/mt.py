@@ -304,7 +304,7 @@ def compute_mt_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     agiw = agi - agih
     if not behavior.split_montana_joint_returns_per_statute:
         # TAXSIM's `splitagi`: each spouse's own income, with the rest shared equally.
-        agih, agiw = split_agi(agi, 0.0, 0.0)
+        agih, agiw = split_agi(agi, 0.0, 0.0, flate)
     stdh = standard(agih, 1.0)
     stdw = standard(agiw, 1.0)
     split_stded = stdh + stdw if y >= 1981 else stded

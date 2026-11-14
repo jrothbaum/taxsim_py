@@ -136,6 +136,10 @@ property_tax_credit_amounts:
   1977: [225, 215, 206, 250, 185, 175, 165, 155, 145, 135, 125, 115, 105, 95, 86, 75, 65, 55, 45, 35, 25]
   1990: [502, 479, 457, 435, 412, 390, 368, 345, 323, 301, 279, 256, 234, 212, 189, 167, 145, 123, 100, 78, 56]
 property_tax_credit_family_addition: 750
+# From 2024 TAXSIM uses a separate table for joint returns and returns with dependents (thresholds in steps of 150,
+# not the single table plus 750); the amounts are the single table's. Not checked against Form 140PTC.
+property_tax_credit_family_thresholds:
+  2024: [2500, 2650, 2800, 2950, 3100, 3250, 3400, 3550, 3700, 3850, 4000, 4150, 4300, 4450, 4600, 4750, 4900, 5050, 5200, 5350, 5500]
 # Statutory mode limits the credit to property tax paid, counting this share
 # of rent (Form 140PTC).
 property_tax_credit_rent_factor: 0.15

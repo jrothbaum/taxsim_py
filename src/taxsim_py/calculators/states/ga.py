@@ -5,7 +5,8 @@ import polars as pl
 from taxsim_py.engine.brackets import bracket_rate, bracket_tax
 from taxsim_py.engine.inputs import aged_count, files_head_of_household, files_joint, is_dependent_filer, separate_divisor, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml
-from taxsim_py.engine.state import by_filing_status, dividend_input_adjustment, forced_standard, interpolate_table, unemployment_total, with_state_detail
+from taxsim_py.engine.payroll_tax import payroll_items
+from taxsim_py.engine.state import allocate_pensions, by_filing_status, dividend_input_adjustment, forced_standard, interpolate_table, unemployment_total, with_state_detail
 from taxsim_py.behavior import BehaviorProfile, TAXSIM_BEHAVIOR
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
@@ -97,6 +98,27 @@ def compute_ga_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             return pl.lit(rtmax)
 
         rtexc = (pl.min_horizontal(head, limit(pl.col("page"))) + pl.min_horizontal(spouse, limit(pl.col("sage")))).clip(0, None)
+        if effective_year >= 2024 and not behavior.compute_georgia_retirement_exclusion_per_statute:
+            # TAXSIM's 2024 worksheet: each spouse's earnings (net of the self-employment factor, by TAXSIM's own assignment
+            # of business income to earners) up to the cap, plus half of dividends, interest and Schedule E income and the
+            # pension share; the primary's business item is `d(211)` and the spouse's is `d(212)` (the primary's professional
+            # income). Capital gains are not counted.
+            first, second = payroll_items(behavior)
+
+            def net_earnings(names: tuple[str, ...]) -> pl.Expr:
+                return pl.col(names[0]).clip(0, None) + 0.9235 * pl.sum_horizontal(pl.col(n) for n in names[1:])
+
+            pension_primary, pension_spouse = allocate_pensions(pensions, 62)
+            per_spouse = (pl.col("dividends") + dividend_input_adjustment() + pl.col("intrec") + pl.col("scorp")) / pl.max_horizontal(
+                pl.col("ga_taxpayers"), pl.lit(1.0)
+            )
+            total_primary = pl.min_horizontal(net_earnings(first), cap) + per_spouse + pl.col("pbusinc") + pension_primary
+            total_spouse = pl.min_horizontal(net_earnings(second), cap) + per_spouse + pl.col("pprofinc") + pension_spouse
+
+            def tier(age: pl.Expr, total: pl.Expr) -> pl.Expr:
+                return pl.when(age >= 65).then(pl.min_horizontal(total, 65000.0)).when(age >= 62).then(pl.min_horizontal(total, 35000.0)).otherwise(0.0)
+
+            rtexc = (tier(pl.col("page"), total_primary) + tier(pl.col("sage"), total_spouse)).clip(0, None)
     if effective_year < 1989 and not behavior.allow_georgia_retirement_exclusion_before_1989_per_statute:
         # TAXSIM's retirement exclusion starts in 1989.
         rtexc = pl.lit(0.0)

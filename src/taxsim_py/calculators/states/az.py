@@ -8,7 +8,7 @@ from taxsim_py.engine.brackets import bracket_rate, bracket_tax
 from taxsim_py.engine.eitc import trapezoid_credit
 from taxsim_py.engine.inputs import aged_count, files_head_of_household, files_joint, files_separate, is_dependent_filer, separate_divisor, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml, resolve_year
-from taxsim_py.engine.state import by_filing_status, dividend_exclusion_addback, household_income, interpolate_table, with_state_detail
+from taxsim_py.engine.state import by_filing_status, dividend_exclusion_addback, dividend_input_adjustment, household_income, interpolate_table, unemployment_total, with_state_detail
 from taxsim_py.behavior import BehaviorProfile, TAXSIM_BEHAVIOR
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
@@ -303,14 +303,34 @@ def compute_az_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     if p.in_effect("indexing_factor"):
         aif = p.num("indexing_factor")
         amounts = [aif * a for a in amounts]
-    rows = [[float(t) + shift, a] for t, a in zip(p["property_tax_credit_thresholds"], amounts)] + [[1.0e20, 0.0]]
+    if p.in_effect("property_tax_credit_family_thresholds") and not behavior.measure_arizona_property_credit_income_per_statute:
+        # From 2024 joint returns and returns with dependents (two taxpayers or any dependent) have their own thresholds.
+        family = (taxpayer_count() == 2) | (pl.col("depx") > 0)
+        family_rows = [float(t) for t in p.value("property_tax_credit_family_thresholds")]
+        rows = [
+            [pl.when(family).then(f).otherwise(float(t)), a]
+            for t, f, a in zip(p["property_tax_credit_thresholds"], family_rows, amounts)
+        ] + [[1.0e20, 0.0]]
+    else:
+        rows = [[float(t) + shift, a] for t, a in zip(p["property_tax_credit_thresholds"], amounts)] + [[1.0e20, 0.0]]
     pensions = pl.col("pensions") + pl.col("gssi")
     statute = behavior.limit_arizona_property_credit_per_statute
-    property_credit = pl.when((aged_count() > 0) & (pensions > 0)).then(
+    household = pl.col("az_household_income") - (pl.col("gssi") if statute else 0.0)
+    eligible = (aged_count() > 0) & (pensions > 0)
+    if effective_year >= 2024 and not behavior.measure_arizona_property_credit_income_per_statute:
+        # TAXSIM's 2024 on routine: any filer 65 or older; income is the primary's wages, dividends, interest, a Schedule E
+        # loss, business and pension income and unemployment compensation (no Social Security, transfers, gains or spouse wages).
+        household = (
+            pl.col("pwages") + pl.col("dividends") + dividend_input_adjustment() + pl.col("intrec")
+            + (-(pl.col("otherprop") + pl.col("scorp"))).clip(0, None)
+            + pl.col("psemp") + pl.col("pbusinc") + pl.col("pprofinc") + pl.col("pensions") + unemployment_total()
+        )
+        eligible = aged_count() > 0
+    property_credit = pl.when(eligible).then(
         # The statute's income test excludes Social Security, which TAXSIM's
         # household income includes.
         interpolate_table(
-            pl.col("az_household_income") - (pl.col("gssi") if statute else 0.0),
+            household,
             rows,
         )
     ).otherwise(0.0)

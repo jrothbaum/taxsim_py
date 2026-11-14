@@ -66,7 +66,7 @@ impl PaParams {
 pub fn tax(i: &Inp, f: &Fed, p: &PaParams) -> f64 {
     let y = p.year;
     // Federal Schedule E income: other property income, plus S corporation income from 1987.
-    let schede = i.otherprop + if y >= 1987 { i.scorp } else { 0.0 };
+    let schede = (i.otherprop + if y >= 1987 { i.scorp } else { 0.0 }).max(0.0);
     // Positive income classes only; TAXSIM's pension exemption by age (see the Python version).
     let pensions = i.pensions;
     let (head_55, spouse_55) = (i.page >= 55.0, i.sage >= 55.0);

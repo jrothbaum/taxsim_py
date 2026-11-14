@@ -181,7 +181,7 @@ def compute_ia_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     # --- Joint returns may file combined: each spouse on their own share ---
     agih = higher_earner_share(pl.col("ia_agi"))
     if not behavior.split_iowa_joint_income_by_wages_only:
-        agih, agiw = split_agi(pl.col("ia_agi"))
+        agih, agiw = split_agi(pl.col("ia_agi"), 0.0, 0.0, flate)
     else:
         agiw = pl.col("ia_agi") - agih
     is_mfc = is_joint & (pl.col("ia_agi") > 0) & pl.lit(bool(p.value("combined_return_allowed")))

@@ -246,7 +246,7 @@ def compute_dc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         ui_all = unemployment_total()
         spouse_ui = pl.col("sui")
         excl_h, excl_s = ((ui_all - spouse_ui), spouse_ui) if effective_year >= 2021 else (0.0, 0.0)
-        agit, agis = split_agi(pl.col("dc_agi") + ui_all - pl.col("taxable_unemployment"), excl_h, excl_s)
+        agit, agis = split_agi(pl.col("dc_agi") + ui_all - pl.col("taxable_unemployment"), excl_h, excl_s, flate)
         amount = pl.col("dc_deduc") + pl.col("dc_exemp")
         gap = (agit - agis).abs()
         to_larger = pl.max_horizontal(0.0, pl.min_horizontal(amount, gap))

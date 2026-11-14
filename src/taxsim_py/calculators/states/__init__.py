@@ -128,7 +128,9 @@ def _with_rebates(taxsim_state: int, calculator: StateCalculator) -> StateCalcul
         from taxsim_py.engine.state_extrapolation import resolve_state_year
 
         law_year, flate = resolve_state_year(year, behavior)
-        rebate = state_rebate(taxsim_state, law_year, pl.col("siitax") / flate, before_credits / flate)
+        # New Mexico tests its rebate against its own AGI (Social Security excluded), in the law year's dollars.
+        state_agi = pl.col("state_adjusted_gross_income") if taxsim_state == 32 and "state_adjusted_gross_income" in names else None
+        rebate = state_rebate(taxsim_state, law_year, pl.col("siitax") / flate, before_credits / flate, state_agi)
         if rebate is None:
             return result
         return result.with_columns(siitax=pl.col("siitax") - rebate * flate)

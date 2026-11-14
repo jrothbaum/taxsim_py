@@ -109,7 +109,7 @@ def compute_md_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         # From 2022 TAXSIM splits the income that is already net of the pension exclusion, the child care expenses and the
         # taxable Social Security, then takes half of those exclusions off each spouse's share again.
         net = ((pl.col("agi") - chexp).clip(0, None) - penexc).clip(0, None) - pl.col("taxable_social_security")
-        agih, agiw = split_agi(net if effective_year >= 2022 else pl.col("agi"), 0.0, 0.0)
+        agih, agiw = split_agi(net if effective_year >= 2022 else pl.col("agi"), 0.0, 0.0, flate)
     # Exclusions are split evenly, except that one aged spouse's pension
     # exclusion comes from the spouse's share.
     ss_subtracted = pl.col("taxable_social_security") if effective_year >= 1985 else pl.lit(0.0)

@@ -180,4 +180,4 @@ se_deduction_holiday:
   2013: null
 # The taxpayer's own share of each self-employment item's tax in TAXSIM's
 # `sstax`, the same in every year.
-own_share_self_employment: 0.9235
+own_share_self_employment: 1.0

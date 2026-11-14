@@ -24,11 +24,14 @@ def _taxsim_code(abbreviation: str) -> int:
 STATE_REBATE_PARAMS = {_taxsim_code(abbreviation): years for abbreviation, years in _BY_ABBREVIATION.items()}
 
 
-def state_rebate(state: int, year: int, siitax: pl.Expr, tax_before_credits: pl.Expr) -> pl.Expr | None:
+def state_rebate(
+    state: int, year: int, siitax: pl.Expr, tax_before_credits: pl.Expr, state_agi: pl.Expr | None = None
+) -> pl.Expr | None:
     """The rebate paid in `year` to residents of `state`, or None when there is none.
 
     `siitax` is the state tax before the rebate and `tax_before_credits` the
-    state tax before credits.
+    state tax before credits. `state_agi` replaces federal AGI in the income test where the
+    state's own routine tests its own income (New Mexico).
     """
     spec: dict[str, Any] | None = STATE_REBATE_PARAMS.get(state, {}).get(year)
     if spec is None:
@@ -36,7 +39,7 @@ def state_rebate(state: int, year: int, siitax: pl.Expr, tax_before_credits: pl.
     filers = pl.when(files_joint()).then(2.0).otherwise(1.0)
     people = filers + pl.col("depx")
     not_dependent_filer = pl.col("mstat") != 8
-    agi = pl.col("agi")
+    agi = pl.col("agi") if state_agi is None else state_agi
     amount = pl.lit(0.0)
     if "components" in spec:
         for component in spec["components"]:

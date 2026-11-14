@@ -172,7 +172,7 @@ def compute_ms_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     if not behavior.split_mississippi_joint_returns_per_statute:
         # TAXSIM splits AGI as `splitagi` does and gives the exemptions and deduction to whichever spouse has more
         # income first (`optalloc`).
-        agit, agis = split_agi(agi, 0.0, 0.0)
+        agit, agis = split_agi(agi, 0.0, 0.0, flate)
         amount = exemp + deduc
         gap = (agit - agis).abs()
         to_larger = pl.min_horizontal(amount, gap)

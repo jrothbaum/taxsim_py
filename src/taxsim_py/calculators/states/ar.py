@@ -228,7 +228,7 @@ def compute_ar_tax(
         if effective_year >= 2021:
             # The 2026 build's 2021 on routine splits with `splitagi`: pensions and taxable Social Security go to the
             # spouse 55 or older, self-employment income to its earner.
-            agih, _ = split_agi(pl.col("ar_agi"))
+            agih, _ = split_agi(pl.col("ar_agi"), 0.0, 0.0, flate)
         df = df.with_columns(ar_agi_higher_earner=agih)
     df = df.with_columns(
         ar_agi_lower_earner=pl.col("ar_agi") - pl.col("ar_agi_higher_earner"),

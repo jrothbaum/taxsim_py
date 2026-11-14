@@ -170,7 +170,7 @@ def compute_ky_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         else:
             exclude_h = exclude_w = pl.lit(0.0)
         split_base = pl.col("ky_agi") + (retirement_exclusion if effective_year >= 2022 else 0.0)
-        agih, agiw = split_agi(split_base)
+        agih, agiw = split_agi(split_base, 0.0, 0.0, flate)
         taxinh = pl.when(is_mfc).then((agih - exclude_h * (effective_year >= 2022) - shared_deduction).clip(0, None)).otherwise(pl.lit(0.0))
         taxinw = pl.when(is_mfc).then((agiw - exclude_w * (effective_year >= 2022) - shared_deduction).clip(0, None)).otherwise(pl.lit(0.0))
     df = df.with_columns(ky_taxinh=taxinh, ky_taxinw=taxinw)
