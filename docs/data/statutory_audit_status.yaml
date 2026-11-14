@@ -621,6 +621,11 @@ test_oklahoma_earned_income_credit_age_per_statute:
   source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
     it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
   status: logic
+update_rhode_island_property_tax_relief_limit_per_statute:
+  source: 'Rhode Island Division of Taxation: ADV 2022-24 (the income limit rises from $30,000 to $35,000 and the maximum credit is $600 for 2022, then both are indexed), ADV 2024-26 (2023 table limit $37,870
+    and maximum $650; 2024 limit $39,275 and maximum $675) and the 2025 Form RI-1040H (limit $40,730, maximum $700, 3% / 4% / 5% / 6% bands up to 6,991 / 10,480 / 13,970 and 17,460); TAXSIM keeps the old
+    $30,000 limit in 2022 (the statutory side now has the published limits for 2022-2025); checked 2026-11-14'
+  status: verified
 use_additional_medicare_separate_threshold:
   source: 'IRC 3101(b)(2): the Additional Medicare Tax threshold is $125,000 for a married individual filing a separate return ($250,000 joint, $200,000 other); checked 2026-11-13'
   status: verified

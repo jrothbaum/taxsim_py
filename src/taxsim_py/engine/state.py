@@ -170,7 +170,7 @@ def household_income(behavior: BehaviorProfile = TAXSIM_BEHAVIOR) -> pl.Expr:
     )
 
 
-def allocate_pensions(pensions: pl.Expr, age: int) -> tuple[pl.Expr, pl.Expr]:
+def allocate_pensions(pensions: pl.Expr, age: pl.Expr | float) -> tuple[pl.Expr, pl.Expr]:
     """TAXSIM `penalloc`: pension income to the taxpayer and spouse by age.
 
     A joint return gives it all to the spouse at or over `age` when the other is under, half each when
@@ -181,6 +181,19 @@ def allocate_pensions(pensions: pl.Expr, age: int) -> tuple[pl.Expr, pl.Expr]:
     taxpayer_old, spouse_old = pl.col("page") >= age, sage >= age
     primary = pl.when(~joint).then(pensions).when(taxpayer_old & ~spouse_old).then(pensions).when(~taxpayer_old & spouse_old).then(0.0).otherwise(pensions / 2)
     return primary, pensions - primary
+
+
+def social_security_full_retirement_age(year: int) -> pl.Expr:
+    """TAXSIM `ssfra`: the full retirement age from the primary taxpayer's birth year (year less age).
+
+    65 through 1954, 66 and 10 to 50 months for 1955-1959 (as TAXSIM types them), 67 from 1960, and 65 with no age.
+    """
+    birth = year - pl.col("page")
+    table = {1955: 66.1666, 1956: 66.3333, 1957: 66.5, 1958: 66.6666, 1959: 66.8333}
+    expr = pl.when(birth >= 1960).then(67.0).otherwise(65.0)
+    for ibirth, value in table.items():
+        expr = pl.when(birth == ibirth).then(value).otherwise(expr)
+    return pl.when(pl.col("page") > 0).then(expr).otherwise(65.0)
 
 
 def optimal_split(amount: pl.Expr, income_primary: pl.Expr, income_spouse: pl.Expr) -> tuple[pl.Expr, pl.Expr]:

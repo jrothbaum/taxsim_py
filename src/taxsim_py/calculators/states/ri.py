@@ -8,7 +8,7 @@ import polars as pl
 from taxsim_py.engine.brackets import bracket_rate, bracket_tax, scale_brackets
 from taxsim_py.engine.inputs import aged_count, federal_exemption_count, files_head_of_household, files_joint, files_separate, files_single, is_dependent_filer, taxpayer_count
 from taxsim_py.engine.schema import PARAMETERS_ROOT, YearParams, load_yaml
-from taxsim_py.engine.state import allocate_pensions, phaseout_steps, checkpoint, household_income, interpolate_table, unemployment_total, with_state_detail
+from taxsim_py.engine.state import allocate_pensions, social_security_full_retirement_age, phaseout_steps, checkpoint, household_income, interpolate_table, unemployment_total, with_state_detail
 from taxsim_py.behavior import BehaviorProfile, TAXSIM_BEHAVIOR
 from taxsim_py.engine.state_extrapolation import deflate_for_extrapolation, resolve_state_year
 
@@ -79,6 +79,19 @@ def compute_ri_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         # and separate returns.
         other_sub = pl.when(fed_agi < limits["single"] * index).then(ss).otherwise(0.0)
         agi = agi - pl.when((aged > 0) & (ss > 0)).then(pl.when(is_joint).then(joint_sub).otherwise(other_sub)).otherwise(0.0)
+        if not behavior.limit_rhode_island_retirement_exclusion_to_aged_per_statute:
+            # TAXSIM tests the full retirement age from the primary taxpayer's birth year, not age 65: the primary's share of the
+            # benefits when only the primary has reached it, all of them when the spouse has (on a joint return).
+            fra = social_security_full_retirement_age(y)
+            primary_old = pl.col("page") >= fra
+            spouse_old = (pl.col("sage") >= fra) & is_joint
+            share_primary, _ = allocate_pensions(ss, fra.floor())
+            other_taxsim = pl.when(fed_agi < limits["single"] * index).then(pl.when(primary_old).then(ss)).otherwise(0.0)
+            joint_taxsim = pl.when(fed_agi < limits["married_joint"] * index).then(
+                pl.when(spouse_old).then(ss).when(primary_old).then(share_primary).otherwise(0.0)
+            ).otherwise(0.0)
+            old_enough = pl.when(pl.col("page") > 0).then(primary_old | (pl.col("sage") >= fra)).otherwise(True)
+            agi = fed_agi - pl.when(old_enough & (ss > 0)).then(pl.when(is_joint).then(joint_taxsim).otherwise(other_taxsim)).otherwise(0.0)
     if p.in_effect("retirement_exclusion_per_aged_taxpayer"):
         index = p.num("retirement_exclusion_index")
         limits = p["retirement_exclusion_agi_limit"]
@@ -88,11 +101,12 @@ def compute_ri_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
             # TAXSIM gives each spouse up to the cap on the pension allocated by age 66, aged or not, and
             # (in 2022 on) treats a return with no ages as aged.
             limit = p.num("retirement_exclusion_per_aged_taxpayer")
-            primary, spouse = allocate_pensions(pl.col("pensions"), 66)
+            fra = social_security_full_retirement_age(y)
+            primary, spouse = allocate_pensions(pl.col("pensions"), fra.floor())
             exclusion = pl.min_horizontal(primary, pl.lit(limit)) + pl.min_horizontal(spouse, pl.lit(limit))
             fagi = pl.when(txp > 1).then(limits["married"] * index).otherwise(limits["single"] * index)
             if y >= 2022:
-                unknown_or_old = ((pl.col("page") == 0) | (pl.col("page") >= 66) | (pl.col("sage") >= 66))
+                unknown_or_old = ((pl.col("page") == 0) | (pl.col("page") >= fra) | (pl.col("sage") >= fra))
                 exclusion = pl.when(unknown_or_old).then(exclusion).otherwise(0.0)
         agi = agi - pl.when(fed_agi <= fagi).then(exclusion).otherwise(0.0)
     if y in (2009, 2020):
@@ -237,6 +251,8 @@ def compute_ri_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
     # --- Property tax relief credit for taxpayers 65 or older ---
     hy = pl.col("ri_household_income_undeflated")
     relief = p.value("property_relief")
+    if p.in_effect("taxsim_property_relief") and not behavior.update_rhode_island_property_tax_relief_limit_per_statute:
+        relief = p.value("taxsim_property_relief")
     ptax = pl.col("proptax") + float(p["property_relief_rent_share"]) * pl.col("rentpaid")
 
     def frac_for(c: dict) -> pl.Expr:
