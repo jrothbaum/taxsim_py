@@ -8,7 +8,7 @@ behavior is not actually wrong (a modelling choice, or a rule the inputs cannot 
 TAXSIM's behavior in both modes: the switch is removed (a switch exists only to let TAXSIM mode override the correct behavior to reproduce a bug) and listed at the end.
 
 - Switches: 448. Logic errors (no confirmation needed): 298. Parameter errors verified against a primary
-  source: 17; partly verified: 12; still to verify: 121. Switch removed because TAXSIM's behavior
+  source: 18; partly verified: 12; still to verify: 120. Switch removed because TAXSIM's behavior
   is not a bug: 2.
 - Switches whose flip changes at least one household in the sample: 165. The rest change nobody in the sample.
 
@@ -81,7 +81,7 @@ confirmed in part; **unverified** = a parameter error whose published value has 
 | `refund_virginia_earned_income_credit_at_2025_rate` | logic | VA | 7/200 | 186 | logic | 20%. | Found by reading TAXSIM's source; no form or statute check needed |
 | `count_half_self_employment_tax_in_refundable_child_credit_per_statute` | logic | all | 1/2040 | 1289 | logic | half of the self-employment tax (Form 8812 line "one-half of self-employment tax"; not re-checked for each year). | Found by reading TAXSIM's source; no form or statute check needed |
 | `step_maryland_exemption_phaseout_per_statute` | logic | MD | 24/200 | 52 | logic | steps. | Found by reading TAXSIM's source; no form or statute check needed |
-| `use_new_york_household_credit_table_1990_2016` | parameter | NY | 30/200 | 41 | unverified | the published table. |  |
+| `use_new_york_household_credit_table_1990_2016` | parameter | NY | 30/200 | 41 | verified | the published table. | 2015 Form IT-201 instructions, line 40, household credit tables 1-3 (tax.ny.gov/pdf/2015/inc/it201i_2015.pdf): single $75/60/50/45/40/20 by AGI band to $28,000; married $90/75/65/60/60/50/40/20 to $32,000 plus $15/15/15/15/10/10/5/5 per extra exemption; these are the parameters' steps. The table is read for 2015; other years 1990-2016 rely on the same statute (Tax Law 606(b)); checked 2026-11-13 |
 | `let_delaware_itemize_when_federal_return_takes_standard_deduction` | logic | DE | 8/200 | 153 | logic | Delaware itemizes on its own. | Found by reading TAXSIM's source; no form or statute check needed |
 | `apply_pennsylvania_forgiveness_rules` | logic | PA | 15/200 | 79 | logic | eligibility income adds unemployment compensation and exempt pensions; 10% steps. | Found by reading TAXSIM's source; no form or statute check needed |
 | `use_maryland_itemized_deduction_without_federal_itemizing` | logic | MD | 28/200 | 42 | logic | published. | Found by reading TAXSIM's source; no form or statute check needed |

@@ -391,6 +391,10 @@ use_minnesota_2012_joint_working_family_thresholds:
   source: Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes
     it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters
   status: logic
+use_new_york_household_credit_table_1990_2016:
+  source: '2015 Form IT-201 instructions, line 40, household credit tables 1-3 (tax.ny.gov/pdf/2015/inc/it201i_2015.pdf): single $75/60/50/45/40/20 by AGI band to $28,000; married $90/75/65/60/60/50/40/20
+    to $32,000 plus $15/15/15/15/10/10/5/5 per extra exemption; these are the parameters'' steps. The table is read for 2015; other years 1990-2016 rely on the same statute (Tax Law 606(b)); checked 2026-11-13'
+  status: verified
 use_published_capital_gains_thresholds:
   source: 'Rev. Proc. 2025-32 (irs.gov/pub/irs-drop/rp-25-32.pdf) section 3.03 (2026: 0% to $98,900 joint, $49,450 single or separate, $66,200 head of household; 15% to $613,700 / $545,500 / $306,850 /
     $579,600), matching the parameters; earlier years Rev. Proc. 2021-45 (2022: 20% above $459,750 single) and later yearly revenue procedures; checked 2026-11-13'
