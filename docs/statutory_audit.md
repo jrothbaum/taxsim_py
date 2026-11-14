@@ -8,7 +8,7 @@ behavior is not actually wrong (a modelling choice, or a rule the inputs cannot 
 TAXSIM's behavior in both modes: the switch is removed (a switch exists only to let TAXSIM mode override the correct behavior to reproduce a bug) and listed at the end.
 
 - Switches: 448. Logic errors (no confirmation needed): 298. Parameter errors verified against a primary
-  source: 18; partly verified: 12; still to verify: 120. Switch removed because TAXSIM's behavior
+  source: 19; partly verified: 13; still to verify: 118. Switch removed because TAXSIM's behavior
   is not a bug: 2.
 - Switches whose flip changes at least one household in the sample: 165. The rest change nobody in the sample.
 
@@ -175,7 +175,7 @@ confirmed in part; **unverified** = a parameter error whose published value has 
 | `subtract_michigan_social_security_with_investment_deduction_per_statute` | logic | MI | 2/200 | 11 | logic | age 65 or older, with Social Security also subtracted. | Found by reading TAXSIM's source; no form or statute check needed |
 | `step_connecticut_pension_deduction_per_statute` | logic | CT | 1/200 | 18 | logic | the step schedule. | Found by reading TAXSIM's source; no form or statute check needed |
 | `round_new_york_empire_child_credit_phaseout_per_statute` | parameter | NY | 2/200 | 8 | logic | the excess as is. | Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters |
-| `use_utah_2022_credit_threshold_per_statute` | parameter | UT | 15/200 | 1 | unverified | 15,548 and so on. |  |
+| `use_utah_2022_credit_threshold_per_statute` | parameter | UT | 15/200 | 1 | partial | 15,548 and so on. | Census Bureau Federal and State Tax Parameter Workbook TY2025, UT sheet (PHASE4 head of household phase-out base: 2025 $27,320, the published amount, not TAXSIM's 27,318.60; 2023 PHASE1/2/4: 16,742 / 33,484 / 25,114; 2024: 17,652 / 35,304 / 26,478). The 2022 amounts (15,548 and so on) are not in that workbook and were not checked against the TC-40; checked 2026-11-13 |
 | `use_published_capital_gains_thresholds` | parameter | all | 1/2040 | 14 | verified | $459,750 for both (Rev. Proc. 2021-45). | Rev. Proc. 2025-32 (irs.gov/pub/irs-drop/rp-25-32.pdf) section 3.03 (2026: 0% to $98,900 joint, $49,450 single or separate, $66,200 head of household; 15% to $613,700 / $545,500 / $306,850 / $579,600), matching the parameters; earlier years Rev. Proc. 2021-45 (2022: 20% above $459,750 single) and later yearly revenue procedures; checked 2026-11-13 |
 | `cap_medicare_in_state_payroll_deduction` | logic | all | 1/2040 | 13 | logic | stops at the Medicare base (the same base before 1991). | Found by reading TAXSIM's source; no form or statute check needed |
 | `step_alabama_standard_deduction_per_statute` | parameter | AL | 3/200 | 4 | unverified | published. |  |
@@ -232,7 +232,7 @@ confirmed in part; **unverified** = a parameter error whose published value has 
 | `round_new_york_recapture_ratio_per_statute` | parameter | NY | 0/200 | 0 | logic | rounded to four decimals (Form IT-201 worksheets). | Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters |
 | `pay_new_york_household_credit_to_separate_returns` | logic | NY | 0/200 | 0 | logic | the credit, halved. | Found by reading TAXSIM's source; no form or statute check needed |
 | `count_children_under_6_by_dep6` | logic | all | 0/2040 | 0 | logic |  | Found by reading TAXSIM's source; no form or statute check needed |
-| `use_idaho_published_brackets` | parameter | ID | 0/200 | 0 | unverified | published. |  |
+| `use_idaho_published_brackets` | parameter | ID | 0/200 | 0 | verified | published. | Idaho State Tax Commission rate schedule page (tax.idaho.gov individual-income-tax-rate-schedule): 2022 index factor 1.662 gives the first bracket top $1,662 (TAXSIM's is $1,661); 2023 no-tax amount $4,489, which TAXSIM has right and statutory mode now matches (it had $4,490); the Census Bureau Federal and State Tax Parameter Workbook TY2025 (IDTCUT1: 0 4489 for 2023) agrees; checked 2026-11-13 |
 | `initialize_arizona_short_term_loss` | logic | AZ | 0/200 | 0 | logic | 25% of gains. | Found by reading TAXSIM's source; no form or statute check needed |
 | `use_delaware_published_tax_brackets` | parameter | DE | 0/200 | 0 | unverified | published. |  |
 | `use_maine_published_phaseout_starts` | parameter | ME | 0/200 | 0 | unverified | published. |  |

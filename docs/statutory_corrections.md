@@ -441,7 +441,7 @@ Taxsim mode now follows the statutory rule for these (they remain in
 | SC | 2022 on | 2026: 31824-32005 | The tax comes from rounded subtract-from-flat-rate tables | Statutory: the published brackets. `use_south_carolina_published_tax_table` |
 | SC | 2022 on | 2026: 31824-32005 | The retirement deduction goes to the spouse aged 55 or over (half each if both or neither), $3,000 each | Statutory: $3,000 per taxpayer. `give_south_carolina_pension_deduction_to_each_taxpayer` |
 | SC | 2022 on | 2026: 31824-32005 | The state tax added back for itemizers is measured against the 2021 federal standard deduction | Statutory: the current one. `use_current_federal_standard_deduction_for_south_carolina_addback` |
-| ID | 2022-23 | 2026: 9670-9893 | The 2022 bracket tops are $1 lower than the statute, and the 2023 no-tax amount is $4,489 | Statutory: published. `use_idaho_published_brackets` |
+| ID | 2022 | 2026: 9670-9893 | The 2022 bracket tops are $1 lower than the statute ($1,661, $4,986, $8,310 against $1,662, $4,987, $8,311) | Statutory: published. `use_idaho_published_brackets` |
 | ID | 2022 on | 2026: 9670-9893 | The building fund tax limit is the federal filing requirement by status and age | Both modes |
 | ID | 2008-2009 | 2026: 9238-9658 | The standard deduction is only the property tax allowance (it adds to a variable never set) | Statutory: the published amount plus the allowance. `use_idaho_standard_deduction_2008_2009_per_statute` |
 | ID | 1977-2020 | 2026: 9238-9658 | The permanent building fund limits stay at the 1978 amounts (none in 1977) | Statutory: published. `use_idaho_building_fund_limits_per_statute` |
