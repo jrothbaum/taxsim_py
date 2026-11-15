@@ -2153,12 +2153,12 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 </tr>
 <tr>
 <td style="text-align: left;"><code>weight_falling_tables_correctly</code></td>
-<td style="text-align: center;">parameter</td>
+<td style="text-align: center;">logic</td>
 <td style="text-align: center;">all</td>
 <td style="text-align: center;">38/2040</td>
 <td style="text-align: right;">9</td>
 <td style="text-align: center;">logic</td>
-<td style="text-align: left;"></td>
+<td style="text-align: left;">weighted correctly. Taxsim mode reproduces TAXSIM's weighting (</td>
 <td style="text-align: left;">Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters</td>
 <td style="text-align: left;">confirmed: compiled TAXSIM equals taxsim mode on 100% of 147 affected households, statutory on 0%</td>
 </tr>
@@ -2798,7 +2798,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">income.</td>
 <td style="text-align: left;">Found by reading TAXSIM's source; no form or statute check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">taxsim mode equals compiled TAXSIM on only 88% of 8449 affected households (residual logged in pending_issues.md)</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>count_nonproperty_income_once</code></td>
@@ -2853,7 +2853,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">separate or single.</td>
 <td style="text-align: left;">Found by reading TAXSIM's source; no form or statute check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">confirmed: compiled TAXSIM equals taxsim mode on 96% of 9987 affected households, statutory on 0%</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>tax_alaska_before_1979</code></td>
@@ -2897,7 +2897,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">from 2023 only.</td>
 <td style="text-align: left;">Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">confirmed: compiled TAXSIM equals taxsim mode on 92% of 71 affected households, statutory on 0%</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>use_published_dependent_standard_deduction_minimum</code></td>
@@ -2919,7 +2919,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">the form's rules.</td>
 <td style="text-align: left;">Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">confirmed: compiled TAXSIM equals taxsim mode on 96% of 2404 affected households, statutory on 0%</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>use_additional_medicare_separate_threshold</code></td>
@@ -3018,7 +3018,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">the age-qualified count</td>
 <td style="text-align: left;">Found by reading TAXSIM's source; no form or statute check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">taxsim mode equals compiled TAXSIM on only 88% of 17 affected households (residual logged in pending_issues.md)</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>allow_kansas_itemizing_after_2020</code></td>
@@ -3040,7 +3040,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">other taxes included.</td>
 <td style="text-align: left;">Found by reading TAXSIM's source; no form or statute check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">confirmed: compiled TAXSIM equals taxsim mode on 94% of 1073 affected households, statutory on 0%</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>compute_louisiana_tax_per_statute</code></td>
@@ -3062,7 +3062,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">a quarter.</td>
 <td style="text-align: left;">Found by reading TAXSIM's source; no form or statute check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">confirmed: compiled TAXSIM equals taxsim mode on 90% of 155 affected households, statutory on 0%</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>exclude_other_itemized_deductions_from_wisconsin_credit</code></td>
@@ -3073,7 +3073,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">mortgage interest and charity only.</td>
 <td style="text-align: left;">Found by reading TAXSIM's source; no form or statute check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">confirmed: compiled TAXSIM equals taxsim mode on 96% of 2817 affected households, statutory on 2%</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>use_new_mexico_working_families_rates_per_statute</code></td>
@@ -3117,7 +3117,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">the published schedules.</td>
 <td style="text-align: left;">Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">confirmed: compiled TAXSIM equals taxsim mode on 98% of 305 affected households, statutory on 0%</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>limit_nebraska_property_tax_deduction_to_federal_cap</code></td>
@@ -3150,7 +3150,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">the federal credit after its limit, 10 points per $1,000.</td>
 <td style="text-align: left;">Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">confirmed: compiled TAXSIM equals taxsim mode on 90% of 157 affected households, statutory on 1%</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>zero_nebraska_standard_deduction_when_federal_itemizes</code></td>
@@ -3183,7 +3183,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">Louisiana AGI.</td>
 <td style="text-align: left;">Found by reading TAXSIM's source; no form or statute check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">taxsim mode equals compiled TAXSIM on only 87% of 54 affected households (residual logged in pending_issues.md)</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>apply_kentucky_pension_exclusion_schedule</code></td>
@@ -3205,7 +3205,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">mortgage interest only.</td>
 <td style="text-align: left;">Found by reading TAXSIM's source; no form or statute check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">confirmed: compiled TAXSIM equals taxsim mode on 98% of 1312 affected households, statutory on 9%</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>exclude_children_under_4_from_ny_empire_credit</code></td>
@@ -3227,7 +3227,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">the quarter-of-rent test.</td>
 <td style="text-align: left;">Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">confirmed: compiled TAXSIM equals taxsim mode on 95% of 403 affected households, statutory on 0%</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>round_new_york_recapture_ratio_per_statute</code></td>
@@ -3249,7 +3249,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">the credit, halved.</td>
 <td style="text-align: left;">Found by reading TAXSIM's source; no form or statute check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">taxsim mode equals compiled TAXSIM on only 83% of 72 affected households (residual logged in pending_issues.md)</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>count_children_under_6_by_dep6</code></td>
@@ -3337,7 +3337,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">limited by federal tax.</td>
 <td style="text-align: left;">Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">taxsim mode equals compiled TAXSIM on only 74% of 23 affected households (residual logged in pending_issues.md)</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>limit_maine_dependent_filer_standard_deduction_per_statute</code></td>
@@ -3348,7 +3348,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">the federal (limited) amount.</td>
 <td style="text-align: left;">Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">taxsim mode equals compiled TAXSIM on only 55% of 118 affected households (residual logged in pending_issues.md)</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>count_maine_fairness_credit_children_by_dep17</code></td>
@@ -3403,7 +3403,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">allowed.</td>
 <td style="text-align: left;">Found by reading TAXSIM's source; no form or statute check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">taxsim mode equals compiled TAXSIM on only 75% of 335 affected households (residual logged in pending_issues.md)</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>split_virginia_age_deduction_between_spouses_per_statute</code></td>
@@ -3425,7 +3425,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">3,000.</td>
 <td style="text-align: left;">Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">taxsim mode equals compiled TAXSIM on only 58% of 45 affected households (residual logged in pending_issues.md)</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>add_back_other_itemized_in_california_minimum_tax_per_statute</code></td>
@@ -3436,7 +3436,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">adds back property tax and other items.</td>
 <td style="text-align: left;">Found by reading TAXSIM's source; no form or statute check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">confirmed: compiled TAXSIM equals taxsim mode on 96% of 414 affected households, statutory on 0%</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>use_indiana_elderly_credit_steps_per_statute</code></td>
@@ -3469,7 +3469,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">not subtracted.</td>
 <td style="text-align: left;">Found by reading TAXSIM's source; no form or statute check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">taxsim mode equals compiled TAXSIM on only 88% of 48 affected households (residual logged in pending_issues.md)</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>deny_delaware_personal_credit_to_dependent_filers_per_statute</code></td>
@@ -3480,7 +3480,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">split after the exclusion; no credit.</td>
 <td style="text-align: left;">Found by reading TAXSIM's source; no form or statute check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">taxsim mode equals compiled TAXSIM on only 46% of 251 affected households (residual logged in pending_issues.md)</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>tax_kansas_other_nonproperty_income_per_statute</code></td>
@@ -3502,7 +3502,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">the limit applies.</td>
 <td style="text-align: left;">Found by reading TAXSIM's source; no form or statute check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">taxsim mode equals compiled TAXSIM on only 85% of 13 affected households (residual logged in pending_issues.md)</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>reconstruct_connecticut_minimum_tax_income_per_statute</code></td>
@@ -3513,7 +3513,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">reconstructed from AGI and the separate-return add-back.</td>
 <td style="text-align: left;">Found by reading TAXSIM's source; no form or statute check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">taxsim mode equals compiled TAXSIM on only 83% of 24 affected households (residual logged in pending_issues.md)</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>halve_minnesota_motor_fuels_credit_for_separate_returns_per_statute</code></td>
@@ -3524,7 +3524,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">halved.</td>
 <td style="text-align: left;">Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or by interpolation instead of steps); the row in statutory_corrections.md describes it. No form check needed; the parameter values the statutory side uses are listed under the state's parameters</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">taxsim mode equals compiled TAXSIM on only 89% of 54 affected households (residual logged in pending_issues.md)</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>use_published_minnesota_dependent_standard_deduction_per_statute</code></td>
@@ -3546,7 +3546,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">earnings plus the federal addition.</td>
 <td style="text-align: left;">Found by reading TAXSIM's source; no form or statute check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">taxsim mode equals compiled TAXSIM on only 71% of 42 affected households (residual logged in pending_issues.md)</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>apply_illinois_earned_income_credit_age_test_per_statute</code></td>
@@ -3612,7 +3612,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">excluded.</td>
 <td style="text-align: left;">Found by reading TAXSIM's source; no form or statute check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">confirmed: compiled TAXSIM equals taxsim mode on 100% of 404 affected households, statutory on 0%</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>split_missouri_income_before_capital_gains_subtraction_per_statute</code></td>
@@ -3645,7 +3645,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">federal credit with the age test.</td>
 <td style="text-align: left;">Found by reading TAXSIM's source; no form or statute check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">confirmed: compiled TAXSIM equals taxsim mode on 100% of 3 affected households, statutory on 33%</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>use_maryland_published_2025_tax_table_per_statute</code></td>
@@ -3700,7 +3700,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">counts the children.</td>
 <td style="text-align: left;">Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or tested wrongly); the row in statutory_corrections.md describes it. No form check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">taxsim mode equals compiled TAXSIM on only 66% of 949 affected households (residual logged in pending_issues.md)</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>count_business_inputs_in_earned_income_before_1987_per_statute</code></td>
@@ -3711,7 +3711,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">not counted / counted.</td>
 <td style="text-align: left;">Found by reading TAXSIM's source; no form or statute check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">confirmed: compiled TAXSIM equals taxsim mode on 92% of 901 affected households, statutory on 0%</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>exclude_nonproperty_income_from_maximum_tax_personal_service_income</code></td>
@@ -3722,7 +3722,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">not counted / counted.</td>
 <td style="text-align: left;">Found by reading TAXSIM's source; no form or statute check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">confirmed: compiled TAXSIM equals taxsim mode on 92% of 258 affected households, statutory on 1%</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>start_minnesota_itemized_phaseout_without_status_multiplier_per_statute</code></td>
@@ -3733,7 +3733,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">the itemized deduction's own start.</td>
 <td style="text-align: left;">Found by reading TAXSIM's source; no form or statute check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">confirmed: compiled TAXSIM equals taxsim mode on 100% of 28 affected households, statutory on 0%</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>add_back_minnesota_unemployment_exclusion_to_working_family_income_per_statute</code></td>
@@ -3755,7 +3755,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">not counted.</td>
 <td style="text-align: left;">Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or tested wrongly); the row in statutory_corrections.md describes it. No form check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">confirmed: compiled TAXSIM equals taxsim mode on 100% of 242 affected households, statutory on 0%</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>deflate_wisconsin_exemption_count_per_statute</code></td>
@@ -3810,7 +3810,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">half the married threshold.</td>
 <td style="text-align: left;">Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or tested wrongly); the row in statutory_corrections.md describes it. No form check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">taxsim mode equals compiled TAXSIM on only 14% of 22 affected households (residual logged in pending_issues.md)</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>compute_new_york_earned_income_credit_base_per_statute</code></td>
@@ -3821,7 +3821,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">computed on New York income.</td>
 <td style="text-align: left;">Found by reading TAXSIM's source; no form or statute check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">taxsim mode equals compiled TAXSIM on only 60% of 10 affected households (residual logged in pending_issues.md)</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>offset_massachusetts_dividends_only_by_losses_per_statute</code></td>
@@ -3832,7 +3832,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">no offset against gains.</td>
 <td style="text-align: left;">Found by reading TAXSIM's source; no form or statute check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">taxsim mode equals compiled TAXSIM on only 89% of 9 affected households (residual logged in pending_issues.md)</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>count_maine_fairness_credit_children_before_deflation_per_statute</code></td>
@@ -3854,7 +3854,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">counted.</td>
 <td style="text-align: left;">Found by reading TAXSIM's source; no form or statute check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">taxsim mode equals compiled TAXSIM on only 78% of 277 affected households (residual logged in pending_issues.md)</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>limit_kansas_child_care_credit_by_federal_tax_per_statute</code></td>
@@ -3865,7 +3865,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">limited by the federal tax.</td>
 <td style="text-align: left;">Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or tested wrongly); the row in statutory_corrections.md describes it. No form check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">confirmed: compiled TAXSIM equals taxsim mode on 100% of 6 affected households, statutory on 0%</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>round_connecticut_property_credit_steps_continuously_per_statute</code></td>
@@ -3898,7 +3898,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">reduced; capped at the year's maximum.</td>
 <td style="text-align: left;">Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or tested wrongly); the row in statutory_corrections.md describes it. No form check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">confirmed: compiled TAXSIM equals taxsim mode on 100% of 7 affected households, statutory on 0%</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>give_michigan_dependent_filers_exemption_per_statute</code></td>
@@ -3909,7 +3909,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;"></td>
 <td style="text-align: left;">Found by reading TAXSIM's source; no form or statute check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">taxsim mode equals compiled TAXSIM on only 86% of 468 affected households (residual logged in pending_issues.md)</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>compute_utah_child_tax_credit_per_statute</code></td>
@@ -3931,7 +3931,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">limited by federal tax.</td>
 <td style="text-align: left;">Found by reading TAXSIM's source; no form or statute check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">taxsim mode equals compiled TAXSIM on only 46% of 13 affected households (residual logged in pending_issues.md)</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>count_arkansas_s_corporation_income_once</code></td>
@@ -3942,7 +3942,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">once.</td>
 <td style="text-align: left;">Found by reading TAXSIM's source; no form or statute check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">confirmed: compiled TAXSIM equals taxsim mode on 94% of 490 affected households, statutory on 1%</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>omit_georgia_itemizer_credit_per_statute</code></td>
@@ -4195,7 +4195,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">not earned income.</td>
 <td style="text-align: left;">Found by reading TAXSIM's source; no form or statute check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">taxsim mode equals compiled TAXSIM on only 86% of 487 affected households (residual logged in pending_issues.md)</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>exclude_maryland_pensions_per_taxpayer_per_statute</code></td>
@@ -4272,7 +4272,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">halved thresholds.</td>
 <td style="text-align: left;">Found by reading TAXSIM's source; no form or statute check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">taxsim mode equals compiled TAXSIM on only 83% of 53 affected households (residual logged in pending_issues.md)</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>deflate_oklahoma_earned_income_credit_income_per_statute</code></td>
@@ -4305,7 +4305,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">federal cap.</td>
 <td style="text-align: left;">Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or tested wrongly); the row in statutory_corrections.md describes it. No form check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">taxsim mode equals compiled TAXSIM on only 61% of 31 affected households (residual logged in pending_issues.md)</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>limit_south_carolina_standard_deduction_addback_to_nonitemizers_per_statute</code></td>
@@ -4338,7 +4338,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">by earner.</td>
 <td style="text-align: left;">Found by reading TAXSIM's source; no form or statute check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">taxsim mode equals compiled TAXSIM on only 85% of 174 affected households (residual logged in pending_issues.md)</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>floor_maryland_itemized_deduction_at_zero</code></td>
@@ -4360,7 +4360,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">the published amount plus the allowance.</td>
 <td style="text-align: left;">Found by reading TAXSIM's source; no form or statute check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">confirmed: compiled TAXSIM equals taxsim mode on 92% of 315 affected households, statutory on 0%</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>compute_missouri_pension_exemption_per_statute</code></td>
@@ -4415,7 +4415,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">all dependents.</td>
 <td style="text-align: left;">Found by reading TAXSIM's source; no form or statute check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">confirmed: compiled TAXSIM equals taxsim mode on 90% of 1025 affected households, statutory on 1%</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>tax_hawaii_gains_net_of_federal_exclusion</code></td>
@@ -4426,7 +4426,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">gains in AGI.</td>
 <td style="text-align: left;">Found by reading TAXSIM's source; no form or statute check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">confirmed: compiled TAXSIM equals taxsim mode on 94% of 726 affected households, statutory on 0%</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>phase_out_connecticut_pension_deduction_per_statute</code></td>
@@ -4459,7 +4459,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">doubled and halved.</td>
 <td style="text-align: left;">Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or tested wrongly); the row in statutory_corrections.md describes it. No form check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">confirmed: compiled TAXSIM equals taxsim mode on 92% of 1540 affected households, statutory on 0%</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>read_minnesota_child_care_from_federal_credit</code></td>
@@ -4470,7 +4470,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">the federal credit.</td>
 <td style="text-align: left;">Found by reading TAXSIM's source; no form or statute check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">taxsim mode equals compiled TAXSIM on only 66% of 217 affected households (residual logged in pending_issues.md)</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>subtract_minnesota_elderly_and_charity_from_income</code></td>
@@ -4492,7 +4492,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">counted.</td>
 <td style="text-align: left;">Found by reading TAXSIM's source; no form or statute check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">confirmed: compiled TAXSIM equals taxsim mode on 92% of 369 affected households, statutory on 9%</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>count_unknown_ages_as_eligible_for_minnesota_childless_credit</code></td>
@@ -4525,7 +4525,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">published.</td>
 <td style="text-align: left;">Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or tested wrongly); the row in statutory_corrections.md describes it. No form check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">taxsim mode equals compiled TAXSIM on only 38% of 118 affected households (residual logged in pending_issues.md)</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>use_minnesota_2022_working_family_credit_per_statute</code></td>
@@ -4591,7 +4591,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">nonrefundable before 2003.</td>
 <td style="text-align: left;">Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or tested wrongly); the row in statutory_corrections.md describes it. No form check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">confirmed: compiled TAXSIM equals taxsim mode on 90% of 975 affected households, statutory on 0%</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>pay_vermont_renter_rebate_after_1999</code></td>
@@ -4602,7 +4602,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">published.</td>
 <td style="text-align: left;">Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or tested wrongly); the row in statutory_corrections.md describes it. No form check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">taxsim mode equals compiled TAXSIM on only 88% of 1016 affected households (residual logged in pending_issues.md)</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>use_current_federal_standard_deduction_for_south_carolina_addback</code></td>
@@ -4646,7 +4646,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">the published percentage of the federal credit.</td>
 <td style="text-align: left;">Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or tested wrongly); the row in statutory_corrections.md describes it. No form check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">taxsim mode equals compiled TAXSIM on only 76% of 761 affected households (residual logged in pending_issues.md)</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>use_new_york_dependent_standard_deduction_alone</code></td>
@@ -4657,7 +4657,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">$3,100.</td>
 <td style="text-align: left;">Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or tested wrongly); the row in statutory_corrections.md describes it. No form check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">taxsim mode equals compiled TAXSIM on only 80% of 280 affected households (residual logged in pending_issues.md)</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>interpolate_new_york_household_credit_per_person</code></td>
@@ -4690,7 +4690,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">that year's table.</td>
 <td style="text-align: left;">Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or tested wrongly); the row in statutory_corrections.md describes it. No form check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">taxsim mode equals compiled TAXSIM on only 29% of 384 affected households (residual logged in pending_issues.md)</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>count_only_children_under_13_for_oregon_dependent_care</code></td>
@@ -4701,7 +4701,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">only children under 13 (ORS 315.264, IRC 21(b)).</td>
 <td style="text-align: left;">Found by reading TAXSIM's source; no form or statute check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">taxsim mode equals compiled TAXSIM on only 80% of 93 affected households (residual logged in pending_issues.md)</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>apply_nonrefundable_credits_before_1998</code></td>
@@ -4723,7 +4723,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">no add-back; the AMT was exempt from the limit from 1991.</td>
 <td style="text-align: left;">Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or tested wrongly); the row in statutory_corrections.md describes it. No form check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">confirmed: compiled TAXSIM equals taxsim mode on 98% of 41 affected households, statutory on 0%</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>cap_amt_exemption_for_dependents_only</code></td>
@@ -4745,7 +4745,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">$10,000 for any joint return (IRC 22(d)).</td>
 <td style="text-align: left;">Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or tested wrongly); the row in statutory_corrections.md describes it. No form check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">confirmed: compiled TAXSIM equals taxsim mode on 100% of 44 affected households, statutory on 0%</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>apply_1979_dividend_exclusion</code></td>
@@ -4767,7 +4767,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">neither is a tax-preference item.</td>
 <td style="text-align: left;">Found by reading TAXSIM's source; no form or statute check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">confirmed: compiled TAXSIM equals taxsim mode on 92% of 1363 affected households, statutory on 0%</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>deduct_mortgage_interest_from_1983_minimum_tax</code></td>
@@ -4778,7 +4778,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">deducted, as the law allowed.</td>
 <td style="text-align: left;">Found by reading TAXSIM's source; no form or statute check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">confirmed: compiled TAXSIM equals taxsim mode on 99% of 327 affected households, statutory on 2%</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>correct_analytic_federal_rate</code></td>
@@ -4800,7 +4800,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">uses the 1977-1986 federal credit.</td>
 <td style="text-align: left;">Found by reading TAXSIM's source; no form or statute check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">taxsim mode equals compiled TAXSIM on only 85% of 26 affected households (residual logged in pending_issues.md)</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>use_current_rates_in_dc_earner_split</code></td>
@@ -4866,7 +4866,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">not on separate returns.</td>
 <td style="text-align: left;">Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or tested wrongly); the row in statutory_corrections.md describes it. No form check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">confirmed: compiled TAXSIM equals taxsim mode on 100% of 27 affected households, statutory on 0%</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>allow_massachusetts_child_care_deduction_2011_2020</code></td>
@@ -4877,7 +4877,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">through 2020 (Form 1 line 10b).</td>
 <td style="text-align: left;">Found by reading TAXSIM's source; no form or statute check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">confirmed: compiled TAXSIM equals taxsim mode on 90% of 208 affected households, statutory on 0%</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>pay_minnesota_homemaker_credit_to_nondependents</code></td>
@@ -4921,7 +4921,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">the lesser of the credit and $600 ($1,200) less 5% of the excess (Minn. Stat. 290.067 subd. 2b).</td>
 <td style="text-align: left;">Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or tested wrongly); the row in statutory_corrections.md describes it. No form check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">taxsim mode equals compiled TAXSIM on only 84% of 63 affected households (residual logged in pending_issues.md)</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>allow_minnesota_renter_and_homeowner_refunds</code></td>
@@ -4932,7 +4932,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">both refunds (Form M1PR).</td>
 <td style="text-align: left;">Found by reading TAXSIM's source; no form or statute check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">taxsim mode equals compiled TAXSIM on only 86% of 550 affected households (residual logged in pending_issues.md)</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>floor_mississippi_excess_charity</code></td>
@@ -4943,7 +4943,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">floored at 0.</td>
 <td style="text-align: left;">Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or tested wrongly); the row in statutory_corrections.md describes it. No form check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">confirmed: compiled TAXSIM equals taxsim mode on 100% of 481 affected households, statutory on 0%</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>subtract_only_taxable_unemployment_in_montana</code></td>
@@ -4965,7 +4965,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">once.</td>
 <td style="text-align: left;">Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or tested wrongly); the row in statutory_corrections.md describes it. No form check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">confirmed: compiled TAXSIM equals taxsim mode on 91% of 99 affected households, statutory on 0%</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>suspend_montana_itemized_limit_through_2012</code></td>
@@ -4987,7 +4987,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">all children.</td>
 <td style="text-align: left;">Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or tested wrongly); the row in statutory_corrections.md describes it. No form check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">confirmed: compiled TAXSIM equals taxsim mode on 100% of 40 affected households, statutory on 2%</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>take_north_carolina_child_care_credit_once</code></td>
@@ -4998,7 +4998,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">off the larger tax once.</td>
 <td style="text-align: left;">Found by reading TAXSIM's source; no form or statute check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">confirmed: compiled TAXSIM equals taxsim mode on 100% of 9 affected households, statutory on 11%</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>use_north_carolina_married_table_without_splitting</code></td>
@@ -5064,7 +5064,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">40 percent.</td>
 <td style="text-align: left;">Found by reading TAXSIM's source; no form or statute check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">confirmed: compiled TAXSIM equals taxsim mode on 99% of 142 affected households, statutory on 0%</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>compute_new_mexico_capital_gains_deduction_per_statute</code></td>
@@ -5075,7 +5075,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">never more than the gain, halved on separate returns.</td>
 <td style="text-align: left;">Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or tested wrongly); the row in statutory_corrections.md describes it. No form check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">confirmed: compiled TAXSIM equals taxsim mode on 91% of 74 affected households, statutory on 0%</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>compute_maryland_earned_income_credit_per_statute</code></td>
@@ -5108,7 +5108,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">32.5 percent.</td>
 <td style="text-align: left;">Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or tested wrongly); the row in statutory_corrections.md describes it. No form check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">taxsim mode equals compiled TAXSIM on only 56% of 345 affected households (residual logged in pending_issues.md)</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>compute_oklahoma_sales_tax_credit_income_per_statute</code></td>
@@ -5141,7 +5141,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">2021 federal credit, limited to tax.</td>
 <td style="text-align: left;">Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or tested wrongly); the row in statutory_corrections.md describes it. No form check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">taxsim mode equals compiled TAXSIM on only 60% of 5 affected households (residual logged in pending_issues.md)</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>pay_wisconsin_child_care_credit_per_statute</code></td>
@@ -5152,7 +5152,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">share of the federal credit.</td>
 <td style="text-align: left;">Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or tested wrongly); the row in statutory_corrections.md describes it. No form check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">taxsim mode equals compiled TAXSIM on only 84% of 435 affected households (residual logged in pending_issues.md)</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>test_indiana_childless_credit_ages_per_statute</code></td>
@@ -5218,7 +5218,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">normal start.</td>
 <td style="text-align: left;">Found by reading TAXSIM's source; no form or statute check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">taxsim mode equals compiled TAXSIM on only 70% of 239 affected households (residual logged in pending_issues.md)</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>use_wisconsin_published_2022_separate_brackets_per_statute</code></td>
@@ -5251,7 +5251,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">by filing status, no credit on separate returns.</td>
 <td style="text-align: left;">Found by reading TAXSIM's source; no form or statute check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">taxsim mode equals compiled TAXSIM on only 67% of 30 affected households (residual logged in pending_issues.md)</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>pick_new_york_worksheet_by_filing_status</code></td>
@@ -5306,7 +5306,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">separate returns on half the thresholds.</td>
 <td style="text-align: left;">Found by reading TAXSIM's source; no form or statute check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">taxsim mode equals compiled TAXSIM on only 88% of 419 affected households (residual logged in pending_issues.md)</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>limit_rhode_island_retirement_exclusion_to_aged_per_statute</code></td>
@@ -5328,7 +5328,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">the larger one.</td>
 <td style="text-align: left;">Found by reading TAXSIM's source; no form or statute check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">confirmed: compiled TAXSIM equals taxsim mode on 100% of 6 affected households, statutory on 0%</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>read_west_virginia_family_credit_limits_per_statute</code></td>
@@ -5361,7 +5361,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">none.</td>
 <td style="text-align: left;">Found by reading TAXSIM's source; no form or statute check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">taxsim mode equals compiled TAXSIM on only 71% of 172 affected households (residual logged in pending_issues.md)</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>require_earned_income_for_ohio_joint_credit</code></td>
@@ -5394,7 +5394,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">gains taxed in full.</td>
 <td style="text-align: left;">Found by reading TAXSIM's source; no form or statute check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">confirmed: compiled TAXSIM equals taxsim mode on 100% of 174 affected households, statutory on 0%</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>pay_district_of_columbia_property_credit_2014_2018</code></td>
@@ -5416,7 +5416,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">married separate table, homestead for all who qualify.</td>
 <td style="text-align: left;">Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or tested wrongly); the row in statutory_corrections.md describes it. No form check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">taxsim mode equals compiled TAXSIM on only 74% of 241 affected households (residual logged in pending_issues.md)</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>deduct_district_of_columbia_other_itemized_with_state_taxes</code></td>
@@ -5427,7 +5427,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">from the inputs.</td>
 <td style="text-align: left;">Found by reading TAXSIM's source; no form or statute check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">confirmed: compiled TAXSIM equals taxsim mode on 90% of 539 affected households, statutory on 0%</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>start_wisconsin_head_of_household_third_tier_per_statute</code></td>
@@ -5460,7 +5460,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">3% (1987) and 2% (1988) of dividends, interest and gains, phased in from $100,000 of AGI.</td>
 <td style="text-align: left;">Found by reading TAXSIM's source; no form or statute check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">confirmed: compiled TAXSIM equals taxsim mode on 99% of 124 affected households, statutory on 0%</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>charge_new_york_minimum_tax_on_preferences_only</code></td>
@@ -5493,7 +5493,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">Oregon's taxable amount replaces it.</td>
 <td style="text-align: left;">Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or tested wrongly); the row in statutory_corrections.md describes it. No form check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">confirmed: compiled TAXSIM equals taxsim mode on 100% of 10 affected households, statutory on 0%</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>pay_oregon_2015_2017_kickers</code></td>
@@ -5515,7 +5515,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">2019 paid, 2021 not (the published credit for 2021 is not coded).</td>
 <td style="text-align: left;">Found by reading TAXSIM's source; no form or statute check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">confirmed: compiled TAXSIM equals taxsim mode on 94% of 501 affected households, statutory on 0%</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>tax_oregon_dependent_filers_per_statute</code></td>
@@ -5526,7 +5526,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">taxed on the single schedule.</td>
 <td style="text-align: left;">Found by reading TAXSIM's source; no form or statute check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">taxsim mode equals compiled TAXSIM on only 57% of 263 affected households (residual logged in pending_issues.md)</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>omit_oregon_2021_kicker</code></td>
@@ -5548,7 +5548,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">net long-term gain only.</td>
 <td style="text-align: left;">Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or tested wrongly); the row in statutory_corrections.md describes it. No form check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">confirmed: compiled TAXSIM equals taxsim mode on 99% of 86 affected households, statutory on 0%</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>halve_rhode_island_separate_standard_deduction</code></td>
@@ -5559,7 +5559,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">half.</td>
 <td style="text-align: left;">Found by reading TAXSIM's source; no form or statute check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">confirmed: compiled TAXSIM equals taxsim mode on 99% of 122 affected households, statutory on 0%</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>subtract_rhode_island_tax_once_in_minimum_tax</code></td>
@@ -5581,7 +5581,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">tax under 1980 law.</td>
 <td style="text-align: left;">Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or tested wrongly); the row in statutory_corrections.md describes it. No form check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">confirmed: compiled TAXSIM equals taxsim mode on 100% of 20 affected households, statutory on 15%</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>allow_virginia_child_care_deduction_2003</code></td>
@@ -5592,7 +5592,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">the $3,000 federal expense limit.</td>
 <td style="text-align: left;">Found by reading TAXSIM's source; no form or statute check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">confirmed: compiled TAXSIM equals taxsim mode on 96% of 106 affected households, statutory on 0%</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>read_virginia_low_income_limits_per_statute</code></td>
@@ -5614,7 +5614,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">the married-separate table.</td>
 <td style="text-align: left;">Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or tested wrongly); the row in statutory_corrections.md describes it. No form check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">confirmed: compiled TAXSIM equals taxsim mode on 92% of 150 affected households, statutory on 0%</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>use_published_north_dakota_brackets_from_2024</code></td>
@@ -5669,7 +5669,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">the dated rules.</td>
 <td style="text-align: left;">Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or tested wrongly); the row in statutory_corrections.md describes it. No form check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">taxsim mode equals compiled TAXSIM on only 76% of 92 affected households (residual logged in pending_issues.md)</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>limit_idaho_dependent_standard_deduction_per_statute</code></td>
@@ -5680,7 +5680,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">the larger of the minimum and earned income plus an addition.</td>
 <td style="text-align: left;">Found by reading TAXSIM's source; no form or statute check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">taxsim mode equals compiled TAXSIM on only 46% of 674 affected households (residual logged in pending_issues.md)</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>pay_maine_childless_credit_rate_to_all_ages_per_statute</code></td>
@@ -5713,7 +5713,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">12.75%.</td>
 <td style="text-align: left;">Found by reading TAXSIM's source; no form or statute check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">taxsim mode equals compiled TAXSIM on only 79% of 57 affected households (residual logged in pending_issues.md)</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>limit_virginia_itemized_deductions_without_other_items</code></td>
@@ -5746,7 +5746,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">floored at 0.</td>
 <td style="text-align: left;">Found by reading TAXSIM's source; no form or statute check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">taxsim mode equals compiled TAXSIM on only 80% of 10 affected households (residual logged in pending_issues.md)</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>start_wisconsin_separate_standard_deduction_tier_at_its_range</code></td>
@@ -5768,7 +5768,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">$500.</td>
 <td style="text-align: left;">Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or tested wrongly); the row in statutory_corrections.md describes it. No form check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">taxsim mode equals compiled TAXSIM on only 79% of 119 affected households (residual logged in pending_issues.md)</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>limit_wisconsin_dependent_standard_deduction_from_2023</code></td>
@@ -5779,7 +5779,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">limited to earned income plus an addition.</td>
 <td style="text-align: left;">Found by reading TAXSIM's source; no form or statute check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">taxsim mode equals compiled TAXSIM on only 50% of 38 affected households (residual logged in pending_issues.md)</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>keep_wisconsin_mortgage_interest_cents</code></td>
@@ -5823,7 +5823,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">based on rent.</td>
 <td style="text-align: left;">Found by reading TAXSIM's source; no form or statute check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">confirmed: compiled TAXSIM equals taxsim mode on 98% of 2524 affected households, statutory on 48%</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>halve_wisconsin_separate_amt_exemption</code></td>
@@ -5834,7 +5834,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">half the exemption (</td>
 <td style="text-align: left;">Found by reading TAXSIM's source; no form or statute check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">confirmed: compiled TAXSIM equals taxsim mode on 100% of 58 affected households, statutory on 0%</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>add_wisconsin_minimum_tax_once</code></td>
@@ -5845,7 +5845,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">half the exemption (</td>
 <td style="text-align: left;">Found by reading TAXSIM's source; no form or statute check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">taxsim mode equals compiled TAXSIM on only 79% of 53 affected households (residual logged in pending_issues.md)</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>use_wisconsin_net_household_income_1989_1990</code></td>
@@ -5867,7 +5867,7 @@ confirmed in part; <strong>unverified</strong> = a parameter error whose publish
 <td style="text-align: center;">logic</td>
 <td style="text-align: left;">80%.</td>
 <td style="text-align: left;">Structural error found by reading TAXSIM's source (a rule applied in the wrong years, to the wrong filers, or tested wrongly); the row in statutory_corrections.md describes it. No form check needed</td>
-<td style="text-align: left;">not reached by the CPS sample</td>
+<td style="text-align: left;">taxsim mode equals compiled TAXSIM on only 88% of 40 affected households (residual logged in pending_issues.md)</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>report_base_state_worksheet</code></td>
