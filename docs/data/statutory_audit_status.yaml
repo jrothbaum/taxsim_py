@@ -824,7 +824,7 @@ use_published_capital_gains_thresholds:
     $579,600), matching the parameters; earlier years Rev. Proc. 2021-45 (2022: 20% above $459,750 single) and later yearly revenue procedures'
   status: verified
 use_published_dependent_standard_deduction_minimum:
-  source: 'IRC 63(c)(5)(A) and the yearly revenue procedures: minimum $650 in 1995-1996, $1,150 in 2022, $1,250 in 2023, $1,300 in 2024 (Rev. Proc. 2023-34), $1,350 in 2026 (Rev. Proc. 2025-32 section 3.14)'
+  source: 'IRC 63(c)(5)(A) and the yearly revenue procedures: minimum $650 in 1995-1996, $1,150 in 2022, $1,250 in 2023, $1,350 in 2026 (Rev. Proc. 2025-32 section 3.14)'
   status: verified
 use_published_kansas_exemption_from_2024:
   source: 'Census Bureau Federal and State Tax Parameter Workbook TY2025, KS sheet (Form K-40 instructions p. 2): EXEMPAMT1 9,160 single and head of household, EXEMPAMT2 18,320 joint, PERXAMT 2,320 per
