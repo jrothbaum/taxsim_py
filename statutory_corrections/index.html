@@ -1313,10 +1313,10 @@ by <code>scripts/annotate_corrections.py</code>; the full text of each source is
 <a href="../statutory_audit/">audit ledger</a>.</p>
 <p>Line numbers refer to <code>taxsim_2024_09_21.f</code>, and "the executable" means
 <code>taxsim2024.exe</code>. A Line cell written <code>a → b</code> gives the 2024 line <code>a</code> and the line <code>b</code> where
-the same statement sits in <code>taxsim_2026_11_09.f</code>; <code>?</code> means that statement is not in the 2026
-source (the 2026 sections below give its new location where it is still an error).
-<code>2026: a-b</code> is the 2026 source's routine for that state and those years. In the section on the
-2026 build, all line numbers are for <code>taxsim_2026_11_09.f</code>.</p>
+the same statement sits in <code>taxsim_2026_11_09.f</code>; <code>2026: a-b</code> is the 2026 source's routine for
+that state and those years. A blank Line cell means the row was confirmed against the compiled
+2026 program but its source line is not recorded. In the section on the 2026 build, all line
+numbers are for <code>taxsim_2026_11_09.f</code>.</p>
 <p>The <strong>taxsim-py</strong> column says how each error is handled:</p>
 <ul>
 <li><strong>Statutory</strong>: <code>calculation_mode="statutory"</code>, the default, follows the law, and
@@ -1372,13 +1372,6 @@ applies it per spouse, as the Schedule SE instructions require). Code:
 <td style="text-align: left;">Statutory, FED-PAYROLL-008: the base is shared with wages. <code>apply_payroll_wage_bases_correctly</code></td>
 <td style="text-align: left;">TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 5 affected households</td>
 </tr>
-<tr>
-<td style="text-align: left;">All</td>
-<td style="text-align: left;">182 → ?</td>
-<td style="text-align: left;">Detailed output <code>v42</code> (<code>ssearn</code>, earnings subject to the Social Security wage base) is never assigned, so it is always 0</td>
-<td style="text-align: left;">Statutory, FED-PAYROLL-006: reports both earners' wages plus 92.35% of net business income, each capped at the wage base. <code>report_social_security_taxable_earnings</code></td>
-<td style="text-align: left;">TAXSIM source (logic error, no form check needed); no CPS household reaches the rule, so it was not run through the compiled TAXSIM</td>
-</tr>
 </tbody>
 </table>
 <h3 id="income-tax-and-credits">Income tax and credits</h3>
@@ -1429,20 +1422,6 @@ applies it per spouse, as the Schedule SE instructions require). Code:
 <td style="text-align: left;">TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 3 affected households</td>
 </tr>
 <tr>
-<td style="text-align: left;">1987-1997</td>
-<td style="text-align: left;">25883-25910 → ?-?</td>
-<td style="text-align: left;">The nonrefundable credit total that states read (<code>comnew(58)</code>) is tax before credits when the elderly credit exceeds it, otherwise 0. A 68-year-old with $8,000 of wages in 1995 has a $712.50 credit and is reported $97.50, so states that read it (LA, UT, OR, ND, AL, AZ) get the wrong federal base. Found by probing the executable</td>
-<td style="text-align: left;">Statutory, FED-INCOME-001: the actual credit (<code>federal_elder</code>). <code>count_pre_1998_nonrefundable_credits_correctly</code>; code: <code>federal._net_tax</code></td>
-<td style="text-align: left;">TAXSIM source (logic error, no form check needed); no CPS household reaches the rule, so it was not run through the compiled TAXSIM</td>
-</tr>
-<tr>
-<td style="text-align: left;">1990 on</td>
-<td style="text-align: left;">25312-25324 → 42874-42886</td>
-<td style="text-align: left;">The AMT exemption cap for young filers (under 14; 18 in 2006-2007; 24 in 2008-2017) applies to anyone that age</td>
-<td style="text-align: left;">Statutory, FED-INCOME-008: dependent filers only; IRC 59(j) covers children subject to the kiddie tax. <code>cap_amt_exemption_for_dependents_only</code></td>
-<td style="text-align: left;">TAXSIM source (logic error, no form check needed); no CPS household reaches the rule, so it was not run through the compiled TAXSIM</td>
-</tr>
-<tr>
 <td style="text-align: left;">1991-1992</td>
 <td style="text-align: left;">25257 → 42819</td>
 <td style="text-align: left;">AMT income adds back the itemized-deduction limit, as if the limit applied to the AMT. A 1991 single itemizer with $150,000 of wages has $1,500 more AMT income</td>
@@ -1451,17 +1430,10 @@ applies it per spouse, as the Schedule SE instructions require). Code:
 </tr>
 <tr>
 <td style="text-align: left;">All</td>
-<td style="text-align: left;">25662 → ?</td>
+<td style="text-align: left;"></td>
 <td style="text-align: left;">The elderly credit's AGI threshold is $7,500 for a joint return with one spouse 65 or older</td>
 <td style="text-align: left;">Statutory, FED-INCOME-006: $10,000 for any joint return (IRC 22(d)). <code>use_joint_elderly_credit_threshold</code></td>
 <td style="text-align: left;">TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 44 affected households</td>
-</tr>
-<tr>
-<td style="text-align: left;">All</td>
-<td style="text-align: left;">24561 → ?</td>
-<td style="text-align: left;">Social Security provisional income adds <code>transfers</code> (welfare, workers' compensation), which the input reader stores where tax-exempt interest used to be (<code>data(41)</code>)</td>
-<td style="text-align: left;">Statutory, FED-INCOME-003: adds nothing; the law adds tax-exempt interest, which TAXSIM has no input for. The same applies to the Iowa (2014 on) and Montana worksheets. <code>exclude_transfers_from_provisional_income</code></td>
-<td style="text-align: left;">Confirmed: IRC 86(b)(2): provisional income is modified AGI plus tax-exempt interest plus half of benefits; transfers are not in it</td>
 </tr>
 <tr>
 <td style="text-align: left;">1998-2000</td>
@@ -1534,21 +1506,9 @@ skips would count the EITC slope twice.</p>
 <td style="text-align: left;">TAXSIM source and the compiled program</td>
 </tr>
 <tr>
-<td style="text-align: left;">1998 on</td>
-<td style="text-align: left;">25733 → 43287, 25758 → ?, 25972 → 43520</td>
-<td style="text-align: left;">The child tax credit adds <code>.05</code>, a fraction, to a rate in percent: +0.05 points</td>
-<td style="text-align: left;">TAXSIM source and the compiled program</td>
-</tr>
-<tr>
 <td style="text-align: left;">All</td>
 <td style="text-align: left;">25946 → 43494</td>
 <td style="text-align: left;">The elderly-credit term subtracts a percent from 50 inside a fraction</td>
-<td style="text-align: left;">TAXSIM source and the compiled program</td>
-</tr>
-<tr>
-<td style="text-align: left;">All</td>
-<td style="text-align: left;">27860-27880 → ?-38650</td>
-<td style="text-align: left;">The EITC slope is set before the disqualification tests, so it stays in the rate when no credit is paid</td>
 <td style="text-align: left;">TAXSIM source and the compiled program</td>
 </tr>
 </tbody>
@@ -1574,13 +1534,6 @@ skips would count the EITC slope twice.</p>
 <td style="text-align: left;">TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 85% of 26 affected households</td>
 </tr>
 <tr>
-<td style="text-align: left;">Household income and state detail, all years</td>
-<td style="text-align: left;">21324 → ?, 21336-21400 → 47626-?</td>
-<td style="text-align: left;">Every record after the first has $1 more household income (this matters for Michigan's Home Heating Credit), and with <code>idtl=2</code> the state worksheet is printed from the one-cent marginal-rate run</td>
-<td style="text-align: left;">Statutory, STATE-HHY-002: drops the $1 and reports the base calculation. <code>drop_household_income_record_adjustment</code>, <code>report_base_state_worksheet</code></td>
-<td style="text-align: left;">TAXSIM source (logic error, no form check needed); no CPS household reaches the rule, so it was not run through the compiled TAXSIM</td>
-</tr>
-<tr>
 <td style="text-align: left;">KS, MO, VT; MO 1977-1993</td>
 <td style="text-align: left;">231-280 → 106-?</td>
 <td style="text-align: left;">The payroll tax these states deduct (<code>socsec</code>) charges 1.45% on wages above the Social Security base in every year (about $296 too much on $60,000 in Missouri 1985)</td>
@@ -1592,13 +1545,6 @@ skips would count the EITC slope twice.</p>
 <td style="text-align: left;"></td>
 <td style="text-align: left;">The spouse split assigns business and professional income to the wrong spouse</td>
 <td style="text-align: left;">Statutory, FED-PAYROLL-005 (see <a href="#payroll-tax">payroll tax</a>)</td>
-<td style="text-align: left;">TAXSIM source and the compiled program</td>
-</tr>
-<tr>
-<td style="text-align: left;">Several, 2022-2023</td>
-<td style="text-align: left;">59-71 → ?-?</td>
-<td style="text-align: left;">For projected years the dispatcher deflates federal slots 1-98 but passes higher slots undeflated and skips 26, 65, 72 and 73. Massachusetts' payroll deduction, Kentucky's child care credit, self-employment tax, and federal total income in Maine, West Virginia and Indiana mix 2021 and current dollars</td>
-<td style="text-align: left;">Projection</td>
 <td style="text-align: left;">TAXSIM source and the compiled program</td>
 </tr>
 </tbody>
@@ -1623,14 +1569,6 @@ skips would count the EITC slope twice.</p>
 <td style="text-align: left;">The payroll-tax itemized deduction takes half of FICA and then adds the employee-only Additional Medicare tax, which TAXSIM's FICA total already includes, counting it 1.5 times</td>
 <td style="text-align: left;">Statutory, AL-001: counted once. <code>count_additional_medicare_once_in_alabama_fica_deduction</code></td>
 <td style="text-align: left;">TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 142 affected households</td>
-</tr>
-<tr>
-<td style="text-align: left;">AL</td>
-<td style="text-align: left;">1982 on</td>
-<td style="text-align: left;">2026: 425-644</td>
-<td style="text-align: left;">The itemized payroll tax deduction is the taxpayer's own payroll taxes (<code>c(190)</code>), not half of the reported total</td>
-<td style="text-align: left;">Statutory: half of FICA. <code>deduct_half_of_fica_in_alabama_itemized_deduction</code></td>
-<td style="text-align: left;">TAXSIM source (logic error, no form check needed); no CPS household reaches the rule, so it was not run through the compiled TAXSIM</td>
 </tr>
 <tr>
 <td style="text-align: left;">AL</td>
@@ -1703,22 +1641,6 @@ skips would count the EITC slope twice.</p>
 <td style="text-align: left;">Pensions and Social Security are subtracted only when someone is 65 or older, under one combined cap</td>
 <td style="text-align: left;">Statutory, CO-001: each taxpayer subtracts pension income up to $20,000 (55-64) or $24,000 (65+), less their Social Security subtraction; those 65+ subtract all taxable Social Security, those 55-64 within the cap (all of it from 2025 when federal AGI is at most $75,000, $95,000 joint; HB24-1142). Pension and Social Security inputs are split equally between spouses (C.R.S. 39-22-104(4)(f)-(g), DR 0104AD)</td>
 <td style="text-align: left;">TAXSIM source and the compiled program</td>
-</tr>
-<tr>
-<td style="text-align: left;">DC</td>
-<td style="text-align: left;">2000 on</td>
-<td style="text-align: left;">dctax</td>
-<td style="text-align: left;">The dependent-filer low-income credit's table chain tests the 2000 table first, so every year uses the 2000 rates</td>
-<td style="text-align: left;">Statutory, DC-005: the year's rates (2000-2017). <code>use_current_rates_in_dc_low_income_credit</code></td>
-<td style="text-align: left;">TAXSIM source (logic error, no form check needed); no CPS household reaches the rule, so it was not run through the compiled TAXSIM</td>
-</tr>
-<tr>
-<td style="text-align: left;">DC</td>
-<td style="text-align: left;">2007</td>
-<td style="text-align: left;">2026: 7016-7580</td>
-<td style="text-align: left;">The married-couple split uses the 2006 rates</td>
-<td style="text-align: left;">Statutory, DC-004: 2007 rates. <code>use_current_rates_in_dc_earner_split</code></td>
-<td style="text-align: left;">TAXSIM source (logic error, no form check needed); no CPS household reaches the rule, so it was not run through the compiled TAXSIM</td>
 </tr>
 <tr>
 <td style="text-align: left;">DC</td>
@@ -1799,14 +1721,6 @@ skips would count the EITC slope twice.</p>
 <td style="text-align: left;">The 2023 routine gives no credit to filers 18 to 24 (the state added them in 2023) and the 2024 on routine has no age limit at all</td>
 <td style="text-align: left;">Statutory: age 18 and older from 2023. <code>apply_illinois_earned_income_credit_age_test_per_statute</code></td>
 <td style="text-align: left;">Not yet confirmed against a form or statute</td>
-</tr>
-<tr>
-<td style="text-align: left;">KS</td>
-<td style="text-align: left;">2021 on</td>
-<td style="text-align: left;">2026: 11164-11668, 11680-11827</td>
-<td style="text-align: left;">Itemizing is no longer allowed</td>
-<td style="text-align: left;">Statutory, KS-001: itemizing follows the federal choice in every year (K-40 Schedule A). <code>allow_kansas_itemizing_after_2020</code></td>
-<td style="text-align: left;">TAXSIM source (logic error, no form check needed); no CPS household reaches the rule, so it was not run through the compiled TAXSIM</td>
 </tr>
 <tr>
 <td style="text-align: left;">KS</td>
@@ -1891,23 +1805,15 @@ skips would count the EITC slope twice.</p>
 <tr>
 <td style="text-align: left;">MN</td>
 <td style="text-align: left;">1978-1984</td>
-<td style="text-align: left;">9892 → ?</td>
+<td style="text-align: left;"></td>
 <td style="text-align: left;">The $50 homemaker credit is zeroed unless the filer is someone's dependent (the test looks reversed)</td>
 <td style="text-align: left;">Statutory, MN-002: filers who are not dependents. <code>pay_minnesota_homemaker_credit_to_nondependents</code></td>
 <td style="text-align: left;">TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 1 affected households</td>
 </tr>
 <tr>
 <td style="text-align: left;">MN</td>
-<td style="text-align: left;">1998</td>
-<td style="text-align: left;">9937-9940 → 18443-18446</td>
-<td style="text-align: left;">Three statements overwrite each other in the childless Working Family Credit, so $4,000 of earnings gets $70.20, above the $51 maximum</td>
-<td style="text-align: left;">Statutory, MN-003: phase-in, plateau and phaseout in order. <code>order_minnesota_1998_working_family_credit</code></td>
-<td style="text-align: left;">TAXSIM source (logic error, no form check needed); no CPS household reaches the rule, so it was not run through the compiled TAXSIM</td>
-</tr>
-<tr>
-<td style="text-align: left;">MN</td>
 <td style="text-align: left;">2012</td>
-<td style="text-align: left;">10043-10093 → ?-?</td>
+<td style="text-align: left;"></td>
 <td style="text-align: left;">Married couples miss the higher joint Working Family Credit thresholds in 2012 only</td>
 <td style="text-align: left;">Statutory, MN-004: joint thresholds. <code>use_minnesota_2012_joint_working_family_thresholds</code></td>
 <td style="text-align: left;">TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 2 affected households</td>
@@ -1915,18 +1821,10 @@ skips would count the EITC slope twice.</p>
 <tr>
 <td style="text-align: left;">MN</td>
 <td style="text-align: left;">2014-2018</td>
-<td style="text-align: left;">10007-10035 → ?-?</td>
+<td style="text-align: left;"></td>
 <td style="text-align: left;">The Working Family Credit phaseout for 2 or more children (single) reads the one-child start (the 2019 build fixed 2019 on): a 2015 single parent of two starts losing it at $21,520 instead of $25,530</td>
 <td style="text-align: left;">Statutory, MN-005: each table's own start. <code>use_minnesota_working_family_tables_by_children</code></td>
 <td style="text-align: left;">TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 14 affected households</td>
-</tr>
-<tr>
-<td style="text-align: left;">MN</td>
-<td style="text-align: left;">2017-2020</td>
-<td style="text-align: left;">10164-10174 → ?-?</td>
-<td style="text-align: left;">The child care credit is the whole federal-based credit until AGI is $50,000 over the threshold, then the lesser of it and $600 ($1,200) less 5% of the excess</td>
-<td style="text-align: left;">Statutory, MN-006: the lesser of the credit and $600 ($1,200) less 5% of the excess (Minn. Stat. 290.067 subd. 2b). <code>limit_minnesota_child_care_credit_by_maximum_after_2017</code></td>
-<td style="text-align: left;">TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 84% of 63 affected households</td>
 </tr>
 <tr>
 <td style="text-align: left;">MN</td>
@@ -1939,7 +1837,7 @@ skips would count the EITC slope twice.</p>
 <tr>
 <td style="text-align: left;">MO</td>
 <td style="text-align: left;">All</td>
-<td style="text-align: left;">11555 → ?, motax</td>
+<td style="text-align: left;">motax</td>
 <td style="text-align: left;">The property credit reduces the maximum rather than the tax paid and skips the first income step above the base; from 2008 homeowners' property tax is capped at the old $750, not $1,100 (only elderly filers get this credit). The federal tax deduction cap applies only 1994-2018</td>
 <td style="text-align: left;">Statutory, MO-001: tax paid up to the maximum ($1,100 for owners from 2008) less the income percentage (RSMo 135.030). <code>apply_missouri_property_credit_to_tax_paid</code>. The deduction cap cannot bind after 2018</td>
 <td style="text-align: left;">TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 17 affected households</td>
@@ -1955,7 +1853,7 @@ skips would count the EITC slope twice.</p>
 <tr>
 <td style="text-align: left;">MS</td>
 <td style="text-align: left;">1977-1978</td>
-<td style="text-align: left;">11204-11206 → ?-19776</td>
+<td style="text-align: left;"></td>
 <td style="text-align: left;">Excess charity is not floored at zero, so 20% of AGI is added to itemized deductions ($410 of tax instead of $540 at $20,000)</td>
 <td style="text-align: left;">Statutory, MS-001: floored at 0. <code>floor_mississippi_excess_charity</code></td>
 <td style="text-align: left;">TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 481 affected households</td>
@@ -1979,7 +1877,7 @@ skips would count the EITC slope twice.</p>
 <tr>
 <td style="text-align: left;">MT</td>
 <td style="text-align: left;">1984-1986, 2009</td>
-<td style="text-align: left;">11771 → ?</td>
+<td style="text-align: left;"></td>
 <td style="text-align: left;">All unemployment compensation is subtracted, not just the federally taxed part</td>
 <td style="text-align: left;">Statutory, MT-001: the part in federal AGI. <code>subtract_only_taxable_unemployment_in_montana</code></td>
 <td style="text-align: left;">TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 97% of 31 affected households</td>
@@ -1987,7 +1885,7 @@ skips would count the EITC slope twice.</p>
 <tr>
 <td style="text-align: left;">MT</td>
 <td style="text-align: left;">1984 on</td>
-<td style="text-align: left;">11779-11782 → ?-?</td>
+<td style="text-align: left;"></td>
 <td style="text-align: left;">Separate filers' capital losses are subtracted again ($3,000 off for a $5,000 loss)</td>
 <td style="text-align: left;">Statutory, MT-002: once. <code>subtract_montana_separate_capital_loss_once</code></td>
 <td style="text-align: left;">TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 91% of 99 affected households</td>
@@ -2003,7 +1901,7 @@ skips would count the EITC slope twice.</p>
 <tr>
 <td style="text-align: left;">NC</td>
 <td style="text-align: left;">1977-1988</td>
-<td style="text-align: left;">15366 → ?</td>
+<td style="text-align: left;"></td>
 <td style="text-align: left;">The child count is reused for the husband's dependent share: 2 children get a $154 joint child care credit instead of $308</td>
 <td style="text-align: left;">Statutory, NC-001: all children. <code>count_all_children_for_north_carolina_joint_child_care</code></td>
 <td style="text-align: left;">TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 40 affected households</td>
@@ -2019,7 +1917,7 @@ skips would count the EITC slope twice.</p>
 <tr>
 <td style="text-align: left;">NC</td>
 <td style="text-align: left;">1989-1990</td>
-<td style="text-align: left;">15558 → ?</td>
+<td style="text-align: left;"></td>
 <td style="text-align: left;">The married table is applied with income splitting, so the 6% bracket runs to $43,500 instead of $21,750</td>
 <td style="text-align: left;">Statutory, NC-003: the married table without splitting. <code>use_north_carolina_married_table_without_splitting</code></td>
 <td style="text-align: left;">TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 11 affected households</td>
@@ -2027,7 +1925,7 @@ skips would count the EITC slope twice.</p>
 <tr>
 <td style="text-align: left;">ND</td>
 <td style="text-align: left;">1987-2000</td>
-<td style="text-align: left;">15957 → ?</td>
+<td style="text-align: left;"></td>
 <td style="text-align: left;">The long form adds back state income tax even for standard-deduction filers</td>
 <td style="text-align: left;">Statutory, ND-001: only when deducted federally. <code>add_back_north_dakota_state_tax_for_itemizers_only</code></td>
 <td style="text-align: left;">TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 3 affected households</td>
@@ -2155,7 +2053,7 @@ skips would count the EITC slope twice.</p>
 <tr>
 <td style="text-align: left;">NJ</td>
 <td style="text-align: left;">2018-2021</td>
-<td style="text-align: left;">12910-12916 → ?-?</td>
+<td style="text-align: left;"></td>
 <td style="text-align: left;">The 2004 schedule is used (top rate 8.97%); the law added 10.75%, so $6 million of 2018 wages is under-taxed by about $17,800</td>
 <td style="text-align: left;">Statutory: the published schedule (10.75% top rate). <code>tax_new_jersey_top_rate_after_1982_per_statute</code>; taxsim mode keeps TAXSIM's 8.97%</td>
 <td style="text-align: left;">TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 18 affected households</td>
@@ -2202,35 +2100,11 @@ skips would count the EITC slope twice.</p>
 </tr>
 <tr>
 <td style="text-align: left;">NY</td>
-<td style="text-align: left;">2006-2022</td>
-<td style="text-align: left;">2026: 24729-26295, 44037-44256, 26381-26752</td>
-<td style="text-align: left;">The Empire State child credit counts children under 4 (TAXSIM has no ages)</td>
-<td style="text-align: left;">Statutory, NY-001: children under 4 do not qualify before 2023 (Tax Law 606(c-1)); <code>children_under_4</code> is removed from the 2018-2022 rebuilt credit (the 2006-2017 credit still counts them). <code>exclude_children_under_4_from_ny_empire_credit</code></td>
-<td style="text-align: left;">TAXSIM source (logic error, no form check needed); no CPS household reaches the rule, so it was not run through the compiled TAXSIM</td>
-</tr>
-<tr>
-<td style="text-align: left;">NY</td>
 <td style="text-align: left;">2012 on</td>
 <td style="text-align: left;">14787-14877 → 25713-25802</td>
 <td style="text-align: left;">Several worksheets phase in from another worksheet's bound or one missing the inflation factor (150,000 for 300,000; 200,000 for 2,000,000)</td>
 <td style="text-align: left;">Statutory, NY-006 (2012-2020): each worksheet's own bound. <code>use_own_bounds_in_new_york_worksheets</code></td>
 <td style="text-align: left;">TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 25 affected households</td>
-</tr>
-<tr>
-<td style="text-align: left;">NY</td>
-<td style="text-align: left;">2018 on</td>
-<td style="text-align: left;">14357-14405 → 25286-25334</td>
-<td style="text-align: left;">Itemized deductions can be reported negative (tax is unaffected)</td>
-<td style="text-align: left;">Statutory, NY-007: floored at 0. <code>floor_new_york_itemized_deductions</code></td>
-<td style="text-align: left;">TAXSIM source (logic error, no form check needed); no CPS household reaches the rule, so it was not run through the compiled TAXSIM</td>
-</tr>
-<tr>
-<td style="text-align: left;">NY</td>
-<td style="text-align: left;">2021</td>
-<td style="text-align: left;">14008 → ?</td>
-<td style="text-align: left;">The married worksheet adds back $526 instead of $474; there are no worksheets for the 10.3% and 10.9% brackets</td>
-<td style="text-align: left;">Statutory: from the IT-201 instructions; taxsim mode keeps TAXSIM's worksheets</td>
-<td style="text-align: left;">TAXSIM source and the compiled program</td>
 </tr>
 <tr>
 <td style="text-align: left;">NY</td>
@@ -2243,7 +2117,7 @@ skips would count the EITC slope twice.</p>
 <tr>
 <td style="text-align: left;">OH</td>
 <td style="text-align: left;">1983-1988</td>
-<td style="text-align: left;">16505-16514 → ?-28499</td>
+<td style="text-align: left;"></td>
 <td style="text-align: left;">The $20 exemption credit is subtracted twice, and a couple using the credit method loses the joint credit</td>
 <td style="text-align: left;">Statutory, OH-002: once; both methods get the joint credit and the lower tax applies. <code>subtract_ohio_exemption_credit_once</code></td>
 <td style="text-align: left;">TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 26 affected households</td>
@@ -2255,14 +2129,6 @@ skips would count the EITC slope twice.</p>
 <td style="text-align: left;">The tax is a share of a federal tax variable that is never set, so it is always $0</td>
 <td style="text-align: left;">Statutory, NE-001: the share of federal tax. <code>tax_nebraska_before_1987_per_statute</code></td>
 <td style="text-align: left;">Confirmed: Nebraska Legislature, individual income tax chronology (nebraskalegislature.gov/app_rev/source/chrono_incometax.htm): through 1986 the tax was a percentage of federal liability, 18/16/18/15/15/18/20/19/20/19% for 1977-86, identical to federal_tax_share in ne/income_tax.yaml</td>
-</tr>
-<tr>
-<td style="text-align: left;">NE</td>
-<td style="text-align: left;">1988-2017</td>
-<td style="text-align: left;"><code>netax77</code></td>
-<td style="text-align: left;">The standard deduction stays the federal figure when the federal return itemizes (the state tax makes most high earners itemize), so the state deducts the larger of the two</td>
-<td style="text-align: left;">Statutory: the standard deduction only when the federal return takes it. <code>zero_nebraska_standard_deduction_when_federal_itemizes</code></td>
-<td style="text-align: left;">TAXSIM source (logic error, no form check needed); no CPS household reaches the rule, so it was not run through the compiled TAXSIM</td>
 </tr>
 <tr>
 <td style="text-align: left;">NE</td>
@@ -2291,7 +2157,7 @@ skips would count the EITC slope twice.</p>
 <tr>
 <td style="text-align: left;">OR</td>
 <td style="text-align: left;">1981-1984</td>
-<td style="text-align: left;">17336 → ?</td>
+<td style="text-align: left;"></td>
 <td style="text-align: left;">Federal taxable unemployment is added again (Oregon AGI $32,000 on $28,000 of income)</td>
 <td style="text-align: left;">Statutory, OR-004: Oregon's taxable amount replaces it. <code>replace_federal_unemployment_in_oregon_1981_1984</code></td>
 <td style="text-align: left;">TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 10 affected households</td>
@@ -2299,7 +2165,7 @@ skips would count the EITC slope twice.</p>
 <tr>
 <td style="text-align: left;">OR</td>
 <td style="text-align: left;">2015, 2017</td>
-<td style="text-align: left;">17709 → ?</td>
+<td style="text-align: left;"></td>
 <td style="text-align: left;">The surplus credit (kicker) is computed into a variable that is never used</td>
 <td style="text-align: left;">Statutory, OR-005: 5.6% of tax. <code>pay_oregon_2015_2017_kickers</code></td>
 <td style="text-align: left;">TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 40 affected households</td>
@@ -2371,7 +2237,7 @@ skips would count the EITC slope twice.</p>
 <tr>
 <td style="text-align: left;">PA</td>
 <td style="text-align: left;">All</td>
-<td style="text-align: left;">17749 → ?</td>
+<td style="text-align: left;"></td>
 <td style="text-align: left;">Tax forgiveness ignores nontaxable income such as unemployment and phases out smoothly rather than in 10% steps</td>
 <td style="text-align: left;">Statutory, PA-001: eligibility income adds unemployment compensation and exempt pensions; 10% steps. <code>apply_pennsylvania_forgiveness_rules</code></td>
 <td style="text-align: left;">TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 51 affected households</td>
@@ -2379,7 +2245,7 @@ skips would count the EITC slope twice.</p>
 <tr>
 <td style="text-align: left;">RI</td>
 <td style="text-align: left;">2003-2009</td>
-<td style="text-align: left;">17998 → ?, 18056-18074 → 31035-31053</td>
+<td style="text-align: left;">31035-31053</td>
 <td style="text-align: left;">The capital gains rates also apply to short-term gains ($1,000 more tax on a $20,000 short-term gain)</td>
 <td style="text-align: left;">Statutory, RI-001: net long-term gain only. <code>use_net_long_term_gain_in_rhode_island</code></td>
 <td style="text-align: left;">TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 99% of 86 affected households</td>
@@ -2395,7 +2261,7 @@ skips would count the EITC slope twice.</p>
 <tr>
 <td style="text-align: left;">RI</td>
 <td style="text-align: left;">2003-2010</td>
-<td style="text-align: left;">18133-18134 → ?-31100</td>
+<td style="text-align: left;"></td>
 <td style="text-align: left;">The regular tax is subtracted twice in the minimum tax without gains</td>
 <td style="text-align: left;">Statutory, RI-003: once. <code>subtract_rhode_island_tax_once_in_minimum_tax</code></td>
 <td style="text-align: left;">TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 5 affected households</td>
@@ -2403,7 +2269,7 @@ skips would count the EITC slope twice.</p>
 <tr>
 <td style="text-align: left;">RI</td>
 <td style="text-align: left;">2011 on</td>
-<td style="text-align: left;">18095-18110 → ?-?</td>
+<td style="text-align: left;"></td>
 <td style="text-align: left;">The deduction phaseout is applied in 20% steps and again smoothly (78.4% kept at $180,000 instead of 80%)</td>
 <td style="text-align: left;">Statutory, RI-004 (2011-2021): steps only. <code>use_rhode_island_deduction_phaseout_steps_only</code></td>
 <td style="text-align: left;">TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 3 affected households</td>
@@ -2443,7 +2309,7 @@ skips would count the EITC slope twice.</p>
 <tr>
 <td style="text-align: left;">VA</td>
 <td style="text-align: left;">2021</td>
-<td style="text-align: left;">19409-19411 → ?-?</td>
+<td style="text-align: left;"></td>
 <td style="text-align: left;">The itemized-deduction limit's threshold is scaled by 1.25 in the test but not in the reduction</td>
 <td style="text-align: left;">Statutory, VA-002: in the reduction too. <code>scale_virginia_itemized_limit_threshold</code></td>
 <td style="text-align: left;">TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 12 affected households</td>
@@ -2507,7 +2373,7 @@ skips would count the EITC slope twice.</p>
 <tr>
 <td style="text-align: left;">VT</td>
 <td style="text-align: left;">1977-1988</td>
-<td style="text-align: left;">19135 → ?</td>
+<td style="text-align: left;"></td>
 <td style="text-align: left;">The $10 student credit goes to every filer who is not a dependent</td>
 <td style="text-align: left;">Statutory, VT-001: none (TAXSIM has no student input). <code>omit_vermont_student_credit</code></td>
 <td style="text-align: left;">TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 98% of 58 affected households</td>
@@ -2530,14 +2396,6 @@ skips would count the EITC slope twice.</p>
 </tr>
 <tr>
 <td style="text-align: left;">WI</td>
-<td style="text-align: left;">1987 on</td>
-<td style="text-align: left;">20273-20276 → ?-35220</td>
-<td style="text-align: left;">The capital gain exclusion can be negative and raise income</td>
-<td style="text-align: left;">Statutory, WI-006: floored at 0. <code>floor_wisconsin_capital_gain_exclusion</code></td>
-<td style="text-align: left;">TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 80% of 10 affected households</td>
-</tr>
-<tr>
-<td style="text-align: left;">WI</td>
 <td style="text-align: left;">1987-2018</td>
 <td style="text-align: left;">20876-20906 → 35953-?</td>
 <td style="text-align: left;">Separate filers get the full married AMT exemption, and the minimum tax is added again after the married couple credit</td>
@@ -2547,18 +2405,10 @@ skips would count the EITC slope twice.</p>
 <tr>
 <td style="text-align: left;">WI</td>
 <td style="text-align: left;">1989-1990</td>
-<td style="text-align: left;">20969-20972 → ?-36025</td>
+<td style="text-align: left;"></td>
 <td style="text-align: left;">Homestead eligibility and the reduction use different income measures</td>
 <td style="text-align: left;">Statutory, WI-007: net income for both. <code>use_wisconsin_net_household_income_1989_1990</code></td>
 <td style="text-align: left;">TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 1 affected households</td>
-</tr>
-<tr>
-<td style="text-align: left;">WI</td>
-<td style="text-align: left;">1999</td>
-<td style="text-align: left;">20745 → 35773</td>
-<td style="text-align: left;">The itemized-deduction credit is zeroed on the federal standard-deduction run</td>
-<td style="text-align: left;">Statutory, WI-011: kept. <code>keep_wisconsin_1999_itemized_credit</code></td>
-<td style="text-align: left;">TAXSIM source (logic error, no form check needed); no CPS household reaches the rule, so it was not run through the compiled TAXSIM</td>
 </tr>
 <tr>
 <td style="text-align: left;">WI</td>
@@ -2569,17 +2419,9 @@ skips would count the EITC slope twice.</p>
 <td style="text-align: left;">TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 22 affected households</td>
 </tr>
 <tr>
-<td style="text-align: left;">WI</td>
-<td style="text-align: left;">All</td>
-<td style="text-align: left;">20558 → ?</td>
-<td style="text-align: left;">Mortgage interest is truncated to whole dollars</td>
-<td style="text-align: left;">Statutory, WI-010: cents kept. <code>keep_wisconsin_mortgage_interest_cents</code></td>
-<td style="text-align: left;">TAXSIM source (logic error, no form check needed); no CPS household reaches the rule, so it was not run through the compiled TAXSIM</td>
-</tr>
-<tr>
 <td style="text-align: left;">WV</td>
 <td style="text-align: left;">1977-1986</td>
-<td style="text-align: left;">19731 → ?</td>
+<td style="text-align: left;"></td>
 <td style="text-align: left;">Itemized deductions are reduced by a slot that is never filled, so state income tax stays in</td>
 <td style="text-align: left;">Statutory, WV-003: removed. <code>remove_state_tax_from_west_virginia_itemized_deductions</code></td>
 <td style="text-align: left;">TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 12 affected households</td>
@@ -2587,7 +2429,7 @@ skips would count the EITC slope twice.</p>
 <tr>
 <td style="text-align: left;">WV</td>
 <td style="text-align: left;">All</td>
-<td style="text-align: left;">19708-19709 → ?-?</td>
+<td style="text-align: left;"></td>
 <td style="text-align: left;"><code>law.le.1983.and.law.ge.1987</code> is never true, so the disability deduction never applies</td>
 <td style="text-align: left;">Statutory, WV-002: under 65 with taxable Social Security. <code>allow_west_virginia_disability_deduction</code></td>
 <td style="text-align: left;">TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 16 affected households</td>
@@ -2982,14 +2824,6 @@ to <code>taxsim_2026_11_09.f</code>. Status: federal 1960-2023 is being re-basel
 </tr>
 <tr>
 <td style="text-align: left;">NY</td>
-<td style="text-align: left;">2021</td>
-<td style="text-align: left;">2026: 44037-44256</td>
-<td style="text-align: left;">The tax computation worksheet ratio (AGI over the start, divided by $50,000) is not rounded to four decimals</td>
-<td style="text-align: left;">Statutory: rounded to four decimals (Form IT-201 worksheets). <code>round_new_york_recapture_ratio_per_statute</code></td>
-<td style="text-align: left;">TAXSIM source (logic error, no form check needed); no CPS household reaches the rule, so it was not run through the compiled TAXSIM</td>
-</tr>
-<tr>
-<td style="text-align: left;">NY</td>
 <td style="text-align: left;">2022 on</td>
 <td style="text-align: left;">2026: 26381-26752, 24621-24671</td>
 <td style="text-align: left;">A married-separate return gets no household credit (the credit code covers only single, joint and head of household)</td>
@@ -3139,14 +2973,6 @@ to <code>taxsim_2026_11_09.f</code>. Status: federal 1960-2023 is being re-basel
 <td style="text-align: left;">The child tax credit counts the dependents of earned income credit age (under 19), not under 17</td>
 <td style="text-align: left;">Statutory: under 17. <code>count_idaho_child_credit_children_under_17</code></td>
 <td style="text-align: left;">TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 280 affected households</td>
-</tr>
-<tr>
-<td style="text-align: left;">AZ</td>
-<td style="text-align: left;">2021-23</td>
-<td style="text-align: left;">2026: 731-1127</td>
-<td style="text-align: left;">A short-term loss variable is never set (-9), so every return deducts 25% of its long-term gains plus $9</td>
-<td style="text-align: left;">Statutory: 25% of gains. <code>initialize_arizona_short_term_loss</code></td>
-<td style="text-align: left;">TAXSIM source (logic error, no form check needed); no CPS household reaches the rule, so it was not run through the compiled TAXSIM</td>
 </tr>
 <tr>
 <td style="text-align: left;">AZ</td>
@@ -3645,22 +3471,6 @@ to <code>taxsim_2026_11_09.f</code>. Status: federal 1960-2023 is being re-basel
 <td style="text-align: left;">TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 34 affected households</td>
 </tr>
 <tr>
-<td style="text-align: left;">DE</td>
-<td style="text-align: left;">2000 on</td>
-<td style="text-align: left;">2026: 6384-6831, 6843-7015</td>
-<td style="text-align: left;">A spouse aged 60 or over with low earnings gets the extra $2,000 pension exclusion added to the taxpayer's line, replacing it</td>
-<td style="text-align: left;">Statutory: added to the spouse's. <code>credit_delaware_spouse_low_income_exclusion_to_spouse</code></td>
-<td style="text-align: left;">TAXSIM source (logic error, no form check needed); no CPS household reaches the rule, so it was not run through the compiled TAXSIM</td>
-</tr>
-<tr>
-<td style="text-align: left;">AK</td>
-<td style="text-align: left;">1977-1978</td>
-<td style="text-align: left;">645-730 (699: <code>law.eq.1979</code>)</td>
-<td style="text-align: left;">Alaska tax is calculated only for 1979; the routine does nothing for 1977-1978 and after (its header: the tax was repealed in 1980)</td>
-<td style="text-align: left;">Statutory: taxed under Alaska's own schedule. <code>tax_alaska_before_1979</code></td>
-<td style="text-align: left;">TAXSIM source (logic error, no form check needed); no CPS household reaches the rule, so it was not run through the compiled TAXSIM</td>
-</tr>
-<tr>
 <td style="text-align: left;">PA</td>
 <td style="text-align: left;">2022</td>
 <td style="text-align: left;">30733-30741</td>
@@ -3683,22 +3493,6 @@ to <code>taxsim_2026_11_09.f</code>. Status: federal 1960-2023 is being re-basel
 <td style="text-align: left;">The school property tax credit is the renter credit (<code>reach * d(160) / 100</code>) plus the owner credit (<code>teach * d(51) / 10</code>), capped at the unhalved maximum <code>rmax</code>; the routine for 2023 on has no school credit</td>
 <td style="text-align: left;">Statutory: the form's rules. <code>use_wisconsin_statutory_school_credit</code></td>
 <td style="text-align: left;">TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 96% of 2404 affected households</td>
-</tr>
-<tr>
-<td style="text-align: left;">WI</td>
-<td style="text-align: left;">2023 on (projected years)</td>
-<td style="text-align: left;">36316</td>
-<td style="text-align: left;">The exemption is $700 times the federal exemption count <code>c(68)</code> plus $250 per taxpayer 65 or older (<code>exemp=700*c(68)+250*d(9)</code>), and <code>c(68)</code> is deflated in a projected year</td>
-<td style="text-align: left;">Statutory: the actual count. <code>deflate_wisconsin_exemption_count_per_statute</code></td>
-<td style="text-align: left;">TAXSIM source (logic error, no form check needed); no CPS household reaches the rule, so it was not run through the compiled TAXSIM</td>
-</tr>
-<tr>
-<td style="text-align: left;">ID</td>
-<td style="text-align: left;">2025 on (shown for projected years)</td>
-<td style="text-align: left;">9803-9805</td>
-<td style="text-align: left;">From law 2025 the standard deduction is the federal one, <code>stded=c(3)</code>, which already holds the aged amount (2024 and earlier use Idaho's own worksheet)</td>
-<td style="text-align: left;">Statutory: adds the aged amount. <code>add_idaho_aged_standard_deduction_in_projected_years_per_statute</code></td>
-<td style="text-align: left;">TAXSIM source (logic error, no form check needed); no CPS household reaches the rule, so it was not run through the compiled TAXSIM</td>
 </tr>
 <tr>
 <td style="text-align: left;">MN</td>
@@ -3878,11 +3672,9 @@ to <code>taxsim_2026_11_09.f</code>. Status: federal 1960-2023 is being re-basel
 | IN | 2003 on |  | The earned income credit has no floor on the federal credit, childless filers need a reported age from 25 to 64, the credit uses 9 percent of the federal rates, and (2021 on) up to three children | Statutory: floor on the federal credit, ages tested only when reported. <code>apply_indiana_federal_credit_floor_from_2011</code>, <code>test_indiana_childless_credit_ages_per_statute</code>, <code>use_indiana_decoupled_credit_schedule_in_2021</code> (the rates are corrected in both modes) | TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 2 affected households TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 1 affected households TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 7 affected households |
 | CA | 2021 on |  | The state earned income credit uses the 2021-style formula (rate, maximum, inflection point) and is paid on separate and dependent returns too | Statutory: <code>caleitc_schedule</code>, none on those returns. <code>compute_california_2021_earned_income_credit_per_statute</code> | TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 17 affected households |
 | CA | 2018-2020 |  | The itemized deduction puts back the state and local tax above $10,000 after the high-income reduction | Statutory: real estate tax in full, no state income tax. <code>ignore_federal_salt_cap_in_california</code> | TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 6 affected households |
-| CA | 2018-2020 |  | The state and local tax put back above $10,000 uses the state tax estimate without its cents | Statutory: with the cents. <code>keep_california_salt_addback_cents_per_statute</code> | TAXSIM source (logic error, no form check needed); no CPS household reaches the rule, so it was not run through the compiled TAXSIM |
 | UT | 2008-2025 |  | The taxpayer credit counts the state income tax in the itemized deduction (it subtracts a variable it never sets; from 2018 it tries to remove the state tax by recomputing the federal itemized deduction, which changes nothing) | Statutory: other deductions only. <code>exclude_utah_state_income_tax_from_taxpayer_credit_before_2018</code> | TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 93% of 45 affected households |
 | UT | 2008-2021 |  | The retirement credit needs a reported age and a birth year of 1952 or earlier (the spouse's replaces the taxpayer's), is 450 per taxpayer with no earnings, and the Social Security credit exists only in 2021 | Statutory: aged taxpayers, plus a Social Security credit. <code>pay_utah_retirement_credit_per_statute</code> | TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 6 affected households |
 | UT | 2022 |  | The taxpayer credit phaseout thresholds use an index of 1.299 | Statutory: 15,548 and so on. <code>use_utah_2022_credit_threshold_per_statute</code> | Partly confirmed: Census Bureau Federal and State Tax Parameter Workbook TY2025, UT sheet (PHASE4 head of household phase-out base: 2025 $27,320, the published amount, not TAXSIM's 27,318.60; 2023 PHASE1/2/4: 16,742 / 33,484 / 25,114; 2024: 17,652 / 35,304 / 26,478). The 2022 amounts (15,548 and so on) are not in that workbook and were not ... (full text in the audit ledger) |
-| UT | 1988 |  | The credit for small tax (12.5% up to $10 when tax is $80 or less) comes off twice | Statutory: once. <code>take_utah_small_tax_credit_once</code> | TAXSIM source (logic error, no form check needed); no CPS household reaches the rule, so it was not run through the compiled TAXSIM |
 | UT | 2022 on |  | The retirement credit goes by birth year 1952 or earlier (450 each), and the Social Security credit is the flat income tax rate (not 6%) on benefits with an indexed threshold | Statutory: the age-limited retirement credit and 6% benefit credit. <code>pay_utah_retirement_credit_per_statute</code> | TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 6 affected households |
 | NY | 2021 |  | Joint returns use the single recapture worksheets and head of household the joint ones; separate returns get the earned income credit on the single schedule | Statutory: by filing status, no credit on separate returns. <code>pick_new_york_worksheet_by_filing_status</code>, <code>deny_new_york_2021_earned_income_credit_to_separate_returns</code> | TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 4 affected households TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 67% of 30 affected households |
 | AR | all |  | Other non-property income is added to Arkansas income (once, from the double-counted federal figure) | Statutory: not income. <code>count_nonproperty_income_once</code> | TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 96% of 46 affected households |
@@ -3891,7 +3683,6 @@ to <code>taxsim_2026_11_09.f</code>. Status: federal 1960-2023 is being re-basel
 | KS | 1998-2020 |  | No extra standard deduction for taxpayers 65 or older and no dependent-filer limit (TAXSIM has them only in 1988-1997 and from 2021); the 2021 joint standard deduction is $8,000 | Statutory: aged addition and limit every year, $7,800 joint in 2021. <code>add_kansas_aged_and_dependent_standard_deduction_per_statute</code>, <code>use_kansas_2021_standard_deduction_per_statute</code> | TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 13 affected households TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 16 affected households |
 | KS | 2018 on |  | The itemized deduction leaves out other taxes paid (only property tax and mortgage interest count) | Statutory: other taxes included. <code>deduct_kansas_other_taxes_per_statute</code> | TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 94% of 1073 affected households |
 | KS | 2007 on |  | No homestead refund is paid (the build has tables only through 2006) | Statutory: the refund. <code>pay_kansas_homestead_refund_from_2007_per_statute</code> | Confirmed: Kansas Dept of Revenue K-40H booklets 2008-2025 (ksrevenue.gov/pdf/k-40hbookYY.pdf): refund is a percentage of property tax, maximum $700, income limit by year (29,700 in 2008 ... 36,600 in 2021, 37,750 / 40,500 / 42,600 / 43,389 for 2022-2025), percentage table identical to the 1997-2021 rows in the parameters (100% to 6,000 ... (full text in the audit ledger) |
-| ME | 1988 |  | The standard deduction and exemption credits of 1988 are never taken off the tax | Statutory: credits. <code>credit_maine_1988_standard_deduction_and_exemptions</code> | TAXSIM source (logic error, no form check needed); no CPS household reaches the rule, so it was not run through the compiled TAXSIM |
 | ME | 1978-2016 |  | The credit for the elderly is refundable (listed with the refundable credits) | Statutory: nonrefundable. <code>make_maine_elderly_credit_refundable</code> | TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 98% of 61 affected households |
 | ME | 2020 |  | The 25% childless earned income credit goes only to taxpayers aged 18 to 24; other filers get 12% of the federal credit | Statutory: 25% for every childless filer. <code>pay_maine_childless_credit_rate_to_all_ages_per_statute</code> | TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 8 affected households |
 | ME | 2014 on |  | The property tax fairness credit counts 15% of rent (the statute: 15% of 85%, 12.75%) | Statutory: 12.75%. <code>take_maine_property_fairness_rent_at_statutory_share</code> | TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 79% of 57 affected households |
@@ -3915,7 +3706,6 @@ to <code>taxsim_2026_11_09.f</code>. Status: federal 1960-2023 is being re-basel
 | DC | 2018 on |  | The itemized deduction removes the state tax inside the cap measured from property tax only (not other itemized), starting from the federal total | Statutory: from the inputs. <code>deduct_district_of_columbia_other_itemized_with_state_taxes</code> | TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 90% of 539 affected households |
 | WI | 2022 on |  | A child care credit of half the federal credit before the tax limit, no child care expense subtraction; other itemized deductions count in the credit in 2022 only | Statutory: expense subtraction to 2021 (as the table), no credit. <code>pay_wisconsin_child_care_credit_per_statute</code> | TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 84% of 435 affected households |
 | WI | 2023 |  | Separate returns use the single standard deduction; the homestead credit goes only to a return with a taxpayer 65 or older | Statutory: married separate table, homestead for all who qualify. <code>use_wisconsin_separate_standard_deduction_from_2023</code>, <code>pay_wisconsin_homestead_credit_from_2023</code> | TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 74% of 241 affected households TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 7 affected households |
-| WI | 1988-1998 |  | The separate-return standard deduction's middle reduction is measured from $5,000, not the $4,750 where the range starts | Statutory: from $4,750. <code>start_wisconsin_separate_standard_deduction_tier_at_its_range</code> | TAXSIM source (logic error, no form check needed); no CPS household reaches the rule, so it was not run through the compiled TAXSIM |
 | WI | 2023 on |  | Net capital losses up to $3,000 (not $500) stay deducted | Statutory: $500. <code>limit_wisconsin_capital_loss_to_statutory_amount</code> | TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 79% of 119 affected households |
 | WI | 2023 on |  | A dependent filer gets the ordinary sliding-scale standard deduction | Statutory: limited to earned income plus an addition. <code>limit_wisconsin_dependent_standard_deduction_from_2023</code> | TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 50% of 38 affected households |
 | MO | all |  | The property tax credit for taxpayers 65 or older is the smaller of the property tax (plus a fifth of rent) and the maximum, less 0.0625 percent of household income, with no income limit or steps | Statutory: stepped schedule with an income limit. <code>step_missouri_property_credit_per_statute</code> | TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 34 affected households |
@@ -3930,7 +3720,6 @@ to <code>taxsim_2026_11_09.f</code>. Status: federal 1960-2023 is being re-basel
 | CT | 2024 on |  | The exemption starts $500 low and falls dollar for dollar; separate returns are treated as single; the personal credit steps by the first listed threshold above AGI (list unsorted at $22,300/$21,800); the recapture has its own four tiers | Statutory: dated amounts. <code>phase_out_connecticut_exemption_per_statute</code>, <code>use_connecticut_personal_credit_table_per_statute</code>, <code>add_connecticut_recapture_per_statute</code> | Partly confirmed: Census Bureau Federal and State Tax Parameter Workbook TY2025, CT sheet (2023-25): exemptions 15,000 / 24,000 / 19,000 phasing out from AGI 30,000 / 48,000 / 38,000 (joint start 48,000, TAXSIM 47,000) in steps of 1,000; the statute has not changed since 2016, but the 1991-2020 years were not compared year by year Partly confirmed: Census Bureau Federal and State Tax Parameter Workbook TY2025, CT sheet (2023): personal credit starts at 15,000 / 24,000 / 19,000 with rate 0.75 falling 0.05 per 500 of AGI to 0.14 then 0.01 per 500 (CRAT1, CRAT2, INITCR1, OFFSET), the statutory table; 1991-2022 not in the workbook Partly confirmed: Census Bureau Federal and State Tax Parameter Workbook TY2025, CT sheet (2023-25): tax rate phase-out add-back starts at 56,500 single / 100,500 joint / 78,500 head of household with steps of 20 / 40 / 32 per 5,000 (2023) and 25 / 50 / 40 (2024-25), recapture starts 200,000 / 400,000 / 320,000 (2023) and 105,000 / 210,000 / ... (full text in the audit ledger) |
 | Federal | 2024 on |  | The child and dependent care credit rate falls a point for each started $2,000 of AGI over $15,000 (earlier TAXSIM years let it fall continuously) | Statutory: each started step. <code>round_up_phaseout_steps</code> | TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 20 affected households |
 | MN | 2024 on |  | Social Security is subtracted only with a taxpayer aged 62 or more; the itemized deduction removes only taxes over the SALT limit before its AGI reduction; there is no alternative minimum tax | Statutory: the dated rules. <code>subtract_minnesota_social_security_without_age_from_2024</code>, <code>limit_minnesota_itemized_deduction_from_2024_per_statute</code>, <code>charge_minnesota_alternative_minimum_tax_from_2024</code> | TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 12 affected households TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 2 affected households TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 76% of 92 affected households |
-| DC | 2024 on |  | The childless credit needs a reported age 25 to 64; the itemized deduction adds back the whole state tax estimate | Statutory: the age tests as the form has them; capped state tax. <code>allow_unreported_ages_in_dc_childless_credit_from_2024</code>, <code>cap_district_of_columbia_state_tax_deduction_from_2024</code> | TAXSIM source (logic error, no form check needed); no CPS household reaches the rule, so it was not run through the compiled TAXSIM |
 | WV | 2024 on |  | Half of the federal child care credit is also taken | Statutory: none. <code>leave_out_west_virginia_child_care_credit_from_2024</code> | TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 71% of 172 affected households |
 | NJ | 2024 on |  | The earned income credit is not reinflated in a projected year | Statutory: reinflated with the tax | TAXSIM source and the compiled program |
 | NE | 2024 on |  | The exemption credit counts taxpayers and dependents, not the deflated federal count | Statutory: federal exemption count | TAXSIM source and the compiled program |</p>
@@ -3938,15 +3727,12 @@ to <code>taxsim_2026_11_09.f</code>. Status: federal 1960-2023 is being re-basel
 | SC | 2025 on |  | The $750/$1,500/$1,125 standard-deduction increase is added back for itemizers too | Statutory: nonitemizers only. <code>limit_south_carolina_standard_deduction_addback_to_nonitemizers_per_statute</code> | TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 2 affected households |
 | Federal | 2025 on |  | The SALT cap phase-out starts at $500,000 even on separate returns and runs over $100,000 of income before the cap is halved | Statutory: threshold and range halved. <code>halve_salt_phaseout_for_separate_returns_per_statute</code> | Confirmed: IRC 164(b)(7): separate returns get half the cap and half the threshold ($20,000 / $250,000 for 2025; $20,200 / $252,500 for 2026); secondary summaries |
 | CO | 2024 on |  | Child tax credit and family affordability credit come from the published tables, interpolated between rows, counting children under 13 and under 18 | Statutory: children under 6 and 6-16 with the flat formula. <code>count_colorado_credit_children_per_statute</code> | Partly confirmed: Colorado DOR child tax credit page and Family Affordability Tax Credit coverage: FATC up to 3,200 per child under 6 and 2,400 per child 6-16 in 2024 and 2025, phase-out 85,000 single / 95,000 joint; CTC AGI limits 75,000/85,000 (2024) and 77,000/87,000 (2025); numbers from news and agency summaries, not the DR 0104CN text |
-| CO | 2024 on |  | The earned income credit is not reinflated in a projected year | Statutory: reinflated. <code>reinflate_colorado_earned_income_credit_per_statute</code> | TAXSIM source (logic error, no form check needed); no CPS household reaches the rule, so it was not run through the compiled TAXSIM |
 | OK | 2025 on |  | The itemized deduction removes the state and local tax above the phased-down federal cap | Statutory: fixed cap | TAXSIM source and the compiled program |
-| OK | 2024 on |  | The state earned income credit phase-out reads the undeflated federal AGI in a projected year | Statutory: deflated income. <code>deflate_oklahoma_earned_income_credit_income_per_statute</code> | TAXSIM source (logic error, no form check needed); no CPS household reaches the rule, so it was not run through the compiled TAXSIM |
 | MT | 2024 on |  | Tax is a two-rate schedule on federal AGI less the larger federal deduction and the aged exemption: no unemployment, Social Security, interest or retirement subtractions, no capital gains credit, no property or rent credit, no split-return option; the federal state income tax deduction is added back; the 2025 single limit is $21,000 (the statute says $21,100) | Statutory: the Montana worksheet. <code>compute_montana_tax_from_2024_per_statute</code> | TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 27 affected households |
 | NY | 2025 on |  | The itemized deduction removes state and local tax up to the old $10,000 cap, not the new federal cap | Statutory: federal cap. <code>cap_new_york_state_tax_deduction_per_statute</code> | TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 6 affected households |
 | MN | 2024 on |  | The property tax refund is the larger of the homeowner and renter worksheet results, on federal AGI less $7,280 per dependent (up to five) and $5,500 per aged taxpayer, with the 2025 index applied only to the threshold share | Statutory: the Form M1PR refund. <code>compute_minnesota_property_tax_refund_per_statute</code> | TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 24 affected households |
 | MN | 2024 on |  | The property tax over the federal SALT limit is removed from the itemized deduction before the reduction; other itemized taxes stay | Statutory: reduced in <code>limit_minnesota_itemized_deduction_from_2024_per_statute</code> | TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 2 affected households |
 | MN | 2024 on |  | The standard deduction reduction starts at the single thresholds on separate returns | Statutory: halved thresholds. <code>halve_minnesota_deduction_reduction_for_separate_returns_per_statute</code> | TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 83% of 53 affected households |
-| DC | 2025 on |  | The itemized deduction adds back the state and local tax above the phased-down federal cap | Statutory: <code>cap_district_of_columbia_state_tax_deduction_from_2024</code> | TAXSIM source (logic error, no form check needed); no CPS household reaches the rule, so it was not run through the compiled TAXSIM |
 | DE | 2024 on |  | The property tax deduction is not capped at $10,000 | Statutory: capped. <code>cap_delaware_property_tax_deduction_per_statute</code> | TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 2 affected households |
 | WI | 2024 on |  | Child care credit is a rate falling with AGI (steps rounded up) on the expenses of up to two children under 13, not half the federal credit | Statutory: <code>pay_wisconsin_child_care_credit_per_statute</code> | TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 84% of 435 affected households |
 | VA | 2022 on |  | The standard deduction is zero when the federal return itemizes | Statutory: the larger of the two. <code>allow_virginia_standard_deduction_when_itemizing_federally_per_statute</code> | TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 16 affected households |
@@ -3965,7 +3751,6 @@ to <code>taxsim_2026_11_09.f</code>. Status: federal 1960-2023 is being re-basel
 | GA | 1982-1988 |  | No retirement income exclusion (TAXSIM starts it in 1989) | Statutory: $2,000-$4,000. <code>allow_georgia_retirement_exclusion_before_1989_per_statute</code> | TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 3 affected households |
 | GA | 2012-2020 | 2026: 7944-8226 | The retirement exclusion limit is the 65-and-over amount ($65,000) for taxpayers 62-64; the $35,000 limit for ages 62-64 starts in 2021 | Statutory: $35,000 from 2012. <code>limit_georgia_exclusion_for_ages_62_to_64_before_2021_per_statute</code> | TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 11 affected households |
 | IA | 2019 on | 2026: 10494-11050 | On a joint return the qualified business income deduction is split by each spouse's share of net self-employment earnings (all to the taxpayer with none), not half each | Statutory: half each. <code>split_iowa_joint_income_by_wages_only</code> | TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 34 affected households |
-| IA | 2019 on | 2026: 10494-11050 | When the separate-spouse tax is the lower, each spouse's personal credit is limited to their own tax and the dependents' credits are handed out alternately, each limited to the taxpayer's tax left after the personal credit | Statutory: the full credits against the combined tax. <code>credit_iowa_dependents_in_full_on_separate_spouse_returns_per_statute</code> | TAXSIM source (logic error, no form check needed); no CPS household reaches the rule, so it was not run through the compiled TAXSIM |
 | MI | 1994 on | 2026: 16095-16175 | The senior investment-income deduction tests only that a taxpayer was born in 1946 or earlier, with no age-65 test, and is not added to the Social Security subtraction (the larger of the two is taken) | Statutory: age 65 or older, with Social Security also subtracted. <code>require_age_65_for_michigan_investment_deduction_per_statute</code>, <code>subtract_michigan_social_security_with_investment_deduction_per_statute</code> | TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 9 affected households TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 6 affected households |
 | OR | 1992-2017 | 2026: 29524-30293 | Taxpayers 65 or older are treated like others in the itemized deduction (state tax subtracted) | Statutory: they keep the state income tax deduction. <code>keep_oregon_state_tax_deduction_for_aged_per_statute</code> | TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 8 affected households |
 | OR | 2017-2021 | 2026: 29524-30293 | The EITC match is 11% (2017-19) and 12% (2020-21) with a child under 3 (children under 6, <code>dep6</code>, when ages are not given) | Statutory: 12% from 2022 with ages. <code>count_oregon_eitc_young_children_by_age_per_statute</code> | TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 383 affected households |
@@ -3994,22 +3779,17 @@ to <code>taxsim_2026_11_09.f</code>. Status: federal 1960-2023 is being re-basel
 | MI | 2021 on |  | A dependent filer has no exemption and still gets the home heating credit | Statutory: <code>give_michigan_dependent_filers_exemption_per_statute</code> | TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 86% of 468 affected households |
 | MI | 2021 on |  | The homestead credit's household income is not reduced by self-employment tax; the renter alternative for age 65+ is capped at $1,500 | Statutory: reduced; capped at the year's maximum. <code>cap_michigan_senior_renter_credit_at_statute_amount</code> | TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 7 affected households |
 | MO | 2024 on |  | Social Security is exempt only for a spouse 62 or older, with no income phase-out | Statutory: all benefits under the income limits. <code>exempt_missouri_social_security_at_any_age_per_statute</code> | TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 3 affected households |
-| AL, MO | 2026 |  | Payroll taxes deducted are deflated in a projected year; Alabama deducts the deflated federal tax | Alabama: <code>deduct_alabama_federal_tax_components_per_statute</code> | TAXSIM source (logic error, no form check needed); no CPS household reaches the rule, so it was not run through the compiled TAXSIM |
 | OR | 2025 on |  | The property tax in the itemized deduction is capped at $40,000 (no phase-down) | Statutory: $10,000. <code>cap_oregon_property_tax_deduction_per_statute</code> | TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 6 affected households |
-| CT | 2024 on |  | The property tax credit is available to everyone and its phase-out steps round up | Statutory: continuous steps. <code>round_connecticut_property_credit_steps_continuously_per_statute</code> | TAXSIM source (logic error, no form check needed); no CPS household reaches the rule, so it was not run through the compiled TAXSIM |
 | AR | 2018-2021 |  | The other itemized deductions input is left out of the itemized deduction | Statutory: counted. <code>count_arkansas_other_itemized_deductions_per_statute</code> | TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 78% of 277 affected households |
-| ME | 2026 |  | The sales tax fairness credit counts children as the deflated exemption count less taxpayers, truncated (loses a child) | Statutory: children. <code>count_maine_fairness_credit_children_before_deflation_per_statute</code> | TAXSIM source (logic error, no form check needed); no CPS household reaches the rule, so it was not run through the compiled TAXSIM |
 | MA | 2022 on |  | Business, professional and S corporation inputs count and other property income does not; dividends are offset against a net gain as if it were a loss | Statutory: no offset against gains. <code>offset_massachusetts_dividends_only_by_losses_per_statute</code> | TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 89% of 9 affected households |
 | Federal | 1978-1981 |  | Other non-property income counts as personal service income in the maximum tax, and the business inputs do not count as earned income (maximum tax, EITC) | Statutory: not counted / counted. <code>exclude_nonproperty_income_from_maximum_tax_personal_service_income</code>, <code>count_business_inputs_in_earned_income_before_1987_per_statute</code> | TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 92% of 258 affected households TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 92% of 901 affected households |
 | Federal | 2024 on |  | The 20% capital gains threshold is the 2023 amount carried by TAXSIM's price index (like the 0% one) | Statutory: published thresholds. <code>use_published_capital_gains_thresholds</code> | Confirmed: Rev. Proc. 2025-32 (irs.gov/pub/irs-drop/rp-25-32.pdf) section 3.03 (2026: 0% to $98,900 joint, $49,450 single or separate, $66,200 head of household; 15% to $613,700 / $545,500 / $306,850 / $579,600), matching the parameters; earlier years Rev. Proc. 2021-45 (2022: 20% above $459,750 single) and later yearly revenue procedures |
-| Federal | 2024 on |  | A dependent filer's child tax credit phases out from zero AGI (the $200,000 is multiplied by the number of taxpayers, which is 0) | Statutory: $200,000. <code>start_child_tax_credit_phaseout_at_statutory_threshold_for_dependent_filers</code> | TAXSIM source (logic error, no form check needed); no CPS household reaches the rule, so it was not run through the compiled TAXSIM |
 | Federal | 2024 |  | The dependent standard deduction minimum is $1,350 | Statutory: $1,300 | TAXSIM source and the compiled program |
 | Federal | 2026 |  | With child ages given, the EITC counts no children for its rates but sizes the maximum and phase-out by the children under 19 | Statutory: counts the children. <code>count_eitc_children_from_ages_per_statute</code> | TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 66% of 949 affected households |
 | Federal | 2026 |  | The qualified business income phase-in starts at $201,800 (single) | Statutory: $201,775 | TAXSIM source and the compiled program |
 | Utah | 2025 |  | The taxpayer credit phase-out start is the 2008 amount times 1.5177 (HoH 27,318.60), not the published 27,320 | Statutory: published amounts. <code>use_utah_2022_credit_threshold_per_statute</code> | Partly confirmed: Census Bureau Federal and State Tax Parameter Workbook TY2025, UT sheet (PHASE4 head of household phase-out base: 2025 $27,320, the published amount, not TAXSIM's 27,318.60; 2023 PHASE1/2/4: 16,742 / 33,484 / 25,114; 2024: 17,652 / 35,304 / 26,478). The 2022 amounts (15,548 and so on) are not in that workbook and were not ... (full text in the audit ledger) |
 | Utah | 2021 on |  | A dependent filer's taxpayer credit phases out from zero income (the start is multiplied by the taxpayer count, which is 0) | Statutory: normal start. <code>start_utah_dependent_filer_credit_phaseout_per_statute</code> | TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 70% of 239 affected households |
 | Utah | 2021, 2024 |  | The no-tax income floor (qualified exempt taxpayer worksheet) is 12,500 for 2021 singles and 21,923 for 2024 heads of household | Statutory: the federal standard deduction. <code>use_utah_statute_exempt_taxpayer_floor_per_statute</code> | Confirmed: Utah State Tax Commission qualified exempt taxpayer rule (incometax.utah.gov/filing/qualified-exempt-taxpayers and the TC-40 worksheet): no tax when federal AGI is at or below the federal standard deduction without the age or blind additions (single 14,600 and head of household 21,900 in 2024; single 12,550 in 2021), so ... (full text in the audit ledger) |
-| Wisconsin | 2022 |  | A separate return is taxed on the joint schedule at twice the income, then halved (the published separate brackets are not exact halves) | Statutory: published separate brackets. <code>use_wisconsin_published_2022_separate_brackets_per_statute</code> | TAXSIM source (logic error, no form check needed); no CPS household reaches the rule, so it was not run through the compiled TAXSIM |
 | Wisconsin | 2023 on, head of household |  | The third standard deduction tier is the single schedule measured from the head of household's first bound, not the form's rounded 9,041.40 | Statutory: form amounts. <code>start_wisconsin_head_of_household_third_tier_per_statute</code> | TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 6 affected households |
 | Georgia | 2024 on |  | The retirement exclusion worksheet counts each spouse's earnings (self-employment and business income included, by TAXSIM's own assignment of business items to earners) up to the cap, the spouse's share of dividends, interest and S corporation income, and for the spouse the primary's professional income (<code>d(212)</code>); capital gains and other property income are left out | Statutory: wages up to the cap plus pensions, dividends, interest, business income and capital gains, split between the spouses. <code>compute_georgia_retirement_exclusion_per_statute</code> | TAXSIM source (logic error, no form check needed) |
 | Arizona | 2024 on |  | The refundable property tax credit goes to every filer 65 or older (no pension or Social Security test); income is the primary's wages, dividends, interest, a Schedule E loss, business and pension income and unemployment compensation (no spouse wages, transfers or gains); joint returns and returns with dependents use their own threshold table (steps of 150) | Statutory: household income less Social Security, pension or Social Security required, the single table plus 750 for family returns. <code>measure_arizona_property_credit_income_per_statute</code> | TAXSIM source (logic error, no form check needed) |
@@ -4021,12 +3801,10 @@ to <code>taxsim_2026_11_09.f</code>. Status: federal 1960-2023 is being re-basel
 | Massachusetts | 2022 |  | The household dependent credit is $180 for every child under 13 with no limit (the statute pays $180 for one dependent, $360 for two or more, any dependent) | Statutory: $180 per dependent, at most two. <code>cap_massachusetts_2022_household_dependent_credit_per_statute</code> | Partly confirmed: Massachusetts 2021 Form 1 instructions and the tax expenditure budget: the Household Dependent Tax Credit is $180 for one dependent and $360 for two or more; TAXSIM 2022 pays $180 for each child under 13 with no limit; the 2022 instructions text was not retrieved |
 | Massachusetts | 2020 |  | Long-term capital gains are taxed at 5.05% (the 2019 rate) | Statutory: 5.0%. <code>use_massachusetts_2020_part_c_rate_per_statute</code> | Confirmed: Massachusetts 2020 Form 1 instructions (mass.gov 2020-form-1-instructions) and the 2020 Form 2: effective for tax years beginning on or after January 1, 2020 the rate on most classes of income, including Part C, is 5%, so the 5.05% TAXSIM applies in 2020 is the 2019 rate |
 | Massachusetts | 2001 |  | The rent deduction cap is 2,500 (1,250 on separate returns), the 1997-2000 amounts | Statutory: 3,000. <code>use_massachusetts_2001_rent_cap_per_statute</code> | Partly confirmed: 830 CMR 62.3.1 and the Massachusetts tax expenditure budget: the rent deduction is one-half of rent paid up to $3,000 for tax years beginning on or after January 1, 2001 (TAXSIM keeps $2,500); the statutory handling of separate returns (no half cap from 2001) is not confirmed |
-| Massachusetts | projected years |  | The payroll tax deduction is computed on deflated payroll tax; S corporation income is not deflated | Statutory: n/a. <code>deflate_massachusetts_payroll_tax_deduction_per_statute</code> | TAXSIM source (logic error, no form check needed); no CPS household reaches the rule, so it was not run through the compiled TAXSIM |
 | Maine | 2021 |  | On the federal itemizing pass the state standard deduction is the 2021 federal amount plus senior additions, and itemized property tax is capped at 30,400 (same treatment as 2022 on) | Statutory: current-year deductions. <code>use_maine_current_deductions_when_itemizing</code> | TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 11 affected households |
 | Maine | 2021 |  | The child care credit is 25% of the federal credit before its limit by tax | Statutory: limited by federal tax. <code>limit_maine_child_care_credit_by_federal_tax_in_2021_per_statute</code> | TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 74% of 23 affected households |
 | Maine | 2024 |  | The sales tax fairness credit uses TAXSIM's table (starts 24,558 / 36,837 / 49,116; second tier 237) | Statutory: published schedule. <code>use_maine_published_2024_sales_tax_credit_per_statute</code> | Confirmed: Census Bureau Federal and State Tax Parameter Workbook TY2025, ME sheet, sales tax fairness credit (SCRDCUT, SCRAMT): 2024 income starts 24,750 single, 49,500 joint, 37,100 head of household with bases 150 / 210 / 210 and +30 / +60 for one / two or more dependents; 2025 starts 25,450 / 50,950 / 38,200; equal to the statutory ... (full text in the audit ledger) |
 | Maine | 2024 |  | A dependent filer gets the full standard deduction (14,600 and so on) | Statutory: the federal (limited) amount. <code>limit_maine_dependent_filer_standard_deduction_per_statute</code> | TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 55% of 118 affected households |
-| Maine | projected years |  | The earned income credit before the age test is deflated | Statutory: n/a. <code>deflate_maine_earned_income_credit_per_statute</code> | TAXSIM source (logic error, no form check needed); no CPS household reaches the rule, so it was not run through the compiled TAXSIM |
 | California | 1987 on |  | The minimum tax add-back for itemizers is property tax only (other itemized deductions are not added back) | Statutory: adds back property tax and other items. <code>add_back_other_itemized_in_california_minimum_tax_per_statute</code> | TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 96% of 414 affected households |
 | California | 2025 |  | The 9.3% bracket tops are 371,749 and 505,209 (typos) | Statutory: 371,479 and 505,208. <code>use_california_published_2025_brackets_per_statute</code> | Confirmed: Census Bureau Federal and State Tax Parameter Workbook TY2025, CA sheet CUTOFF1/4 (2025): single 11,079 / 26,264 / 41,452 / 57,542 / 72,724 / 371,479 / 445,771 / 742,953; head of household 22,173 / 52,530 / 67,716 / 83,805 / 98,990 / 505,208 / 606,251 / 1,010,417; equal to the statutory parameters (TAXSIM has 371,749 and ... (full text in the audit ledger) |
 | California | 2025 |  | The minimum tax exemption and phase-out start are the 2024 amounts (120,065 joint; 450,238) | Statutory: 2025 amounts. <code>use_california_2025_minimum_tax_exemption_per_statute</code> | Confirmed: Census Bureau Federal and State Tax Parameter Workbook TY2025, CA sheet AMTEXM1/2 and AMTCUT11/12: 2025 exemption 92,749 single and 123,667 joint, phase-out start 347,808 / 463,745 (2024: 90,048, 120,065, 337,678, 450,238); equal to the statutory parameters (TAXSIM uses the 2024 amounts) |
@@ -4044,7 +3822,6 @@ to <code>taxsim_2026_11_09.f</code>. Status: federal 1960-2023 is being re-basel
 | Montana | 2014-2017 |  | On a joint return filed as two separate returns, each spouse takes the itemized deductions only when that gives the lower combined tax | Statutory: itemize when the deduction is larger. <code>split_montana_joint_returns_per_statute</code> | TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 73 affected households |
 | Montana | 2022 |  | The elderly homeowner/renter credit maximum is 1,150 | (Statutory: same.) | TAXSIM source and the compiled program |
 | Missouri | 1993-2017 |  | The itemized deduction's state-tax limit total includes other itemized deductions | Statutory: excluded. <code>exclude_other_itemized_from_missouri_state_tax_limit_per_statute</code> | TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 404 affected households |
-| Missouri | all |  | A joint return's income is split between spouses after the capital gains subtraction | Statutory: before. <code>split_missouri_income_before_capital_gains_subtraction_per_statute</code> | TAXSIM source (logic error, no form check needed); no CPS household reaches the rule, so it was not run through the compiled TAXSIM |
 | New York | 2020-2021 |  | The state earned income credit has no age test (only dependent filers are shut out) and uses federal AGI for the phase-out | Statutory: age test and New York AGI. <code>apply_new_york_earned_income_credit_age_test_per_statute</code>, <code>use_new_york_agi_for_earned_income_credit_per_statute</code> | TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 4 affected households TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 9 affected households |
 | Arkansas | 1984 |  | One pension exclusion per return | Statutory: per taxpayer. <code>exclude_arkansas_pensions_per_taxpayer</code> | TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 18 affected households |
 | Arkansas | 2025 |  | TAXSIM's rate table has constants a few cents off the published ones | Statutory: published table. <code>use_arkansas_published_2025_rate_table_per_statute</code> | TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 27 affected households |
@@ -4069,13 +3846,11 @@ to <code>taxsim_2026_11_09.f</code>. Status: federal 1960-2023 is being re-basel
 | Kansas | 2024 on |  | A dependent filer's zero-tax income limit is zero (the amount is multiplied by the taxpayer count) | Statutory: the limit applies. <code>scale_kansas_zero_tax_income_by_taxpayers_per_statute</code> | TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 85% of 13 affected households |
 | Delaware | 2024 on |  | A couple's income is split between spouses before each takes the pension exclusion; a dependent filer still gets one personal credit | Statutory: split after the exclusion; no credit. <code>split_delaware_income_before_pension_exclusion_per_statute</code>, <code>deny_delaware_personal_credit_to_dependent_filers_per_statute</code> | TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 16 affected households TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 46% of 251 affected households |
 | Michigan | 2017 on |  | The income behind the federal credit for the elderly (credit / 0.15) is subtracted from Michigan income | Statutory: not subtracted. <code>leave_out_michigan_schedule_r_income_subtraction_per_statute</code> | TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 88% of 48 affected households |
-| New Mexico | 2025 on |  | A dependent filer's standard deduction is the full federal amount | Statutory: the limited amount. <code>limit_new_mexico_dependent_filer_standard_deduction_per_statute</code> | TAXSIM source (logic error, no form check needed); no CPS household reaches the rule, so it was not run through the compiled TAXSIM |
 | Vermont | 2025 |  | The Social Security exemption starts at 80,000 joint / 65,000 other | Statutory: 70,000 / 55,000. <code>use_vermont_social_security_exemption_starts_per_statute</code> | TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 85 affected households |
 | Ohio | 2024 on |  | Other property income is not business income for the business deduction; S corporation income is deflated in a projected year | Statutory: counted. <code>count_other_property_income_from_2024</code> | Confirmed: IRC 32(i)(2) (same rule, applied to the 2024 on federal routine) |
 | Alabama | projected years |  | The self-employment tax added back to AGI is the deflated figure | Statutory: n/a. | TAXSIM source and the compiled program |
 | Iowa | through 2020 | 2026: 10494-11050 | The alternative minimum tax is figured before the personal credits | Statutory: credits first (not checked against the IA 6251 instructions). <code>apply_iowa_personal_credits_before_amt_per_statute</code> | TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 12 affected households |
 | Iowa | all years | 2026: 10494-11050 | The Social Security taxable amount is figured on income without adding back half the self-employment tax | Statutory: added back (not checked against a form). <code>add_back_half_self_employment_tax_before_iowa_social_security_per_statute</code> | TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 5 affected households |
-| Federal | 2022-23 | 2026 federal child credit | The nonrefundable child credit is capped at three times the refundable maximum per child; with three or more children the payroll-tax alternative replaces the earnings formula. Oregon's federal tax subtraction reads the credit total before that cap (<code>reported_nonrefundable_credits</code>), Alabama's reads the capped split | Statutory: no cap, earnings formula only (Form 8812 for 2022-23 not re-checked). <code>cap_nonrefundable_child_credit_at_three_children_refundable_maximum_per_statute</code> | TAXSIM source (logic error, no form check needed); no CPS household reaches the rule, so it was not run through the compiled TAXSIM |
 | Federal | through 2017, 2022-23 | 2026: payroll-tax step of the additional child tax credit | With three or more children the payroll tax counted is half the wage tax plus all of the self-employment tax | Statutory: half of the self-employment tax (Form 8812 line "one-half of self-employment tax"; not re-checked for each year). <code>count_half_self_employment_tax_in_refundable_child_credit_per_statute</code> | TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 1 affected households |
 | Iowa | 1990-93 | 2026: 10989 | The earned income credit is withheld when federal AGI is at or above a cap (20,264 in 1990 to 23,050 in 1993) | Statutory: the credit is a share of the federal credit, which already carries its own limits; the cap is kept as TAXSIM tests it (against federal AGI, after the deduction for half the self-employment tax). Not checked against the IA 1040 instructions. | TAXSIM source and the compiled program |
 | Iowa | 1981-84 | 2026: 10640-10700 | Social Security is measured on income before the two-earner deduction and the dividend and interest exclusion | Statutory: same order (not checked against a form). | TAXSIM source and the compiled program |
@@ -4084,14 +3859,12 @@ to <code>taxsim_2026_11_09.f</code>. Status: federal 1960-2023 is being re-basel
 | Maryland | 2022 on | 2026: 14630-14660 | An unmarried filer with no children takes no nonrefundable earned income credit; a young (25 or under) or old filer gets the credit as TAXSIM computes it without the age test, and a filer with dependents who do not qualify for the credit has their whole tax refunded | Statutory: whole federal credit, nonrefundable part first, refundable up to the limit. <code>apply_maryland_unmarried_childless_earned_income_credit_per_statute</code> | TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 12 affected households |
 | Maryland | 2025 on | 2026: 14679 | The child tax credit per child under six is 500 less 50 per $1,000 (or part) of federal AGI over 15,000, applied per child with no floor on the steps, so under 15,000 it exceeds 500 per child | Statutory: 500 per child, reduced only above 15,000, and the reduction taken once (not checked against Form 502CR). <code>start_maryland_child_tax_credit_phaseout_at_threshold_per_statute</code> | TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 18 affected households |
 | Ohio | 2015 on | 2026: 28593-28800 (<code>ohtax21</code>, <code>ohjoin</code>) | The joint filing credit tier is chosen from federal AGI less exemptions and taxable Social Security, before the business income deduction | Statutory: taxable income plus business income (not checked against the IT 1040 instructions). <code>base_ohio_joint_credit_on_income_after_business_deduction_per_statute</code> | TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 1 affected households |
-| Ohio | 2021 on | 2026: 28593-28700 | The $50 senior credit and the retirement income credit are tested on federal AGI less exemptions before the business income deduction (strictly under 100,000) | Statutory: tested on income after the business deduction (not checked). <code>test_ohio_senior_credit_on_income_after_business_deduction_per_statute</code> | TAXSIM source (logic error, no form check needed); no CPS household reaches the rule, so it was not run through the compiled TAXSIM |
 | Michigan | 2012-2020 and 2021 on | 2026: 16240, 16478 (<code>tablki(pcra,...)</code>) | The senior property tax credit percentage is interpolated between the 30,001 row and the income limit (50,000 through 2017; from 2021 the year's limit, 60,600 to 71,500), then falls to zero | Statutory: the existing table with no closing row (not checked against the MI-1040CR-7 percentage table). <code>end_michigan_senior_percentage_table_at_statutory_row_per_statute</code> | TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 10 affected households |
 | Michigan | all years | 2026: 16209, 16478-16530 | The standard heating credit takes half the self-employment tax off household resources and floors them at zero (through 2020) | Statutory: no deduction (not checked against MI-1040CR-7). <code>reduce_michigan_heating_credit_income_by_half_self_employment_tax_per_statute</code> | TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 99% of 108 affected households |
 | Michigan | 2021 on | 2026: 16500-16510 | A self-employment loss is added back to household resources, which are floored at zero | Statutory: not added back (not checked). <code>leave_michigan_business_loss_out_of_household_income_per_statute</code> | TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 12 affected households |
 | Michigan | 2026 | 2026: <code>mitax21</code> | The birth-year tiers for the retirement subtraction use the law year of the extrapolated 2025 tax year, so a filer 66 in 2026 counts as born 1959 | Statutory: the calendar year. (<code>taxsim_tiers_2021</code> path only.) | TAXSIM source and the compiled program |
 | Nebraska | 2024 on | 2026: 22520-22545 (<code>netax24</code>) | The refundable child tax credit per child under six is worked out and then overwritten by the refundable child care credit, so it is never paid | Statutory: paid (PolicyEngine amounts). <code>pay_nebraska_child_tax_credit_per_statute</code> | TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 82 affected households |
 | Nebraska | 2023 | 2026: 21719 (<code>ssax</code>) | The single filer's Social Security limit is typed 493,100, so the full benefit is always subtracted | Statutory: 49,310 with 60% above it. <code>use_nebraska_published_social_security_limit_per_statute</code> | Confirmed: Census Bureau Federal and State Tax Parameter Workbook TY2025, NE sheet NESSCUT1/2: the Social Security deduction AGI limit is 49,310 single / 66,510 joint for 2023 and none from 2024 (limit 10,000,000, full deduction), so the statutory parameters are right and TAXSIM's typed 493,100 is the error |
-| Federal and states | 1994 on | 2026: 38387 (<code>eicage</code>) | A joint return with no spouse age gets a spouse of 40; a childless return passes the age test when either age is 25-64 (19 and older in 2021) or both are unreported | Statutory: only a taxpayer under the minimum age disqualifies it, and an unreported spouse age passes. <code>leave_unreported_spouse_age_out_of_eitc_age_test_per_statute</code> | TAXSIM source (logic error, no form check needed); no CPS household reaches the rule, so it was not run through the compiled TAXSIM |
 | Oklahoma | 2022 on | 2026: 29391-29400 (<code>oktax22</code>) | The retirement income exclusion (up to $10,000 each) is split between spouses with the age-55 pension allocation (it was age 62 before) | Statutory: taxpayers 65 or older (the existing <code>compute_oklahoma_pension_exclusion_per_statute</code> switch covers both). | TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 6 affected households |
 | Oklahoma | 2022 on | 2026: 29455-29482 | The earned income credit is 5% of the 2020-law federal credit, not scaled by Oklahoma AGI over federal AGI, and the whole credit goes when dividends, interest and capital gains pass the 2020 limit (other property income does not count from 2024) | Statutory: scaled by the AGI ratio; investment income reduces the credit dollar for dollar. <code>read_oklahoma_federal_credit_income_per_statute</code> | TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 30 affected households |
 | Oklahoma | before 1987 | 2026: 29288 | The age-65 property tax relief income adds the earned income credit in every year, including before 1987 | Statutory: no credit before 1987 (federal credit not in the pre-1987 column). <code>leave_pre_1987_earned_income_credit_out_of_oklahoma_property_credit_income_per_statute</code> | TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 2 affected households |
@@ -4102,7 +3875,6 @@ to <code>taxsim_2026_11_09.f</code>. Status: federal 1960-2023 is being re-basel
 | Delaware | before 2000 | 2026: 6538-6560 | The $2,000 low-income pension addition for those 60 or older is part of the pension exclusion lines, so it is not added a second time | Statutory: added once, separately (<code>compute_delaware_before_1996_per_statute</code>). | TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 61 affected households |
 | Delaware | 2024 on | 2026: 6948-6988 | Personal credits for an aged taxpayer are counted from the ages (60 or older) rather than the aged count, and the taxpayer's own credits cannot move to the spouse on a combined separate return (only dependents' can) | Statutory: credits placed where they save the most tax. <code>allocate_delaware_credits_freely_between_spouses_per_statute</code> | TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 24 affected households |
 | Delaware | 2024 on | 2026: 6928-6990 | An itemized deduction on a combined separate return is shared by the husband's split income before the pension and Social Security exclusions, the wife taking the rest | Both modes' share is not covered by a switch; this follows the 2026 routine only for itemizers (statutory: share of income after exclusions, not checked). | TAXSIM source and the compiled program |
-| Delaware | 2026 (projected year) | 2026: <code>splitagi</code> | The spouse's self-employment input is not deflated (<code>d(216)</code>) while the total is, and the self-employment taxes used in the split are deflated | Statutory: all amounts deflated alike. <code>deflate_delaware_spouse_self_employment_per_statute</code> | TAXSIM source (logic error, no form check needed); no CPS household reaches the rule, so it was not run through the compiled TAXSIM |
 | New York | 2022-2024 | 2026: 26636-26655 (IT-214 block) | The real property tax credit tests federal AGI against the $18,000 limit, measures household income as federal AGI plus untaxed Social Security and transfers (so a retiree with large benefits can qualify), counts rent (a quarter) only below $5,400, and pays half the excess over the income share up to the table maximum | Statutory: tests household income against the limit (not checked against Form IT-214). <code>compute_new_york_property_credit_per_statute</code> (existing switch) | TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 11 affected households |
 | New York | 2023-2024 | 2026: <code>nyctc</code> | The Empire State child credit's refundable part uses the federal earned income (<code>comnew(37)</code>), which counts other non-property income | Statutory: earned income without it. <code>pay_new_york_empire_child_credit_per_statute</code> / <code>exclude_nonproperty_income_from_federal_earned_income_per_statute</code> (existing) | Partly confirmed: NY Tax Dept Empire State child credit page and IT-213 instructions: 330 per child at least 4 and under 17, with children under 4 added at 330 before 2025 and 1,000 from 2025; phase-out over 75,000 / 110,000. The pre-2018 statutory rules (which years counted children under 4 and 4-16) were not compared line by line TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 86% of 487 affected households |
 | New York | all years | 2026: 26630 | Household income for the property tax credit is floored at zero, so a business loss does not raise the credit | Statutory: not floored (not checked against IT-214). <code>allow_negative_new_york_property_credit_income_per_statute</code> | TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 5 affected households |
