@@ -1416,7 +1416,7 @@ applies it per spouse, as the Schedule SE instructions require). Code:
 </tr>
 <tr>
 <td style="text-align: left;">1987-1997</td>
-<td style="text-align: left;"></td>
+<td style="text-align: left;">25883-25910 → 43430</td>
 <td style="text-align: left;">The child and dependent care credit and the credit for the elderly are computed but never subtracted (the code sits inside the 1998 child tax credit block)</td>
 <td style="text-align: left;">Statutory, FED-INCOME-005: both apply and are reported as the nonrefundable credit total, which supersedes FED-INCOME-001. <code>apply_nonrefundable_credits_before_1998</code></td>
 <td style="text-align: left;">TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 3 affected households</td>
@@ -1430,7 +1430,7 @@ applies it per spouse, as the Schedule SE instructions require). Code:
 </tr>
 <tr>
 <td style="text-align: left;">All</td>
-<td style="text-align: left;"></td>
+<td style="text-align: left;">25662 → 39604, 43210</td>
 <td style="text-align: left;">The elderly credit's AGI threshold is $7,500 for a joint return with one spouse 65 or older</td>
 <td style="text-align: left;">Statutory, FED-INCOME-006: $10,000 for any joint return (IRC 22(d)). <code>use_joint_elderly_credit_threshold</code></td>
 <td style="text-align: left;">TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 44 affected households</td>
@@ -1805,7 +1805,7 @@ skips would count the EITC slope twice.</p>
 <tr>
 <td style="text-align: left;">MN</td>
 <td style="text-align: left;">1978-1984</td>
-<td style="text-align: left;"></td>
+<td style="text-align: left;">9892 → 18399</td>
 <td style="text-align: left;">The $50 homemaker credit is zeroed unless the filer is someone's dependent (the test looks reversed)</td>
 <td style="text-align: left;">Statutory, MN-002: filers who are not dependents. <code>pay_minnesota_homemaker_credit_to_nondependents</code></td>
 <td style="text-align: left;">TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 1 affected households</td>
@@ -1813,7 +1813,7 @@ skips would count the EITC slope twice.</p>
 <tr>
 <td style="text-align: left;">MN</td>
 <td style="text-align: left;">2012</td>
-<td style="text-align: left;"></td>
+<td style="text-align: left;">10043-10093 → 18568-18618</td>
 <td style="text-align: left;">Married couples miss the higher joint Working Family Credit thresholds in 2012 only</td>
 <td style="text-align: left;">Statutory, MN-004: joint thresholds. <code>use_minnesota_2012_joint_working_family_thresholds</code></td>
 <td style="text-align: left;">TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 2 affected households</td>
@@ -1821,7 +1821,7 @@ skips would count the EITC slope twice.</p>
 <tr>
 <td style="text-align: left;">MN</td>
 <td style="text-align: left;">2014-2018</td>
-<td style="text-align: left;"></td>
+<td style="text-align: left;">10007-10035 → 18554-18560</td>
 <td style="text-align: left;">The Working Family Credit phaseout for 2 or more children (single) reads the one-child start (the 2019 build fixed 2019 on): a 2015 single parent of two starts losing it at $21,520 instead of $25,530</td>
 <td style="text-align: left;">Statutory, MN-005: each table's own start. <code>use_minnesota_working_family_tables_by_children</code></td>
 <td style="text-align: left;">TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 14 affected households</td>
@@ -1837,7 +1837,7 @@ skips would count the EITC slope twice.</p>
 <tr>
 <td style="text-align: left;">MO</td>
 <td style="text-align: left;">All</td>
-<td style="text-align: left;">motax</td>
+<td style="text-align: left;">4936-4938</td>
 <td style="text-align: left;">The property credit reduces the maximum rather than the tax paid and skips the first income step above the base; from 2008 homeowners' property tax is capped at the old $750, not $1,100 (only elderly filers get this credit). The federal tax deduction cap applies only 1994-2018</td>
 <td style="text-align: left;">Statutory, MO-001: tax paid up to the maximum ($1,100 for owners from 2008) less the income percentage (RSMo 135.030). <code>apply_missouri_property_credit_to_tax_paid</code>. The deduction cap cannot bind after 2018</td>
 <td style="text-align: left;">TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 17 affected households</td>
@@ -1853,7 +1853,7 @@ skips would count the EITC slope twice.</p>
 <tr>
 <td style="text-align: left;">MS</td>
 <td style="text-align: left;">1977-1978</td>
-<td style="text-align: left;"></td>
+<td style="text-align: left;">11204-11206 → 19774</td>
 <td style="text-align: left;">Excess charity is not floored at zero, so 20% of AGI is added to itemized deductions ($410 of tax instead of $540 at $20,000)</td>
 <td style="text-align: left;">Statutory, MS-001: floored at 0. <code>floor_mississippi_excess_charity</code></td>
 <td style="text-align: left;">TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 481 affected households</td>
@@ -1877,7 +1877,7 @@ skips would count the EITC slope twice.</p>
 <tr>
 <td style="text-align: left;">MT</td>
 <td style="text-align: left;">1984-1986, 2009</td>
-<td style="text-align: left;"></td>
+<td style="text-align: left;">11771 → 20949</td>
 <td style="text-align: left;">All unemployment compensation is subtracted, not just the federally taxed part</td>
 <td style="text-align: left;">Statutory, MT-001: the part in federal AGI. <code>subtract_only_taxable_unemployment_in_montana</code></td>
 <td style="text-align: left;">TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 97% of 31 affected households</td>
@@ -1885,7 +1885,7 @@ skips would count the EITC slope twice.</p>
 <tr>
 <td style="text-align: left;">MT</td>
 <td style="text-align: left;">1984 on</td>
-<td style="text-align: left;"></td>
+<td style="text-align: left;">11779-11782 → 20956</td>
 <td style="text-align: left;">Separate filers' capital losses are subtracted again ($3,000 off for a $5,000 loss)</td>
 <td style="text-align: left;">Statutory, MT-002: once. <code>subtract_montana_separate_capital_loss_once</code></td>
 <td style="text-align: left;">TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 91% of 99 affected households</td>
@@ -1901,7 +1901,7 @@ skips would count the EITC slope twice.</p>
 <tr>
 <td style="text-align: left;">NC</td>
 <td style="text-align: left;">1977-1988</td>
-<td style="text-align: left;"></td>
+<td style="text-align: left;">15366 → 27254</td>
 <td style="text-align: left;">The child count is reused for the husband's dependent share: 2 children get a $154 joint child care credit instead of $308</td>
 <td style="text-align: left;">Statutory, NC-001: all children. <code>count_all_children_for_north_carolina_joint_child_care</code></td>
 <td style="text-align: left;">TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 40 affected households</td>
@@ -1917,7 +1917,7 @@ skips would count the EITC slope twice.</p>
 <tr>
 <td style="text-align: left;">NC</td>
 <td style="text-align: left;">1989-1990</td>
-<td style="text-align: left;"></td>
+<td style="text-align: left;">15558 → 27448-27454</td>
 <td style="text-align: left;">The married table is applied with income splitting, so the 6% bracket runs to $43,500 instead of $21,750</td>
 <td style="text-align: left;">Statutory, NC-003: the married table without splitting. <code>use_north_carolina_married_table_without_splitting</code></td>
 <td style="text-align: left;">TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 11 affected households</td>
@@ -1925,7 +1925,7 @@ skips would count the EITC slope twice.</p>
 <tr>
 <td style="text-align: left;">ND</td>
 <td style="text-align: left;">1987-2000</td>
-<td style="text-align: left;"></td>
+<td style="text-align: left;">15957 → 27937</td>
 <td style="text-align: left;">The long form adds back state income tax even for standard-deduction filers</td>
 <td style="text-align: left;">Statutory, ND-001: only when deducted federally. <code>add_back_north_dakota_state_tax_for_itemizers_only</code></td>
 <td style="text-align: left;">TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 3 affected households</td>
@@ -2053,7 +2053,7 @@ skips would count the EITC slope twice.</p>
 <tr>
 <td style="text-align: left;">NJ</td>
 <td style="text-align: left;">2018-2021</td>
-<td style="text-align: left;"></td>
+<td style="text-align: left;">12910-12916 → 22677-22681</td>
 <td style="text-align: left;">The 2004 schedule is used (top rate 8.97%); the law added 10.75%, so $6 million of 2018 wages is under-taxed by about $17,800</td>
 <td style="text-align: left;">Statutory: the published schedule (10.75% top rate). <code>tax_new_jersey_top_rate_after_1982_per_statute</code>; taxsim mode keeps TAXSIM's 8.97%</td>
 <td style="text-align: left;">TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 18 affected households</td>
@@ -2117,7 +2117,7 @@ skips would count the EITC slope twice.</p>
 <tr>
 <td style="text-align: left;">OH</td>
 <td style="text-align: left;">1983-1988</td>
-<td style="text-align: left;"></td>
+<td style="text-align: left;">16505-16514 → 28490-28493</td>
 <td style="text-align: left;">The $20 exemption credit is subtracted twice, and a couple using the credit method loses the joint credit</td>
 <td style="text-align: left;">Statutory, OH-002: once; both methods get the joint credit and the lower tax applies. <code>subtract_ohio_exemption_credit_once</code></td>
 <td style="text-align: left;">TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 26 affected households</td>
@@ -2157,7 +2157,7 @@ skips would count the EITC slope twice.</p>
 <tr>
 <td style="text-align: left;">OR</td>
 <td style="text-align: left;">1981-1984</td>
-<td style="text-align: left;"></td>
+<td style="text-align: left;">17336 → 29843</td>
 <td style="text-align: left;">Federal taxable unemployment is added again (Oregon AGI $32,000 on $28,000 of income)</td>
 <td style="text-align: left;">Statutory, OR-004: Oregon's taxable amount replaces it. <code>replace_federal_unemployment_in_oregon_1981_1984</code></td>
 <td style="text-align: left;">TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 10 affected households</td>
@@ -2165,7 +2165,7 @@ skips would count the EITC slope twice.</p>
 <tr>
 <td style="text-align: left;">OR</td>
 <td style="text-align: left;">2015, 2017</td>
-<td style="text-align: left;"></td>
+<td style="text-align: left;">17709 → 30263</td>
 <td style="text-align: left;">The surplus credit (kicker) is computed into a variable that is never used</td>
 <td style="text-align: left;">Statutory, OR-005: 5.6% of tax. <code>pay_oregon_2015_2017_kickers</code></td>
 <td style="text-align: left;">TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 40 affected households</td>
@@ -2237,7 +2237,7 @@ skips would count the EITC slope twice.</p>
 <tr>
 <td style="text-align: left;">PA</td>
 <td style="text-align: left;">All</td>
-<td style="text-align: left;"></td>
+<td style="text-align: left;">17749 → 30664</td>
 <td style="text-align: left;">Tax forgiveness ignores nontaxable income such as unemployment and phases out smoothly rather than in 10% steps</td>
 <td style="text-align: left;">Statutory, PA-001: eligibility income adds unemployment compensation and exempt pensions; 10% steps. <code>apply_pennsylvania_forgiveness_rules</code></td>
 <td style="text-align: left;">TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 51 affected households</td>
@@ -2261,18 +2261,10 @@ skips would count the EITC slope twice.</p>
 <tr>
 <td style="text-align: left;">RI</td>
 <td style="text-align: left;">2003-2010</td>
-<td style="text-align: left;"></td>
+<td style="text-align: left;">18133-18134 → 31099</td>
 <td style="text-align: left;">The regular tax is subtracted twice in the minimum tax without gains</td>
 <td style="text-align: left;">Statutory, RI-003: once. <code>subtract_rhode_island_tax_once_in_minimum_tax</code></td>
 <td style="text-align: left;">TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 5 affected households</td>
-</tr>
-<tr>
-<td style="text-align: left;">RI</td>
-<td style="text-align: left;">2011 on</td>
-<td style="text-align: left;"></td>
-<td style="text-align: left;">The deduction phaseout is applied in 20% steps and again smoothly (78.4% kept at $180,000 instead of 80%)</td>
-<td style="text-align: left;">Statutory, RI-004 (2011-2021): steps only. <code>use_rhode_island_deduction_phaseout_steps_only</code></td>
-<td style="text-align: left;">TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 3 affected households</td>
 </tr>
 <tr>
 <td style="text-align: left;">RI</td>
@@ -2309,7 +2301,7 @@ skips would count the EITC slope twice.</p>
 <tr>
 <td style="text-align: left;">VA</td>
 <td style="text-align: left;">2021</td>
-<td style="text-align: left;"></td>
+<td style="text-align: left;">19409-19411 → 33630</td>
 <td style="text-align: left;">The itemized-deduction limit's threshold is scaled by 1.25 in the test but not in the reduction</td>
 <td style="text-align: left;">Statutory, VA-002: in the reduction too. <code>scale_virginia_itemized_limit_threshold</code></td>
 <td style="text-align: left;">TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 12 affected households</td>
@@ -2373,7 +2365,7 @@ skips would count the EITC slope twice.</p>
 <tr>
 <td style="text-align: left;">VT</td>
 <td style="text-align: left;">1977-1988</td>
-<td style="text-align: left;"></td>
+<td style="text-align: left;">19135 → 32992</td>
 <td style="text-align: left;">The $10 student credit goes to every filer who is not a dependent</td>
 <td style="text-align: left;">Statutory, VT-001: none (TAXSIM has no student input). <code>omit_vermont_student_credit</code></td>
 <td style="text-align: left;">TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 98% of 58 affected households</td>
@@ -2405,7 +2397,7 @@ skips would count the EITC slope twice.</p>
 <tr>
 <td style="text-align: left;">WI</td>
 <td style="text-align: left;">1989-1990</td>
-<td style="text-align: left;"></td>
+<td style="text-align: left;">20969-20972 → 36022</td>
 <td style="text-align: left;">Homestead eligibility and the reduction use different income measures</td>
 <td style="text-align: left;">Statutory, WI-007: net income for both. <code>use_wisconsin_net_household_income_1989_1990</code></td>
 <td style="text-align: left;">TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 1 affected households</td>
@@ -2421,18 +2413,10 @@ skips would count the EITC slope twice.</p>
 <tr>
 <td style="text-align: left;">WV</td>
 <td style="text-align: left;">1977-1986</td>
-<td style="text-align: left;"></td>
+<td style="text-align: left;">19731 → 34427</td>
 <td style="text-align: left;">Itemized deductions are reduced by a slot that is never filled, so state income tax stays in</td>
 <td style="text-align: left;">Statutory, WV-003: removed. <code>remove_state_tax_from_west_virginia_itemized_deductions</code></td>
 <td style="text-align: left;">TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 12 affected households</td>
-</tr>
-<tr>
-<td style="text-align: left;">WV</td>
-<td style="text-align: left;">All</td>
-<td style="text-align: left;"></td>
-<td style="text-align: left;"><code>law.le.1983.and.law.ge.1987</code> is never true, so the disability deduction never applies</td>
-<td style="text-align: left;">Statutory, WV-002: under 65 with taxable Social Security. <code>allow_west_virginia_disability_deduction</code></td>
-<td style="text-align: left;">TAXSIM source (logic error, no form check needed); compiled TAXSIM agrees with taxsim mode on 100% of 16 affected households</td>
 </tr>
 </tbody>
 </table>
