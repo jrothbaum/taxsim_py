@@ -1,0 +1,1323 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Dataframe-oriented Python implementation of NBER TAXSIM.">
+      
+      
+      
+      
+        <link rel="prev" href="../statutory_audit/">
+      
+      
+        <link rel="next" href="../performance/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
+    
+    
+      
+        <title>2026 state law, sources and verification - taxsim-py</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.57a0d79d.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.fb2fffe2.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="cyan">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#2026-state-law-in-statutory-mode-sources-and-verification-status" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="taxsim-py" class="md-header__button md-logo" aria-label="taxsim-py" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            taxsim-py
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              2026 state law, sources and verification
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="cyan"  aria-hidden="true"  type="radio" name="__palette" id="__palette_0">
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="cyan"  aria-hidden="true"  type="radio" name="__palette" id="__palette_1">
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/jrothbaum/taxsim_py" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href=".." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../calculate/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Calculating
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../inputs/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Inputs
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../outputs/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Outputs
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../files/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Files and command line
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../stata/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Stata
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../browser/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Browser
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../statutory_corrections/" class="md-tabs__link">
+          
+  
+  
+  Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="taxsim-py" class="md-nav__button md-logo" aria-label="taxsim-py" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    taxsim-py
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/jrothbaum/taxsim_py" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../calculate/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calculating
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../inputs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Inputs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../outputs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Outputs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../files/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Files and command line
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../stata/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Stata
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../browser/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Browser
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../statutory_corrections/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    TAXSIM errors and corrections
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../statutory_audit/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Audit of the statutory side
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    2026 state law, sources and verification
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    2026 state law, sources and verification
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#where-we-deliberately-differ-from-policyengine-us" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where we deliberately differ from PolicyEngine-US
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#state-by-state" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        State by state
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#not-checked-against-anything" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Not checked against anything
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../performance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Performance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../comparisons/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Comparison with TAXSIM and PolicyEngine, by state and year
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../policyengine_recent_state_comparison/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PolicyEngine comparison
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#where-we-deliberately-differ-from-policyengine-us" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where we deliberately differ from PolicyEngine-US
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#state-by-state" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        State by state
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#not-checked-against-anything" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Not checked against anything
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="2026-state-law-in-statutory-mode-sources-and-verification-status">2026 state law in statutory mode: sources and verification status</h1>
+<p>Statutory mode (<code>calculation_mode="statutory"</code>) applies actual law through
+2026 for all 44 modeled states (<code>law_coded_through: 2026</code> in each state
+YAML). TAXSIM mode is unchanged: the TAXSIM build only knows 2025 law, so it
+carries 2025 forward (with its own inflation proxy).</p>
+<p>Each 2026 value was entered, compared with PolicyEngine-US on a grid
+of about 40 synthetic returns per state (singles, couples, families, retirees), and
+then checked against public sources. This page records what was checked and
+what was not. Dates are the dates of the sources, retrieved November 2026.</p>
+<p><strong>Status key</strong></p>
+<ul>
+<li><strong>Official</strong>: the state's own form, schedule, press release or rule.</li>
+<li><strong>Law</strong>: the enacted bill or a reliable news/tax-advisory report of it.</li>
+<li><strong>Derived</strong>: not published yet; computed from the 2025 amount and an
+  inflation factor, or copied from PolicyEngine-US. Expect small differences
+  (usually under $20 of tax) once the state publishes.</li>
+</ul>
+<h2 id="where-we-deliberately-differ-from-policyengine-us">Where we deliberately differ from PolicyEngine-US</h2>
+<table>
+<thead>
+<tr>
+<th>State</th>
+<th>What</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CO</td>
+<td>Family Affordability Credit is off for 2026; state EITC match is 25%</td>
+<td>Governor's office: both turned off for tax year 2026 (revenue trigger). PolicyEngine still pays the credit.</td>
+</tr>
+<tr>
+<td>CO</td>
+<td>Federal-deduction addback cap of $1,000 ($2,000 joint) for AGI over $300,000</td>
+<td>Taken from PolicyEngine; source not independently found.</td>
+</tr>
+<tr>
+<td>AZ</td>
+<td>Standard deduction follows the 2026 federal amount ($16,100 single)</td>
+<td>PolicyEngine still shows $15,750.</td>
+</tr>
+<tr>
+<td>CA</td>
+<td>All indexed amounts use the Franchise Tax Board's 3.4% factor</td>
+<td>PolicyEngine assumes about 2.3%.</td>
+</tr>
+<tr>
+<td>MN</td>
+<td>Brackets, standard deduction, itemized limits and credit thresholds use the Revenue Department's official 2026 table</td>
+<td>PolicyEngine is $10-$50 lower on several.</td>
+</tr>
+<tr>
+<td>MO</td>
+<td>Brackets from the official 2026 MO-1040ES rate chart</td>
+<td>PolicyEngine indexes them slightly lower.</td>
+</tr>
+<tr>
+<td>LA</td>
+<td>Standard deduction $12,875 / $25,750</td>
+<td>Department of Revenue 2026 withholding rule.</td>
+</tr>
+<tr>
+<td>MD</td>
+<td>Pension exclusion maximum $40,600 for 2026 (down from $41,200)</td>
+<td>Comptroller guidance; PolicyEngine agrees.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="state-by-state">State by state</h2>
+<table>
+<thead>
+<tr>
+<th>State</th>
+<th>2026 change in the model</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>AL, AK, FL, NV, NH, SD, TN, TX, WA, WY</td>
+<td>No wage income tax.</td>
+<td>n/a</td>
+</tr>
+<tr>
+<td>AR</td>
+<td>Top rate 3.7% (from 3.9%); rate table and low-income tables rebuilt; standard deduction $2,470.</td>
+<td>Rate: <strong>Law</strong> (HB 1001 / SB 1, May 2026 special session). Rate table and the $2,470 standard deduction: <strong>Official</strong> (DFA Withholding Tax Formula for 2026, revised 2026-05-29). Low-income step tables: <strong>Derived</strong> from PolicyEngine; the DFA return tables are not out yet.</td>
+</tr>
+<tr>
+<td>AZ</td>
+<td>Dependent credit $125 per child under 17; standard deduction $16,100.</td>
+<td><strong>Law</strong> (HB 4168, signed 2026-06-13). The same bill's other changes (SALT cap on itemizers, charitable standard deduction, adoption subtraction) are not modeled.</td>
+</tr>
+<tr>
+<td>CA</td>
+<td>3.4% inflation factor on brackets, standard deduction, exemption credits, renter's credit, AMT, CalEITC, young child credit.</td>
+<td>Standard deduction ($5,900 / $11,800), exemption credits ($158 / $491), renter's AGI limits: <strong>Official</strong> (FTB Tax News, October 2026). Bracket tops and CalEITC: <strong>Derived</strong> (FTB posts schedules in late December).</td>
+</tr>
+<tr>
+<td>CO</td>
+<td>See table above; flat rate 4.4% unchanged; QBI addback continues.</td>
+<td>EITC 25% and credit shutoff: <strong>Law</strong>. Addback cap: <strong>Derived</strong>.</td>
+</tr>
+<tr>
+<td>DC</td>
+<td>Refundable child tax credit $1,000 per child under 18, reduced $50 per $1,000 of AGI over $55,000 ($70,000 joint, $35,000 separate); standard deduction, property credit and EITC amounts indexed.</td>
+<td><strong>Law</strong> (Act 26-217) but the credit's survival is <strong>uncertain</strong>: a congressional disapproval of DC's tax decoupling was reported in February 2026. Amounts for the other items are <strong>Derived</strong>.</td>
+</tr>
+<tr>
+<td>GA</td>
+<td>Flat rate 4.99%; standard deduction $15,000 / $30,000; dependent exemption $5,000; $250 credit per child under six.</td>
+<td>Rate and standard deduction: <strong>Official</strong> (Georgia DOR). Dependent exemption: <strong>Law</strong> (HB 463). Under-six credit: secondary source only.</td>
+</tr>
+<tr>
+<td>HI</td>
+<td>Standard deduction $8,000 / $16,000 / $12,000; brackets unchanged from 2025.</td>
+<td><strong>Official</strong> (Hawaii DOTAX announcement 24-03). A new higher rate on income over $1 million (enacted July 2026) is not modeled.</td>
+</tr>
+<tr>
+<td>IA</td>
+<td>Flat rate 3.8% carried forward.</td>
+<td><strong>Law</strong> (most sources; one lists 3.9%).</td>
+</tr>
+<tr>
+<td>ID</td>
+<td>Brackets, standard deduction (federal amounts), child credit ended after 2025.</td>
+<td>Child credit ending: <strong>Official</strong> (State Tax Commission). Others: <strong>Derived</strong>.</td>
+</tr>
+<tr>
+<td>IL</td>
+<td>Rate 4.95%, exemption indexed.</td>
+<td>Rate: <strong>Law</strong>. Exemption: <strong>Derived</strong>.</td>
+</tr>
+<tr>
+<td>IN</td>
+<td>Rate 2.95%.</td>
+<td><strong>Law</strong>.</td>
+</tr>
+<tr>
+<td>KY</td>
+<td>Rate 3.5%; standard deduction $3,360.</td>
+<td><strong>Official</strong> (Department of Revenue).</td>
+</tr>
+<tr>
+<td>LA</td>
+<td>Flat 3%; standard deduction $12,875 / $25,750.</td>
+<td><strong>Official</strong> (LAC 61.I.1501 emergency rule, 2026 withholding).</td>
+</tr>
+<tr>
+<td>MD</td>
+<td>Standard deduction flat amounts $3,400 / $6,850; pension exclusion $40,600.</td>
+<td>Pension: <strong>Official</strong> (Comptroller). Standard deduction: <strong>Derived</strong>.</td>
+</tr>
+<tr>
+<td>ME</td>
+<td>Brackets $27,400 / $64,850 (single); personal exemption $5,300; standard deduction $15,700 single / $31,400 joint (halfway to the federal amount); itemized cap $37,100; dependent credit $310; fairness credit amounts; <strong>new 2% surcharge</strong> on taxable income over $1 million ($1.5 million joint and head of household, $750,000 separate).</td>
+<td>Brackets, exemption, standard deduction, phase-out starts: <strong>Official</strong> (Maine Revenue Services 2026 rate schedule and revised August 2026 withholding tables; Thomson Reuters summary). Surcharge: <strong>Law</strong> (L.D. 2212, approved 2026-04-09, retroactive to January 1). Head-of-household standard deduction ($23,550, the midpoint) and other credit amounts: <strong>Derived</strong>. The 2025 affordability payment does not recur.</td>
+</tr>
+<tr>
+<td>MI</td>
+<td>Rate 4.25%, retirement subtraction fully phased in, indexed amounts.</td>
+<td><strong>Derived</strong> except rate (<strong>Law</strong>). Heating credit not re-checked.</td>
+</tr>
+<tr>
+<td>MN</td>
+<td>All 2026 amounts.</td>
+<td><strong>Official</strong> (Minnesota Revenue, "Tax Year 2026 Inflation-Adjusted Amounts" and bracket release, 2025-12-16). Social Security subtraction thresholds for 2024 and 2025 were also corrected (they had been left at the 2023 amounts).</td>
+</tr>
+<tr>
+<td>MO</td>
+<td>2026 brackets $1,348 to $9,436; top rate 4.7% unchanged; capital gains subtraction continues.</td>
+<td><strong>Official</strong> (2026 MO-1040ES rate chart).</td>
+</tr>
+<tr>
+<td>MS</td>
+<td>Rate 4.0% above $10,000.</td>
+<td><strong>Law</strong>.</td>
+</tr>
+<tr>
+<td>MT</td>
+<td>4.7% to $47,500 ($95,000 joint, $71,250 head of household), 5.65% above; same thresholds for capital gains (3% / 4.1%); state EITC match 20% (from 10%).</td>
+<td>Brackets and rates: <strong>Official</strong> (Department of Revenue, HB 337). EITC match: <strong>Law</strong>.</td>
+</tr>
+<tr>
+<td>NC</td>
+<td>Rate 3.99%.</td>
+<td><strong>Law</strong>.</td>
+</tr>
+<tr>
+<td>ND</td>
+<td>Brackets $49,575 / $250,400 (single), $66,400 / $277,600 (head of household), $82,800 / $304,850 (joint).</td>
+<td>Brackets: <strong>Official</strong> (form ND-1ES 2026). Marriage credit amounts: <strong>Derived</strong>.</td>
+</tr>
+<tr>
+<td>NE</td>
+<td>Two upper rates become 4.55%; indexed amounts.</td>
+<td><strong>Law</strong> for the rate; amounts <strong>Derived</strong>.</td>
+</tr>
+<tr>
+<td>NJ</td>
+<td>Child tax credit up to $1,250 per child under six (2026-2028); other amounts indexed.</td>
+<td>One tax guide only; enactment not confirmed from an official source.</td>
+</tr>
+<tr>
+<td>NM</td>
+<td>Child tax credit and low-income rebate tables scaled by PolicyEngine's inflation factor.</td>
+<td><strong>Derived</strong>. The Taxation and Revenue Department publishes each year's inflation adjustment (FYI-109) the following January, so 2026 amounts are not out yet.</td>
+</tr>
+<tr>
+<td>NY</td>
+<td>Five lowest rates fall 0.1 point (3.9%, 4.4%, 5.15%, 5.4%, 5.9%); child credit $500 for ages 4 to 16 (from $330); supplemental tax tables; itemized limit starts.</td>
+<td>Rate cut and credit: <strong>Law</strong> (Thomson Reuters, CPA Journal). Exact rates and tables: <strong>Derived</strong> (PolicyEngine).</td>
+</tr>
+<tr>
+<td>OH</td>
+<td>Tax is $332 plus 2.75% of income over $26,050 (the 3.125% top rate is gone); exemption and joint credit limit at $500,000.</td>
+<td><strong>Law</strong> (HB 96, Legislative Service Commission, EY, Plante Moran); the $332 base from one secondary source.</td>
+</tr>
+<tr>
+<td>OK</td>
+<td>Rates 2.5% / 3.5% / 4.5% (three lowest rates removed).</td>
+<td><strong>Law</strong> (HB 2764). Exact bracket tops: <strong>Derived</strong>.</td>
+</tr>
+<tr>
+<td>OR</td>
+<td>Standard deduction, exemption credit and the state EITC match (14%) indexed or raised.</td>
+<td><strong>Derived</strong> (PolicyEngine / statute).</td>
+</tr>
+<tr>
+<td>RI</td>
+<td>Brackets $82,050 / $186,450; standard deduction $11,200 / $16,800 / $22,400; exemption $5,250; property tax credit maximum $715.</td>
+<td>Standard deduction and exemption: <strong>Official</strong> (Tax Foundation index). Brackets: <strong>Official</strong> (Division of Taxation advisory ADV 2025-22). Property tax credit maximum ($715): <strong>Derived</strong>; the advisory only gives $700 for 2025.</td>
+</tr>
+<tr>
+<td>SC</td>
+<td>1.99% to $30,000 and 5.21% above; new state deduction ($15,000 / $22,500 / $30,000, phased out over $55,000 to $110,000 of income); state EITC capped at $200.</td>
+<td><strong>Law</strong> (H. 4216, signed 2026-03-30). Phase-out start and widths: <strong>Derived</strong>.</td>
+</tr>
+<tr>
+<td>UT</td>
+<td>Rate 4.45%; personal exemption $2,167 per dependent; taxpayer credit phase-out starts $18,696 / $28,045 / $37,392; child credit phase-out starts $49,000 / $61,000.</td>
+<td>Rate, exemption and phase-out starts: <strong>Official</strong> (draft 2026 TC-40; may change before final). Child credit thresholds: <strong>Law</strong> (H.B. 290, Bloomberg Government).</td>
+</tr>
+<tr>
+<td>VT</td>
+<td>Standard deduction and exemption indexed.</td>
+<td><strong>Derived</strong>.</td>
+</tr>
+<tr>
+<td>WI</td>
+<td>Standard deduction and brackets indexed.</td>
+<td><strong>Derived</strong>.</td>
+</tr>
+<tr>
+<td>WV</td>
+<td>Rates cut about 5% (top rate 4.58%); Social Security fully exempt.</td>
+<td><strong>Law</strong> (S.B. 392, effective retroactively to January 1). Individual bracket rates <strong>Derived</strong>.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="not-checked-against-anything">Not checked against anything</h2>
+<ul>
+<li>Michigan heating credit, Maine property tax fairness credit tiers, New
+  Mexico rebate rows, and New
+  York's supplemental tax tables come from PolicyEngine-US only.</li>
+<li>Provisions with no TAXSIM input (tips and overtime deductions, state senior
+  deductions that depend on benefit data) are not modeled for 2026.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "search.highlight", "search.suggest"], "search": "../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.a5f9d56c.min.js"></script>
+      
+    
+  </body>
+</html>

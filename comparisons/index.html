@@ -1,0 +1,2174 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Dataframe-oriented Python implementation of NBER TAXSIM.">
+      
+      
+      
+      
+        <link rel="prev" href="../performance/">
+      
+      
+        <link rel="next" href="../policyengine_recent_state_comparison/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
+    
+    
+      
+        <title>Comparison with TAXSIM and PolicyEngine, by state and year - taxsim-py</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.57a0d79d.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.fb2fffe2.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="cyan">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#comparison-with-taxsim-and-policyengine-us" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="taxsim-py" class="md-header__button md-logo" aria-label="taxsim-py" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            taxsim-py
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Comparison with TAXSIM and PolicyEngine, by state and year
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="cyan"  aria-hidden="true"  type="radio" name="__palette" id="__palette_0">
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="cyan"  aria-hidden="true"  type="radio" name="__palette" id="__palette_1">
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/jrothbaum/taxsim_py" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href=".." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../calculate/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Calculating
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../inputs/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Inputs
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../outputs/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Outputs
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../files/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Files and command line
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../stata/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Stata
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../browser/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Browser
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../statutory_corrections/" class="md-tabs__link">
+          
+  
+  
+  Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="taxsim-py" class="md-nav__button md-logo" aria-label="taxsim-py" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    taxsim-py
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/jrothbaum/taxsim_py" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../calculate/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calculating
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../inputs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Inputs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../outputs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Outputs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../files/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Files and command line
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../stata/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Stata
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../browser/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Browser
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../statutory_corrections/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    TAXSIM errors and corrections
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../statutory_audit/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Audit of the statutory side
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../state_2026_parameters/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    2026 state law, sources and verification
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../performance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Performance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Comparison with TAXSIM and PolicyEngine, by state and year
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Comparison with TAXSIM and PolicyEngine, by state and year
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#households" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Households
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#against-taxsim" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Against TAXSIM
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Against TAXSIM">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#federal-income-tax" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Federal income tax
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#state-income-tax-taxsim-mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        State income tax: TAXSIM mode
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#state-income-tax-statutory-mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        State income tax: statutory mode
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#against-policyengine-us" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Against PolicyEngine-US
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../policyengine_recent_state_comparison/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PolicyEngine comparison
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#households" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Households
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#against-taxsim" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Against TAXSIM
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Against TAXSIM">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#federal-income-tax" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Federal income tax
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#state-income-tax-taxsim-mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        State income tax: TAXSIM mode
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#state-income-tax-statutory-mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        State income tax: statutory mode
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#against-policyengine-us" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Against PolicyEngine-US
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="comparison-with-taxsim-and-policyengine-us">Comparison with TAXSIM and PolicyEngine-US</h1>
+<p>This page is generated by <code>scripts/build_comparison_report.py</code>. It compares taxsim-py with the TAXSIM
+executable and with PolicyEngine-US on real households, for every state and year.</p>
+<h2 id="households">Households</h2>
+<p>The households are the 200 randomly drawn CPS ASEC tax units per state from the 2011
+public-use file (income year 2010), 10,200 units in all, built with
+<code>taxsim_py.prep.cps_asec_tax_units</code>. For each law year from 1960 to 2026 the same units are run with every
+dollar input multiplied by the ratio of that year's consumer price index to 2010's (2025 and 2026 use assumed
+2.7% and 2.5% inflation), so each year sees a realistic mix at that year's prices. Before 1977 only the federal return
+is calculated. TAXSIM itself is run one state and one year at a time, because its results for a record depend on
+the records that ran before it (variables left over from another state's routine; Maryland 1977-1984 differs by
+about $90 per household when mixed with other states). A household "agrees" when the tax differs by $1 or less. Federal rows count all units; state rows count the
+states with a wage income tax.</p>
+<h2 id="against-taxsim">Against TAXSIM</h2>
+<p>In short: in TAXSIM mode, every CPS household of every state for every year 1977-2026 (4,206,050 state-year
+calculations) was checked against TAXSIM, and 2,181 differ in state tax by more than $1 (99.95% agree).
+Federal tax differs by more than $1 for 3,154 households, 1,079 of them the 2008 recovery rebate
+(an open TAXSIM issue).
+The state-by-state counts are in <code>docs/data/cps_full_state_check/summary.csv</code>.</p>
+<p><em>TAXSIM mode</em> reproduces the executable, bugs included. <em>Statutory mode</em> follows the law, so it is expected to differ
+where TAXSIM is wrong or out of date; each difference is listed in <a href="../statutory_corrections/">TAXSIM errors and
+corrections</a>.</p>
+<p>Over all states and years since 1977, <strong>99.9%</strong> of households agree with TAXSIM's state tax in
+TAXSIM mode (99.8% within 2 cents), and <strong>75.2%</strong> in statutory
+mode.</p>
+<h3 id="federal-income-tax">Federal income tax</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Years</th>
+<th style="text-align: center;">TAXSIM mode within 2 cents</th>
+<th style="text-align: center;">TAXSIM mode within $1</th>
+<th style="text-align: center;">Statutory within $1</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">1960-1976</td>
+<td style="text-align: center;">100.0%</td>
+<td style="text-align: center;">100.0%</td>
+<td style="text-align: center;">100.0%</td>
+</tr>
+<tr>
+<td style="text-align: left;">1977-1989</td>
+<td style="text-align: center;">99.9%</td>
+<td style="text-align: center;">99.9%</td>
+<td style="text-align: center;">94.2%</td>
+</tr>
+<tr>
+<td style="text-align: left;">1990-1999</td>
+<td style="text-align: center;">100.0%</td>
+<td style="text-align: center;">100.0%</td>
+<td style="text-align: center;">94.7%</td>
+</tr>
+<tr>
+<td style="text-align: left;">2000-2009</td>
+<td style="text-align: center;">99.8%</td>
+<td style="text-align: center;">99.8%</td>
+<td style="text-align: center;">84.9%</td>
+</tr>
+<tr>
+<td style="text-align: left;">2010-2019</td>
+<td style="text-align: center;">100.0%</td>
+<td style="text-align: center;">100.0%</td>
+<td style="text-align: center;">89.8%</td>
+</tr>
+<tr>
+<td style="text-align: left;">2020-2026</td>
+<td style="text-align: center;">100.0%</td>
+<td style="text-align: center;">100.0%</td>
+<td style="text-align: center;">87.8%</td>
+</tr>
+</tbody>
+</table>
+<h3 id="state-income-tax-taxsim-mode">State income tax: TAXSIM mode</h3>
+<p><img alt="TAXSIM mode against TAXSIM" src="../img/compare_taxsim_mode.png" /></p>
+<h3 id="state-income-tax-statutory-mode">State income tax: statutory mode</h3>
+<p><img alt="Statutory mode against TAXSIM" src="../img/compare_statutory.png" /></p>
+<p>The tables give the percent of households that agree, averaged over each period (the first group of columns is TAXSIM
+mode, the second statutory mode).</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">State</th>
+<th style="text-align: center;">TAXSIM mode 1977-1989</th>
+<th style="text-align: center;">TAXSIM mode 1990-1999</th>
+<th style="text-align: center;">TAXSIM mode 2000-2009</th>
+<th style="text-align: center;">TAXSIM mode 2010-2019</th>
+<th style="text-align: center;">TAXSIM mode 2020-2026</th>
+<th style="text-align: center;">Statutory 1977-1989</th>
+<th style="text-align: center;">Statutory 1990-1999</th>
+<th style="text-align: center;">Statutory 2000-2009</th>
+<th style="text-align: center;">Statutory 2010-2019</th>
+<th style="text-align: center;">Statutory 2020-2026</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">AL</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">92</td>
+<td style="text-align: center;">76</td>
+<td style="text-align: center;">63</td>
+<td style="text-align: center;">52</td>
+<td style="text-align: center;">38</td>
+</tr>
+<tr>
+<td style="text-align: left;">AZ</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">72</td>
+<td style="text-align: center;">92</td>
+<td style="text-align: center;">90</td>
+<td style="text-align: center;">91</td>
+<td style="text-align: center;">82</td>
+</tr>
+<tr>
+<td style="text-align: left;">AR</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">99</td>
+<td style="text-align: center;">97</td>
+<td style="text-align: center;">89</td>
+<td style="text-align: center;">90</td>
+<td style="text-align: center;">90</td>
+<td style="text-align: center;">41</td>
+</tr>
+<tr>
+<td style="text-align: left;">CA</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">99</td>
+<td style="text-align: center;">95</td>
+<td style="text-align: center;">98</td>
+<td style="text-align: center;">98</td>
+<td style="text-align: center;">96</td>
+<td style="text-align: center;">75</td>
+</tr>
+<tr>
+<td style="text-align: left;">CO</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">99</td>
+<td style="text-align: center;">44</td>
+<td style="text-align: center;">95</td>
+<td style="text-align: center;">83</td>
+<td style="text-align: center;">94</td>
+<td style="text-align: center;">33</td>
+</tr>
+<tr>
+<td style="text-align: left;">CT</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">53</td>
+<td style="text-align: center;">49</td>
+<td style="text-align: center;">43</td>
+<td style="text-align: center;">32</td>
+</tr>
+<tr>
+<td style="text-align: left;">DE</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">64</td>
+<td style="text-align: center;">68</td>
+<td style="text-align: center;">98</td>
+<td style="text-align: center;">95</td>
+<td style="text-align: center;">61</td>
+</tr>
+<tr>
+<td style="text-align: left;">DC</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">85</td>
+<td style="text-align: center;">83</td>
+<td style="text-align: center;">81</td>
+<td style="text-align: center;">81</td>
+<td style="text-align: center;">72</td>
+</tr>
+<tr>
+<td style="text-align: left;">GA</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">94</td>
+<td style="text-align: center;">69</td>
+<td style="text-align: center;">69</td>
+<td style="text-align: center;">80</td>
+<td style="text-align: center;">50</td>
+</tr>
+<tr>
+<td style="text-align: left;">HI</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">40</td>
+<td style="text-align: center;">45</td>
+<td style="text-align: center;">51</td>
+<td style="text-align: center;">27</td>
+<td style="text-align: center;">29</td>
+</tr>
+<tr>
+<td style="text-align: left;">ID</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">89</td>
+<td style="text-align: center;">97</td>
+<td style="text-align: center;">81</td>
+<td style="text-align: center;">96</td>
+<td style="text-align: center;">50</td>
+</tr>
+<tr>
+<td style="text-align: left;">IL</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">99</td>
+<td style="text-align: center;">84</td>
+<td style="text-align: center;">69</td>
+<td style="text-align: center;">66</td>
+<td style="text-align: center;">67</td>
+<td style="text-align: center;">38</td>
+</tr>
+<tr>
+<td style="text-align: left;">IN</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">95</td>
+<td style="text-align: center;">89</td>
+<td style="text-align: center;">42</td>
+<td style="text-align: center;">41</td>
+<td style="text-align: center;">25</td>
+</tr>
+<tr>
+<td style="text-align: left;">IA</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">47</td>
+<td style="text-align: center;">65</td>
+<td style="text-align: center;">62</td>
+<td style="text-align: center;">66</td>
+<td style="text-align: center;">57</td>
+</tr>
+<tr>
+<td style="text-align: left;">KS</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">82</td>
+<td style="text-align: center;">78</td>
+<td style="text-align: center;">69</td>
+<td style="text-align: center;">76</td>
+<td style="text-align: center;">49</td>
+</tr>
+<tr>
+<td style="text-align: left;">KY</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">47</td>
+<td style="text-align: center;">47</td>
+<td style="text-align: center;">50</td>
+<td style="text-align: center;">54</td>
+<td style="text-align: center;">76</td>
+</tr>
+<tr>
+<td style="text-align: left;">LA</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">87</td>
+<td style="text-align: center;">76</td>
+<td style="text-align: center;">67</td>
+<td style="text-align: center;">58</td>
+<td style="text-align: center;">91</td>
+</tr>
+<tr>
+<td style="text-align: left;">ME</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">99</td>
+<td style="text-align: center;">98</td>
+<td style="text-align: center;">85</td>
+<td style="text-align: center;">23</td>
+<td style="text-align: center;">54</td>
+<td style="text-align: center;">67</td>
+<td style="text-align: center;">56</td>
+</tr>
+<tr>
+<td style="text-align: left;">MD</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">42</td>
+<td style="text-align: center;">96</td>
+<td style="text-align: center;">89</td>
+<td style="text-align: center;">76</td>
+<td style="text-align: center;">55</td>
+</tr>
+<tr>
+<td style="text-align: left;">MA</td>
+<td style="text-align: center;">96</td>
+<td style="text-align: center;">99</td>
+<td style="text-align: center;">99</td>
+<td style="text-align: center;">99</td>
+<td style="text-align: center;">99</td>
+<td style="text-align: center;">95</td>
+<td style="text-align: center;">98</td>
+<td style="text-align: center;">98</td>
+<td style="text-align: center;">98</td>
+<td style="text-align: center;">61</td>
+</tr>
+<tr>
+<td style="text-align: left;">MI</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">93</td>
+<td style="text-align: center;">82</td>
+<td style="text-align: center;">85</td>
+<td style="text-align: center;">88</td>
+<td style="text-align: center;">65</td>
+</tr>
+<tr>
+<td style="text-align: left;">MN</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">99</td>
+<td style="text-align: center;">82</td>
+<td style="text-align: center;">82</td>
+<td style="text-align: center;">70</td>
+<td style="text-align: center;">31</td>
+<td style="text-align: center;">56</td>
+</tr>
+<tr>
+<td style="text-align: left;">MS</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">84</td>
+<td style="text-align: center;">91</td>
+<td style="text-align: center;">94</td>
+<td style="text-align: center;">93</td>
+<td style="text-align: center;">83</td>
+</tr>
+<tr>
+<td style="text-align: left;">MO</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">70</td>
+<td style="text-align: center;">69</td>
+<td style="text-align: center;">58</td>
+<td style="text-align: center;">59</td>
+<td style="text-align: center;">38</td>
+</tr>
+<tr>
+<td style="text-align: left;">MT</td>
+<td style="text-align: center;">99</td>
+<td style="text-align: center;">99</td>
+<td style="text-align: center;">99</td>
+<td style="text-align: center;">99</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">72</td>
+<td style="text-align: center;">66</td>
+<td style="text-align: center;">63</td>
+<td style="text-align: center;">66</td>
+<td style="text-align: center;">59</td>
+</tr>
+<tr>
+<td style="text-align: left;">NE</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">41</td>
+<td style="text-align: center;">99</td>
+<td style="text-align: center;">97</td>
+<td style="text-align: center;">98</td>
+<td style="text-align: center;">86</td>
+</tr>
+<tr>
+<td style="text-align: left;">NJ</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">28</td>
+<td style="text-align: center;">71</td>
+<td style="text-align: center;">65</td>
+<td style="text-align: center;">73</td>
+<td style="text-align: center;">77</td>
+</tr>
+<tr>
+<td style="text-align: left;">NM</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">99</td>
+<td style="text-align: center;">70</td>
+<td style="text-align: center;">76</td>
+<td style="text-align: center;">60</td>
+<td style="text-align: center;">73</td>
+<td style="text-align: center;">43</td>
+</tr>
+<tr>
+<td style="text-align: left;">NY</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">65</td>
+<td style="text-align: center;">68</td>
+<td style="text-align: center;">75</td>
+<td style="text-align: center;">69</td>
+<td style="text-align: center;">56</td>
+</tr>
+<tr>
+<td style="text-align: left;">NC</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">94</td>
+<td style="text-align: center;">97</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">95</td>
+<td style="text-align: center;">71</td>
+</tr>
+<tr>
+<td style="text-align: left;">ND</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">99</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">89</td>
+<td style="text-align: center;">96</td>
+<td style="text-align: center;">87</td>
+</tr>
+<tr>
+<td style="text-align: left;">OH</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">64</td>
+<td style="text-align: center;">92</td>
+<td style="text-align: center;">92</td>
+<td style="text-align: center;">91</td>
+<td style="text-align: center;">60</td>
+</tr>
+<tr>
+<td style="text-align: left;">OK</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">93</td>
+<td style="text-align: center;">92</td>
+<td style="text-align: center;">93</td>
+<td style="text-align: center;">98</td>
+<td style="text-align: center;">64</td>
+</tr>
+<tr>
+<td style="text-align: left;">OR</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">99</td>
+<td style="text-align: center;">96</td>
+<td style="text-align: center;">98</td>
+<td style="text-align: center;">94</td>
+<td style="text-align: center;">68</td>
+<td style="text-align: center;">50</td>
+</tr>
+<tr>
+<td style="text-align: left;">PA</td>
+<td style="text-align: center;">99</td>
+<td style="text-align: center;">99</td>
+<td style="text-align: center;">99</td>
+<td style="text-align: center;">99</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">92</td>
+<td style="text-align: center;">93</td>
+<td style="text-align: center;">92</td>
+<td style="text-align: center;">92</td>
+<td style="text-align: center;">91</td>
+</tr>
+<tr>
+<td style="text-align: left;">RI</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">97</td>
+<td style="text-align: center;">99</td>
+<td style="text-align: center;">95</td>
+<td style="text-align: center;">91</td>
+<td style="text-align: center;">78</td>
+</tr>
+<tr>
+<td style="text-align: left;">SC</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">57</td>
+<td style="text-align: center;">97</td>
+<td style="text-align: center;">87</td>
+<td style="text-align: center;">42</td>
+<td style="text-align: center;">68</td>
+</tr>
+<tr>
+<td style="text-align: left;">UT</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">98</td>
+<td style="text-align: center;">99</td>
+<td style="text-align: center;">89</td>
+<td style="text-align: center;">95</td>
+<td style="text-align: center;">81</td>
+</tr>
+<tr>
+<td style="text-align: left;">VT</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">98</td>
+<td style="text-align: center;">25</td>
+<td style="text-align: center;">95</td>
+<td style="text-align: center;">65</td>
+<td style="text-align: center;">72</td>
+<td style="text-align: center;">54</td>
+</tr>
+<tr>
+<td style="text-align: left;">VA</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">99</td>
+<td style="text-align: center;">99</td>
+<td style="text-align: center;">99</td>
+<td style="text-align: center;">90</td>
+<td style="text-align: center;">92</td>
+<td style="text-align: center;">90</td>
+<td style="text-align: center;">90</td>
+<td style="text-align: center;">37</td>
+</tr>
+<tr>
+<td style="text-align: left;">WV</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">99</td>
+<td style="text-align: center;">89</td>
+<td style="text-align: center;">96</td>
+<td style="text-align: center;">95</td>
+<td style="text-align: center;">91</td>
+<td style="text-align: center;">74</td>
+</tr>
+<tr>
+<td style="text-align: left;">WI</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">82</td>
+<td style="text-align: center;">73</td>
+<td style="text-align: center;">65</td>
+<td style="text-align: center;">57</td>
+<td style="text-align: center;">45</td>
+</tr>
+</tbody>
+</table>
+<p>State-years where TAXSIM mode agrees for less than 95% of households:</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">State</th>
+<th style="text-align: center;">Year</th>
+<th style="text-align: center;">Share within $1</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">ME</td>
+<td style="text-align: center;">2020</td>
+<td style="text-align: center;">92%</td>
+</tr>
+<tr>
+<td style="text-align: left;">NM</td>
+<td style="text-align: center;">2026</td>
+<td style="text-align: center;">92%</td>
+</tr>
+<tr>
+<td style="text-align: left;">MA</td>
+<td style="text-align: center;">1980</td>
+<td style="text-align: center;">94%</td>
+</tr>
+<tr>
+<td style="text-align: left;">MA</td>
+<td style="text-align: center;">1979</td>
+<td style="text-align: center;">94%</td>
+</tr>
+<tr>
+<td style="text-align: left;">IL</td>
+<td style="text-align: center;">2023</td>
+<td style="text-align: center;">94%</td>
+</tr>
+</tbody>
+</table>
+<p>The full state-by-year values are in <a href="../data/comparison_taxsim.csv">comparison_taxsim.csv</a>.</p>
+<h2 id="against-policyengine-us">Against PolicyEngine-US</h2>
+<p>Statutory mode against PolicyEngine-US's TAXSIM interface for 2022-2026, on
+40 units per state (PolicyEngine is much slower). Only households whose federal tax agrees within $1
+count, so the comparison is of state logic. PolicyEngine's adapter ignores <code>dep6</code> and turns the dependent counts into
+children of default ages, so credits that depend on a child's age differ in ways that are not errors in either model.
+Where the two disagree, the form or statute decides; the known cases are in <a href="../policyengine_recent_state_comparison/">Comparison with
+PolicyEngine-US</a>.</p>
+<p><img alt="Statutory mode against PolicyEngine-US" src="../img/compare_policyengine.png" /></p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">State</th>
+<th style="text-align: center;">2022</th>
+<th style="text-align: center;">2023</th>
+<th style="text-align: center;">2024</th>
+<th style="text-align: center;">2025</th>
+<th style="text-align: center;">2026</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">AL</td>
+<td style="text-align: center;">90</td>
+<td style="text-align: center;">97</td>
+<td style="text-align: center;">97</td>
+<td style="text-align: center;">97</td>
+<td style="text-align: center;">97</td>
+</tr>
+<tr>
+<td style="text-align: left;">AZ</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">27</td>
+</tr>
+<tr>
+<td style="text-align: left;">AR</td>
+<td style="text-align: center;">85</td>
+<td style="text-align: center;">77</td>
+<td style="text-align: center;">71</td>
+<td style="text-align: center;">74</td>
+<td style="text-align: center;">26</td>
+</tr>
+<tr>
+<td style="text-align: left;">CA</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">36</td>
+</tr>
+<tr>
+<td style="text-align: left;">CO</td>
+<td style="text-align: center;">81</td>
+<td style="text-align: center;">0</td>
+<td style="text-align: center;">81</td>
+<td style="text-align: center;">92</td>
+<td style="text-align: center;">89</td>
+</tr>
+<tr>
+<td style="text-align: left;">CT</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+</tr>
+<tr>
+<td style="text-align: left;">DE</td>
+<td style="text-align: center;">89</td>
+<td style="text-align: center;">89</td>
+<td style="text-align: center;">89</td>
+<td style="text-align: center;">92</td>
+<td style="text-align: center;">92</td>
+</tr>
+<tr>
+<td style="text-align: left;">DC</td>
+<td style="text-align: center;">95</td>
+<td style="text-align: center;">95</td>
+<td style="text-align: center;">95</td>
+<td style="text-align: center;">95</td>
+<td style="text-align: center;">92</td>
+</tr>
+<tr>
+<td style="text-align: left;">GA</td>
+<td style="text-align: center;">97</td>
+<td style="text-align: center;">92</td>
+<td style="text-align: center;">94</td>
+<td style="text-align: center;">94</td>
+<td style="text-align: center;">94</td>
+</tr>
+<tr>
+<td style="text-align: left;">HI</td>
+<td style="text-align: center;">41</td>
+<td style="text-align: center;">24</td>
+<td style="text-align: center;">43</td>
+<td style="text-align: center;">50</td>
+<td style="text-align: center;">64</td>
+</tr>
+<tr>
+<td style="text-align: left;">ID</td>
+<td style="text-align: center;">23</td>
+<td style="text-align: center;">23</td>
+<td style="text-align: center;">26</td>
+<td style="text-align: center;">26</td>
+<td style="text-align: center;">23</td>
+</tr>
+<tr>
+<td style="text-align: left;">IL</td>
+<td style="text-align: center;">97</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+</tr>
+<tr>
+<td style="text-align: left;">IN</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">97</td>
+<td style="text-align: center;">97</td>
+<td style="text-align: center;">100</td>
+</tr>
+<tr>
+<td style="text-align: left;">IA</td>
+<td style="text-align: center;">78</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+</tr>
+<tr>
+<td style="text-align: left;">KS</td>
+<td style="text-align: center;">79</td>
+<td style="text-align: center;">79</td>
+<td style="text-align: center;">79</td>
+<td style="text-align: center;">82</td>
+<td style="text-align: center;">82</td>
+</tr>
+<tr>
+<td style="text-align: left;">KY</td>
+<td style="text-align: center;">86</td>
+<td style="text-align: center;">89</td>
+<td style="text-align: center;">92</td>
+<td style="text-align: center;">89</td>
+<td style="text-align: center;">54</td>
+</tr>
+<tr>
+<td style="text-align: left;">LA</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">97</td>
+<td style="text-align: center;">15</td>
+</tr>
+<tr>
+<td style="text-align: left;">ME</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">85</td>
+<td style="text-align: center;">24</td>
+</tr>
+<tr>
+<td style="text-align: left;">MD</td>
+<td style="text-align: center;">82</td>
+<td style="text-align: center;">78</td>
+<td style="text-align: center;">77</td>
+<td style="text-align: center;">78</td>
+<td style="text-align: center;">78</td>
+</tr>
+<tr>
+<td style="text-align: left;">MA</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">76</td>
+<td style="text-align: center;">76</td>
+<td style="text-align: center;">76</td>
+</tr>
+<tr>
+<td style="text-align: left;">MI</td>
+<td style="text-align: center;">97</td>
+<td style="text-align: center;">92</td>
+<td style="text-align: center;">84</td>
+<td style="text-align: center;">74</td>
+<td style="text-align: center;">76</td>
+</tr>
+<tr>
+<td style="text-align: left;">MN</td>
+<td style="text-align: center;">67</td>
+<td style="text-align: center;">67</td>
+<td style="text-align: center;">67</td>
+<td style="text-align: center;">68</td>
+<td style="text-align: center;">16</td>
+</tr>
+<tr>
+<td style="text-align: left;">MS</td>
+<td style="text-align: center;">92</td>
+<td style="text-align: center;">95</td>
+<td style="text-align: center;">97</td>
+<td style="text-align: center;">97</td>
+<td style="text-align: center;">97</td>
+</tr>
+<tr>
+<td style="text-align: left;">MO</td>
+<td style="text-align: center;">86</td>
+<td style="text-align: center;">89</td>
+<td style="text-align: center;">86</td>
+<td style="text-align: center;">86</td>
+<td style="text-align: center;">56</td>
+</tr>
+<tr>
+<td style="text-align: left;">MT</td>
+<td style="text-align: center;">86</td>
+<td style="text-align: center;">89</td>
+<td style="text-align: center;">89</td>
+<td style="text-align: center;">89</td>
+<td style="text-align: center;">89</td>
+</tr>
+<tr>
+<td style="text-align: left;">NE</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">83</td>
+<td style="text-align: center;">83</td>
+<td style="text-align: center;">89</td>
+</tr>
+<tr>
+<td style="text-align: left;">NJ</td>
+<td style="text-align: center;">95</td>
+<td style="text-align: center;">95</td>
+<td style="text-align: center;">95</td>
+<td style="text-align: center;">94</td>
+<td style="text-align: center;">94</td>
+</tr>
+<tr>
+<td style="text-align: left;">NM</td>
+<td style="text-align: center;">95</td>
+<td style="text-align: center;">95</td>
+<td style="text-align: center;">95</td>
+<td style="text-align: center;">95</td>
+<td style="text-align: center;">82</td>
+</tr>
+<tr>
+<td style="text-align: left;">NY</td>
+<td style="text-align: center;">86</td>
+<td style="text-align: center;">83</td>
+<td style="text-align: center;">81</td>
+<td style="text-align: center;">85</td>
+<td style="text-align: center;">82</td>
+</tr>
+<tr>
+<td style="text-align: left;">NC</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+</tr>
+<tr>
+<td style="text-align: left;">ND</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+</tr>
+<tr>
+<td style="text-align: left;">OH</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+</tr>
+<tr>
+<td style="text-align: left;">OK</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">100</td>
+<td style="text-align: center;">97</td>
+<td style="text-align: center;">97</td>
+</tr>
+<tr>
+<td style="text-align: left;">OR</td>
+<td style="text-align: center;">86</td>
+<td style="text-align: center;">81</td>
+<td style="text-align: center;">81</td>
+<td style="text-align: center;">85</td>
+<td style="text-align: center;">85</td>
+</tr>
+<tr>
+<td style="text-align: left;">PA</td>
+<td style="text-align: center;">92</td>
+<td style="text-align: center;">92</td>
+<td style="text-align: center;">92</td>
+<td style="text-align: center;">92</td>
+<td style="text-align: center;">92</td>
+</tr>
+<tr>
+<td style="text-align: left;">RI</td>
+<td style="text-align: center;">97</td>
+<td style="text-align: center;">97</td>
+<td style="text-align: center;">97</td>
+<td style="text-align: center;">97</td>
+<td style="text-align: center;">97</td>
+</tr>
+<tr>
+<td style="text-align: left;">SC</td>
+<td style="text-align: center;">83</td>
+<td style="text-align: center;">83</td>
+<td style="text-align: center;">83</td>
+<td style="text-align: center;">83</td>
+<td style="text-align: center;">83</td>
+</tr>
+<tr>
+<td style="text-align: left;">UT</td>
+<td style="text-align: center;">97</td>
+<td style="text-align: center;">97</td>
+<td style="text-align: center;">97</td>
+<td style="text-align: center;">97</td>
+<td style="text-align: center;">72</td>
+</tr>
+<tr>
+<td style="text-align: left;">VT</td>
+<td style="text-align: center;">94</td>
+<td style="text-align: center;">94</td>
+<td style="text-align: center;">91</td>
+<td style="text-align: center;">91</td>
+<td style="text-align: center;">91</td>
+</tr>
+<tr>
+<td style="text-align: left;">VA</td>
+<td style="text-align: center;">94</td>
+<td style="text-align: center;">89</td>
+<td style="text-align: center;">92</td>
+<td style="text-align: center;">97</td>
+<td style="text-align: center;">100</td>
+</tr>
+<tr>
+<td style="text-align: left;">WV</td>
+<td style="text-align: center;">92</td>
+<td style="text-align: center;">92</td>
+<td style="text-align: center;">92</td>
+<td style="text-align: center;">92</td>
+<td style="text-align: center;">90</td>
+</tr>
+<tr>
+<td style="text-align: left;">WI</td>
+<td style="text-align: center;">81</td>
+<td style="text-align: center;">84</td>
+<td style="text-align: center;">84</td>
+<td style="text-align: center;">53</td>
+<td style="text-align: center;">83</td>
+</tr>
+</tbody>
+</table>
+<p>The full values are in <a href="../data/comparison_policyengine.csv">comparison_policyengine.csv</a>.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "search.highlight", "search.suggest"], "search": "../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.a5f9d56c.min.js"></script>
+      
+    
+  </body>
+</html>
