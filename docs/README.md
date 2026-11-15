@@ -20,6 +20,8 @@
   (run under `ulimit -v 14000000` and `POLARS_MAX_THREADS=4`; results in `docs/data/cps_full_state_check/`)
 - CPS comparison with the compiled TAXSIM: `uv run scripts/compare_cps.py PATH/TO/cps_2011 --tax-year 2021`
   (uses the `policyengine-taxsim` test dependency)
+- Check each logic-error switch against the compiled TAXSIM: `uv run scripts/confirm_logic_switches.py PATH/TO/cps_2011`,
+  then `uv run scripts/confirm_unreached_switches.py` for the switches no CPS household reaches (random households)
 - Docs and browser calculator: `uv run --no-project --with mkdocs --with mkdocs-material python scripts/build_docs.py`
   builds `site/` (preview with `python -m http.server -d site`); add `--deploy` to publish to `gh-pages`
 - Calculator alone: `uv run python scripts/build_web.py`, then `python -m http.server -d web`
