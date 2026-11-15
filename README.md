@@ -92,8 +92,8 @@ optional reader (`pip install "taxsim-py[readstat]"`, which adds
   `pbusinc`/`pprofinc`), and `pensions` is the kind of pension each state exempts.
 - **Accuracy:** in `taxsim` mode, to the cent against the compiled TAXSIM on the
   validation matrix, apart from logged TAXSIM errors. On about 84,000 real households
-  (Census CPS) in every state for 2022-2026, `taxsim` mode matches TAXSIM's state tax to within
-  $1 for all but 229 of 420,605 state-year calculations (99.95%). `statutory` mode follows the law where TAXSIM is
+  (Census CPS) in every state for every year 1977-2026, `taxsim` mode matches TAXSIM's state tax to within
+  $1 for all but 2,181 of 4,206,050 state-year calculations (99.95%). `statutory` mode follows the law where TAXSIM is
   wrong ([Statutory corrections](https://jrothbaum.github.io/taxsim_py/statutory_corrections/)); its remaining
   differences from PolicyEngine-US (2022-2026) are in the
   [PolicyEngine comparison](https://jrothbaum.github.io/taxsim_py/policyengine_recent_state_comparison/). Agreement with TAXSIM and

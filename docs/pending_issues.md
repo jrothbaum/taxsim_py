@@ -246,15 +246,24 @@ income, where TAXSIM gives no 20% business deduction on `psemp` and the port
 keeps that convention. State tax differs on 10-11% of units, and what remains is
 the list in [PolicyEngine comparison](policyengine_recent_state_comparison.md).
 
-### Every CPS household of every state, 2022-2026 (November 2026)
+### Every CPS household of every state, 1977-2026 (November 2026)
 
 `scripts/cps_full_state_check.py` runs all 84,121 CPS ASEC tax units (the 2011 file, aged to each year) through the
-compiled TAXSIM and taxsim mode for each state and each of the years 2022-2026: 420,605 state-year households
-(`docs/data/cps_full_state_check/summary.csv`, with the differing households in `gaps_<year>.parquet`). The first run
-had 1,881 households that differ by more than $1 in state tax; after the fixes in the commits "Full CPS state check: ..."
-the last run has **229** (2022: 31, 2023: 16, 2024: 29, 2025: 48, 2026: 105), and 29 of the 51 jurisdictions have none in
-any year. Federal tax differs by more than $1 on 81 (2026: 40, most of them the 2026 build's unindexed values listed
-below). What remains, by state (households, largest gap):
+compiled TAXSIM and taxsim mode for each state and every year 1977-2026: 4,206,050 state-year households
+(`docs/data/cps_full_state_check/summary.csv`, with the differing households in `gaps_<year>.parquet`).
+**2,181 differ by more than $1 in state tax** (99.95% agree) and 3,154 in federal tax.
+
+**1977-2021 (run once, not yet traced):** 1,952 households differ in state tax, 14 to 154 a year from 1990 on and 59 to
+89 a year in 1977-1982. 32 of the 51 jurisdictions have some. The largest clusters are California (274; 77 of them in
+2018), Montana (222), Maine (206; 105 in 2020), Vermont (197; mostly 1979-1982), Wisconsin (127; 30 in 2021), Minnesota
+(124), Missouri (109; 36 in 2017), New York (97), Massachusetts (88; 57 in 1977-79) and Virginia (88). Federal tax differs on 94
+to 166 households a year in 1977-1986 and 10 to 44 a year after, except 2008 (1,079: the recovery rebate described
+below). No cause has been identified for any of these.
+
+**2022-2026 (worked through state by state):** the first run had 1,881 households that differ by more than $1 in state tax;
+after the fixes in the commits "Full CPS state check: ..." the last run has **229** (2022: 31, 2023: 16, 2024: 29,
+2025: 48, 2026: 105), and 29 of the 51 jurisdictions have none in any year. Federal tax differs on 81 (2026: 40, most of
+them the 2026 build's unindexed values listed below). What remains, by state (households, largest gap):
 
 | State | Years | Households | What it is |
 |:--|:--|:--|:--|
