@@ -1,0 +1,79 @@
+model,run,rows,seconds,peak_mib,status
+taxsim_py compiled,1,1000,0.03,177,ok
+taxsim_py compiled,1,10000,0.03,182,ok
+taxsim_py compiled,1,15000,0.04,187,ok
+taxsim_py compiled,1,100000,0.08,269,ok
+taxsim_py compiled,1,200000,0.13,369,ok
+taxsim_py compiled,1,500000,0.27,659,ok
+taxsim_py compiled,1,1000000,0.49,1124,ok
+taxsim_py compiled,2,1000,0.04,175,ok
+taxsim_py compiled,2,10000,0.03,182,ok
+taxsim_py compiled,2,15000,0.04,191,ok
+taxsim_py compiled,2,100000,0.08,271,ok
+taxsim_py compiled,2,200000,0.13,365,ok
+taxsim_py compiled,2,500000,0.27,657,ok
+taxsim_py compiled,2,1000000,0.50,1095,ok
+taxsim_py compiled,3,1000,0.04,178,ok
+taxsim_py compiled,3,10000,0.03,183,ok
+taxsim_py compiled,3,15000,0.04,187,ok
+taxsim_py compiled,3,100000,0.08,268,ok
+taxsim_py compiled,3,200000,0.13,365,ok
+taxsim_py compiled,3,500000,0.28,658,ok
+taxsim_py compiled,3,1000000,0.50,1134,ok
+taxsim_py Python engine,1,1000,1.06,346,ok
+taxsim_py Python engine,1,10000,1.21,469,ok
+taxsim_py Python engine,1,15000,1.29,551,ok
+taxsim_py Python engine,1,100000,2.56,751,ok
+taxsim_py Python engine,1,200000,2.99,1025,ok
+taxsim_py Python engine,1,500000,4.65,1953,ok
+taxsim_py Python engine,1,1000000,8.14,3046,ok
+taxsim_py Python engine,2,1000,1.00,352,ok
+taxsim_py Python engine,2,10000,1.21,472,ok
+taxsim_py Python engine,2,15000,1.30,549,ok
+taxsim_py Python engine,2,100000,2.58,742,ok
+taxsim_py Python engine,2,200000,3.02,1028,ok
+taxsim_py Python engine,2,500000,4.67,1979,ok
+taxsim_py Python engine,2,1000000,8.06,3064,ok
+taxsim_py Python engine,3,1000,1.02,344,ok
+taxsim_py Python engine,3,10000,1.22,459,ok
+taxsim_py Python engine,3,15000,1.31,553,ok
+taxsim_py Python engine,3,100000,2.63,735,ok
+taxsim_py Python engine,3,200000,2.99,1038,ok
+taxsim_py Python engine,3,500000,4.78,1933,ok
+taxsim_py Python engine,3,1000000,8.10,3083,ok
+Fortran TAXSIM,1,1000,0.02,4,ok
+Fortran TAXSIM,1,10000,0.17,4,ok
+Fortran TAXSIM,1,15000,0.25,4,ok
+Fortran TAXSIM,1,100000,1.66,4,ok
+Fortran TAXSIM,1,200000,3.31,4,ok
+Fortran TAXSIM,1,500000,8.25,4,ok
+Fortran TAXSIM,1,1000000,16.87,4,ok
+Fortran TAXSIM,2,1000,0.02,4,ok
+Fortran TAXSIM,2,10000,0.17,4,ok
+Fortran TAXSIM,2,15000,0.25,4,ok
+Fortran TAXSIM,2,100000,1.65,4,ok
+Fortran TAXSIM,2,200000,3.35,4,ok
+Fortran TAXSIM,2,500000,8.29,4,ok
+Fortran TAXSIM,2,1000000,16.49,4,ok
+Fortran TAXSIM,3,1000,0.02,4,ok
+Fortran TAXSIM,3,10000,0.17,4,ok
+Fortran TAXSIM,3,15000,0.25,4,ok
+Fortran TAXSIM,3,100000,1.67,4,ok
+Fortran TAXSIM,3,200000,3.34,4,ok
+Fortran TAXSIM,3,500000,8.23,4,ok
+Fortran TAXSIM,3,1000000,16.56,4,ok
+PolicyEngine TAXSIM,1,1000,18.98,2318,ok
+PolicyEngine TAXSIM,1,5000,24.13,3930,ok
+PolicyEngine TAXSIM,1,10000,30.65,5943,ok
+PolicyEngine TAXSIM,1,15000,44.08,8030,ok
+PolicyEngine TAXSIM,1,20000,51.28,8202,memory_limit
+PolicyEngine TAXSIM,2,1000,19.13,2318,ok
+PolicyEngine TAXSIM,2,5000,24.40,3930,ok
+PolicyEngine TAXSIM,2,10000,30.78,5943,ok
+PolicyEngine TAXSIM,2,15000,43.72,8030,ok
+PolicyEngine TAXSIM,2,20000,51.37,8204,memory_limit
+PolicyEngine TAXSIM,3,1000,19.06,2318,ok
+PolicyEngine TAXSIM,3,5000,24.32,3931,ok
+PolicyEngine TAXSIM,3,10000,30.81,5942,ok
+PolicyEngine TAXSIM,3,15000,43.19,8030,ok
+PolicyEngine TAXSIM,3,20000,51.12,8198,memory_limit

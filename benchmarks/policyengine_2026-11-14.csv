@@ -1,8 +1,0 @@
-engine,rows,seconds,peak_mib,status
-policyengine,1000,19.03,2318,ok
-policyengine,5000,24.67,3930,ok
-policyengine,10000,31.19,5943,ok
-policyengine,15000,43.76,8030,ok
-policyengine,20000,52.88,8199,memory_limit
-policyengine,30000,,,skipped_after_limit
-policyengine,40000,,,skipped_after_limit

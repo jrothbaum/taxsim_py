@@ -1,8 +1,0 @@
-engine,rows,seconds,peak_mib,status
-taxsim_py,1000,0.03,174,ok
-taxsim_py,10000,0.04,182,ok
-taxsim_py,15000,0.04,187,ok
-taxsim_py,100000,0.08,269,ok
-taxsim_py,200000,0.14,370,ok
-taxsim_py,500000,0.32,654,ok
-taxsim_py,1000000,0.56,1134,ok
