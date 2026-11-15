@@ -1,0 +1,8 @@
+engine,rows,seconds,peak_mib,status
+taxsim,1000,0.02,4,ok
+taxsim,10000,0.17,4,ok
+taxsim,15000,0.25,4,ok
+taxsim,100000,1.69,4,ok
+taxsim,200000,3.33,4,ok
+taxsim,500000,8.29,4,ok
+taxsim,1000000,16.62,4,ok

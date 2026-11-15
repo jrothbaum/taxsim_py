@@ -1,8 +1,8 @@
 # Performance
 
 The default engine is the compiled calculator. On a mixed 42-state batch of one million rows,
-including marginal rates, it takes **0.46 seconds and 1.1 GiB RAM**, against 17.3 seconds for the
-Fortran TAXSIM and about 45 seconds for PolicyEngine's TAXSIM runner on only 15,000 rows. A lazy
+including marginal rates, it takes **0.56 seconds and 1.1 GiB RAM**, against 16.6 seconds for the
+Fortran TAXSIM and about 44 seconds for PolicyEngine's TAXSIM runner on only 15,000 rows, where it already uses 8 GiB. A lazy
 input streams into any Polars sink with memory that depends mainly on the thread count and hardly
 on the number of rows. Results depend on the data and hardware.
 
@@ -13,14 +13,14 @@ peak memory for a single first call in a fresh process, with 16 Polars threads a
 
 | Model | 1,000 | 10,000 | 15,000 | 100,000 | 200,000 | 500,000 | 1,000,000 |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| taxsim_py, rust (default) | 0.03 s<br>165 MiB | 0.03 s<br>174 MiB | 0.03 s<br>178 MiB | 0.07 s<br>258 MiB | 0.12 s<br>353 MiB | 0.24 s<br>638 MiB | 0.46 s<br>1,103 MiB |
-| taxsim_py, Python engine | 0.88 s<br>341 MiB | 1.09 s<br>445 MiB | 1.16 s<br>508 MiB | 2.15 s<br>706 MiB | 2.55 s<br>960 MiB | 4.07 s<br>1,821 MiB | 7.13 s<br>2,893 MiB |
-| Fortran TAXSIM | 0.03 s<br>4 MiB | 0.18 s<br>4 MiB | 0.27 s<br>4 MiB | 1.78 s<br>4 MiB | 3.53 s<br>4 MiB | 8.87 s<br>4 MiB | 17.32 s<br>4 MiB |
-| PolicyEngine TAXSIM | 19.61 s<br>2,306 MiB | 32.81 s<br>5,940 MiB | 44.77 s<br>8,034 MiB | — | — | — | — |
+| taxsim_py, rust (default) | 0.03 s<br>174 MiB | 0.04 s<br>182 MiB | 0.04 s<br>187 MiB | 0.08 s<br>269 MiB | 0.14 s<br>370 MiB | 0.32 s<br>654 MiB | 0.56 s<br>1,134 MiB |
+| taxsim_py, Python engine | 1.05 s<br>335 MiB | 1.23 s<br>474 MiB | 1.34 s<br>542 MiB | 2.71 s<br>744 MiB | 3.17 s<br>1,024 MiB | 4.98 s<br>1,946 MiB | 8.48 s<br>2,987 MiB |
+| Fortran TAXSIM | 0.02 s<br>4 MiB | 0.17 s<br>4 MiB | 0.25 s<br>4 MiB | 1.69 s<br>4 MiB | 3.33 s<br>4 MiB | 8.29 s<br>4 MiB | 16.62 s<br>4 MiB |
+| PolicyEngine TAXSIM | 19.03 s<br>2,318 MiB | 31.19 s<br>5,943 MiB | 43.76 s<br>8,030 MiB | — | — | — | — |
 
 Memory is peak process RSS (for Fortran TAXSIM, its executable only).
-PolicyEngine's runner hit the 8 GiB memory budget at 15,000 rows and larger runs were stopped, so
-those cells are dashes.
+PolicyEngine's runner needs about 0.5 MiB per row. At 15,000 rows it uses 8,030 MiB, just inside the 8 GiB budget; at 20,000
+rows it reached the budget (8,192 MiB) and was stopped, so larger runs were not attempted and those cells are dashes.
 
 ## Streaming a file
 

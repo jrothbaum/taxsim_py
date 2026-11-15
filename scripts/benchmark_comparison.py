@@ -234,18 +234,20 @@ def main() -> None:
     parser.add_argument("--worker", nargs=2, help=argparse.SUPPRESS)
     parser.add_argument("--batch-rows", type=int, help="taxsim_py batch_rows (default: automatic)")
     parser.add_argument("--workers", type=int, help="taxsim_py max_year_workers")
+    parser.add_argument("--taxsim-py-engine", choices=("rust", "python"), help="taxsim_py calculation engine (default: the package default)")
     parser.add_argument("--states", nargs="+", help="state postal codes to benchmark (default: all 42 with validation cases)")
     parser.add_argument("--memory-limit-mib", type=positive_int, default=8192, help="monitored process-tree RSS budget (default: 8192 MiB)")
     parser.add_argument("--reserve-memory-mib", type=positive_int, default=2048, help="minimum available system RAM (default: 2048 MiB)")
     parser.add_argument("--timeout", type=positive_int, default=600, help="maximum wall-clock seconds per measurement (default: 600)")
     args = parser.parse_args()
-    options = {"batch_rows": args.batch_rows, "max_year_workers": args.workers}
+    options = {"batch_rows": args.batch_rows, "max_year_workers": args.workers, "engine": args.taxsim_py_engine}
+    options = {k: v for k, v in options.items() if v is not None}
     if args.worker:
         if args.worker[0] == "taxsim_py":
             multistate.pl.Config.set_engine_affinity(args.polars_engines[0])
         worker(args.worker[0], int(args.worker[1]), options, args.states)
         return
-    extra = [f"--{k.replace('_', '-')}={v}" for k, v in (("batch_rows", args.batch_rows), ("workers", args.workers)) if v]
+    extra = [f"--{k.replace('_', '-')}={v}" for k, v in (("batch_rows", args.batch_rows), ("workers", args.workers), ("taxsim_py_engine", args.taxsim_py_engine)) if v]
     if args.states:
         extra += ["--states", *args.states]
     print("engine,rows,seconds,peak_mib,status", flush=True)
