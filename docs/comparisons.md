@@ -17,6 +17,10 @@ states with a wage income tax.
 
 ## Against TAXSIM
 
+In short: in TAXSIM mode, every CPS household of every state for 2022-2026 (420,605 state-year calculations) was
+checked against TAXSIM, and 229 differ in state tax by more than $1 (99.95% agree); federal tax differs on 81.
+The state-by-state counts are in `docs/data/cps_full_state_check/summary.csv`.
+
 *TAXSIM mode* reproduces the executable, bugs included. *Statutory mode* follows the law, so it is expected to differ
 where TAXSIM is wrong or out of date; each difference is listed in [TAXSIM errors and
 corrections](statutory_corrections.md).

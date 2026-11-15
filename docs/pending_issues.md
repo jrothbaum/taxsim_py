@@ -246,6 +246,31 @@ income, where TAXSIM gives no 20% business deduction on `psemp` and the port
 keeps that convention. State tax differs on 10-11% of units, and what remains is
 the list in [PolicyEngine comparison](policyengine_recent_state_comparison.md).
 
+### Every CPS household of every state, 2022-2026 (November 2026)
+
+`scripts/cps_full_state_check.py` runs all 84,121 CPS ASEC tax units (the 2011 file, aged to each year) through the
+compiled TAXSIM and taxsim mode for each state and each of the years 2022-2026: 420,605 state-year households
+(`docs/data/cps_full_state_check/summary.csv`, with the differing households in `gaps_<year>.parquet`). The first run
+had 1,881 households that differ by more than $1 in state tax; after the fixes in the commits "Full CPS state check: ..."
+the last run has **229** (2022: 31, 2023: 16, 2024: 29, 2025: 48, 2026: 105), and 29 of the 51 jurisdictions have none in
+any year. Federal tax differs by more than $1 on 81 (2026: 40, most of them the 2026 build's unindexed values listed
+below). What remains, by state (households, largest gap):
+
+| State | Years | Households | What it is |
+|:--|:--|:--|:--|
+| CA | 2022, 2025-26 | 6; 33-39 | $1-3 differences; not traced |
+| NY | 2025-26 | 3-4, about $800 | single filers with dependents and high income (see below) |
+| DC | 2023-26 | 1-11, up to $416 | joint returns with unemployment compensation (see below) |
+| MN | 2022-23, 2026 | 1; 9 | one 2022 and one 2023 household (up to $1,006); 2026 spouse self-employment, $3-51 |
+| NJ | 2026 | 21, $2-4 | low-wage single filers; not traced |
+| VT | 2024 | 17, $2-3 | not traced |
+| WI | 2022-26 | 2-3, up to $295 | not traced one by one; earned income credit children through 2022 |
+| ME | 2022-26 | 1-2, up to $151 | property tax fairness credit; not traced further |
+| MT | 2022-23 | 5; 2, up to $39 | not traced further after the 2022 elderly credit exclusion fix |
+| ID | 2022 | 6, $10 | a credit amount; not traced |
+| SC | 2026 | 5, up to $27 | not traced |
+| MI, MS, RI, AL, GA, IN, MD, CT, MA, WV, IL | scattered | 1-3 each | single households, mostly $3-$30; Illinois 2022 ($240), Maryland 2026 ($66) and West Virginia 2026 ($77) are the largest |
+
 ### Independent model commands
 
 `uv run --group test pytest tests/test_independent_models.py -q` runs the small

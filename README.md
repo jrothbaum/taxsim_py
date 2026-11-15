@@ -52,9 +52,9 @@ worksheets, `taxsim_names=True` renames them to TAXSIM's labels, and
 
 ## Calculation modes
 
-`statutory` (default) uses the canonical parameter tables and reviewed
-corrections to TAXSIM. `calculation_mode="taxsim"` reproduces the compiled
-TAXSIM, for replication and comparison; it is not recommended for new analysis.
+`statutory` (default) follows the tax law, correcting known TAXSIM errors, so it can
+differ from TAXSIM. `calculation_mode="taxsim"` reproduces TAXSIM's own results (agreement
+is described under Accuracy below); use it to replicate or compare, not for new analysis.
 
 ## In the browser
 
@@ -91,7 +91,9 @@ optional reader (`pip install "taxsim-py[readstat]"`, which adds
   conventions: `psemp`/`ssemp` get no qualified business income deduction (use
   `pbusinc`/`pprofinc`), and `pensions` is the kind of pension each state exempts.
 - **Accuracy:** in `taxsim` mode, to the cent against the compiled TAXSIM on the
-  validation matrix, apart from logged TAXSIM errors. `statutory` mode follows the law where TAXSIM is
+  validation matrix, apart from logged TAXSIM errors. On about 84,000 real households
+  (Census CPS) in every state for 2022-2026, `taxsim` mode matches TAXSIM's state tax to within
+  $1 for all but 229 of 420,605 state-year calculations (99.95%). `statutory` mode follows the law where TAXSIM is
   wrong ([Statutory corrections](https://jrothbaum.github.io/taxsim_py/statutory_corrections/)); its remaining
   differences from PolicyEngine-US (2022-2026) are in the
   [PolicyEngine comparison](https://jrothbaum.github.io/taxsim_py/policyengine_recent_state_comparison/). Agreement with TAXSIM and

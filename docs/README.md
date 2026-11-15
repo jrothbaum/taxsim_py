@@ -15,6 +15,9 @@
 - Compiled vs Python engine: `uv run scripts/validate_rust.py`
 - Tests: `uv run pytest -q`
 - Full validation matrix: `uv run scripts/validate_all.py`
+- Every CPS household of every state against the compiled TAXSIM (taxsim mode), 2022-2026:
+  `uv run scripts/cps_full_state_check.py PATH/TO/cps_2011 --years 2022,2023,2024,2025,2026`
+  (run under `ulimit -v 14000000` and `POLARS_MAX_THREADS=4`; results in `docs/data/cps_full_state_check/`)
 - CPS comparison with the compiled TAXSIM: `uv run scripts/compare_cps.py PATH/TO/cps_2011 --tax-year 2021`
   (uses the `policyengine-taxsim` test dependency)
 - Docs and browser calculator: `uv run --no-project --with mkdocs --with mkdocs-material python scripts/build_docs.py`

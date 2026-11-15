@@ -406,6 +406,19 @@ uv run --group test python scripts/regression_grid.py run /tmp/new
 uv run --group test python scripts/regression_grid.py compare /tmp/base /tmp/new
 ```
 
+To check a change against the compiled TAXSIM on realistic households, run every CPS unit of a
+state through both (about 84,000 units per year, one state at a time):
+
+```bash
+ulimit -v 14000000; POLARS_MAX_THREADS=4 uv run python scripts/cps_full_state_check.py \
+    PATH/TO/cps_2011 --years 2022,2023,2024,2025,2026 --states 22 --out /tmp/check
+```
+
+It writes `summary.csv` (units, households differing by more than $1 and by more than 2 cents,
+the largest gap) and `gaps_<year>.parquet` (the differing households, largest first). Trace a
+failing household with `scripts/trace_oracle.py`, fix it behind a switch if TAXSIM is wrong,
+and copy the finished run to `docs/data/cps_full_state_check/`.
+
 A pure clean-up should report no differing columns. A law change should move only
 the states, years and modes it targets, plus any federal effect through the state
 income tax deduction, and any state that reads a changed federal value. State law
