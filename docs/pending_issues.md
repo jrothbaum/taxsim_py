@@ -1,190 +1,28 @@
 # Pending issues
 
-Status as of 2026-10-12. Update 2026-11-09: the new NBER source `taxsim_2026_11_09.f`
-is the oracle for all years; see "The 2026 build" in
-[`statutory_corrections.md`](statutory_corrections.md). Federal 1960-2023 is mostly
-re-baselined (about 300 of 48,700 cases differ); the 2022-2026 states and 2024-2026
-federal law are next.
-
-Line numbers refer to `taxsim_2024_09_21.f`, and "the executable" means `taxsim2024.exe`.
-
-The current NBER source/executable is the preferred TAXSIM reference. The
-source and executable named above serve as compatibility oracles. Parameter
-differences are documented in
+Open work and known gaps. Every TAXSIM error that statutory mode treats differently is in
+[`statutory_corrections.md`](statutory_corrections.md). Line numbers refer to `taxsim_2026_11_09.f`, the oracle for all years.
+Parameter differences between TAXSIM generations are in
 [`oracle_archive/newer_source_parameter_audit.md`](oracle_archive/newer_source_parameter_audit.md).
 
-## Prioritized roadmap
+## Open work
 
-The calculation engine is ready for a research beta: all 48,713 federal and
-278,781 state validation cases pass after explicitly classified TAXSIM errors
-and threshold round-off. Realistic CPS comparisons cover every year from 1977
-through 2021 (against the compiled TAXSIM) and 2022-2025 (against PolicyEngine),
-and all 45 income-tax states run actual law through 2025. Years after 2025
-raise an error. The remaining work is primarily a reproducible public release
-and further test coverage.
+- **Tag the validated release.** No beta tag exists.
+- **Add boundary and property tests.** Generate cases immediately below, at, and above brackets, phaseouts, caps, filing
+  thresholds, age cutoffs, and itemization ties. Add invariants such as row-order preservation, serial and parallel
+  equivalence, nonnegative taxes where the law requires them, and stable results under irrelevant-column changes.
+- **Stress unusual but valid inputs.** Cover very large incomes, losses, zero and negative components, dependent filers,
+  married-separate returns, conflicting dependent-age/count inputs, nulls, mixed states and years, and large batches.
+- **Add parameter provenance.** Give each YAML/CSV policy table a source citation and a review status.
+- **1981 detail field.** TAXSIM `v26` differs on about 1,690 CPS units while taxes mostly agree. Either fix the semantic
+  `federal_alternative_minimum_taxable_income` output or document the executable's worksheet behavior.
+- **Publish reproducible benchmark and parity artifacts** as compact machine-readable results.
+- **`opt1/opt1v/opt2/opt2v`.** Accepted but ignored; decide whether to implement the eight documented switches, and warn or
+  reject nonzero values until then.
+- **Dataframe adapters.** Consider more only once the Polars API and output names are stable.
 
-Known TAXSIM bugs that already have a correction are tracked in
-[`statutory_corrections.md`](statutory_corrections.md). Statutory behavior is
-the public default; backward-compatible TAXSIM behavior is an explicit
-testing/replication mode.
+## Other open items
 
-### P0: before calling it a public TAXSIM replacement
-
-- [x] **Investigate the remaining CPS tax differences.** Triage each
-  state-year cluster in the cross-year sweep as a port bug, a TAXSIM bug,
-  expected numerical behavior, or a documented input-model limitation. Add a
-  regression case for every resolved formula bug and a named comparator rule
-  for every confirmed deliberate divergence.
-- [x] **Add independent law-based checks.** For a representative set of
-  federal and state years, compare published tax-form examples, statutory
-  brackets, and official agency calculators or tables. TAXSIM is an excellent
-  regression oracle, but agreement with a program being replaced cannot by
-  itself detect errors copied from that program. `tests/test_law_based_checks.py`
-  checks `calculation_mode="statutory"` federal outputs directly against IRS
-  Rev. Proc. 2023-34/2024-40 and SSA's published wage base, independent of
-  both TAXSIM and PolicyEngine. State law is checked against
-  PolicyEngine and state forms (see the PolicyEngine comparison doc and
-  `statutory_corrections.md`).
-- [x] **Add an independent calculator harness.** The test dependency group
-  includes PSL Tax-Calculator and PolicyEngine's TAXSIM emulator. The strict
-  synthetic matrix compares Tax-Calculator federal and payroll tax from 2013
-  onward and PolicyEngine federal and payroll tax from 2021 onward. A sampled
-  CPS command provides broader diagnostic comparisons without slowing the
-  normal test suite.
-- [x] **Inventory PolicyEngine state parameters.** The installed
-  `policyengine-us` package exposes dated values through its simple
-  `system.parameters` API. `scripts/audit_policyengine_state_parameters.py`
-  records the available 2022-2025 state trees and candidate paths in
-  [`docs/policyengine_state_parameter_audit.md`](policyengine_state_parameter_audit.md).
-  The inventory confirms that this is a source for state-law updates, but not
-  a safe bulk YAML conversion: state structures differ, Alaska and Tennessee
-  have no PolicyEngine `tax.income` subtree, and parameter values do not prove
-  that the existing TAXSIM-shaped formula has the same meaning.
-- [x] **Automate the full validation matrix.**
-  `scripts/validate_all.py` runs the API/unit tests, vectorization checks,
-  federal validation, state validation, and an optional deterministic sampled
-  CPS independent-model smoke matrix. It fails on a nonzero gate and prints
-  each gate's output; the individual validators retain detailed artifacts
-  where applicable.
-- [x] **Continuous integration: skipped.** Tests and the validation scripts are
-  run locally before each release.
-- [x] **Document the supported contract.** The README's "What is supported"
-  section covers years, inputs, accuracy, and what is not modelled.
-- [x] **Make the repository releasable.** The README has installation, examples
-  and the supported contract, and the project is MIT licensed. No contribution
-  guidance or versioning policy is planned.
-- [ ] **Tag the validated release.** No beta tag exists.
-- [x] **Archive upstream oracle metadata.** Record the executable build stamps,
-  hashes, output schemas, validation summaries, and representative outputs
-  needed to reproduce each upstream generation even if its download disappears.
-  `scripts/archive_oracle_generations.py` records this for every generation
-  present in the checkout, using a small deterministic synthetic matrix so it
-  needs no cached CPS data; see `docs/oracle_archive/` for the dated JSON
-  report and per-generation representative CSV outputs. The large-N CPS diff
-  counts above remain the separate validation-summary evidence; this archive
-  does not regenerate them. Re-run it if a new build shows up or an existing
-  one is about to disappear.
-
-### P1: confidence and maintainability after the beta
-
-- [x] **Test every actual-law year with realistic data.** CPS validation covers
-  every year from 1977 through 2021 against the compiled TAXSIM and
-  2022-2025 against PolicyEngine (results below).
-- [ ] **Add boundary and property tests.** Generate cases immediately below,
-  at, and above brackets, phaseouts, caps, filing thresholds, age cutoffs, and
-  itemization ties. Add invariants such as row-order preservation, serial and
-  parallel equivalence, nonnegative taxes where the law requires them, and
-  stable results under irrelevant-column changes.
-- [ ] **Stress unusual but valid inputs.** Cover very large incomes, losses,
-  zero and negative components, dependent filers, married-separate returns,
-  conflicting dependent-age/count inputs, nulls, mixed states and years, and
-  large batches. Record which inputs intentionally follow TAXSIM's permissive
-  behavior instead of tax-form validation rules.
-- [ ] **Add parameter provenance.** Give each YAML/CSV policy table a source
-  citation or source note and a review status. Preserve corrections as
-  year-specific parameter changes or narrowly scoped mechanics, with a test
-  covering the corrected behavior.
-- [x] **Validate 2022-2025 state law.** All 45 income-tax states run actual law
-  for 2022-2025 in statutory mode. PolicyEngine comparisons cover a synthetic
-  grid with explicit child ages, an age-65+ grid, and CPS samples for each year (see
-  [`docs/policyengine_recent_state_comparison.md`](policyengine_recent_state_comparison.md)).
-  Parameter checks must account for tables held at their last entry,
-  TAXSIM's `tablki` interpolation of statutory step schedules, and the
-  $0.001 AGI adjustment that can change tiers at exact thresholds.
-- [x] **Track residual state differences.** The remaining-differences table
-  is in the PolicyEngine comparison doc. Oklahoma credit details, Indiana 2022
-  joint returns, Kentucky's low-income credit, Arkansas recapture, Connecticut tiers,
-  Arizona $6, Ohio tier at $80,000, and California and Illinois at $250,000
-  need individual verification.
-- [x] **Provide state law through 2025.** Every income-tax state is covered.
-  Provisions TAXSIM has no input for are listed in the comparison doc.
-- [ ] **Resolve the 1981 detail-output cluster.** Determine why TAXSIM `v26`
-  differs on about 1,690 CPS units while taxes mostly agree. Either fix the
-  semantic `federal_alternative_minimum_taxable_income` output or document the
-  executable's worksheet behavior and classify it explicitly.
-- [ ] **Publish reproducible benchmark and parity artifacts.** Save compact
-  machine-readable results for the validation matrix, CPS comparisons, and
-  performance benchmarks so users can evaluate a release without trusting a
-  prose claim.
-
-### P2: explicitly deferred or optional
-
-- [x] **Cover negative capital gains.** Shared regression cases for Alabama,
-  California, Connecticut, Illinois and Hawaii are in `tests/state_new_inputs.py`.
-- [ ] Decide whether to implement the eight documented
-  `opt1/opt1v/opt2/opt2v` switches. Until then, warn or reject when callers
-  supply nonzero option values instead of silently ignoring them.
-- [x] Projected state years: statutory mode uses actual law through 2025, and
-  years after 2025 raise an error. Taxsim mode keeps TAXSIM's projection only to
-  reproduce the compiled model.
-- [ ] Consider additional dataframe adapters only after the Polars API and
-  semantic output names are stable; TAXSIM-compatible `vNN` names should
-  remain an optional final rename.
-
-## Open items
-
-### Recent TAXSIM errors
-
-Every apparent TAXSIM error, with how the port handles it, is listed in
-[`statutory_corrections.md`](statutory_corrections.md); add new ones there. Errors
-found most recently, all included there:
-
-- **Federal, 2024 onward:** the compiled TAXSIM refuses to run past 2023 (a hard
-  year check and the `xndxa(1981:2023)` array bound). The port computes real law
-  through 2025 and raises an error after.
-- **Arizona, 1998 onward (line 1139):** the family income credit lookup caps the
-  dependent count at 4, so the $26,575 head-of-household limit for five or more
-  dependents (A.R.S. 43-1073) is never used. A 2010 head of household with 5
-  dependents and $26,000 of wages gets no credit; the law allows $240. The port
-  uses the statute.
-- **Indiana, 2009-2010 (lines 6037-6044):** to cap the earned income credit at two
-  children, TAXSIM reruns the federal calculation with dependents set to 2 and
-  does not restore the federal results. Families with 3 or more dependents get
-  federal tax computed as if they had 2. The port reports the correct tax;
-  `compare_cps.py` counts these as a known difference.
-- **Reported ages:** the executable pays the childless EITC below the minimum age
-  (25, or 19 in 2021) and does not cap young filers' AMT exemption. The port uses
-  the reported ages.
-- **Arkansas, 2004:** TAXSIM reuses the 1977 bracket thresholds ($3,000, $6,000,
-  $9,000, $15,000, $25,000). The published 2004 thresholds are $3,400, $6,800,
-  $10,300, $17,100 and $28,500
-  ([DFA 2004 Indexed Tax Brackets](https://dfa.arkansas.gov/wp-content/uploads/2004brackets.pdf)).
-  On $20,000 of Arkansas taxable income the rate schedule gives $780.00 with
-  TAXSIM's thresholds and $721.50 with the published ones (before the 3%
-  surcharge). The port uses the published
-  values in both modes.
-- **California AMT exemption, 2001:** TAXSIM repeats the 2000 amounts for head of
-  household ($45,692) and married filing separately ($30,461). Schedule P (540)
-  2001 line 22 gives $48,114 and $32,075. The port uses the published values in
-  both modes.
-- **California AMT exemption, 2018:** TAXSIM has $44,685 for married filing
-  separately, below 2017's $45,895. Schedule P (540) 2018 line 22 gives $47,685
-  (an apparent digit slip). The port uses the published value in both modes.
-
-### Other open items
-
-- **1981 detail field:** TAXSIM `v26` (alternative minimum taxable income) differs on
-  about 1,690 CPS units while taxes mostly agree (see the roadmap).
 - **Alabama and Maine 2021 source differences** (the NIIT worksheet and the
   property tax fairness credit row): `compare_cps.py` names them, and they remain
   candidates for statutory-mode switches.
@@ -201,81 +39,42 @@ found most recently, all included there:
 - **Not modelled:** deductions for tips, overtime and car-loan interest (no TAXSIM
   input); Washington's capital gains tax (WA-001); the Minnesota homeowner and
   renter refund tables are TAXSIM-era approximations not validated against
-  PolicyEngine; 2026 parameters are not entered.
+  PolicyEngine.
 - **AMT for young filers:** the cap follows TAXSIM's source and applies to anyone
   under the age limit; the real kiddie-tax rule is narrower (children with
   unearned income claimed as dependents).
-- **TAXSIM options:** `opt1/opt1v/opt2/opt2v` are accepted but ignored; if revisited,
-  implement only the 8 documented switches.
 - **Small data discrepancy:** the 2023 married-separate 15%/20% capital-gains ceiling
   is $276,925 here against $276,900 in PolicyEngine-US.
-- **Outside this repo:** `survey_kit_data/src/survey_kit_data/census/cps_asec.py`
-  (line 278) opens the data dictionary with `encoding='latin-1'`; whether that fix
-  is committed in its own repository was not checked.
 
-## Validation record
-
-### Full-year CPS sweep (October 2026)
-
-All 104,404 units of the 2011 CPS sample, taxsim mode, against the compiled
-TAXSIM, tax years 1977-2021. Units differing for no classified reason:
-
-| Years | Units per year |
-|:--|--:|
-| 1977-1986 | 31-59 |
-| 1987-1989 | 8-10 |
-| 1990-1999 | 1-2 |
-| 2000-2002 | 18-29 |
-| 2003-2006 | 1-2 |
-| 2007-2010 | 0 |
-| 2011-2020 | 6-14 |
-| 2021 | 0 |
-
-Known 1977 difference: 14 Connecticut units differ in federal tax by
-$2,000-$19,000 because TAXSIM itemizes Connecticut filers with property tax
-(and so loses the 50% cap on earned income) for reasons not yet identified.
-The comparator names each deliberate difference (childless EITC age, Minnesota
-2019+ head-of-household deduction, New Jersey top bracket, New York 2021+
-worksheet, Alabama NIIT, Maine PTFC, worksheet-only detail) instead of counting
-it as a failure. Rerun with `uv run scripts/compare_cps.py <cps dir> --tax-year
-YEAR --out mismatches.parquet`.
-
-Tax years 2022-2025 (statutory mode, 1,500 sampled units, PolicyEngine). Federal
-tax differs on about 6% of units each year, nearly all of it self-employment
-income, where TAXSIM gives no 20% business deduction on `psemp` and the port
-keeps that convention. State tax differs on 10-11% of units, and what remains is
-the list in [PolicyEngine comparison](policyengine_recent_state_comparison.md).
-
-### Every CPS household of every state, 1977-2026 (November 2026)
+## Agreement with TAXSIM on every CPS household
 
 `scripts/cps_full_state_check.py` runs all 84,121 CPS ASEC tax units (the 2011 file, aged to each year) through the
 compiled TAXSIM and taxsim mode for each state and every year 1977-2026: 4,206,050 state-year households
 (`docs/data/cps_full_state_check/summary.csv`, with the differing households in `gaps_<year>.parquet`).
 **2,181 differ by more than $1 in state tax** (99.95% agree) and 3,154 in federal tax.
 
-**1977-2021 (run once, not yet traced):** 1,952 households differ in state tax, 14 to 154 a year from 1990 on and 59 to
+**1977-2021 (not traced):** 1,952 households differ in state tax, 14 to 154 a year from 1990 on and 59 to
 89 a year in 1977-1982. 32 of the 51 jurisdictions have some. The largest clusters are California (274; 77 of them in
 2018), Montana (222), Maine (206; 105 in 2020), Vermont (197; mostly 1979-1982), Wisconsin (127; 30 in 2021), Minnesota
 (124), Missouri (109; 36 in 2017), New York (97), Massachusetts (88; 57 in 1977-79) and Virginia (88). Federal tax differs on 94
 to 166 households a year in 1977-1986 and 10 to 44 a year after, except 2008 (1,079: the recovery rebate described
 below). No cause has been identified for any of these.
 
-**2022-2026 (worked through state by state):** the first run had 1,881 households that differ by more than $1 in state tax;
-after the fixes in the commits "Full CPS state check: ..." the last run has **229** (2022: 31, 2023: 16, 2024: 29,
+**2022-2026:** **229** households differ by more than $1 in state tax (2022: 31, 2023: 16, 2024: 29,
 2025: 48, 2026: 105), and 29 of the 51 jurisdictions have none in any year. Federal tax differs on 81 (2026: 40, most of
 them the 2026 build's unindexed values listed below). What remains, by state (households, largest gap):
 
 | State | Years | Households | What it is |
 |:--|:--|:--|:--|
 | CA | 2022, 2025-26 | 6; 33-39 | $1-3 differences; not traced |
-| NY | 2025-26 | 3-4, about $800 | single filers with dependents and high income (see below) |
-| DC | 2023-26 | 1-11, up to $416 | joint returns with unemployment compensation (see below) |
+| NY | 2025-26 | 3-4, about $800 | single filers with dependents and high income (listed below) |
+| DC | 2023-26 | 1-11, up to $416 | joint returns with unemployment compensation (listed below) |
 | MN | 2022-23, 2026 | 1; 9 | one 2022 and one 2023 household (up to $1,006); 2026 spouse self-employment, $3-51 |
 | NJ | 2026 | 21, $2-4 | low-wage single filers; not traced |
 | VT | 2024 | 17, $2-3 | not traced |
 | WI | 2022-26 | 2-3, up to $295 | not traced one by one; earned income credit children through 2022 |
 | ME | 2022-26 | 1-2, up to $151 | property tax fairness credit; not traced further |
-| MT | 2022-23 | 5; 2, up to $39 | not traced further after the 2022 elderly credit exclusion fix |
+| MT | 2022-23 | 5; 2, up to $39 | not traced |
 | ID | 2022 | 6, $10 | a credit amount; not traced |
 | SC | 2026 | 5, up to $27 | not traced |
 | MI, MS, RI, AL, GA, IN, MD, CT, MA, WV, IL | scattered | 1-3 each | single households, mostly $3-$30; Illinois 2022 ($240), Maryland 2026 ($66) and West Virginia 2026 ($77) are the largest |
@@ -311,31 +110,6 @@ differ by about $90 each (192 of 200 in a test), though they agree when run alon
 left over from the previous record's state. `scripts/build_comparison_report.py` therefore runs the executable one
 state and year at a time. Not traced to a line yet.
 
-## TAXSIM mode against the oracle on CPS households
-
-On CPS ASEC households ([comparison page](comparisons.md)) TAXSIM mode agreed with TAXSIM for 99.1% of households (99.6% after the fixes below),
-with a few states at 91-96% for decades. Tracing the Fortran (`scripts/find_cps_gaps.py` lists the failing households,
-`scripts/grid_state.py` runs an age and income grid against the executable) found, and fixed, age rules the synthetic
-cases never exercised: Georgia's retirement exclusion starts at 62, Iowa's pension exclusion at 55, Michigan's senior
-investment deduction has no age test, Pennsylvania exempts pensions from 60, Oregon's retirement credit starts at 62
-(rows in [`statutory_corrections.md`](statutory_corrections.md)). On 200 households per state for 1995, 2005, 2015 and
-2021, the households that differ fell from 190 to 28 across GA, IA, MI, OR and PA. What remains:
-
-| State | Years | Households that differ |
-| --- | --- | --- |
-| PA | 1995 on | negative other property income with self-employment income |
-| OR | 2015 | a single filer with $60,000 of wages and $40,000 of pensions and no interest (grid case; $194) |
-| AR, CO, NY, NC, CA, VT, DE | 2021 and 2025 | fixed in the second pass (see the rows in `statutory_corrections.md`); TAXSIM reads `dep6` as the number of children under 3 when no ages are given (as in Oregon's EITC), and the comparison runs now give TAXSIM mode no extension child counts |
-| MA | 1985 and SE households | 1985 (10 of 400) and self-employment households ($2-7) |
-| ME | 2005-2021 | the property tax fairness credit amounts (TAXSIM pays $900 where the 2013-2015 table says $600) |
-| WV | 2020-2021 | singles aged 66 with interest: $90-97 |
-| MD | 2026 only | joint returns with self-employment income or children, $3-11 on four of 1,000 households (2022-25: 0 of 1,000) |
-| OK | 1987-2006, 2010, 2021 | one joint household of 38-year-olds with three children and about $27,000 of transfers (tax deducted from the federal credit, $2-$18); 2010 round-number wages of exactly $100,000 sit on TAXSIM's AGI edge for the child care credit (knife edge) |
-| KS | 2010 | two households with wages of exactly $35,000: TAXSIM's first AGI is $34,999.999, ours $35,000.011 (the one-cent AGI difference), which flips the earned income credit tier ($180) |
-| CT | 2026 | one joint household aged 71 with Social Security of $92,000 and wages (about $10) |
-| DE | 1979 | one household whose state difference comes from the federal 1977-81 gap (see above) |
-| NY | 1981, 2025 | one household each: 1981 federal tie (itemized pass chosen on state tax alone) and a $3.47 difference in 2025 |
-
 ## The state validator prints `staxbc` as 0
 
 `scripts/validate_states.py` fails about 88% of cases in every state when it compares worksheet columns, because the 2026 build prints the state tax before credits (`staxbc`, its `taxbc`) and `engine/detail.py` still outputs 0. `TAXSIM_VALIDATE_DETAIL=0` skips the worksheet columns: Georgia then has 1 failure in 4,300 (a zero-tax knife edge from the build's extra cent of AGI). Fixing it means setting tax before credits in each state calculator.
@@ -352,7 +126,7 @@ Python's federal AMT for a 2005 married separate return with $350,000 of wages, 
 
 Virginia 2022-2023 low-income returns (the Form 760ADJ choice between the low-income credit and the earned income credit, the $250 rebate), the aged couple case of 1989-1999 and married separate itemizers in 2019-2022 still differ by small amounts. Virginia's `x14` (age deduction for 2021) is never set in other years; the oracle build should set it to 0.
 
-## North Carolina child care expense table overwritten (fixed in the oracle build)
+## North Carolina child care expense table overwritten (patched in the oracle build)
 
 `nctax77` (1995-2017) writes `child=min(statax,child)`, a typo for `chld`, which assigns to the whole per-child care-expense table and keeps the capped values for every later record in the run, so the child care credit depended on earlier records. `scripts/build_oracle.sh` patch 4 caps `chld` instead. TAXSIM itself still has the bug.
 
@@ -383,8 +157,6 @@ the standard pass does not, TAXSIM keeps the itemize pass, so a filer with wages
 calculation runs one pass for federal-only returns and gives nothing. About 26 rows of `scripts/validate_federal.py` for 2008
 (plus a few in 2009-2010 through the same mechanism).
 
-
-
 ## Federal 2026 values the TAXSIM build does not index
 
 Its SALT cap stays $40,000 with the phaseout starting at $500,000 (the law: $40,400 and $505,000 for 2026), and its AMT
@@ -403,9 +175,6 @@ See `docs/state_2026_parameters.md` for the full verification table. Open items:
 - District of Columbia: the new $1,000 child tax credit is in the model; its survival after the congressional
   disapproval of DC's tax decoupling is unconfirmed.
 - New Jersey's $1,250 child credit rests on one secondary source.
-- Minnesota's Social Security subtraction thresholds were left at the 2023 amounts for 2024 and 2025 before this
-  update; they now follow the published indexed amounts (2024 from House Research, 2025 and 2026 from the Revenue
-  Department).
 - Amounts marked Derived in the table (Rhode Island property credit maximum, New Mexico indexed amounts (the state publishes them in January 2027), the Maine head-of-household standard deduction, New
   York supplemental tax tables, the Arkansas 2026 low-income tables) should be replaced when the states
   publish their 2026 schedules.
@@ -414,32 +183,15 @@ See `docs/state_2026_parameters.md` for the full verification table. Open items:
 
 `scripts/trace_failures.py <VALIDATE_OUT dir> state=MT year=2025 min=5 limit=5` traces only the worst disagreeing cases of a validation run, one file each (console shows one line per case). `scripts/trace_oracle.py year=2025 state=27 mstat=1 pwages=60000 ...` prints every nonzero federal result `c(i)` and input `d(i)` the NBER code hands a state routine for one household (the patch is in `scripts/build_oracle.sh`; it runs only when `opt1=30, opt1v=999`). Use it before reading a state routine, to see hidden inputs such as `c(201)` or `c(215)`.
 
-
 - Wisconsin 2023 married separate: a typo (`82.89d9` for `82.89d0`) in the bracket table made the oracle's tax hugely negative. Patched in `build_oracle.sh`.
 
 - **Minnesota exemption phase-out start rounding (2023-2025).** The statutory start is 100,000 times the index times the status multiplier, unrounded (2023 joint 330,975); Minnesota publishes the starts rounded to 50 (330,950; head of household 275,800 against 275,812.50). The itemized-deduction limit start uses the single value and also differs slightly from the exemption start in 2024 (232,500 against 232,550). Effect: a phase-out that begins at most $25 earlier or later. Fix by storing the published starts in the parameters (Python and Rust). Source: Census Bureau parameter workbook TY2025, MN sheet (MNEXLIM, MNSTDLIM).
 
-- **Taxsim-mode residuals found by `scripts/confirm_logic_switches.py` (2026-11-13), traced and fixed.** Running each logic-error switch's affected CPS households through the compiled TAXSIM showed mismatches in taxsim mode; the causes were:
-  - Missouri working family credit: TAXSIM applies the investment income limit from 2024 (the code assumed none).
-  - Utah earned income credit: TAXSIM does not cap it at wages (the cap zeroed it for filers with only self-employment or other earned income).
-  - Vermont Social Security exemption: Polars rounds exact halves to even, the Fortran `anint` rounds away from zero, so a fully phased-out exemption lost its -1 point. The same rounding was changed in CO, NJ, NY and WA.
-  - Minnesota, 2024 on (`mntax24`): the compiled program applies the elderly subtraction (9,600 single, 12,000 otherwise, no halving for separate returns) from its own formula; through 2023 it is not applied.
-  - Virginia spouse tax adjustment: from 2022 the split adds the untaxed unemployment compensation back (`splitagi(agi+c(78), ...)`); through 2021 it leaves out the age deduction (`exclt`, `excls`) by the primary and spouse ages, with a typo that gives nothing when only the spouse is 65 or older.
-  - New Mexico working families credit, 2026: the credit before the age test (`comnew(188)`) is not deflated by the build, so the match has to be divided by the projection factor.
-  Virginia 2026 spouse self-employment: fixed 2026-11-14 (the spouse's self-employment input is not deflated in TAXSIM's income split in a projected year; `split_agi` takes the projection factor). 
+- **Georgia retirement exclusion, earned income.** Georgia Comp. R. & Regs. 560-7-4-.02 counts net business income (self-employment) as earned income for the capped earned-income part of the exclusion. The statutory side counts wages only in every year. TAXSIM counts self-employment from 2024 only. Statutory mode should add self-employment earnings (and the Georgia-source proration) for all years from 1989; not changed yet because the statute's treatment of each business item has not been checked against Form 500 Schedule 1.
 
-- **Missouri taxsim-mode residuals, 2024-2026: traced and fixed (2026-11-13).** Three causes: (1) taxsim mode limits the working family credit to the tax before the refundable property tax credit (TAXSIM's `earncr=min(statax, ...)` reads the tax before `statax=statax-credit`); the Missouri DOR FAQ says the credit needs tax liability after a property tax credit, so statutory mode limits it to the tax left after the credit, and this is a TAXSIM error; (2) taxsim mode reads the federal credit before its filer-status test, so a married separate return gets the credit, and, in 2026, divides it by the projection factor; (3) taxsim mode's pension exemption phase-out counts income after the capital gain subtraction (2025 on). Random households now match to about three cents (the known AGI knife-edge) in 2022-2026.
+- **New York 2025 and 2026, single filers with dependents and high income.** In the full CPS check the compiled program standard-deducts where we itemize (our federal itemize choice picks itemizing because New York's tax falls more than the federal tax rises; the compiled program picks the standard deduction), a gap of about $800 for AGI above 150,000. Not traced to the Fortran rule yet.
+- **District of Columbia 2026, joint returns with unemployment compensation.** About 12 to 30 dollars: the compiled program's split of income leaves the total unemployment input (`d(82)`) undeflated in a projected year. A first attempt to carry that through `split_agi` made it worse and was reverted.
 
-- **Minnesota taxsim-mode residuals: closed (2026-11-14).** Random households (400 per year, two more seeds) match the compiled program in 2022-2026 except 4 to 17 cents in about 5% of 2024 households. Those start where the itemized deduction (which includes TAXSIM's own state tax estimate as the SALT amount) first exceeds the standard deduction, and are the usual rounding of that circular estimate. Causes found and fixed: the working family credit needs the federal investment income test (both modes); the elderly subtraction from 2024; the 2024 on exemption phase-out starts (TAXSIM types them in `exdepmaxa`); Minnesota lets a filer itemize whatever the federal choice from 2013 (Form M1 instructions), and TAXSIM's 2024 on routine does too; the marriage credit's maximum, minimum earnings and minimum taxable income, which were still the 2021 values from 2022 on (published 1,596 / 1,710 / 1,801 / 1,851 and, from the Census workbook, 28,000 / 30,000 / 31,000 and 44,000 / 47,000 / 48,000 for 2023-25; TAXSIM keeps stale or mistyped 2024-25 amounts). Before 2013 itemizing does depend on the federal return (2010 Form M1 instructions: Minnesota starts from the federal return and adds back state income tax only "if you itemized deductions on your 2010 federal Form 1040"), so the code's gate by the federal election is right for 2012 and earlier.
-
-- **Virginia taxsim-mode, traced 2026-11-14.** Random households (400 per year, four seeds) now match the compiled program in 2022-2026. The cause of the large gaps (up to about $1,200, filers 65 or older with children) was that TAXSIM pays the credit for low income individuals and the earned income credits to a taxpayer who claims the age deduction; Virginia bars them (statutory mode does, with a switch), and from 2021 TAXSIM does not. The last differences (an aged joint return with children in 2017-2020, an aged single or separate return in 2021) came from the same rule: TAXSIM zeroes only the credit for low income individuals for an age-deduction claimant, and only through 2021; it never bars the earned income credits. Fixed; random households now match in 2005-2026.
-
-- **Georgia retirement exclusion, earned income (found 2026-11-14).** Georgia Comp. R. & Regs. 560-7-4-.02 counts net business income (self-employment) as earned income for the capped earned-income part of the exclusion. The statutory side counts wages only in every year. TAXSIM counts self-employment from 2024 only. Statutory mode should add self-employment earnings (and the Georgia-source proration) for all years from 1989; not changed yet because the statute's treatment of each business item has not been checked against Form 500 Schedule 1.
-
-- **New York 2025 and 2026, single filers with dependents and high income (found 2026-11-14).** In the full CPS check the compiled program standard-deducts where we itemize (our federal itemize choice picks itemizing because New York's tax falls more than the federal tax rises; the compiled program picks the standard deduction), a gap of about $800 for AGI above 150,000. Not traced to the Fortran rule yet.
-- **District of Columbia 2026, joint returns with unemployment compensation (found 2026-11-14).** About 12 to 30 dollars: the compiled program's split of income leaves the total unemployment input (`d(82)`) undeflated in a projected year. A first attempt to carry that through `split_agi` made it worse and was reverted.
-- **Pennsylvania (fixed 2026-11-14).** A negative Schedule E total (rents plus S corporation income) no longer offsets other classes of income; both modes and Rust.
-
-- **Minnesota 2026, spouse self-employment (found 2026-11-14).** Nine CPS households with large spouse self-employment income still differ by 3 to 51 dollars in 2026 (the marriage credit's spouse business income now follows the undeflated spouse input, which cleared about half). The remaining part is not traced.
-- **New Jersey 2026, low-wage single filers (found 2026-11-14).** About 21 households differ by 2 to 4 dollars in 2026 only; not traced.
-- **Wisconsin earned income credit children (fixed 2026-11-14).** From 2023 the credit follows the federal qualifying children, as TAXSIM does; through 2022 it still counts dependents.
+- **Minnesota 2026, spouse self-employment.** Nine CPS households with large spouse self-employment income still differ by 3 to 51 dollars in 2026; the cause is not traced.
+- **New Jersey 2026, low-wage single filers.** About 21 households differ by 2 to 4 dollars in 2026 only; not traced.
+- **Wisconsin earned income credit children, through 2022.** The credit counts dependents; TAXSIM counts children differently.

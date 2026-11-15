@@ -129,7 +129,7 @@ def compute_sc_tax(df: pl.DataFrame, year: int, behavior: BehaviorProfile = TAXS
         gross, _, _ = pre1987_federal_itemizing(y)
         xitded = (gross - pl.col("state_sales_or_income_tax_ded")).clip(0, None)
         if not behavior.subtract_state_tax_from_south_carolina_itemized_deductions:
-            # The 2026 build no longer takes the state income tax out of the itemized total here.
+            # The 2026 build leaves the state income tax in the itemized total here.
             xitded = gross.clip(0, None)
         # TAXSIM's 1980-law rerun does not reach the state's copy.
         fedtax = pl.col("sc_federal_tax_1980") if "sc_federal_tax_1980" in df.collect_schema().names() else pl.col("fiitax")

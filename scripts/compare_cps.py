@@ -58,8 +58,7 @@ def known_divergences() -> dict[str, pl.Expr]:
     older = pl.max_horizontal("page", "sage")
     minimum = pl.when(pl.col("year") == 2021).then(19).otherwise(25)
     # TAXSIM ignores reported ages below 65 when applying the childless-EITC
-    # age test. Check both spouses; the old expression missed ordinary young
-    # couples unless the other spouse was over 65.
+    # age test. Check both spouses.
     too_young = (
         ((pl.col("page") > 0) & (pl.col("page") < minimum))
         | ((pl.col("sage") > 0) & (pl.col("sage") < minimum))

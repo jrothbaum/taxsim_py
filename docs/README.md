@@ -6,7 +6,7 @@
 - [Architecture](architecture.md): calculators, parameters, and the public API
 - [Shared functions](shared_functions.md): reusable calculation helpers
 - [Performance](performance.md): benchmarks and memory
-- [Pending issues](pending_issues.md): open work and validation record
+- [Pending issues](pending_issues.md): open work and known gaps
 - [Parameter tables](../src/taxsim_py/parameters/README.md): editing YAML and CSV tax-law data
 
 ## Development
