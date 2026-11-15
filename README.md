@@ -102,8 +102,8 @@ optional reader (`pip install "taxsim-py[readstat]"`, which adds
 - **Not modelled:** items TAXSIM has no input for, such as 2025 deductions for tips,
   overtime and car-loan interest, and Washington's capital gains tax.
 - **Speed:** on a mixed 42-state batch, 1,000,000 rows including marginal rates take
-  about 0.6 s and 1.1 GiB with the default compiled engine
-  (`engine="rust"`), or 8.5 s and 2.9 GiB with the Python reference
+  about 0.5 s and 1.1 GiB with the default compiled engine
+  (`engine="rust"`), or 8.1 s and 3.1 GiB with the Python reference
   (`engine="python"`, for developing and testing changes). The Fortran TAXSIM takes 16.6 s, and PolicyEngine's TAXSIM runner about 44 s and 8 GiB for only 15,000 rows (it hits an 8 GiB limit at 20,000). A
   `LazyFrame` input streams into any Polars sink with memory that depends mainly on the thread
   count, not the rows. See [Performance](https://jrothbaum.github.io/taxsim_py/performance/) for
