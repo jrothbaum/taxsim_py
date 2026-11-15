@@ -991,8 +991,8 @@
 
 <h1 id="performance">Performance</h1>
 <p>The default engine is the compiled calculator. On a mixed 42-state batch of one million rows,
-including marginal rates, it takes <strong>0.46 seconds and 1.1 GiB RAM</strong>, against 17.3 seconds for the
-Fortran TAXSIM and about 45 seconds for PolicyEngine's TAXSIM runner on only 15,000 rows. A lazy
+including marginal rates, it takes <strong>0.56 seconds and 1.1 GiB RAM</strong>, against 16.6 seconds for the
+Fortran TAXSIM and about 44 seconds for PolicyEngine's TAXSIM runner on only 15,000 rows, where it already uses 8 GiB. A lazy
 input streams into any Polars sink with memory that depends mainly on the thread count and hardly
 on the number of rows. Results depend on the data and hardware.</p>
 <h2 id="comparison-with-taxsim-and-policyengine">Comparison with TAXSIM and PolicyEngine</h2>
@@ -1014,39 +1014,39 @@ peak memory for a single first call in a fresh process, with 16 Polars threads a
 <tbody>
 <tr>
 <td>taxsim_py, rust (default)</td>
-<td style="text-align: right;">0.03 s<br>165 MiB</td>
 <td style="text-align: right;">0.03 s<br>174 MiB</td>
-<td style="text-align: right;">0.03 s<br>178 MiB</td>
-<td style="text-align: right;">0.07 s<br>258 MiB</td>
-<td style="text-align: right;">0.12 s<br>353 MiB</td>
-<td style="text-align: right;">0.24 s<br>638 MiB</td>
-<td style="text-align: right;">0.46 s<br>1,103 MiB</td>
+<td style="text-align: right;">0.04 s<br>182 MiB</td>
+<td style="text-align: right;">0.04 s<br>187 MiB</td>
+<td style="text-align: right;">0.08 s<br>269 MiB</td>
+<td style="text-align: right;">0.14 s<br>370 MiB</td>
+<td style="text-align: right;">0.32 s<br>654 MiB</td>
+<td style="text-align: right;">0.56 s<br>1,134 MiB</td>
 </tr>
 <tr>
 <td>taxsim_py, Python engine</td>
-<td style="text-align: right;">0.88 s<br>341 MiB</td>
-<td style="text-align: right;">1.09 s<br>445 MiB</td>
-<td style="text-align: right;">1.16 s<br>508 MiB</td>
-<td style="text-align: right;">2.15 s<br>706 MiB</td>
-<td style="text-align: right;">2.55 s<br>960 MiB</td>
-<td style="text-align: right;">4.07 s<br>1,821 MiB</td>
-<td style="text-align: right;">7.13 s<br>2,893 MiB</td>
+<td style="text-align: right;">1.05 s<br>335 MiB</td>
+<td style="text-align: right;">1.23 s<br>474 MiB</td>
+<td style="text-align: right;">1.34 s<br>542 MiB</td>
+<td style="text-align: right;">2.71 s<br>744 MiB</td>
+<td style="text-align: right;">3.17 s<br>1,024 MiB</td>
+<td style="text-align: right;">4.98 s<br>1,946 MiB</td>
+<td style="text-align: right;">8.48 s<br>2,987 MiB</td>
 </tr>
 <tr>
 <td>Fortran TAXSIM</td>
-<td style="text-align: right;">0.03 s<br>4 MiB</td>
-<td style="text-align: right;">0.18 s<br>4 MiB</td>
-<td style="text-align: right;">0.27 s<br>4 MiB</td>
-<td style="text-align: right;">1.78 s<br>4 MiB</td>
-<td style="text-align: right;">3.53 s<br>4 MiB</td>
-<td style="text-align: right;">8.87 s<br>4 MiB</td>
-<td style="text-align: right;">17.32 s<br>4 MiB</td>
+<td style="text-align: right;">0.02 s<br>4 MiB</td>
+<td style="text-align: right;">0.17 s<br>4 MiB</td>
+<td style="text-align: right;">0.25 s<br>4 MiB</td>
+<td style="text-align: right;">1.69 s<br>4 MiB</td>
+<td style="text-align: right;">3.33 s<br>4 MiB</td>
+<td style="text-align: right;">8.29 s<br>4 MiB</td>
+<td style="text-align: right;">16.62 s<br>4 MiB</td>
 </tr>
 <tr>
 <td>PolicyEngine TAXSIM</td>
-<td style="text-align: right;">19.61 s<br>2,306 MiB</td>
-<td style="text-align: right;">32.81 s<br>5,940 MiB</td>
-<td style="text-align: right;">44.77 s<br>8,034 MiB</td>
+<td style="text-align: right;">19.03 s<br>2,318 MiB</td>
+<td style="text-align: right;">31.19 s<br>5,943 MiB</td>
+<td style="text-align: right;">43.76 s<br>8,030 MiB</td>
 <td style="text-align: right;">—</td>
 <td style="text-align: right;">—</td>
 <td style="text-align: right;">—</td>
@@ -1055,8 +1055,8 @@ peak memory for a single first call in a fresh process, with 16 Polars threads a
 </tbody>
 </table>
 <p>Memory is peak process RSS (for Fortran TAXSIM, its executable only).
-PolicyEngine's runner hit the 8 GiB memory budget at 15,000 rows and larger runs were stopped, so
-those cells are dashes.</p>
+PolicyEngine's runner needs about 0.5 MiB per row. At 15,000 rows it uses 8,030 MiB, just inside the 8 GiB budget; at 20,000
+rows it reached the budget (8,192 MiB) and was stopped, so larger runs were not attempted and those cells are dashes.</p>
 <h2 id="streaming-a-file">Streaming a file</h2>
 <p><code>calculate_taxes(pl.scan_parquet(path), year=2022, mtr=85).sink_parquet(out)</code> runs the same
 plan without loading the file. On 4 million rows without marginal rates (about 1.0 s,
